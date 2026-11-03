@@ -227,3 +227,19 @@ invalidation, task-history replay, and subagent goal/state updates are covered.
 Browser visual automation remains unavailable. The feature version advances
 from 0.1.1 to 0.2.0. No dependency, external service, native permission setting,
 or live deployment configuration changed.
+
+## 2026-11-03 — Move branding fully right in 0.2.1
+
+Implementation commit: `5bebfd88b9e57843f70f08a537cc50e5d79ce84f`.
+
+The user clarified that branding must be completely at the right of the workspace
+navigation bar. The whole Brand component now follows the agent tabs and controls
+as the final header item. The remaining centered width inset is removed so the
+bar spans the window and branding aligns to its right padding. Compact mobile
+branding remains at that same rightmost position. This corrects the placement
+left in 0.2.0 and advances the patch version to 0.2.1.
+
+Validation passed: production build, header element-order and full-width style
+checks, synchronized package metadata, and diff checks. No new test suite was
+added for this small presentation correction. Browser visual automation remains
+unavailable. Agent and installer behavior did not change.
