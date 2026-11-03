@@ -175,3 +175,55 @@ characters in target names, and tracked target overlap. The full lifecycle also
 verified configuration preservation, production assets, dependency pruning,
 local-commit refusal, and the previous installation surviving a failed build.
 Temporary fixtures were removed. No dependency or architecture changed.
+
+## 2026-11-03 — Summarize branch results and reclaim workspace space in 0.2.0
+
+Implementation commit: `19e7bf484b690f0d9933740b59bcbce96e802870`.
+
+The user requested a summary on return from a branch, followed by closing the
+child session and its tab. Return summary now starts a normal native Codex turn
+inside the idle child, using its existing context and a structured summary
+response. The user reviews an editable summary of at most 2,000 characters.
+After the parent accepts it, the app archives the child and removes its tab.
+Back to parent remains navigation only. This replaces the previous last-reply
+prefill and keeps transcripts out of the parent handoff. Archiving preserves
+history rather than deleting it.
+
+Failed generation or delivery leaves the child open. When the parent has
+acknowledged a summary but archiving fails, a retry only closes the child within
+the current app process. Further branch work invalidates an unsent cached
+summary, including after an interrupted turn. Internal summary/handoff messages
+are excluded from numbered task-request collection.
+
+The user requested removing the large Your workspace heading, shorter tabs,
+removal of the vertical scrollbar between tabs and Add agent, and a useful top
+bar. The existing tabs and Add agent now occupy that bar with compact branding,
+counts, connection state, and sign-out controls. Tabs are single-line, with
+status dots, colors, tooltips, and accessible names; the full status label stays
+beside the goal. Horizontal tab scrolling remains available on narrow screens.
+
+The user approved letting the workspace fill the browser and placing the goal
+and current tasks in a narrow right sidebar. Desktop uses that sidebar; smaller
+screens keep the context above the chat. Removing the centered size limit,
+large heading row, repeated tab-status text, and decorative footer gives the
+conversation more room without introducing new interface dependencies.
+
+The reported missing multiple-task display exposed two gaps: explicit Task N
+chat requests were not collected, and newer native subAgentActivity records
+were ignored. Numbered requests now appear immediately and are restored from
+loaded native history. Matching plans or explicit agent reports supply their
+states; requested work is not guessed complete from idle state. Newer native
+subagent events also populate task rows using their native metadata. The
+maximum remains three visible tasks, with active work prioritized. External
+runtime task-tracker selection remains open.
+
+Validation passed: production build; 20 reported test checks, including 13
+protocol/auth/task tests and six installer scenarios plus their parent test;
+and a real Codex branch-summary lifecycle. The real child produced a 351-character
+summary retaining findings and pending work; the parent accepted it; the child
+was archived and its tab removed. Temporary conversations were archived and
+fixtures removed. Failure/retry, full-tab-capacity restoration, stale-summary
+invalidation, task-history replay, and subagent goal/state updates are covered.
+Browser visual automation remains unavailable. The feature version advances
+from 0.1.1 to 0.2.0. No dependency, external service, native permission setting,
+or live deployment configuration changed.
