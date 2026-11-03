@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.1.0** implements the Codex workspace and Linux installer. It supports
+**Version 0.1.1** implements the Codex workspace and Linux installer. It supports
 four agent tabs, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three task summaries, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -91,6 +91,9 @@ It fetches latest `main` automatically, advances the source without overwriting
 local changes, and rebuilds the installation. For the first update from 0.0.x,
 run `git pull --ff-only` first to obtain the new installer. Restart the application
 after installation. Your password file is preserved; the Codex daemon stays running.
+An installation inside the checkout, such as `./targetdir`, is supported: its
+untracked output is excluded from the source-change check. Tracked source edits
+and unrelated untracked files still block automatic updates.
 
 ## Branching a conversation
 
@@ -142,6 +145,9 @@ update fetching, target-local executable launcher, private configuration
 preservation, dependency pruning, refusal of dirty/diverged sources, and a failed
 build leaving the previous installation usable. Earlier validation also covered
 four real parallel agents with steering/interruption.
+The 0.1.1 patch adds six installer regression scenarios covering nested targets,
+unrelated untracked files, tracked edits, literal path names, and source/target
+overlap. A complete install/update cycle into `checkout/targetdir` also passed.
 No browser executable was available for automated desktop/mobile visual checks.
 
 ## Public source policy

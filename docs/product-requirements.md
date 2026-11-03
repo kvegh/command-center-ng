@@ -68,7 +68,7 @@ TODO.md, or another suitable mechanism. The product integration has not been
 chosen. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current version: 0.1.0
+## Current version: 0.1.1
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -83,7 +83,9 @@ reported tasks/subagents, chat, steering, interruption, and questions. Version
 editable findings return, a maximum of three task summaries without shell-command
 fallback, a dark graphite/cyan palette, automatic-fetch installer updates, and a
 launcher inside the installation target. See README for checks and limitations.
-Durable decision summaries remain future implementation work.
+Version 0.1.1 corrects updates when the installation directory is inside the
+checkout, while preserving protection for source changes. Durable decision
+summaries remain future implementation work.
 
 ## Decisions still open
 

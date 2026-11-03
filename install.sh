@@ -35,7 +35,18 @@ if [ "$CCNG_UPDATE" -eq 1 ]; then
     command -v git >/dev/null 2>&1 || { echo 'Git is required for automatic updates.' >&2; exit 1; }
     CCNG_GIT_ROOT=$(git -C "$CCNG_SOURCE_DIR" rev-parse --show-toplevel 2>/dev/null) || { echo 'Run --update from the cloned source repository.' >&2; exit 1; }
     [ "$(realpath "$CCNG_GIT_ROOT")" = "$CCNG_SOURCE_DIR" ] || { echo 'Run --update from the cloned source repository.' >&2; exit 1; }
-    [ -z "$(git -C "$CCNG_SOURCE_DIR" status --porcelain)" ] || { echo 'The source checkout has local changes. Commit or move them before updating; nothing was discarded.' >&2; exit 1; }
+    # An installation inside the checkout is generated output, not a source edit.
+    # Still inspect every tracked file, including anything under the target.
+    CCNG_TRACKED_CHANGES=$(git -C "$CCNG_SOURCE_DIR" status --porcelain --untracked-files=no)
+    case "$CCNG_INSTALL_DIR" in
+        "$CCNG_SOURCE_DIR"/*)
+            CCNG_TARGET_RELATIVE=${CCNG_INSTALL_DIR#"$CCNG_SOURCE_DIR"/}
+            [ -z "$(git -C "$CCNG_SOURCE_DIR" ls-files -- ":(top,literal)$CCNG_TARGET_RELATIVE")" ] || { echo 'The installation target contains tracked source files. Choose a separate installation directory.' >&2; exit 1; }
+            CCNG_UNTRACKED_CHANGES=$(git -C "$CCNG_SOURCE_DIR" ls-files --others --exclude-standard -- . ":(top,exclude,literal)$CCNG_TARGET_RELATIVE")
+            ;;
+        *) CCNG_UNTRACKED_CHANGES=$(git -C "$CCNG_SOURCE_DIR" ls-files --others --exclude-standard) ;;
+    esac
+    [ -z "$CCNG_TRACKED_CHANGES$CCNG_UNTRACKED_CHANGES" ] || { echo 'The source checkout has local changes outside the installation output. Run git status --short to inspect them; nothing was discarded.' >&2; exit 1; }
     [ "$(git -C "$CCNG_SOURCE_DIR" branch --show-current)" = main ] || { echo 'Switch the source checkout to main before updating.' >&2; exit 1; }
     git -C "$CCNG_SOURCE_DIR" fetch origin main
     git -C "$CCNG_SOURCE_DIR" merge-base --is-ancestor HEAD FETCH_HEAD || { echo 'Local source commits diverge from latest main; refusing to overwrite them.' >&2; exit 1; }

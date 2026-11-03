@@ -12,7 +12,7 @@ The interface must remain usable from a Linux desktop browser and a smartphone
 browser. Browser support does not imply a selected remote-access or hosting
 arrangement.
 
-Version 0.1.0 includes the installer. Linux, Node.js 22.12+, npm, tar, and realpath
+Version 0.1.1 includes the installer. Linux, Node.js 22.12+, npm, tar, and realpath
 must already be installed. Codex must be installed and signed in to manage
 agents; version 0.166.0 was tested. No system packages or services are installed.
 
@@ -88,6 +88,18 @@ from `origin`, permits only a fast-forward from a clean `main` checkout, and
 reruns the fetched installer. It refuses uncommitted changes, local commits
 absent upstream, and another branch rather than discarding work. Source fetch
 or build failure leaves the existing installation in place.
+
+The target may be inside the source checkout, for example:
+
+```sh
+./install.sh --update ./targetdir
+```
+
+The existing installation is generated output, so its untracked files do not
+block the update. All tracked changes and unrelated untracked files remain
+protected; targets containing tracked source files are rejected. The updater
+does not change Git ignore rules or discard local work. If a source-change check
+fails, run `git status --short` to inspect the files it reports.
 
 On the first update from 0.0.1 or 0.0.2, run `git pull --ff-only` first: those
 installers do not yet understand `--update`. Future updates fetch automatically.
