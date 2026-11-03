@@ -37,7 +37,8 @@ a { color: var(--accent); }
 .brandmark { display: grid; grid-template-columns: 7px 7px; gap: 3px; color: var(--accent); }
 .brandmark i { width: 7px; height: 7px; background: currentColor; border-radius: 1px; }
 .brandmark i:last-child { color: var(--violet); }
-.topbar { min-height: 54px; padding: 0 max(16px, calc((100vw - 1300px)/2)); gap: 14px; background: #101621; border-bottom: 1px solid #263246; display: flex; align-items: center; justify-content: space-between; }
+.topbar { min-height: 54px; padding: 0 16px; gap: 14px; background: #101621; border-bottom: 1px solid #263246; display: flex; align-items: center; justify-content: space-between; }
+.topbar > .brand { margin-left: auto; flex-shrink: 0; white-space: nowrap; }
 .topbar-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .topbar > .tabs-row { flex: 1; min-width: 0; align-self: stretch; min-height: 48px; padding: 0; border: 0; background: transparent; gap: 4px; }
 .topbar .connection { font-size: 0; gap: 0; }

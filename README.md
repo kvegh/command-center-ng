@@ -5,14 +5,14 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.2.0** implements the Codex workspace and Linux installer. It supports
+**Version 0.2.1** implements the Codex workspace and Linux installer. It supports
 four agent tabs, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three task summaries, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
 green running states, and amber attention states.
 The interface uses a local Node.js service and the existing Codex daemon.
-A compact top bar contains the agent tabs and Add agent control. The workspace
-fills the browser window, with goal/tasks in a right sidebar on desktop and
+A compact top bar puts the agent tabs and controls first, with branding at the
+far right. It spans the full browser width. The workspace fills the window, with goal/tasks in a right sidebar on desktop and
 above the conversation on smaller screens.
 
 Linux is the first and primary platform for installation and operation. The

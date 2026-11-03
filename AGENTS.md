@@ -73,6 +73,7 @@ license or accept legal terms on the user's behalf.
 
 ## Interface
 
+Keep workspace branding at the far right of the full-width navigation bar.
 Favor simple navigation, readable type, consistent spacing, clear status labels,
 accessible controls, and restrained effects. Keep the project goal and current
 work easy to recover when switching contexts. Branching must remain a simple

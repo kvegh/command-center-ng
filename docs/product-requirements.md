@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The product integration has not been
 chosen. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current version: 0.2.0
+## Current version: 0.2.1
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -98,6 +98,7 @@ single-line tabs inside the functional top bar, and task collection from explici
 numbered chat requests plus native plans/subagent activity. On smaller screens,
 goal/tasks remain above the conversation. Repeated tab-status text, the large
 workspace heading, and unintended vertical tab scrolling are removed.
+Version 0.2.1 places branding at the far right of the full-width top bar.
 
 ## Decisions still open
 
