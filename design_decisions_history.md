@@ -16,8 +16,9 @@ kept separate from the existing session dashboard. The initial source contains
 generic product requirements, contributor instructions, and ignore rules;
 the application and its agent integrations are not implemented.
 
-Repository creation on GitHub and initial publication are pending. A local Git
-repository has been initialized. No license has been selected.
+The GitHub repository was created on 2026-11-03 with public visibility, which
+was independently verified through its repository metadata. Git publication
+uses SSH. No license has been selected.
 
 ## 2026-11-03 — Select a small interactive frontend foundation
 

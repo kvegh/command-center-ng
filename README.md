@@ -55,7 +55,7 @@ has been selected. tmux remains an option for agent execution.
 
 ## Public source policy
 
-This repository is intended to be public. Keep all secrets, access tokens,
+This repository is public. Keep all secrets, access tokens,
 credentials, encrypted secret payloads, private transcripts, runtime state,
 and environment-specific configuration out of its contents and history.
 Examples and future demo data must be synthetic and generic. Git ignore rules

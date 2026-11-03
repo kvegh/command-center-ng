@@ -16,7 +16,7 @@ compatibility layers, hosting, or authentication mechanisms.
 
 ## Public source
 
-This repository is intended to be public. Never commit credentials, access
+This repository is public. Never commit credentials, access
 tokens, secret values, encrypted secret payloads, private conversation exports,
 runtime state, or environment-specific usernames, addresses, hostnames, paths,
 and configuration. Use synthetic, generic examples. Keep credentials outside
