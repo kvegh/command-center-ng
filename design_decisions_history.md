@@ -109,3 +109,47 @@ Validation passed: direct ./install.sh --help execution, shell syntax,
 runtime version output, the tracked executable mode, diff checks, and the
 production build. Broader agent/installation behavior is covered by the
 preceding implementation's validation and was not rerun for a permission patch.
+
+## 2026-11-03 — Add branching and installer updates in 0.1.0
+
+Implementation commit: `4b91fdf293e03011e494d612782eb63c60dc576e`.
+
+The user requested visible, simple conversation branching with retained context
+and a clear return path. Branch here now uses native Codex thread/fork at a
+completed reply; Branch chat uses the latest completed reply. Native stored
+context is copied through that turn, with goal continuation deferred until the
+user sends a follow-up. This avoids reconstructing context from the dashboard's
+bounded transcript. Parent metadata supports reopening and navigation. Branches
+share the working directory and do not create Git worktrees.
+
+Back to parent navigates without sending. The optional Bring findings back
+dialog lets the user review an editable message before explicitly sending it
+to the parent, which starts or steers a native turn. No automatic transcript
+merge or branch-completion ceremony is introduced. Each branch occupies one of
+the four tabs; returning to a closed parent at capacity replaces the branch tab
+while keeping its native conversation.
+
+The user requested task summaries instead of executed commands, showing at most
+three tasks. The strip now prioritizes reported active plan steps and subagent
+assignments, with an agent-reported summary when available. Detailed command
+activity stays in the conversation. A graphite palette with cyan controls,
+green activity, amber attention, and violet parent navigation responds to the
+requested stronger technical appearance without new visual dependencies.
+
+The user selected automatic latest-code fetching for installer updates. The
+--update mode advances a clean main checkout only by fast-forward and rebuilds
+the existing destination. Dirty or diverged source is rejected without discarding
+work. The executable launcher now lives inside the selected target. Only an
+exact, owned legacy launcher for that same target is removed. Private password
+configuration is preserved; applications and the Codex daemon are not restarted.
+The feature version advances from 0.0.2 to 0.1.0.
+
+Validation passed: production build, six protocol/auth/API tests, a real native
+fork with inherited-context recall and explicit findings return, parent-link
+reopening, and a temporary unprivileged installation/update lifecycle. Installer
+checks covered automatic fetching, target-local executable launcher, production
+assets, dependency pruning, configuration preservation, dirty/diverged source
+refusal, and a failed build leaving the previous installation usable. Temporary
+conversations were archived and installation fixtures removed. No browser was
+available for automated desktop/mobile visual checks. No dependencies, native
+permissions, proxy configuration, or live deployment were changed.
