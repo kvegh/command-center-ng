@@ -93,3 +93,19 @@ removed. Browser visual checks were unavailable because no browser executable
 was installed. Questions owned by another client, broader permission grants,
 and connector forms may still need the native client. Branching and durable
 decision/task summaries remain future work, rather than implemented claims.
+
+## 2026-11-03 — Make the installer directly executable in 0.0.2
+
+Implementation commit: `c1129f5a050b402452d2d850f1086b4c1322b4e6`.
+
+The user reported the installer lacked the executable bit. Git now records
+install.sh with executable mode 100755 so a Linux checkout supports ./install.sh
+directly. Installer help and current installation examples use that form.
+The version advances from 0.0.1 to 0.0.2 for this patch-level correction;
+package.json and its lockfile remain consistent, and runtime/build version
+references derive from package metadata. No dependency or architecture changed.
+
+Validation passed: direct ./install.sh --help execution, shell syntax,
+runtime version output, the tracked executable mode, diff checks, and the
+production build. Broader agent/installation behavior is covered by the
+preceding implementation's validation and was not rerun for a permission patch.

@@ -103,8 +103,8 @@ private home configuration; sessions use HttpOnly/SameSite cookies. Set an HTTPS
 public origin for Secure cookies behind nginx. No hypervisor, nginx, firewall,
 TLS, or VM changes are performed by this application.
 
-Base implementation validation: production build, four protocol/auth/API integration tests, four
-real parallel validation agents with steering/interruption, and a temporary
+Base implementation validation: production build, four protocol/auth/API
+integration tests, four real parallel validation agents with steering/interruption, and a temporary
 unprivileged home installation with production assets and dependency pruning.
 No browser executable was available for automated desktop/mobile visual checks.
 The 0.0.2 patch additionally validates direct installer execution, shell syntax,

@@ -75,7 +75,8 @@ a local application password stored as a secure hash outside the checkout.
 The user approved the ws dependency for the native Codex Unix WebSocket transport.
 The installer accepts a destination directory or asks for one before installing.
 
-The installer is directly executable as ./install.sh. The first implementation includes four tabs, live state, existing/new agents,
+The installer is directly executable as `./install.sh`. The first implementation
+includes four tabs, live state, existing/new agents,
 reported tasks/subagents, chat, steering, interruption, and questions. See README
 for checks and current limitations. Branching and durable decision summaries
 remain future implementation work.
