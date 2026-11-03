@@ -18,7 +18,8 @@ interfaces. Linux is the primary platform.
 
 This selects the frontend foundation only. It does not select agent APIs, a
 server framework, a database, a state-management library, or a component suite.
-Package versions will be pinned and validated when the application is scaffolded.
+Package versions are pinned in package.json and package-lock.json for 0.0.1.
+The approved local Node.js service uses the existing Codex daemon.
 
 ## Visual principles
 
@@ -38,10 +39,9 @@ supported Node.js release and npm on Linux. The current Vite documentation lists
 Node.js 20.19+ or 22.12+ as its minimum supported release lines; select and document
 a supported LTS version when package versions are fixed.
 
-The user selected a simple Linux shell installer targeting an unprivileged
-user's home directory. It must not require root or sudo. The script and
-distribution support have not yet been implemented. No packages were installed
-as part of recording this choice.
+The shell installer targets a user-supplied directory under an unprivileged
+user's home. Without a directory parameter, it prompts before installing.
+Version 0.0.1 includes it; a full temporary home installation was validated.
 
 ## Primary references
 

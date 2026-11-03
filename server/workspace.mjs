@@ -1,0 +1,167 @@
+import { EventEmitter } from 'node:events';
+import { stat } from 'node:fs/promises';
+import { isAbsolute } from 'node:path';
+import { VERSION } from './version.mjs';
+
+export const input = text => [{ type: 'text', text, text_elements: [] }];
+export function statusOf(thread, requests = []) {
+  if (requests.length || thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag))) return 'attention';
+  return ({ active: 'running', idle: 'idle', notLoaded: 'offline', systemError: 'error' })[thread.status?.type] || 'offline';
+}
+function itemText(item) {
+  if (item.type === 'agentMessage') return item.text;
+  if (item.type === 'userMessage') return item.content?.filter(c => c.type === 'text').map(c => c.text).join('\n');
+  if (item.type === 'commandExecution') return item.command;
+  if (item.type === 'mcpToolCall') return `${item.server} / ${item.tool}`;
+  if (item.type === 'dynamicToolCall') return item.tool;
+  if (item.type === 'fileChange') return `${item.changes?.length || 0} file change(s)`;
+  if (item.type === 'webSearch') return item.query || 'Web search';
+  if (item.type === 'plan') return item.text;
+  return null;
+}
+
+export class Workspace extends EventEmitter {
+  constructor(rpc) {
+    super(); this.rpc = rpc; this.agents = new Map(); this.pending = new Map(); this.opening = new Set(); this.watched = new Set(); this.creating = 0; this.error = null;
+    rpc.on('notification', message => this.notification(message));
+    rpc.on('request', message => this.request(message));
+    rpc.on('disconnected', message => { this.error = message; this.pending.clear(); this.changed(); });
+    rpc.on('connected', () => { this.error = null; this.changed(); });
+  }
+  changed() { this.emit('change'); }
+  snapshot() {
+    return { connected: this.rpc.ready, error: this.error, version: VERSION, backgroundQuestions: [...this.pending.values()].filter(q => !this.agents.has(q.params.threadId)).length, agents: [...this.agents.values()].map(agent => ({ ...agent, status: this.rpc.ready ? statusOf(agent.thread, agent.questions) : 'offline', thread: undefined })) };
+  }
+  agent(id) { const agent = this.agents.get(id); if (!agent) throw Object.assign(new Error('Open this agent first.'), { status: 404 }); return agent; }
+  async list(cursor) {
+    const result = await this.rpc.call('thread/list', { limit: 50, useStateDbOnly: true, ...(cursor ? { cursor } : {}) });
+    return { agents: result.data.map(t => ({ id: t.id, name: t.name || t.preview?.split('\n')[0]?.slice(0, 90) || 'Untitled agent', cwd: t.cwd, status: statusOf(t), parentId: t.parentThreadId || null })), nextCursor: result.nextCursor };
+  }
+  async open(id) {
+    if (this.agents.has(id)) return this.agent(id);
+    if (this.agents.size + this.opening.size + this.creating >= 4) throw Object.assign(new Error('Four agent tabs are open. Close a tab to open another; its agent keeps running.'), { status: 409 });
+    if (this.opening.has(id)) throw Object.assign(new Error('This agent is already opening.'), { status: 409 });
+    this.opening.add(id);
+    try {
+      const { thread } = await this.rpc.call('thread/resume', { threadId: id, excludeTurns: true });
+      const agent = { id, name: thread.name || 'Codex agent', goal: thread.name || thread.preview?.split('\n')[0] || 'No goal recorded', cwd: thread.cwd, model: thread.model || null, thread, canSend: thread.canAcceptDirectInput !== false, messages: [], tasks: [], workers: [], questions: [], turnId: null, olderCursor: null, activity: null };
+      agent.questions = [...this.pending.values()].filter(q => q.params.threadId === id);
+      this.watched.add(id); this.agents.set(id, agent);
+      try { await this.history(id); } catch (error) { this.agents.delete(id); throw error; }
+      this.changed(); return agent;
+    } finally { this.opening.delete(id); }
+  }
+  addItem(agent, item, turnId) {
+    if (item.type === 'collabAgentToolCall') {
+      for (const [id, state] of Object.entries(item.agentsStates || {})) {
+        const worker = { id, name: state.agentNickname || state.agentRole || `Worker ${agent.workers.length + 1}`, status: state.status || item.status, task: item.prompt?.split('\n')[0]?.slice(0, 160) || item.tool };
+        const existing = agent.workers.findIndex(w => w.id === id); if (existing < 0) agent.workers.push(worker); else agent.workers[existing] = worker;
+      }
+    }
+    const text = itemText(item); if (!text) return;
+    const record = { id: item.id, turnId, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text, state: item.status || 'completed' };
+    const previous = agent.messages.findIndex(m => m.id === item.id);
+    if (previous >= 0) agent.messages[previous] = record; else agent.messages.push(record);
+    if (agent.messages.length > 600) agent.messages = agent.messages.slice(-600);
+    if (record.type === 'activity') agent.activity = { text: String(text).split('\n')[0].slice(0, 180), state: record.state };
+  }
+  async history(id, cursor) {
+    const agent = this.agent(id);
+    const page = await this.rpc.call('thread/turns/list', { threadId: id, limit: 20, itemsView: 'full', ...(cursor ? { cursor } : {}) });
+    const live = agent.messages; agent.messages = [];
+    for (const turn of [...page.data].reverse()) {
+      if (turn.status === 'inProgress') agent.turnId = turn.id;
+      for (const item of turn.items || []) this.addItem(agent, item, turn.id);
+    }
+    const history = agent.messages;
+    agent.messages = [...history, ...live.filter(m => !history.some(h => h.id === m.id))].slice(-600);
+    agent.olderCursor = page.nextCursor || null;
+    this.changed();
+  }
+  async create({ goal, cwd }) {
+    if (this.agents.size + this.opening.size + this.creating >= 4) throw Object.assign(new Error('Four tabs are already open.'), { status: 409 });
+    if (typeof goal !== 'string' || !goal.trim() || goal.length > 2000) throw Object.assign(new Error('Enter a goal of 1–2000 characters.'), { status: 400 });
+    if (typeof cwd !== 'string' || !isAbsolute(cwd) || !(await stat(cwd)).isDirectory()) throw Object.assign(new Error('Choose an existing absolute working-directory path.'), { status: 400 });
+    if (this.agents.size + this.opening.size + this.creating >= 4) throw Object.assign(new Error('Four tabs are already open.'), { status: 409 });
+    this.creating++; let reserved = true;
+    try {
+      // Do not override native model, permissions, instructions, or approval policy.
+      const { thread } = await this.rpc.call('thread/start', { cwd });
+      await this.rpc.call('thread/name/set', { threadId: thread.id, name: goal.trim().split('\n')[0].slice(0, 120) });
+      this.creating--; reserved = false;
+      const agent = await this.open(thread.id); agent.goal = goal.trim().split('\n')[0]; agent.name = agent.goal;
+      await this.send(thread.id, goal.trim()); return thread.id;
+    } finally { if (reserved) this.creating--; }
+  }
+  async send(id, text) {
+    const agent = this.agent(id);
+    if (!agent.canSend) throw Object.assign(new Error('Codex does not allow direct input to this agent.'), { status: 409 });
+    if (typeof text !== 'string' || !text.trim() || text.length > 32_000) throw Object.assign(new Error('Enter a message of 1–32000 characters.'), { status: 400 });
+    if (agent.questions.length) throw Object.assign(new Error('Answer the pending question before sending another message.'), { status: 409 });
+    if (agent.thread.status?.type === 'active' && agent.turnId) {
+      await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: agent.turnId, input: input(text.trim()) });
+    } else {
+      const { turn } = await this.rpc.call('turn/start', { threadId: id, input: input(text.trim()) }); agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed();
+    }
+  }
+  async interrupt(id) {
+    const agent = this.agent(id);
+    if (!agent.turnId) throw Object.assign(new Error('There is no active turn to interrupt.'), { status: 409 });
+    await this.rpc.call('turn/interrupt', { threadId: id, turnId: agent.turnId });
+  }
+  close(id) { this.agent(id); this.agents.delete(id); this.changed(); }
+  request(message) {
+    const p = message.params || {};
+    if (message.method === 'currentTime/read') { this.rpc.respond(message.id, { currentTime: new Date().toISOString() }); return; }
+    if (!this.watched.has(p.threadId)) return;
+    const supported = ['item/tool/requestUserInput', 'item/commandExecution/requestApproval', 'item/fileChange/requestApproval', 'mcpServer/elicitation/request', 'item/permissions/requestApproval'];
+    if (!supported.includes(message.method)) { this.rpc.refuse(message.id, 'This client does not implement this tool. Use the Codex client for it.'); return; }
+    const question = { id: message.id, method: message.method, params: p };
+    this.pending.set(String(message.id), question); this.agents.get(p.threadId)?.questions.push(question); this.changed();
+  }
+  answer(id, requestId, answer) {
+    const question = this.pending.get(String(requestId));
+    if (!question || question.params.threadId !== id) throw Object.assign(new Error('This question has already been resolved.'), { status: 409 });
+    let result;
+    if (question.method === 'item/tool/requestUserInput') {
+      const answers = {};
+      for (const q of question.params.questions || []) {
+        const value = answer.answers?.[q.id];
+        if (typeof value !== 'string' || !value.trim() || value.length > 8000) throw Object.assign(new Error('Answer every question.'), { status: 400 });
+        answers[q.id] = { answers: [value] };
+      }
+      result = { answers };
+    } else if (question.method === 'item/permissions/requestApproval') {
+      // Broad permission grants remain in the native client; refusing is safe and explicit.
+      if (answer.decision !== 'decline') throw Object.assign(new Error('Grant filesystem/network permissions in the native Codex client.'), { status: 400 });
+      result = { permissions: {} };
+    } else if (question.method === 'mcpServer/elicitation/request') {
+      if (answer.decision !== 'decline') throw Object.assign(new Error('Complete this app form in the native Codex client.'), { status: 400 });
+      result = { action: 'decline' };
+    } else {
+      if (!['accept', 'decline', 'cancel'].includes(answer.decision)) throw Object.assign(new Error('Invalid approval decision.'), { status: 400 });
+      result = { decision: answer.decision };
+    }
+    this.rpc.respond(question.id, result); this.removeQuestion(question.id); this.changed();
+  }
+  removeQuestion(id) {
+    this.pending.delete(String(id));
+    for (const agent of this.agents.values()) agent.questions = agent.questions.filter(q => String(q.id) !== String(id));
+  }
+  notification({ method, params: p = {} }) {
+    if (method === 'serverRequest/resolved') { this.removeQuestion(p.requestId); this.changed(); return; }
+    const id = p.threadId || p.thread?.id; const agent = this.agents.get(id); if (!agent) return;
+    if (method === 'thread/status/changed') agent.thread.status = p.status;
+    if (method === 'thread/name/updated') agent.name = p.threadName || p.name || agent.name;
+    if (method === 'turn/started') { agent.turnId = p.turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; }
+    if (method === 'turn/completed') { agent.turnId = null; agent.thread.status = { type: 'idle' }; if (p.turn.error) agent.activity = { text: p.turn.error.message, state: 'failed' }; }
+    if (method === 'turn/plan/updated') agent.tasks = (p.plan || []).map((t, i) => ({ id: String(i), text: t.step, state: t.status }));
+    if (method === 'item/started' || method === 'item/completed') this.addItem(agent, p.item, p.turnId);
+    if (method === 'item/agentMessage/delta') {
+      const existing = agent.messages.find(m => m.id === p.itemId);
+      if (existing) existing.text += p.delta;
+      else agent.messages.push({ id: p.itemId, turnId: p.turnId, type: 'assistant', text: p.delta, state: 'inProgress' });
+    }
+    this.changed();
+  }
+}

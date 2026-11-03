@@ -14,6 +14,22 @@ delegate the particular decision. Explain relevant tradeoffs and wait for their
 direction. Do not silently add backend services, storage, agent integrations,
 compatibility layers, hosting, or authentication mechanisms.
 
+Approved v0.0.1 architecture: a local Node.js service on configurable address
+and port 4242, connected to the existing Codex daemon's native Unix WebSocket
+interface. Codex-only initially. Support localhost and VM-internal access behind
+nginx. The user approved nginx access restrictions plus a local application
+password stored only as a secure hash in private home configuration. The Linux
+installer accepts a target directory or prompts for it before installing.
+
+## Code versioning
+
+Use numeric MAJOR.MINOR.PATCH versions. The first implementation starts at
+0.0.1. For subsequent code changes automatically advance major for a major
+release, minor for a minor feature or bugfix release, and patch for a patch-level
+correction, resetting lower components. package.json is authoritative. Keep
+package/lockfile, runtime/build, and documentation versions consistent in the
+same implementation commit. Architecture still requires consultation.
+
 ## Public source
 
 This repository is public. Never commit credentials, access

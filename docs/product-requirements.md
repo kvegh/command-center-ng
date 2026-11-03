@@ -67,10 +67,22 @@ TODO.md, or another suitable mechanism. The product integration has not been
 chosen. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
+## Version 0.0.1
+
+The user approved Codex-only support, a local Node.js backend, port 4242,
+configurable localhost/VM-internal listening, and nginx access restrictions plus
+a local application password stored as a secure hash outside the checkout.
+The user approved the ws dependency for the native Codex Unix WebSocket transport.
+The installer accepts a destination directory or asks for one before installing.
+
+The first implementation includes four tabs, live state, existing/new agents,
+reported tasks/subagents, chat, steering, interruption, and questions. See README
+for checks and current limitations. Branching and durable decision summaries
+remain future implementation work.
+
 ## Decisions still open
 
-The initial supported agent runtimes, agent-control interfaces, backend,
-persistence, task-system integration, authentication, remote
-access, and hosting are not selected. tmux is acceptable as a possible backend
-component. Each architectural choice needs user direction unless specifically
-delegated by the user.
+Persistence beyond private authentication configuration, runtime task-tracker
+integration, branch result-return behavior, other agent runtimes, and actual
+deployment proxy/TLS configuration remain open. Architectural changes require
+user direction unless specifically delegated.
