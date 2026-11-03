@@ -243,3 +243,32 @@ Validation passed: production build, header element-order and full-width style
 checks, synchronized package metadata, and diff checks. No new test suite was
 added for this small presentation correction. Browser visual automation remains
 unavailable. Agent and installer behavior did not change.
+
+## 2026-11-03 — Keep the task panel current in 0.2.2
+
+Implementation commit: `83b1606cec1300c9e5f310b34232518cf25de3b3`.
+
+The user ran real sessions and found the three historical numbered requests
+still listed as requested. The 0.2.0 parser had made those requests visible,
+but that did not establish current agent work. The panel now excludes raw
+requests and completed tasks. Numbered requests supply labels only for explicit
+progress reports or a matching current native plan.
+
+Plans and explicit reports are associated with their turn. A new turn clears
+the prior turn's plan/report rows, and native-history replay does not promote
+older plans into the latest work. Active subagent records remain supported.
+Without current tasks, active agent commentary can provide a progress summary;
+otherwise the panel says No current tasks reported. This avoids treating old
+requests as running work or guessing that idle means complete.
+
+The existing native Codex integration remains the source. A project Beads
+integration was offered as a separate architectural choice and has not been
+selected or added. No extra model calls, service, or dependency is introduced.
+The patch version advances from 0.2.1 to 0.2.2.
+
+Validation passed: production build, 21 reported checks (14 protocol/auth/task
+tests, six installer scenarios, and their parent), metadata/public-content
+review, and diff checks. Regression coverage specifically reproduces old raw
+requests and an older unfinished plan beside a new current turn, verifies that
+only the new plan appears, excludes completed steps, and expires that plan on
+the following turn. Browser visual checks remain unavailable.
