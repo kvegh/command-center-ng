@@ -152,7 +152,7 @@ test('parent-send failures keep the child open; archive retries do not duplicate
   } finally { await f.close(); }
 });
 
-test('numbered chat tasks appear immediately, retain reported states, and restore from native history', async () => {
+test('only reported numbered-task states appear as current work and restore from native history', async () => {
   const f = await fixture();
   try {
     f.histories.set('existing', [{ id: 'tasks', status: 'completed', items: [
@@ -161,15 +161,15 @@ test('numbered chat tasks appear immediately, retain reported states, and restor
     ] }]);
     await f.workspace.open('existing');
     let agent = f.workspace.snapshot().agents[0];
-    assert.equal(agent.taskCount, 4); assert.equal(agent.tasks.length, 3);
+    assert.equal(agent.taskCount, 2); assert.equal(agent.tasks.length, 2);
     assert.equal(agent.tasks[0].text, 'Reclaim screen space'); assert.equal(agent.tasks[0].state, 'inProgress');
     assert.equal(f.workspace.agent('existing').requestedTasks.find(task => task.number === '1').state, 'completed');
     f.notify('turn/plan/updated', { threadId: 'existing', plan: [{ step: 'Task 3: Show multiple tasks', status: 'inProgress' }] });
     await waitFor(() => f.workspace.snapshot().agents[0].tasks.some(task => task.text === 'Task 3: Show multiple tasks'));
-    agent = f.workspace.snapshot().agents[0]; assert.equal(agent.taskCount, 4, 'the plan and numbered request count as the same task');
+    agent = f.workspace.snapshot().agents[0]; assert.equal(agent.taskCount, 2, 'the plan and reported request count as the same current task');
     assert.equal(f.workspace.agent('existing').requestedTasks.find(task => task.number === '3').state, 'inProgress');
     f.workspace.close('existing'); await f.workspace.open('existing');
-    assert.equal(f.workspace.snapshot().agents[0].taskCount, 4);
+    assert.equal(f.workspace.snapshot().agents[0].taskCount, 2);
     assert.equal(f.workspace.snapshot().agents[0].tasks[0].text, 'Reclaim screen space');
   } finally { await f.close(); }
 });
@@ -185,6 +185,27 @@ test('native subAgentActivity records populate multiple task rows and update com
     f.notify('item/completed', { threadId: 'existing', turnId: 'workers', item: { id: 'finished-child', type: 'subAgentActivity', kind: 'completed', agentThreadId: 'child-1', agentPath: '/root/reviewer_1' } });
     await waitFor(() => f.workspace.agent('existing').workers.find(worker => worker.id === 'child-1').status === 'completed');
     assert.equal(f.workspace.agent('existing').workers.find(worker => worker.id === 'child-1').task, 'Review area 1');
+  } finally { await f.close(); }
+});
+
+test('historical requests and previous-turn work never crowd out the current plan', async () => {
+  const f = await fixture();
+  try {
+    f.histories.set('existing', [
+      { id: 'current', status: 'inProgress', items: [] },
+      { id: 'old', status: 'completed', items: [
+        { id: 'old-requests', type: 'userMessage', content: [{ type: 'text', text: 'Task 1: Old branch changes\nTask 2: Old workspace changes\nTask 3: Old task header changes' }] },
+        { id: 'old-plan', type: 'dynamicToolCall', tool: 'update_plan', arguments: { plan: [{ step: 'Old branch changes', status: 'in_progress' }] } }
+      ] }
+    ]);
+    await f.workspace.open('existing');
+    assert.deepEqual(f.workspace.snapshot().agents[0].tasks, []);
+    f.notify('turn/plan/updated', { threadId: 'existing', turnId: 'current', plan: [{ step: 'Investigate current task freshness', status: 'inProgress' }, { step: 'Verify current-state behavior', status: 'pending' }, { step: 'Publish the correction', status: 'completed' }] });
+    await waitFor(() => f.workspace.snapshot().agents[0].taskCount === 2);
+    assert.deepEqual(f.workspace.snapshot().agents[0].tasks.map(task => task.text), ['Investigate current task freshness', 'Verify current-state behavior']);
+    f.notify('turn/started', { threadId: 'existing', turn: { id: 'next' } });
+    await waitFor(() => f.workspace.agent('existing').turnId === 'next');
+    assert.deepEqual(f.workspace.snapshot().agents[0].tasks, []);
   } finally { await f.close(); }
 });
 
@@ -221,8 +242,8 @@ test('summary preparation and returned summaries do not create or overwrite numb
     f.histories.set('existing', [{ id: 'control-messages', status: 'completed', items: messages.map((text, index) => ({ id: 'control-' + index, type: 'userMessage', content: [{ type: 'text', text }] })) }]);
     await f.workspace.open('existing');
     assert.equal(f.workspace.agent('existing').requestedTasks.length, 1);
-    assert.equal(f.workspace.snapshot().agents[0].tasks[0].text, 'Review the design');
-    assert.equal(f.workspace.snapshot().agents[0].tasks[0].state, 'requested');
+    assert.equal(f.workspace.agent('existing').requestedTasks[0].text, 'Review the design');
+    assert.equal(f.workspace.snapshot().agents[0].tasks.length, 0);
   } finally { await f.close(); }
 });
 
@@ -236,7 +257,7 @@ test('task strip prefers high-level plans and workers, shows at most three, and 
     f.notify('turn/plan/updated', { threadId: 'existing', plan: [{ step: 'Understand the request', status: 'completed' }, { step: 'Review alternatives', status: 'pending' }, { step: 'Implement the chosen approach', status: 'inProgress' }, { step: 'Validate behavior', status: 'pending' }] });
     await waitFor(() => f.workspace.agent('existing').tasks.length === 4);
     let agent = f.workspace.snapshot().agents[0];
-    assert.equal(agent.taskCount, 4); assert.equal(agent.tasks.length, 3);
+    assert.equal(agent.taskCount, 3); assert.equal(agent.tasks.length, 3);
     assert.equal(agent.tasks[0].text, 'Implement the chosen approach');
     assert.ok(!agent.tasks.some(task => task.text === 'Understand the request'));
     f.notify('item/completed', { threadId: 'existing', turnId: 'turn-existing', item: { id: 'plan', type: 'dynamicToolCall', tool: 'update_plan', arguments: { plan: [{ step: 'Review alternatives', status: 'completed' }] } } });
@@ -245,7 +266,7 @@ test('task strip prefers high-level plans and workers, shows at most three, and 
     agent = f.workspace.snapshot().agents[0];
     assert.equal(agent.tasks[0].text, 'Check the design');
     assert.equal(agent.tasks[0].worker, 'Reviewer');
-    assert.equal(agent.taskCount, 2);
+    assert.equal(agent.taskCount, 1);
   } finally { await f.close(); }
 });
 

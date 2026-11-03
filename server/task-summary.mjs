@@ -1,5 +1,6 @@
 const rank = state => /in.?progress|running|working|failed|error|blocked/i.test(state) ? 0 : /pending|planned|queued|waiting|requested/i.test(state) ? 1 : 2;
 const line = value => String(value || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+const finished = state => /^(completed|done|shutdown)$/i.test(state || '');
 const taskNumber = text => String(text).match(/^\s*task\s*#?(\d+)\b/i)?.[1];
 const taskKey = text => line(text).replace(/^task\s*#?\d+\s*[:.)-]?\s*/i, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
@@ -12,25 +13,26 @@ export function collectRequestedTasks(agent, text) {
   for (const task of requestedTasks(text)) agent.requestedTasks = [...(agent.requestedTasks || []).filter(existing => existing.id !== task.id), task];
 }
 
-export function reportTaskStates(agent, text) {
+export function reportTaskStates(agent, text, turnId) {
   for (const match of String(text).replaceAll('**', '').matchAll(/(?:^|\n)\s*(?:[-*]\s*)?task\s*#?(\d+)\s*(?:[:.)-]\s*)?(completed|done|in progress|running|blocked|pending)\b/gi)) {
     const state = ({ done: 'completed', running: 'inProgress', 'in progress': 'inProgress' })[match[2].toLowerCase()] || match[2].toLowerCase();
-    agent.requestedTasks = (agent.requestedTasks || []).map(task => task.number === match[1] ? { ...task, state } : task);
+    agent.requestedTasks = (agent.requestedTasks || []).map(task => task.number === match[1] ? { ...task, state, reportTurnId: turnId } : task);
   }
 }
 
-export function setReportedPlan(agent, plan) {
+export function setReportedPlan(agent, plan, turnId = agent.taskReportTurnId) {
   agent.tasks = plan;
+  agent.taskReportTurnId = turnId;
   agent.requestedTasks = (agent.requestedTasks || []).map(task => {
     const step = plan.find(step => taskNumber(step.text) === task.number || taskKey(step.text) === taskKey(task.text));
-    return step ? { ...task, state: step.state } : task;
+    return step ? { ...task, state: step.state, reportTurnId: turnId } : task;
   });
 }
 
 export function taskSummary(agent) {
-  const reported = agent.tasks.filter(task => line(task.text)).map(task => ({ ...task, text: line(task.text) }));
-  const requested = (agent.requestedTasks || []).filter(task => !reported.some(step => taskNumber(step.text) === task.number || taskKey(step.text) === taskKey(task.text)));
-  const workers = agent.workers.filter(worker => line(worker.task)).map(worker => ({ id: 'worker-' + worker.id, text: line(worker.task), state: worker.status || 'unknown', worker: worker.name }));
+  const reported = agent.tasks.filter(task => line(task.text) && !finished(task.state)).map(task => ({ ...task, text: line(task.text) }));
+  const requested = (agent.requestedTasks || []).filter(task => task.state !== 'requested' && !finished(task.state) && task.reportTurnId === agent.taskReportTurnId && !agent.tasks.some(step => taskNumber(step.text) === task.number || taskKey(step.text) === taskKey(task.text)));
+  const workers = agent.workers.filter(worker => line(worker.task) && !finished(worker.status)).map(worker => ({ id: 'worker-' + worker.id, text: line(worker.task), state: worker.status || 'unknown', worker: worker.name }));
   const seen = new Set();
   const tasks = [...reported, ...requested, ...workers].sort((a, b) => rank(a.state) - rank(b.state)).filter(task => {
     const key = task.text.toLowerCase(); if (seen.has(key)) return false; seen.add(key); return true;

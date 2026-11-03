@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.2.1** implements the Codex workspace and Linux installer. It supports
+**Version 0.2.2** implements the Codex workspace and Linux installer. It supports
 four agent tabs, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three task summaries, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -133,15 +133,17 @@ Existing Codex model, sign-in, and permission settings are preserved. Enter
 sends; Shift+Enter inserts a newline. Drafts and reading positions survive tab
 switches. Closing a tab does not delete or interrupt its native conversation.
 
-The task panel shows up to three high-level tasks, prioritizing active work.
-Explicit requests such as `Task 1: Review the interface` and `Task 2: Validate
-mobile layout` appear immediately, whether sent together or in separate messages.
-They remain **requested** until a matching native plan or an explicit agent report
-(such as `Task 1: completed`) supplies their state. Idle does not mean complete.
-Native plans and subagent assignments also populate the panel, including newer
-Codex subagent-activity records. Explicit requests and reports are restored from
-the native history loaded into the view. This remains a summary display, without
-selecting an external runtime task tracker.
+The task panel shows up to three current high-level tasks from Codex plans,
+explicit progress reports, and live subagent activity. Completed work and raw
+historical requests are excluded. A new turn clears the previous turn's plan
+and progress rows, so old tasks cannot occupy the current-work panel.
+
+Numbered requests provide labels only when Codex explicitly reports their
+current state (for example `Task 1: in progress`) or includes them in a current
+plan. Merely asking for a task does not establish that it is running. Idle does
+not establish completion. Native-history replay restores the latest turn's
+reports, without promoting older plans into current work. This remains a
+summary display; an external runtime task tracker has not been selected.
 
 Without reported tasks, an agent-reported progress summary can appear; the panel
 never substitutes the last shell command. Detailed activity stays in the chat.
@@ -160,7 +162,7 @@ private home configuration; sessions use HttpOnly/SameSite cookies. Set an HTTPS
 public origin for Secure cookies behind nginx. No hypervisor, nginx, firewall,
 TLS, or VM changes are performed by this application.
 
-Validation: production build and thirteen protocol/auth/API integration tests,
+Validation: production build and fourteen protocol/auth/API integration tests,
 including native fork parameters, completed-turn boundaries, parent navigation,
 summary generation, reviewed handoff, child archiving/tab removal, retry handling,
 task-summary limits, numbered-task recovery, native subagent activity, and authentication. Real Codex
@@ -173,6 +175,8 @@ four real parallel agents with steering/interruption.
 The 0.1.1 patch adds six installer regression scenarios covering nested targets,
 unrelated untracked files, tracked edits, literal path names, and source/target
 overlap. A complete install/update cycle into `checkout/targetdir` also passed.
+The 0.2.2 correction verifies that stale historical requests, completed steps,
+and previous-turn plans cannot crowd out current task reports.
 No browser executable was available for automated desktop/mobile visual checks.
 
 ## Public source policy

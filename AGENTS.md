@@ -32,7 +32,9 @@ native child archiving and UI tab removal after accepted delivery. Parent-only
 navigation stays separate. The user approved a full-window workspace, desktop
 right sidebar for goal/tasks, compact single-line tabs in the functional top bar,
 and removal of redundant status text and unused heading space. Numbered chat
-task requests and native plans/subagent events feed the existing task display;
+task requests supply labels only for explicit current progress reports. Current
+plans/reports and active subagent events feed the task display; historical raw
+requests and completed work do not appear as current tasks;
 no external task tracker or additional service has been selected.
 
 ## Code versioning

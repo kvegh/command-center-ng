@@ -18,7 +18,7 @@ interfaces. Linux is the primary platform.
 
 This selects the frontend foundation only. It does not select agent APIs, a
 server framework, a database, a state-management library, or a component suite.
-Package versions are pinned in package.json and package-lock.json for 0.2.1.
+Package versions are pinned in package.json and package-lock.json for 0.2.2.
 The approved local Node.js service uses the existing Codex daemon.
 
 ## Visual principles
@@ -32,7 +32,7 @@ The approved local Node.js service uses the existing Codex daemon.
 - Respect reduced-motion preferences and avoid animation that distracts from work.
 - Use synthetic data for public demos and interface examples.
 
-Version 0.2.1 uses dark graphite surfaces with cyan controls, green running
+Version 0.2.2 uses dark graphite surfaces with cyan controls, green running
 states, amber attention states, and violet branch navigation. Status labels and
 icons accompany color. The goal and up to three task summaries remain above
 the scrolling conversation on mobile; desktop uses a narrow right sidebar.

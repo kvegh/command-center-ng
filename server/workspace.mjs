@@ -56,9 +56,9 @@ export class Workspace extends EventEmitter {
     } finally { this.opening.delete(id); }
   }
   addItem(agent, item, turnId, branchable = false) {
-    const plan = reportedPlan(item); if (plan) setReportedPlan(agent, plan);
+    const plan = reportedPlan(item); if (plan) setReportedPlan(agent, plan, turnId);
     if (item.type === 'userMessage' && !isBranchControlMessage(itemText(item))) collectRequestedTasks(agent, itemText(item));
-    if (item.type === 'agentMessage') reportTaskStates(agent, item.text);
+    if (item.type === 'agentMessage') reportTaskStates(agent, item.text, turnId);
     if (item.type === 'agentMessage' && item.phase === 'commentary' && !item.text.includes('```')) agent.summary = item.text.split(/\n\s*\n/)[0];
     if (item.type === 'collabAgentToolCall') {
       for (const [id, state] of Object.entries(item.agentsStates || {})) {
@@ -84,9 +84,10 @@ export class Workspace extends EventEmitter {
   async history(id, cursor) {
     const agent = this.agent(id);
     const page = await this.rpc.call('thread/turns/list', { threadId: id, limit: 20, itemsView: 'full', ...(cursor ? { cursor } : {}) });
-    const current = { tasks: agent.tasks, requestedTasks: agent.requestedTasks, workers: agent.workers.map(worker => ({ ...worker })), summary: agent.summary, activity: agent.activity };
+    const current = { tasks: agent.tasks, taskReportTurnId: agent.taskReportTurnId, requestedTasks: agent.requestedTasks, workers: agent.workers.map(worker => ({ ...worker })), summary: agent.summary, activity: agent.activity };
     const live = agent.messages; agent.messages = [];
     for (const turn of [...page.data].reverse()) {
+      agent.tasks = []; agent.summary = null; agent.taskReportTurnId = turn.id;
       if (turn.status === 'inProgress') agent.turnId = turn.id;
       const lastReply = turn.status === 'completed' ? turn.items?.findLast(item => item.type === 'agentMessage') : null;
       if (lastReply && !cursor) agent.lastCompletedTurnId = turn.id;
@@ -276,7 +277,7 @@ export class Workspace extends EventEmitter {
     const id = p.threadId || p.thread?.id; const agent = this.agents.get(id); if (!agent) return;
     if (method === 'thread/status/changed') agent.thread.status = p.status;
     if (method === 'thread/name/updated') agent.name = p.threadName || p.name || agent.name;
-    if (method === 'turn/started') { agent.turnId = p.turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; agent.tasks = agent.tasks.filter(task => !/completed|done/i.test(task.state)); agent.summary = null; if (!agent.returnSummary?.delivered) agent.returnSummary = null; }
+    if (method === 'turn/started') { agent.turnId = p.turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; agent.tasks = []; agent.taskReportTurnId = p.turn.id; agent.summary = null; if (!agent.returnSummary?.delivered) agent.returnSummary = null; }
     if (method === 'turn/completed') {
       agent.turnId = null; agent.thread.status = { type: 'idle' };
       agent.finishedTurn = { id: p.turn.id, status: p.turn.status };
@@ -286,7 +287,7 @@ export class Workspace extends EventEmitter {
         if (reply) { reply.branchable = true; reply.state = 'completed'; agent.lastCompletedTurnId = p.turn.id; }
       }
     }
-    if (method === 'turn/plan/updated') setReportedPlan(agent, (p.plan || []).map((t, i) => ({ id: String(i), text: t.step, state: t.status })));
+    if (method === 'turn/plan/updated') setReportedPlan(agent, (p.plan || []).map((t, i) => ({ id: String(i), text: t.step, state: t.status })), p.turnId || agent.turnId || agent.taskReportTurnId);
     if (method === 'item/started' || method === 'item/completed') this.addItem(agent, p.item, p.turnId);
     if (method === 'item/agentMessage/delta') {
       const existing = agent.messages.find(m => m.id === p.itemId);
