@@ -1,0 +1,48 @@
+# Dependency and build output
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Local configuration and credentials
+.env
+.env.*
+.npmrc
+.netrc
+credentials/
+secrets/
+.secrets/
+.ssh/
+*.pem
+*.key
+*.p12
+*.pfx
+*.vault
+*.vault.*
+vault*.yml
+vault*.yaml
+
+# Agent, tracker, conversation, and runtime state
+.beads/
+.codex/
+.claude/
+.codeman/
+.agents/
+.runtime/
+.local/
+runtime/
+sessions/
+transcripts/
+*.log
+*.pid
+*.sqlite
+*.sqlite3
+*.db
+
+# Local editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+*~
+*.swp
