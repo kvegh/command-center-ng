@@ -2,7 +2,8 @@ import { EventEmitter } from 'node:events';
 import { stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { VERSION } from './version.mjs';
-import { taskSummary, reportedPlan } from './task-summary.mjs';
+import { taskSummary, reportedPlan, collectRequestedTasks, reportTaskStates, setReportedPlan } from './task-summary.mjs';
+import { SUMMARY_LIMIT, SUMMARY_SCHEMA, summaryPrompt, readSummary, isBranchControlMessage } from './branch-summary.mjs';
 
 export const input = text => [{ type: 'text', text, text_elements: [] }];
 export function statusOf(thread, requests = []) {
@@ -22,8 +23,10 @@ function itemText(item) {
 }
 
 export class Workspace extends EventEmitter {
-  constructor(rpc) {
+  constructor(rpc, { summaryTimeout = 120_000 } = {}) {
     super(); this.rpc = rpc; this.agents = new Map(); this.pending = new Map(); this.opening = new Set(); this.watched = new Set(); this.creating = 0; this.error = null;
+    this.summaryJobs = new Map(); this.returnJobs = new Map(); this.summaryTimeout = summaryTimeout;
+    this.workerReads = new Set();
     rpc.on('notification', message => this.notification(message));
     rpc.on('request', message => this.request(message));
     rpc.on('disconnected', message => { this.error = message; this.pending.clear(); this.changed(); });
@@ -31,7 +34,7 @@ export class Workspace extends EventEmitter {
   }
   changed() { this.emit('change'); }
   snapshot() {
-    return { connected: this.rpc.ready, error: this.error, version: VERSION, backgroundQuestions: [...this.pending.values()].filter(q => !this.agents.has(q.params.threadId)).length, agents: [...this.agents.values()].map(agent => ({ ...agent, ...taskSummary(agent), status: this.rpc.ready ? statusOf(agent.thread, agent.questions) : 'offline', thread: undefined })) };
+    return { connected: this.rpc.ready, error: this.error, version: VERSION, backgroundQuestions: [...this.pending.values()].filter(q => !this.agents.has(q.params.threadId)).length, agents: [...this.agents.values()].map(agent => ({ ...agent, ...taskSummary(agent), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), status: this.rpc.ready ? statusOf(agent.thread, agent.questions) : 'offline', thread: undefined })) };
   }
   agent(id) { const agent = this.agents.get(id); if (!agent) throw Object.assign(new Error('Open this agent first.'), { status: 404 }); return agent; }
   async list(cursor) {
@@ -53,13 +56,23 @@ export class Workspace extends EventEmitter {
     } finally { this.opening.delete(id); }
   }
   addItem(agent, item, turnId, branchable = false) {
-    const plan = reportedPlan(item); if (plan) agent.tasks = plan;
+    const plan = reportedPlan(item); if (plan) setReportedPlan(agent, plan);
+    if (item.type === 'userMessage' && !isBranchControlMessage(itemText(item))) collectRequestedTasks(agent, itemText(item));
+    if (item.type === 'agentMessage') reportTaskStates(agent, item.text);
     if (item.type === 'agentMessage' && item.phase === 'commentary' && !item.text.includes('```')) agent.summary = item.text.split(/\n\s*\n/)[0];
     if (item.type === 'collabAgentToolCall') {
       for (const [id, state] of Object.entries(item.agentsStates || {})) {
         const worker = { id, name: state.agentNickname || state.agentRole || `Worker ${agent.workers.length + 1}`, status: state.status || item.status, task: item.prompt?.split('\n')[0]?.slice(0, 160) || item.tool };
         const existing = agent.workers.findIndex(w => w.id === id); if (existing < 0) agent.workers.push(worker); else agent.workers[existing] = worker;
       }
+    }
+    if (item.type === 'subAgentActivity') {
+      const existing = agent.workers.find(worker => worker.id === item.agentThreadId);
+      const name = item.agentPath?.split('/').filter(Boolean).pop() || 'Subagent';
+      const state = ({ started: 'running', completed: 'completed', interrupted: 'interrupted' })[item.kind];
+      const worker = { ...existing, id: item.agentThreadId, name: existing?.name || name, task: existing?.task || name, status: state || existing?.status || 'unknown' };
+      agent.workers = [...agent.workers.filter(worker => worker.id !== item.agentThreadId), worker];
+      if (!worker.detailLoaded) void this.readWorker(agent, worker.id);
     }
     const text = itemText(item); if (!text) return;
     const record = { id: item.id, turnId, branchable, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text, state: item.status || 'completed' };
@@ -71,7 +84,7 @@ export class Workspace extends EventEmitter {
   async history(id, cursor) {
     const agent = this.agent(id);
     const page = await this.rpc.call('thread/turns/list', { threadId: id, limit: 20, itemsView: 'full', ...(cursor ? { cursor } : {}) });
-    const current = { tasks: agent.tasks, summary: agent.summary, activity: agent.activity };
+    const current = { tasks: agent.tasks, requestedTasks: agent.requestedTasks, workers: agent.workers.map(worker => ({ ...worker })), summary: agent.summary, activity: agent.activity };
     const live = agent.messages; agent.messages = [];
     for (const turn of [...page.data].reverse()) {
       if (turn.status === 'inProgress') agent.turnId = turn.id;
@@ -84,6 +97,17 @@ export class Workspace extends EventEmitter {
     if (cursor) Object.assign(agent, current);
     agent.olderCursor = page.nextCursor || null;
     this.changed();
+  }
+  async readWorker(agent, id) {
+    const key = agent.id + ':' + id; if (this.workerReads.has(key)) return;
+    this.workerReads.add(key);
+    try {
+      const { thread } = await this.rpc.call('thread/read', { threadId: id });
+      const worker = agent.workers.find(worker => worker.id === id);
+      if (worker && thread) { worker.task = thread.name || thread.preview?.split('\n')[0] || worker.task; worker.detailLoaded = true; }
+    } catch (error) {
+      const worker = agent.workers.find(worker => worker.id === id); if (worker) worker.detailError = error.message;
+    } finally { this.workerReads.delete(key); this.changed(); }
   }
   async create({ goal, cwd }) {
     if (this.agents.size + this.opening.size + this.creating >= 4) throw Object.assign(new Error('Four tabs are already open.'), { status: 409 });
@@ -102,6 +126,7 @@ export class Workspace extends EventEmitter {
   }
   async send(id, text) {
     const agent = this.agent(id);
+    if (this.summaryJobs.has(id) || this.returnJobs.has(id) || agent.returnSummary?.delivered) throw Object.assign(new Error('Finish the branch handoff before sending another message.'), { status: 409 });
     if (!agent.canSend) throw Object.assign(new Error('Codex does not allow direct input to this agent.'), { status: 409 });
     if (typeof text !== 'string' || !text.trim() || text.length > 32_000) throw Object.assign(new Error('Enter a message of 1–32000 characters.'), { status: 400 });
     if (agent.questions.length) throw Object.assign(new Error('Answer the pending question before sending another message.'), { status: 409 });
@@ -146,14 +171,68 @@ export class Workspace extends EventEmitter {
     try { await this.open(parentId); return parentId; }
     catch (error) { if (replace) this.agents.set(id, branch); this.changed(); throw error; }
   }
-  async returnToParent(id, text) {
+  idleBranch(id) {
     const branch = this.agent(id);
-    if (typeof text !== 'string' || !text.trim() || text.length > 28_000) throw Object.assign(new Error('Enter the findings to send, up to 28000 characters.'), { status: 400 });
-    const parentId = await this.parent(id);
-    await this.send(parentId, `Findings from branch "${branch.name}" (${branch.id}):\n\n${text.trim()}`);
-    return parentId;
+    if (!branch.parentId) throw Object.assign(new Error('This conversation has no parent branch.'), { status: 400 });
+    if (statusOf(branch.thread, branch.questions) !== 'idle') throw Object.assign(new Error('Wait for the branch to finish and resolve its questions before returning it.'), { status: 409 });
+    return branch;
   }
-  close(id) { this.agent(id); this.agents.delete(id); this.changed(); }
+  async summarize(id) {
+    if (this.summaryJobs.has(id)) return this.summaryJobs.get(id);
+    const branch = this.idleBranch(id);
+    if (branch.returnSummary?.delivered || branch.returnSummary?.turnId === branch.lastCompletedTurnId) return branch.returnSummary;
+    if (this.returnJobs.has(id)) throw Object.assign(new Error('This branch is already being returned.'), { status: 409 });
+    const job = this.generateSummary(branch); this.summaryJobs.set(id, job); this.changed();
+    try { return await job; } finally { this.summaryJobs.delete(id); this.changed(); }
+  }
+  async generateSummary(branch) {
+    const { turn } = await this.rpc.call('turn/start', { threadId: branch.id, input: input(summaryPrompt(branch.goal)), outputSchema: SUMMARY_SCHEMA });
+    if (branch.finishedTurn?.id !== turn.id) { branch.turnId = turn.id; branch.thread.status = { type: 'active', activeFlags: [] }; this.changed(); }
+    await new Promise((resolve, reject) => {
+      const finish = error => { clearTimeout(timer); this.off('change', check); error ? reject(error) : resolve(); };
+      const check = () => {
+        if (!this.rpc.ready) return finish(new Error('Codex disconnected while preparing the summary. The branch is still open.'));
+        if (branch.questions.length) return finish(new Error('Resolve the branch question before preparing its summary again.'));
+        if (branch.finishedTurn?.id === turn.id) finish(branch.finishedTurn.status === 'completed' ? null : new Error('The summary turn did not complete. The branch is still open.'));
+      };
+      const timer = setTimeout(() => finish(new Error('Summary preparation timed out. The branch is still open; check its current turn before retrying.')), this.summaryTimeout);
+      this.on('change', check); check();
+    });
+    const reply = branch.messages.findLast(message => message.turnId === turn.id && message.type === 'assistant');
+    const text = readSummary(reply?.text);
+    branch.returnSummary = { text, turnId: turn.id, delivered: false }; this.changed();
+    return branch.returnSummary;
+  }
+  async returnToParent(id, text) {
+    if (this.returnJobs.has(id)) return this.returnJobs.get(id);
+    const branch = this.idleBranch(id);
+    if (typeof text !== 'string' || !text.trim() || text.length > SUMMARY_LIMIT) throw Object.assign(new Error(`Enter a concise summary of up to ${SUMMARY_LIMIT} characters.`), { status: 400 });
+    if (this.summaryJobs.has(id) || !branch.returnSummary || (!branch.returnSummary.delivered && branch.returnSummary.turnId !== branch.lastCompletedTurnId)) throw Object.assign(new Error('Prepare a current branch summary before returning it.'), { status: 409 });
+    const job = this.finishReturn(branch, text.trim()); this.returnJobs.set(id, job); this.changed();
+    try { return await job; } finally { this.returnJobs.delete(id); this.changed(); }
+  }
+  async finishReturn(branch, text) {
+    const parentWasOpen = this.agents.has(branch.parentId);
+    try {
+      const parentId = await this.parent(branch.id);
+      if (!branch.returnSummary.delivered) {
+        await this.send(parentId, `Branch summary from "${branch.name}" (${branch.id}):\n\n${text}`);
+        branch.returnSummary.text = text; branch.returnSummary.delivered = true; this.changed();
+      }
+      const { thread } = await this.rpc.call('thread/read', { threadId: branch.id });
+      branch.thread = thread;
+      if (statusOf(thread, branch.questions) !== 'idle') throw new Error('Wait for the child session to finish before closing it.');
+      await this.rpc.call('thread/archive', { threadId: branch.id });
+      this.agents.delete(branch.id); this.watched.delete(branch.id); this.changed();
+      return parentId;
+    } catch (error) {
+      if (!this.agents.has(branch.id)) { if (!parentWasOpen) this.agents.delete(branch.parentId); this.agents.set(branch.id, branch); }
+      this.changed();
+      if (branch.returnSummary.delivered) throw Object.assign(new Error('The summary was delivered, but closing the branch failed. Retry to close it without sending the summary again. ' + error.message), { status: 502 });
+      throw error;
+    }
+  }
+  close(id) { this.agent(id); if (this.summaryJobs.has(id) || this.returnJobs.has(id)) throw Object.assign(new Error('Wait for the branch handoff to finish before closing its tab.'), { status: 409 }); this.agents.delete(id); this.changed(); }
   request(message) {
     const p = message.params || {};
     if (message.method === 'currentTime/read') { this.rpc.respond(message.id, { currentTime: new Date().toISOString() }); return; }
@@ -197,16 +276,17 @@ export class Workspace extends EventEmitter {
     const id = p.threadId || p.thread?.id; const agent = this.agents.get(id); if (!agent) return;
     if (method === 'thread/status/changed') agent.thread.status = p.status;
     if (method === 'thread/name/updated') agent.name = p.threadName || p.name || agent.name;
-    if (method === 'turn/started') { agent.turnId = p.turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; agent.tasks = agent.tasks.filter(task => !/completed|done/i.test(task.state)); agent.summary = null; }
+    if (method === 'turn/started') { agent.turnId = p.turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; agent.tasks = agent.tasks.filter(task => !/completed|done/i.test(task.state)); agent.summary = null; if (!agent.returnSummary?.delivered) agent.returnSummary = null; }
     if (method === 'turn/completed') {
       agent.turnId = null; agent.thread.status = { type: 'idle' };
+      agent.finishedTurn = { id: p.turn.id, status: p.turn.status };
       if (p.turn.error) agent.activity = { text: p.turn.error.message, state: 'failed' };
       if (p.turn.status === 'completed') {
         const reply = agent.messages.findLast(message => message.type === 'assistant' && message.turnId === p.turn.id);
         if (reply) { reply.branchable = true; reply.state = 'completed'; agent.lastCompletedTurnId = p.turn.id; }
       }
     }
-    if (method === 'turn/plan/updated') agent.tasks = (p.plan || []).map((t, i) => ({ id: String(i), text: t.step, state: t.status }));
+    if (method === 'turn/plan/updated') setReportedPlan(agent, (p.plan || []).map((t, i) => ({ id: String(i), text: t.step, state: t.status })));
     if (method === 'item/started' || method === 'item/completed') this.addItem(agent, p.item, p.turnId);
     if (method === 'item/agentMessage/delta') {
       const existing = agent.messages.find(m => m.id === p.itemId);

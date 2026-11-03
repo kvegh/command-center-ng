@@ -10,6 +10,7 @@ import { setPassword, loadPassword } from '../server/auth.mjs';
 import { CodexRpc } from '../server/rpc.mjs';
 import { Workspace, statusOf } from '../server/workspace.mjs';
 import { createApp } from '../server/main.mjs';
+import { summaryPrompt } from '../server/branch-summary.mjs';
 
 async function waitFor(predicate) {
   const until = Date.now() + 2000;
@@ -18,7 +19,7 @@ async function waitFor(predicate) {
 async function fixture() {
   const dir = await mkdtemp(join(tmpdir(), 'ccng-protocol-'));
   const socketPath = join(dir, 'codex.sock'); const server = http.createServer(); const wss = new WebSocketServer({ server });
-  const calls = []; const replies = []; const threads = new Map(); const histories = new Map(); let sequence = 0; let connection;
+  const calls = []; const replies = []; const threads = new Map(); const histories = new Map(); const failures = new Map(); const summary = { text: 'Use the smaller option. Verification passed; no open questions.', status: 'completed' }; let sequence = 0; let turnSequence = 0; let connection;
   const thread = (id, status = 'idle') => ({ id, name: `Agent ${id}`, preview: 'Build a useful feature', cwd: dir, status: { type: status, activeFlags: [] }, canAcceptDirectInput: true, turns: [], model: 'configured-model' });
   threads.set('existing', thread('existing', 'active'));
   const notify = (method, params) => connection.send(JSON.stringify({ method, params }));
@@ -28,6 +29,7 @@ async function fixture() {
     if (!message.method) { replies.push(message); return; }
     if (message.id === undefined) return;
     calls.push(message); const p = message.params; let result;
+    if (failures.has(message.method)) { ws.send(JSON.stringify({ id: message.id, error: { code: -32000, message: failures.get(message.method) } })); return; }
     switch (message.method) {
       case 'initialize': result = { userAgent: 'fixture' }; break;
       case 'thread/list': result = { data: [...threads.values()], nextCursor: null }; break;
@@ -42,7 +44,17 @@ async function fixture() {
         result = { thread: threads.get(id) }; break;
       }
       case 'thread/name/set': threads.get(p.threadId).name = p.name; result = {}; break;
-      case 'turn/start': result = { turn: { id: 'turn-' + p.threadId } }; setImmediate(() => notify('turn/started', { threadId: p.threadId, turn: { id: result.turn.id } })); break;
+      case 'thread/archive': threads.get(p.threadId).archived = true; result = {}; break;
+      case 'turn/start': {
+        const turnId = 'run-' + (++turnSequence); result = { turn: { id: turnId } };
+        setImmediate(() => {
+          notify('turn/started', { threadId: p.threadId, turn: { id: turnId } });
+          if (p.outputSchema) setTimeout(() => {
+            notify('item/completed', { threadId: p.threadId, turnId, item: { id: 'summary-' + turnId, type: 'agentMessage', text: JSON.stringify({ summary: summary.text }) } });
+            notify('turn/completed', { threadId: p.threadId, turn: { id: turnId, status: summary.status } });
+          }, 5);
+        }); break;
+      }
       case 'turn/steer': result = { turnId: p.expectedTurnId }; break;
       case 'turn/interrupt': result = {}; setImmediate(() => notify('turn/completed', { threadId: p.threadId, turn: { id: p.turnId, status: 'interrupted' } })); break;
       default: ws.send(JSON.stringify({ id: message.id, error: { code: -32601, message: 'Unknown method' } })); return;
@@ -51,10 +63,10 @@ async function fixture() {
   }); });
   await new Promise(resolve => server.listen(socketPath, resolve));
   const rpc = new CodexRpc({ socketPath, timeout: 2000 }); await rpc.connect(); const workspace = new Workspace(rpc);
-  return { dir, rpc, workspace, calls, replies, threads, histories, notify, ask, close: async () => { rpc.close(); for (const client of wss.clients) client.terminate(); await new Promise(resolve => wss.close(resolve)); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); } };
+  return { dir, rpc, workspace, calls, replies, threads, histories, failures, summary, notify, ask, close: async () => { rpc.close(); for (const client of wss.clients) client.terminate(); await new Promise(resolve => wss.close(resolve)); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); } };
 }
 
-test('branches use native completed-turn context, stay linked, and return only explicitly supplied findings', async () => {
+test('branches use native completed-turn context and keep parent navigation separate from summary handoff', async () => {
   const f = await fixture();
   try {
     const turn = (id, text, status = 'completed') => ({ id, status, items: [{ id: 'reply-' + id, type: 'agentMessage', text }] });
@@ -74,12 +86,6 @@ test('branches use native completed-turn context, stay linked, and return only e
     const more = await Promise.allSettled(Array.from({ length: 3 }, () => f.workspace.fork('existing')));
     assert.equal(more.filter(r => r.status === 'fulfilled').length, 2);
     assert.equal(f.workspace.snapshot().agents.length, 4);
-    await assert.rejects(f.workspace.returnToParent(id, ''), /Enter the findings/);
-    const parent = await f.workspace.returnToParent(id, 'Use the smaller option.');
-    assert.equal(parent, 'existing');
-    const returned = f.calls.find(c => c.method === 'turn/steer');
-    assert.match(returned.params.input[0].text, /Use the smaller option/);
-    assert.ok(!returned.params.input[0].text.includes('Original answer'));
     f.workspace.close('existing');
     await f.workspace.create({ goal: 'Another task', cwd: f.dir });
     assert.equal(await f.workspace.parent(id), 'existing');
@@ -87,6 +93,136 @@ test('branches use native completed-turn context, stay linked, and return only e
     assert.ok(!f.workspace.agents.has(id));
     assert.ok(f.threads.has(id), 'return navigation keeps the native branch');
     assert.equal(f.calls.filter(c => c.method === 'turn/interrupt').length, 0);
+  } finally { await f.close(); }
+});
+
+async function branchFixture() {
+  const f = await fixture();
+  f.histories.set('existing', [{ id: 'parent-active', status: 'inProgress', items: [] }, { id: 'base', status: 'completed', items: [{ id: 'base-reply', type: 'agentMessage', text: 'Inherited background that must not be pasted into the parent.' }] }]);
+  await f.workspace.open('existing');
+  const id = await f.workspace.fork('existing');
+  return { ...f, id };
+}
+
+test('return prepares a concise native-context summary, sends only the reviewed result, then archives and closes the child', async () => {
+  const f = await branchFixture();
+  try {
+    await assert.rejects(f.workspace.returnToParent(f.id, 'Manual content'), /Prepare a current branch summary/);
+    const [first, second] = await Promise.all([f.workspace.summarize(f.id), f.workspace.summarize(f.id)]);
+    assert.equal(first.text, f.summary.text); assert.equal(second.text, first.text);
+    const starts = f.calls.filter(c => c.method === 'turn/start'); assert.equal(starts.length, 1);
+    assert.deepEqual(Object.keys(starts[0].params).sort(), ['input', 'outputSchema', 'threadId']);
+    assert.match(starts[0].params.input[0].text, /conclusions, decisions and their reasons/);
+    assert.ok(!starts[0].params.input[0].text.includes('Inherited background'));
+    await f.workspace.summarize(f.id); assert.equal(f.calls.filter(c => c.method === 'turn/start').length, 1, 'reopening the dialog reuses the current summary');
+    await assert.rejects(f.workspace.returnToParent(f.id, 'x'.repeat(2001)), /concise summary/);
+    const edited = 'Decision: use the smaller option. Reason: lower complexity. Validation passed.';
+    const parent = await f.workspace.returnToParent(f.id, edited);
+    assert.equal(parent, 'existing');
+    const delivered = f.calls.find(c => c.method === 'turn/steer'); assert.match(delivered.params.input[0].text, /Decision: use the smaller option/);
+    assert.ok(!delivered.params.input[0].text.includes('Inherited background'));
+    const archive = f.calls.find(c => c.method === 'thread/archive'); assert.equal(archive.params.threadId, f.id);
+    assert.ok(f.calls.indexOf(archive) > f.calls.indexOf(delivered));
+    assert.equal(f.threads.get(f.id).archived, true); assert.equal(f.workspace.agents.has(f.id), false);
+  } finally { await f.close(); }
+});
+
+test('parent-send failures keep the child open; archive retries do not duplicate delivered summaries', async () => {
+  const f = await branchFixture();
+  try {
+    await f.workspace.summarize(f.id);
+    await f.workspace.create({ goal: 'Other work one', cwd: f.dir });
+    await f.workspace.create({ goal: 'Other work two', cwd: f.dir });
+    f.workspace.close('existing');
+    await f.workspace.create({ goal: 'Other work three', cwd: f.dir });
+    assert.equal(f.workspace.agents.size, 4);
+    f.failures.set('turn/steer', 'Parent temporarily unavailable');
+    await assert.rejects(f.workspace.returnToParent(f.id, f.summary.text), /Parent temporarily unavailable/);
+    assert.ok(f.workspace.agents.has(f.id)); assert.ok(!f.threads.get(f.id).archived);
+    assert.equal(f.workspace.agents.size, 4); assert.ok(!f.workspace.agents.has('existing'), 'failed handoff restores the child tab at capacity');
+    assert.equal(f.workspace.agent(f.id).returnSummary.delivered, false);
+    f.failures.delete('turn/steer'); f.failures.set('thread/archive', 'Archive temporarily unavailable');
+    await assert.rejects(f.workspace.returnToParent(f.id, f.summary.text), /summary was delivered.*closing the branch failed/);
+    assert.ok(f.workspace.agents.has(f.id)); assert.equal(f.workspace.agent(f.id).returnSummary.delivered, true);
+    const sends = f.calls.filter(c => c.method === 'turn/steer').length;
+    f.failures.delete('thread/archive');
+    await f.workspace.returnToParent(f.id, f.summary.text);
+    assert.equal(f.calls.filter(c => c.method === 'turn/steer').length, sends);
+    assert.equal(f.workspace.agents.has(f.id), false);
+  } finally { await f.close(); }
+});
+
+test('numbered chat tasks appear immediately, retain reported states, and restore from native history', async () => {
+  const f = await fixture();
+  try {
+    f.histories.set('existing', [{ id: 'tasks', status: 'completed', items: [
+      { id: 'requests', type: 'userMessage', content: [{ type: 'text', text: 'Task 1: Summarize branch findings\nTask 2: Reclaim screen space\nTask 3: Show multiple tasks\nTask 4: Review mobile layout' }] },
+      { id: 'report', type: 'agentMessage', text: 'Task 1: completed.\nTask 2: in progress.\nTask 3: pending.' }
+    ] }]);
+    await f.workspace.open('existing');
+    let agent = f.workspace.snapshot().agents[0];
+    assert.equal(agent.taskCount, 4); assert.equal(agent.tasks.length, 3);
+    assert.equal(agent.tasks[0].text, 'Reclaim screen space'); assert.equal(agent.tasks[0].state, 'inProgress');
+    assert.equal(f.workspace.agent('existing').requestedTasks.find(task => task.number === '1').state, 'completed');
+    f.notify('turn/plan/updated', { threadId: 'existing', plan: [{ step: 'Task 3: Show multiple tasks', status: 'inProgress' }] });
+    await waitFor(() => f.workspace.snapshot().agents[0].tasks.some(task => task.text === 'Task 3: Show multiple tasks'));
+    agent = f.workspace.snapshot().agents[0]; assert.equal(agent.taskCount, 4, 'the plan and numbered request count as the same task');
+    assert.equal(f.workspace.agent('existing').requestedTasks.find(task => task.number === '3').state, 'inProgress');
+    f.workspace.close('existing'); await f.workspace.open('existing');
+    assert.equal(f.workspace.snapshot().agents[0].taskCount, 4);
+    assert.equal(f.workspace.snapshot().agents[0].tasks[0].text, 'Reclaim screen space');
+  } finally { await f.close(); }
+});
+
+test('native subAgentActivity records populate multiple task rows and update completion without losing their goals', async () => {
+  const f = await fixture();
+  try {
+    for (let n = 1; n <= 3; n++) f.threads.set('child-' + n, { id: 'child-' + n, name: `Review area ${n}`, status: { type: 'idle' } });
+    f.histories.set('existing', [{ id: 'workers', status: 'completed', items: Array.from({ length: 3 }, (_, n) => ({ id: 'activity-' + n, type: 'subAgentActivity', kind: 'started', agentThreadId: 'child-' + (n + 1), agentPath: '/root/reviewer_' + (n + 1) })) }]);
+    await f.workspace.open('existing');
+    await waitFor(() => f.workspace.snapshot().agents[0].tasks.every(task => task.text.startsWith('Review area')));
+    assert.equal(f.workspace.snapshot().agents[0].tasks.length, 3);
+    f.notify('item/completed', { threadId: 'existing', turnId: 'workers', item: { id: 'finished-child', type: 'subAgentActivity', kind: 'completed', agentThreadId: 'child-1', agentPath: '/root/reviewer_1' } });
+    await waitFor(() => f.workspace.agent('existing').workers.find(worker => worker.id === 'child-1').status === 'completed');
+    assert.equal(f.workspace.agent('existing').workers.find(worker => worker.id === 'child-1').task, 'Review area 1');
+  } finally { await f.close(); }
+});
+
+test('failed or oversized summary generation never sends or closes a branch', async () => {
+  const f = await branchFixture();
+  try {
+    f.summary.status = 'failed'; await assert.rejects(f.workspace.summarize(f.id), /summary turn did not complete/);
+    f.summary.status = 'completed'; f.summary.text = 'x'.repeat(2001);
+    await assert.rejects(f.workspace.summarize(f.id), /did not return a concise summary/);
+    assert.ok(f.workspace.agents.has(f.id)); assert.ok(!f.workspace.agent(f.id).returnSummary);
+    assert.equal(f.calls.filter(c => ['thread/archive', 'turn/steer'].includes(c.method)).length, 0);
+  } finally { await f.close(); }
+});
+
+test('further branch work invalidates a cached summary even when that new turn is interrupted', async () => {
+  const f = await branchFixture();
+  try {
+    await f.workspace.summarize(f.id);
+    const previous = f.workspace.agent(f.id).returnSummary.turnId;
+    await f.workspace.send(f.id, 'Explore another option before returning.');
+    await waitFor(() => !f.workspace.agent(f.id).returnSummary);
+    await f.workspace.interrupt(f.id);
+    await waitFor(() => f.workspace.snapshot().agents.find(agent => agent.id === f.id).status === 'idle');
+    await assert.rejects(f.workspace.returnToParent(f.id, 'Old summary'), /Prepare a current branch summary/);
+    const refreshed = await f.workspace.summarize(f.id);
+    assert.notEqual(refreshed.turnId, previous);
+  } finally { await f.close(); }
+});
+
+test('summary preparation and returned summaries do not create or overwrite numbered task requests', async () => {
+  const f = await fixture();
+  try {
+    const messages = ['Task 1: Review the design', summaryPrompt('Task 1: This is an internal summary prompt'), 'Branch summary from "Child" (child):\n\nTask 1: completed.'];
+    f.histories.set('existing', [{ id: 'control-messages', status: 'completed', items: messages.map((text, index) => ({ id: 'control-' + index, type: 'userMessage', content: [{ type: 'text', text }] })) }]);
+    await f.workspace.open('existing');
+    assert.equal(f.workspace.agent('existing').requestedTasks.length, 1);
+    assert.equal(f.workspace.snapshot().agents[0].tasks[0].text, 'Review the design');
+    assert.equal(f.workspace.snapshot().agents[0].tasks[0].state, 'requested');
   } finally { await f.close(); }
 });
 
@@ -172,7 +308,7 @@ test('password stays hashed/private; HTTP login protects controls, rejects cross
   const request = (path, data, cookie, origin = base) => fetch(base + path, { method: data === undefined ? 'GET' : 'POST', headers: { ...(data === undefined ? {} : { 'Content-Type': 'application/json', Origin: origin }), ...(cookie ? { Cookie: cookie } : {}) }, ...(data === undefined ? {} : { body: JSON.stringify(data) }) });
   try {
     assert.equal((await request('/api/state')).status, 401);
-    for (const action of ['fork', 'parent', 'return']) assert.equal((await request('/api/agents/existing/' + action, {})).status, 401);
+    for (const action of ['fork', 'parent', 'summary', 'return']) assert.equal((await request('/api/agents/existing/' + action, {})).status, 401);
     assert.equal((await request('/api/login', { password }, undefined, 'https://unrelated.example')).status, 403);
     const login = await request('/api/login', { password }); assert.equal(login.status, 200);
     const cookie = login.headers.get('set-cookie'); assert.match(cookie, /HttpOnly/); assert.match(cookie, /SameSite=Strict/);

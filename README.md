@@ -5,12 +5,15 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.1.1** implements the Codex workspace and Linux installer. It supports
+**Version 0.2.0** implements the Codex workspace and Linux installer. It supports
 four agent tabs, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three task summaries, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
 green running states, and amber attention states.
 The interface uses a local Node.js service and the existing Codex daemon.
+A compact top bar contains the agent tabs and Add agent control. The workspace
+fills the browser window, with goal/tasks in a right sidebar on desktop and
+above the conversation on smaller screens.
 
 Linux is the first and primary platform for installation and operation. The
 interface must work well in a Linux desktop browser and a smartphone browser;
@@ -103,10 +106,20 @@ through that turn into a separate conversation; later parent messages are exclud
 The branch waits for your follow-up question or subtask. Its first message becomes
 its goal. A branch uses one of the four tabs; close a tab first if all are occupied.
 
-Use **Back to parent** to navigate without sending anything. **Bring findings back**
-opens an editable message: **Send to parent** explicitly sends it to the parent,
-starting a turn or steering an active one. The branch remains available for later
-continuation. This sends findings rather than merging transcripts or files.
+Use **Back to parent** to navigate without sending anything or closing the branch.
+When the branch is idle, **Return summary** asks Codex to summarize its existing
+context: findings, decisions and reasons, verification, open questions, and next
+steps. This uses one normal Codex turn with the existing model/settings. It does
+not prefill the last reply or send the conversation transcript to the parent.
+
+Review or edit the concise summary (maximum 2,000 characters), then choose
+**Send summary & close**. The parent receives that summary as a message, starting
+a turn or steering an active one. Only after acceptance does the app archive the
+child session and remove its tab. Archived history is retained by Codex and is
+excluded from the normal active-conversation picker. Summary or delivery errors
+keep the branch open. If delivery succeeds but archiving fails, retry closes the
+child without resending within the current app process.
+
 Parent links survive reopening through native Codex metadata. Branches share the
 working directory; conversation branching does not create a Git branch or worktree.
 
@@ -120,10 +133,21 @@ Existing Codex model, sign-in, and permission settings are preserved. Enter
 sends; Shift+Enter inserts a newline. Drafts and reading positions survive tab
 switches. Closing a tab does not delete or interrupt its native conversation.
 
-The task strip shows up to three high-level plan steps or subagent assignments,
-prioritizing active work. Without those, it can show an agent-reported progress
-summary; it never substitutes the last shell command. If no summary is reported,
-the strip says so. Detailed command activity remains in the conversation.
+The task panel shows up to three high-level tasks, prioritizing active work.
+Explicit requests such as `Task 1: Review the interface` and `Task 2: Validate
+mobile layout` appear immediately, whether sent together or in separate messages.
+They remain **requested** until a matching native plan or an explicit agent report
+(such as `Task 1: completed`) supplies their state. Idle does not mean complete.
+Native plans and subagent assignments also populate the panel, including newer
+Codex subagent-activity records. Explicit requests and reports are restored from
+the native history loaded into the view. This remains a summary display, without
+selecting an external runtime task tracker.
+
+Without reported tasks, an agent-reported progress summary can appear; the panel
+never substitutes the last shell command. Detailed activity stays in the chat.
+Tabs use compact single-line titles, colored status dots, and status tooltips;
+the full status label stays beside the goal. Horizontal tab scrolling remains
+available on narrow screens, with no vertical scrollbar in the tab strip.
 Recent history can be paged backward, with a bounded 600-item in-memory view per
 tab; Codex retains model context. Tabs are shared within the single-user app
 process and reset when it restarts. Persistent decision summaries and runtime
@@ -136,11 +160,12 @@ private home configuration; sessions use HttpOnly/SameSite cookies. Set an HTTPS
 public origin for Secure cookies behind nginx. No hypervisor, nginx, firewall,
 TLS, or VM changes are performed by this application.
 
-Validation: production build and six protocol/auth/API integration tests,
+Validation: production build and thirteen protocol/auth/API integration tests,
 including native fork parameters, completed-turn boundaries, parent navigation,
-explicit findings return, task-summary limits, and authentication. Real Codex
-branching retained and recalled inherited context, returned findings, and kept
-the parent link after reopening. A temporary home installation verified automatic
+summary generation, reviewed handoff, child archiving/tab removal, retry handling,
+task-summary limits, numbered-task recovery, native subagent activity, and authentication. Real Codex
+branching retained inherited context and generated a concise summary, delivered
+it to the parent, and archived the child while removing its tab. A temporary home installation verified automatic
 update fetching, target-local executable launcher, private configuration
 preservation, dependency pruning, refusal of dirty/diverged sources, and a failed
 build leaving the previous installation usable. Earlier validation also covered

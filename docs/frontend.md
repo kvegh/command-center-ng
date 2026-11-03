@@ -18,7 +18,7 @@ interfaces. Linux is the primary platform.
 
 This selects the frontend foundation only. It does not select agent APIs, a
 server framework, a database, a state-management library, or a component suite.
-Package versions are pinned in package.json and package-lock.json for 0.1.1.
+Package versions are pinned in package.json and package-lock.json for 0.2.0.
 The approved local Node.js service uses the existing Codex daemon.
 
 ## Visual principles
@@ -32,19 +32,20 @@ The approved local Node.js service uses the existing Codex daemon.
 - Respect reduced-motion preferences and avoid animation that distracts from work.
 - Use synthetic data for public demos and interface examples.
 
-Version 0.1.0 uses dark graphite surfaces with cyan controls, green running
+Version 0.2.0 uses dark graphite surfaces with cyan controls, green running
 states, amber attention states, and violet branch navigation. Status labels and
 icons accompany color. The goal and up to three task summaries remain above
-the scrolling conversation, with the composer below. Completed replies expose
-Branch here; each fork exposes parent navigation and optional editable findings
-return. No animation or external font dependency is required.
+the scrolling conversation on mobile; desktop uses a narrow right sidebar.
+The workspace fills the window. Compact single-line agent tabs and Add agent
+live in the top bar; status dots/tooltips replace repeated text. Completed
+replies expose Branch here; each fork exposes parent navigation and a generated,
+reviewable summary return that archives the child and closes its tab after
+delivery. No animation or external font dependency is required.
 
 ## Linux installation
 
-The first supported runtime host is Linux. Frontend development will use a
-supported Node.js release and npm on Linux. The current Vite documentation lists
-Node.js 20.19+ or 22.12+ as its minimum supported release lines; select and document
-a supported LTS version when package versions are fixed.
+The first supported runtime host is Linux. The project requires Node.js 22.12+
+and npm, as recorded in package.json and the installation instructions.
 
 The shell installer targets a user-supplied directory under an unprivileged
 user's home. Without a directory parameter, it prompts before installing.

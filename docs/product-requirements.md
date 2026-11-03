@@ -49,13 +49,18 @@ parent. Both parent and branch remain available for navigation, historical
 review, and later continuation. Opening or leaving a branch does not require
 completing it or performing a merge ceremony.
 
-An optional **Bring back to main** action returns a branch's findings or subtask
-results into its parent conversation. Switching between conversation views is
-separate from returning results. Version 0.1.0 provides an editable findings
-message and an explicit Send to parent action. Sending starts a parent turn or
-steers an active turn; navigation alone never sends. Findings are messages, not
-automatic transcript or file merges. Native Codex context preservation was
-verified with a real fork and an inherited-context recall check.
+The optional **Return summary** action prepares a concise summary in the child
+using its existing native Codex context. It covers findings, decisions and their
+reasons, completed verification, unresolved questions, and next steps. The user
+can review or edit it, then send it to the parent. The parent receives a summary
+rather than the transcript. After accepted delivery, the child is archived and
+its tab closes. History remains available in Codex's archive. Delivery failures
+keep the child open; an archive retry does not resend an acknowledged summary
+within the current application process.
+
+Navigation remains separate: Back to parent does not send, archive, or complete
+the child. Native context preservation and the summary/close lifecycle were
+verified with real Codex conversations.
 
 ## History and tasks
 
@@ -68,7 +73,7 @@ TODO.md, or another suitable mechanism. The product integration has not been
 chosen. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current version: 0.1.1
+## Current version: 0.2.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -86,6 +91,13 @@ launcher inside the installation target. See README for checks and limitations.
 Version 0.1.1 corrects updates when the installation directory is inside the
 checkout, while preserving protection for source changes. Durable decision
 summaries remain future implementation work.
+
+Version 0.2.0 adds generated branch summaries and child closure after accepted
+handoff, a full-window workspace with a desktop goal/task sidebar, compact
+single-line tabs inside the functional top bar, and task collection from explicit
+numbered chat requests plus native plans/subagent activity. On smaller screens,
+goal/tasks remain above the conversation. Repeated tab-status text, the large
+workspace heading, and unintended vertical tab scrolling are removed.
 
 ## Decisions still open
 

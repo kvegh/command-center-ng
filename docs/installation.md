@@ -12,7 +12,7 @@ The interface must remain usable from a Linux desktop browser and a smartphone
 browser. Browser support does not imply a selected remote-access or hosting
 arrangement.
 
-Version 0.1.1 includes the installer. Linux, Node.js 22.12+, npm, tar, and realpath
+Version 0.2.0 includes the installer. Linux, Node.js 22.12+, npm, tar, and realpath
 must already be installed. Codex must be installed and signed in to manage
 agents; version 0.166.0 was tested. No system packages or services are installed.
 

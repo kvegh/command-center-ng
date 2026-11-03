@@ -27,6 +27,14 @@ service and native Codex thread/fork support for completed-reply branching with
 parent navigation and optional explicit findings messages. Do not introduce a
 separate branch store or Git-worktree automation without user direction.
 
+The user subsequently selected concise generated branch summaries, followed by
+native child archiving and UI tab removal after accepted delivery. Parent-only
+navigation stays separate. The user approved a full-window workspace, desktop
+right sidebar for goal/tasks, compact single-line tabs in the functional top bar,
+and removal of redundant status text and unused heading space. Numbered chat
+task requests and native plans/subagent events feed the existing task display;
+no external task tracker or additional service has been selected.
+
 ## Code versioning
 
 Use numeric MAJOR.MINOR.PATCH versions. The first implementation starts at

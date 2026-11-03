@@ -87,7 +87,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
         }
         if (path === '/api/agents' && request.method === 'GET') return json(response, await workspace.list(url.searchParams.get('cursor')));
         if (path === '/api/agents' && request.method === 'POST') return json(response, { id: await workspace.create(await body(request)) }, 201);
-        const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|interrupt|history|answer|fork|parent|return)$/);
+        const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|interrupt|history|answer|fork|parent|summary|return)$/);
         if (match && request.method === 'POST') {
           const [, encoded, action] = match; const id = decodeURIComponent(encoded); const data = await body(request);
           if (action === 'open') await workspace.open(id);
@@ -98,6 +98,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           if (action === 'answer') workspace.answer(id, data.requestId, data);
           if (action === 'fork') return json(response, { id: await workspace.fork(id, data.lastTurnId) }, 201);
           if (action === 'parent') return json(response, { id: await workspace.parent(id) });
+          if (action === 'summary') return json(response, await workspace.summarize(id));
           if (action === 'return') return json(response, { id: await workspace.returnToParent(id, data.text) });
           return json(response, { ok: true });
         }
