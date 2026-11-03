@@ -59,3 +59,37 @@ or merge-review workflow was an assistant suggestion, not an accepted requiremen
 Parent-child connections and retained conversations support navigation and
 historical review. Branch navigation and result return are separate actions.
 The precise result payload and automatic parent continuation remain undecided.
+
+## 2026-11-03 — Implement version 0.0.1
+
+Implementation commit: `8b84f401bd6c726bf1111230ee23628a86b05c3e`.
+
+The user approved a Codex-only first version with four colored agent tabs,
+compact goals and reported tasks/subagents, a conversation and questions area,
+bottom chat input, existing-agent access, and new-agent controls. A small Node.js
+service connects to the existing native Codex daemon through its Unix WebSocket
+interface. This provides native state, streaming, steering, and interruption
+while preserving model and permission settings. No existing daemon is restarted.
+
+The user selected port 4242 and both localhost and VM-internal listening modes.
+The user approved nginx access restrictions plus an application password stored
+only as a salted secure hash in private home configuration. Real deployment
+addresses and authentication values remain outside the public repository.
+
+The Linux shell installer accepts a destination inside the user's home. Without
+a directory argument it prompts before installing, as explicitly requested. It
+builds the interface, prunes build-only dependencies, and creates a user launcher.
+It does not install system packages or configure boot services.
+
+The first implementation is 0.0.1, with package.json as the authoritative version
+source shared by frontend and backend. Later code changes follow the user's
+automatic MAJOR.MINOR.PATCH rule, with documentation kept consistent.
+
+Validation: production build; four protocol/auth/API integration tests; four
+real parallel validation agents; real steering/interruption; and a complete
+temporary unprivileged home installation with production assets and dependency
+pruning. Test conversations were archived and temporary installation artifacts
+removed. Browser visual checks were unavailable because no browser executable
+was installed. Questions owned by another client, broader permission grants,
+and connector forms may still need the native client. Branching and durable
+decision/task summaries remain future work, rather than implemented claims.
