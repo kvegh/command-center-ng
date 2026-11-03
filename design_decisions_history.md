@@ -2,8 +2,11 @@
 
 This project starts with the requirements recorded here and in README.md.
 There is no earlier implementation history to reconstruct. These entries
-distinguish selected direction from implemented behavior. The initial commit's
-ID will be recorded in the immediately following documentation commit.
+distinguish selected direction from implemented behavior.
+
+Initial source commit: `17d351d74ec172c2f451e59e48c534afbc25e2d2`. It introduces
+the eight documentation, contributor-guidance, and Git-policy files described
+below; it contains no application or installer implementation.
 
 ## 2026-11-03 — Start an independent public-source project
 
