@@ -153,3 +153,25 @@ refusal, and a failed build leaving the previous installation usable. Temporary
 conversations were archived and installation fixtures removed. No browser was
 available for automated desktop/mobile visual checks. No dependencies, native
 permissions, proxy configuration, or live deployment were changed.
+
+## 2026-11-03 — Fix nested installation updates in 0.1.1
+
+Implementation commit: `54ce896da1cc4f684f258f97ab72304ffa5fe235`.
+
+The user installed into ./targetdir under the source checkout. Git reported
+that directory as untracked, and the 0.1.0 updater incorrectly treated the
+generated installation as edited source. The source-change check now excludes
+only the selected installation's untracked output, using a literal path. All
+tracked changes and unrelated untracked files remain protected. A target that
+contains tracked source files is rejected. No ignore rules are changed and no
+local work is discarded. The correction advances the patch version to 0.1.1.
+
+Validation passed: production build, the six existing protocol/auth/API tests,
+six installer regression scenarios, and a complete temporary home installation
+and automatic update into checkout/targetdir. Regression checks cover fetching
+and fast-forwarding with an untracked installation, unrelated files, similarly
+named sibling directories, staged/unstaged source edits, spaces and Git pattern
+characters in target names, and tracked target overlap. The full lifecycle also
+verified configuration preservation, production assets, dependency pruning,
+local-commit refusal, and the previous installation surviving a failed build.
+Temporary fixtures were removed. No dependency or architecture changed.
