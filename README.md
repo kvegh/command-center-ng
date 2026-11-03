@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.0.1** implements the Codex workspace and Linux installer. It supports
+**Version 0.0.2** implements the Codex workspace and Linux installer. It supports
 four agent tabs, live running/idle/attention state, existing conversations, new
 agents, reported tasks/subagents, chat, steering, interruption, and questions.
 The interface uses a local Node.js service and the existing Codex daemon.
@@ -49,10 +49,10 @@ installed automatically.
 Clone this repository and run the installer with a target directory:
 
 ```sh
-sh install.sh "$HOME/apps/command-center-ng"
+./install.sh "$HOME/apps/command-center-ng"
 ```
 
-Without the directory parameter, `sh install.sh` prompts for the target before
+Without the directory parameter, `./install.sh` prompts for the target before
 doing any installation work. The target must be inside your home. The script
 builds the app, removes build-only dependencies, and creates the launcher
 `~/.local/bin/command-center-ng`. The first interactive install also prompts for
@@ -103,10 +103,12 @@ private home configuration; sessions use HttpOnly/SameSite cookies. Set an HTTPS
 public origin for Secure cookies behind nginx. No hypervisor, nginx, firewall,
 TLS, or VM changes are performed by this application.
 
-Validation: production build, four protocol/auth/API integration tests, four
+Base implementation validation: production build, four protocol/auth/API integration tests, four
 real parallel validation agents with steering/interruption, and a temporary
 unprivileged home installation with production assets and dependency pruning.
 No browser executable was available for automated desktop/mobile visual checks.
+The 0.0.2 patch additionally validates direct installer execution, shell syntax,
+consistent version metadata, and the production build.
 
 ## Public source policy
 

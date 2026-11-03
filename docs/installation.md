@@ -12,14 +12,14 @@ The interface must remain usable from a Linux desktop browser and a smartphone
 browser. Browser support does not imply a selected remote-access or hosting
 arrangement.
 
-Version 0.0.1 includes the installer. Linux, Node.js 22.12+, npm, tar, and realpath
+Version 0.0.2 includes the installer. Linux, Node.js 22.12+, npm, tar, and realpath
 must already be installed. Codex must be installed and signed in to manage
 agents; version 0.166.0 was tested. No system packages or services are installed.
 
 From the cloned repository:
 
 ```sh
-sh install.sh "$HOME/apps/command-center-ng"
+./install.sh "$HOME/apps/command-center-ng"
 ```
 
 The directory parameter selects the destination. Without it, the installer asks

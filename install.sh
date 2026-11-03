@@ -5,7 +5,7 @@ CCNG_INSTALL_DIR=''
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --prefix) [ "$#" -ge 2 ] || { echo 'Missing --prefix directory.' >&2; exit 1; }; CCNG_INSTALL_DIR=$2; shift 2 ;;
-        --help|-h) echo 'Usage: sh install.sh [DIRECTORY_UNDER_YOUR_HOME]'; echo 'Without a directory, the installer prompts before doing any work.'; exit 0 ;;
+        --help|-h) echo 'Usage: ./install.sh [DIRECTORY_UNDER_YOUR_HOME]'; echo 'Without a directory, the installer prompts before doing any work.'; exit 0 ;;
         -*) echo "Unknown argument: $1" >&2; exit 1 ;;
         *) [ -z "$CCNG_INSTALL_DIR" ] || { echo 'Provide one installation directory.' >&2; exit 1; }; CCNG_INSTALL_DIR=$1; shift ;;
     esac

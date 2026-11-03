@@ -67,7 +67,7 @@ TODO.md, or another suitable mechanism. The product integration has not been
 chosen. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Version 0.0.1
+## Current version: 0.0.2
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -75,7 +75,7 @@ a local application password stored as a secure hash outside the checkout.
 The user approved the ws dependency for the native Codex Unix WebSocket transport.
 The installer accepts a destination directory or asks for one before installing.
 
-The first implementation includes four tabs, live state, existing/new agents,
+The installer is directly executable as ./install.sh. The first implementation includes four tabs, live state, existing/new agents,
 reported tasks/subagents, chat, steering, interruption, and questions. See README
 for checks and current limitations. Branching and durable decision summaries
 remain future implementation work.
