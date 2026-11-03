@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { VERSION } from './version.mjs';
+import { taskSummary, reportedPlan } from './task-summary.mjs';
 
 export const input = text => [{ type: 'text', text, text_elements: [] }];
 export function statusOf(thread, requests = []) {
@@ -30,12 +31,12 @@ export class Workspace extends EventEmitter {
   }
   changed() { this.emit('change'); }
   snapshot() {
-    return { connected: this.rpc.ready, error: this.error, version: VERSION, backgroundQuestions: [...this.pending.values()].filter(q => !this.agents.has(q.params.threadId)).length, agents: [...this.agents.values()].map(agent => ({ ...agent, status: this.rpc.ready ? statusOf(agent.thread, agent.questions) : 'offline', thread: undefined })) };
+    return { connected: this.rpc.ready, error: this.error, version: VERSION, backgroundQuestions: [...this.pending.values()].filter(q => !this.agents.has(q.params.threadId)).length, agents: [...this.agents.values()].map(agent => ({ ...agent, ...taskSummary(agent), status: this.rpc.ready ? statusOf(agent.thread, agent.questions) : 'offline', thread: undefined })) };
   }
   agent(id) { const agent = this.agents.get(id); if (!agent) throw Object.assign(new Error('Open this agent first.'), { status: 404 }); return agent; }
   async list(cursor) {
     const result = await this.rpc.call('thread/list', { limit: 50, useStateDbOnly: true, ...(cursor ? { cursor } : {}) });
-    return { agents: result.data.map(t => ({ id: t.id, name: t.name || t.preview?.split('\n')[0]?.slice(0, 90) || 'Untitled agent', cwd: t.cwd, status: statusOf(t), parentId: t.parentThreadId || null })), nextCursor: result.nextCursor };
+    return { agents: result.data.map(t => ({ id: t.id, name: t.name || t.preview?.split('\n')[0]?.slice(0, 90) || 'Untitled agent', cwd: t.cwd, status: statusOf(t), parentId: t.parentThreadId || null, forkedFromId: t.forkedFromId || null })), nextCursor: result.nextCursor };
   }
   async open(id) {
     if (this.agents.has(id)) return this.agent(id);
@@ -44,14 +45,16 @@ export class Workspace extends EventEmitter {
     this.opening.add(id);
     try {
       const { thread } = await this.rpc.call('thread/resume', { threadId: id, excludeTurns: true });
-      const agent = { id, name: thread.name || 'Codex agent', goal: thread.name || thread.preview?.split('\n')[0] || 'No goal recorded', cwd: thread.cwd, model: thread.model || null, thread, canSend: thread.canAcceptDirectInput !== false, messages: [], tasks: [], workers: [], questions: [], turnId: null, olderCursor: null, activity: null };
+      const agent = { id, name: thread.name || 'Codex agent', goal: thread.name || thread.preview?.split('\n')[0] || 'No goal recorded', cwd: thread.cwd, model: thread.model || null, thread, parentId: thread.forkedFromId || null, canSend: thread.canAcceptDirectInput !== false, messages: [], tasks: [], workers: [], questions: [], turnId: null, lastCompletedTurnId: null, olderCursor: null, activity: null, summary: null };
       agent.questions = [...this.pending.values()].filter(q => q.params.threadId === id);
       this.watched.add(id); this.agents.set(id, agent);
       try { await this.history(id); } catch (error) { this.agents.delete(id); throw error; }
       this.changed(); return agent;
     } finally { this.opening.delete(id); }
   }
-  addItem(agent, item, turnId) {
+  addItem(agent, item, turnId, branchable = false) {
+    const plan = reportedPlan(item); if (plan) agent.tasks = plan;
+    if (item.type === 'agentMessage' && item.phase === 'commentary' && !item.text.includes('```')) agent.summary = item.text.split(/\n\s*\n/)[0];
     if (item.type === 'collabAgentToolCall') {
       for (const [id, state] of Object.entries(item.agentsStates || {})) {
         const worker = { id, name: state.agentNickname || state.agentRole || `Worker ${agent.workers.length + 1}`, status: state.status || item.status, task: item.prompt?.split('\n')[0]?.slice(0, 160) || item.tool };
@@ -59,7 +62,7 @@ export class Workspace extends EventEmitter {
       }
     }
     const text = itemText(item); if (!text) return;
-    const record = { id: item.id, turnId, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text, state: item.status || 'completed' };
+    const record = { id: item.id, turnId, branchable, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text, state: item.status || 'completed' };
     const previous = agent.messages.findIndex(m => m.id === item.id);
     if (previous >= 0) agent.messages[previous] = record; else agent.messages.push(record);
     if (agent.messages.length > 600) agent.messages = agent.messages.slice(-600);
@@ -68,13 +71,17 @@ export class Workspace extends EventEmitter {
   async history(id, cursor) {
     const agent = this.agent(id);
     const page = await this.rpc.call('thread/turns/list', { threadId: id, limit: 20, itemsView: 'full', ...(cursor ? { cursor } : {}) });
+    const current = { tasks: agent.tasks, summary: agent.summary, activity: agent.activity };
     const live = agent.messages; agent.messages = [];
     for (const turn of [...page.data].reverse()) {
       if (turn.status === 'inProgress') agent.turnId = turn.id;
-      for (const item of turn.items || []) this.addItem(agent, item, turn.id);
+      const lastReply = turn.status === 'completed' ? turn.items?.findLast(item => item.type === 'agentMessage') : null;
+      if (lastReply && !cursor) agent.lastCompletedTurnId = turn.id;
+      for (const item of turn.items || []) this.addItem(agent, item, turn.id, item.id === lastReply?.id);
     }
     const history = agent.messages;
     agent.messages = [...history, ...live.filter(m => !history.some(h => h.id === m.id))].slice(-600);
+    if (cursor) Object.assign(agent, current);
     agent.olderCursor = page.nextCursor || null;
     this.changed();
   }
@@ -98,6 +105,11 @@ export class Workspace extends EventEmitter {
     if (!agent.canSend) throw Object.assign(new Error('Codex does not allow direct input to this agent.'), { status: 409 });
     if (typeof text !== 'string' || !text.trim() || text.length > 32_000) throw Object.assign(new Error('Enter a message of 1–32000 characters.'), { status: 400 });
     if (agent.questions.length) throw Object.assign(new Error('Answer the pending question before sending another message.'), { status: 409 });
+    if (agent.freshBranch) {
+      const title = text.trim().split('\n')[0].slice(0, 120);
+      await this.rpc.call('thread/name/set', { threadId: id, name: title });
+      agent.name = title; agent.goal = title; agent.freshBranch = false;
+    }
     if (agent.thread.status?.type === 'active' && agent.turnId) {
       await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: agent.turnId, input: input(text.trim()) });
     } else {
@@ -108,6 +120,38 @@ export class Workspace extends EventEmitter {
     const agent = this.agent(id);
     if (!agent.turnId) throw Object.assign(new Error('There is no active turn to interrupt.'), { status: 409 });
     await this.rpc.call('turn/interrupt', { threadId: id, turnId: agent.turnId });
+  }
+  async fork(id, lastTurnId) {
+    const source = this.agent(id);
+    const point = lastTurnId || source.lastCompletedTurnId;
+    if (!point || !source.messages.some(message => message.turnId === point && message.branchable)) throw Object.assign(new Error('Choose a completed reply to branch from.'), { status: 400 });
+    if (this.agents.size + this.opening.size + this.creating >= 4) throw Object.assign(new Error('Close an agent tab before opening a branch. Conversations are kept.'), { status: 409 });
+    this.creating++; let reserved = true;
+    try {
+      const { thread } = await this.rpc.call('thread/fork', { threadId: id, lastTurnId: point, excludeTurns: true, deferGoalContinuation: true });
+      const name = `Branch · ${source.goal}`.slice(0, 120);
+      await this.rpc.call('thread/name/set', { threadId: thread.id, name });
+      this.creating--; reserved = false;
+      const branch = await this.open(thread.id);
+      branch.parentId = id; branch.name = name; branch.goal = source.goal; branch.freshBranch = true;
+      this.changed(); return branch.id;
+    } finally { if (reserved) this.creating--; }
+  }
+  async parent(id) {
+    const branch = this.agent(id); const parentId = branch.parentId;
+    if (!parentId) throw Object.assign(new Error('This conversation has no parent branch.'), { status: 400 });
+    if (this.agents.has(parentId)) return parentId;
+    const replace = this.agents.size + this.opening.size + this.creating >= 4;
+    if (replace) this.agents.delete(id);
+    try { await this.open(parentId); return parentId; }
+    catch (error) { if (replace) this.agents.set(id, branch); this.changed(); throw error; }
+  }
+  async returnToParent(id, text) {
+    const branch = this.agent(id);
+    if (typeof text !== 'string' || !text.trim() || text.length > 28_000) throw Object.assign(new Error('Enter the findings to send, up to 28000 characters.'), { status: 400 });
+    const parentId = await this.parent(id);
+    await this.send(parentId, `Findings from branch "${branch.name}" (${branch.id}):\n\n${text.trim()}`);
+    return parentId;
   }
   close(id) { this.agent(id); this.agents.delete(id); this.changed(); }
   request(message) {
@@ -153,8 +197,15 @@ export class Workspace extends EventEmitter {
     const id = p.threadId || p.thread?.id; const agent = this.agents.get(id); if (!agent) return;
     if (method === 'thread/status/changed') agent.thread.status = p.status;
     if (method === 'thread/name/updated') agent.name = p.threadName || p.name || agent.name;
-    if (method === 'turn/started') { agent.turnId = p.turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; }
-    if (method === 'turn/completed') { agent.turnId = null; agent.thread.status = { type: 'idle' }; if (p.turn.error) agent.activity = { text: p.turn.error.message, state: 'failed' }; }
+    if (method === 'turn/started') { agent.turnId = p.turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; agent.tasks = agent.tasks.filter(task => !/completed|done/i.test(task.state)); agent.summary = null; }
+    if (method === 'turn/completed') {
+      agent.turnId = null; agent.thread.status = { type: 'idle' };
+      if (p.turn.error) agent.activity = { text: p.turn.error.message, state: 'failed' };
+      if (p.turn.status === 'completed') {
+        const reply = agent.messages.findLast(message => message.type === 'assistant' && message.turnId === p.turn.id);
+        if (reply) { reply.branchable = true; reply.state = 'completed'; agent.lastCompletedTurnId = p.turn.id; }
+      }
+    }
     if (method === 'turn/plan/updated') agent.tasks = (p.plan || []).map((t, i) => ({ id: String(i), text: t.step, state: t.status }));
     if (method === 'item/started' || method === 'item/completed') this.addItem(agent, p.item, p.turnId);
     if (method === 'item/agentMessage/delta') {

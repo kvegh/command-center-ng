@@ -18,7 +18,7 @@ interfaces. Linux is the primary platform.
 
 This selects the frontend foundation only. It does not select agent APIs, a
 server framework, a database, a state-management library, or a component suite.
-Package versions are pinned in package.json and package-lock.json for 0.0.2.
+Package versions are pinned in package.json and package-lock.json for 0.1.0.
 The approved local Node.js service uses the existing Codex daemon.
 
 ## Visual principles
@@ -32,6 +32,13 @@ The approved local Node.js service uses the existing Codex daemon.
 - Respect reduced-motion preferences and avoid animation that distracts from work.
 - Use synthetic data for public demos and interface examples.
 
+Version 0.1.0 uses dark graphite surfaces with cyan controls, green running
+states, amber attention states, and violet branch navigation. Status labels and
+icons accompany color. The goal and up to three task summaries remain above
+the scrolling conversation, with the composer below. Completed replies expose
+Branch here; each fork exposes parent navigation and optional editable findings
+return. No animation or external font dependency is required.
+
 ## Linux installation
 
 The first supported runtime host is Linux. Frontend development will use a
@@ -41,7 +48,8 @@ a supported LTS version when package versions are fixed.
 
 The shell installer targets a user-supplied directory under an unprivileged
 user's home. Without a directory parameter, it prompts before installing.
-Version 0.0.2 includes it; a full temporary home installation was validated.
+Version 0.1.0 includes a target-local launcher and automatic-fetch update mode;
+fresh installation, updating, and failure preservation were validated.
 
 ## Primary references
 

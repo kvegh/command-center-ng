@@ -51,10 +51,11 @@ completing it or performing a merge ceremony.
 
 An optional **Bring back to main** action returns a branch's findings or subtask
 results into its parent conversation. Switching between conversation views is
-separate from returning results. The exact return payload, handling of conflicting
-findings, and whether returning results also resumes the parent agent remain
-to be agreed. Native agent support for preserving the full context must be
-verified before an implementation promises it.
+separate from returning results. Version 0.1.0 provides an editable findings
+message and an explicit Send to parent action. Sending starts a parent turn or
+steers an active turn; navigation alone never sends. Findings are messages, not
+automatic transcript or file merges. Native Codex context preservation was
+verified with a real fork and an inherited-context recall check.
 
 ## History and tasks
 
@@ -67,7 +68,7 @@ TODO.md, or another suitable mechanism. The product integration has not been
 chosen. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current version: 0.0.2
+## Current version: 0.1.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -77,13 +78,16 @@ The installer accepts a destination directory or asks for one before installing.
 
 The installer is directly executable as `./install.sh`. The first implementation
 includes four tabs, live state, existing/new agents,
-reported tasks/subagents, chat, steering, interruption, and questions. See README
-for checks and current limitations. Branching and durable decision summaries
-remain future implementation work.
+reported tasks/subagents, chat, steering, interruption, and questions. Version
+0.1.0 adds native branching from completed replies, parent navigation, optional
+editable findings return, a maximum of three task summaries without shell-command
+fallback, a dark graphite/cyan palette, automatic-fetch installer updates, and a
+launcher inside the installation target. See README for checks and limitations.
+Durable decision summaries remain future implementation work.
 
 ## Decisions still open
 
 Persistence beyond private authentication configuration, runtime task-tracker
-integration, branch result-return behavior, other agent runtimes, and actual
+integration, other agent runtimes, and actual
 deployment proxy/TLS configuration remain open. Architectural changes require
 user direction unless specifically delegated.

@@ -21,6 +21,12 @@ nginx. The user approved nginx access restrictions plus a local application
 password stored only as a secure hash in private home configuration. The Linux
 installer accepts a target directory or prompts for it before installing.
 
+The user requested a target-local launcher and installer update mode, explicitly
+selecting automatic fetching of latest code. Version 0.1.0 uses the same local
+service and native Codex thread/fork support for completed-reply branching with
+parent navigation and optional explicit findings messages. Do not introduce a
+separate branch store or Git-worktree automation without user direction.
+
 ## Code versioning
 
 Use numeric MAJOR.MINOR.PATCH versions. The first implementation starts at

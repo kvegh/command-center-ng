@@ -2,10 +2,12 @@
 set -eu
 
 CCNG_INSTALL_DIR=''
+CCNG_UPDATE=0
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --prefix) [ "$#" -ge 2 ] || { echo 'Missing --prefix directory.' >&2; exit 1; }; CCNG_INSTALL_DIR=$2; shift 2 ;;
-        --help|-h) echo 'Usage: ./install.sh [DIRECTORY_UNDER_YOUR_HOME]'; echo 'Without a directory, the installer prompts before doing any work.'; exit 0 ;;
+        --update) CCNG_UPDATE=1; shift ;;
+        --help|-h) echo 'Usage: ./install.sh [--update] [DIRECTORY_UNDER_YOUR_HOME]'; echo 'Without a directory, the installer prompts before doing any work.'; echo 'Run --update from a clean source checkout to fetch latest main automatically.'; exit 0 ;;
         -*) echo "Unknown argument: $1" >&2; exit 1 ;;
         *) [ -z "$CCNG_INSTALL_DIR" ] || { echo 'Provide one installation directory.' >&2; exit 1; }; CCNG_INSTALL_DIR=$1; shift ;;
     esac
@@ -28,11 +30,20 @@ CCNG_SOURCE_DIR=$(dirname "$(realpath "$0")")
 if [ -e "$CCNG_INSTALL_DIR" ]; then
     node -e 'const fs=require("node:fs");const p=process.argv[1]+"/package.json";if(!fs.existsSync(p)||JSON.parse(fs.readFileSync(p)).name!=="command-center-ng")process.exit(1)' "$CCNG_INSTALL_DIR" || { echo 'Refusing to replace an unrelated directory.' >&2; exit 1; }
 fi
-CCNG_PARENT=$(dirname "$CCNG_INSTALL_DIR")
-CCNG_BIN_DIR="$CCNG_USER_HOME/.local/bin"
-if [ -e "$CCNG_BIN_DIR/command-center-ng" ]; then
-    node -e 'const fs=require("node:fs");if(!fs.readFileSync(process.argv[1],"utf8").includes("# Command Center NG launcher"))process.exit(1)' "$CCNG_BIN_DIR/command-center-ng" || { echo 'Refusing to replace an unrelated launcher.' >&2; exit 1; }
+if [ "$CCNG_UPDATE" -eq 1 ]; then
+    [ -d "$CCNG_INSTALL_DIR" ] || { echo 'Update requires an existing Command Center installation.' >&2; exit 1; }
+    command -v git >/dev/null 2>&1 || { echo 'Git is required for automatic updates.' >&2; exit 1; }
+    CCNG_GIT_ROOT=$(git -C "$CCNG_SOURCE_DIR" rev-parse --show-toplevel 2>/dev/null) || { echo 'Run --update from the cloned source repository.' >&2; exit 1; }
+    [ "$(realpath "$CCNG_GIT_ROOT")" = "$CCNG_SOURCE_DIR" ] || { echo 'Run --update from the cloned source repository.' >&2; exit 1; }
+    [ -z "$(git -C "$CCNG_SOURCE_DIR" status --porcelain)" ] || { echo 'The source checkout has local changes. Commit or move them before updating; nothing was discarded.' >&2; exit 1; }
+    [ "$(git -C "$CCNG_SOURCE_DIR" branch --show-current)" = main ] || { echo 'Switch the source checkout to main before updating.' >&2; exit 1; }
+    git -C "$CCNG_SOURCE_DIR" fetch origin main
+    git -C "$CCNG_SOURCE_DIR" merge-base --is-ancestor HEAD FETCH_HEAD || { echo 'Local source commits diverge from latest main; refusing to overwrite them.' >&2; exit 1; }
+    git -C "$CCNG_SOURCE_DIR" merge --ff-only FETCH_HEAD
+    # Re-enter the freshly fetched installer; ordinary reinstall preserves private config.
+    exec sh "$CCNG_SOURCE_DIR/install.sh" "$CCNG_INSTALL_DIR"
 fi
+CCNG_PARENT=$(dirname "$CCNG_INSTALL_DIR")
 mkdir -p "$CCNG_PARENT"
 CCNG_STAGE=$(mktemp -d "$CCNG_PARENT/.command-center-ng-install.XXXXXXXX")
 trap 'rm -rf -- "$CCNG_STAGE"' EXIT HUP INT TERM
@@ -49,22 +60,34 @@ CCNG_AUTH_FILE="${CCNG_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/command-cen
 if [ -t 0 ] && [ ! -f "$CCNG_AUTH_FILE" ]; then
     node "$CCNG_STAGE/app/server/password.mjs"
 fi
+cat > "$CCNG_STAGE/app/command-center-ng" <<'SH'
+#!/bin/sh
+# Command Center NG launcher
+CCNG_APP_DIR=$(dirname "$(realpath "$0")")
+exec node "$CCNG_APP_DIR/server/main.mjs" "$@"
+SH
+chmod 755 "$CCNG_STAGE/app/command-center-ng"
 if [ -e "$CCNG_INSTALL_DIR" ]; then mv "$CCNG_INSTALL_DIR" "$CCNG_STAGE/previous"; fi
 if ! mv "$CCNG_STAGE/app" "$CCNG_INSTALL_DIR"; then
     [ ! -d "$CCNG_STAGE/previous" ] || mv "$CCNG_STAGE/previous" "$CCNG_INSTALL_DIR"
     echo 'Installation failed; the previous installation was restored.' >&2; exit 1
 fi
-mkdir -p "$CCNG_BIN_DIR"
-node --input-type=module - "$CCNG_INSTALL_DIR" "$CCNG_BIN_DIR/command-center-ng" <<'JS'
-import { writeFileSync, chmodSync } from 'node:fs';
+node --input-type=module - "$CCNG_INSTALL_DIR" "$CCNG_USER_HOME/.local/bin/command-center-ng" <<'JS'
+import { readFileSync, lstatSync, unlinkSync } from 'node:fs';
 const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
-writeFileSync(process.argv[3], '#!/bin/sh\n# Command Center NG launcher\nexec node ' + quote(process.argv[2] + '/server/main.mjs') + ' "$@"\n', { mode: 0o755 });
-chmodSync(process.argv[3], 0o755);
+try {
+  const info = lstatSync(process.argv[3]);
+  const expected = '#!/bin/sh\n# Command Center NG launcher\nexec node ' + quote(process.argv[2] + '/server/main.mjs') + ' "$@"\n';
+  if (info.isFile() && !info.isSymbolicLink() && info.uid === process.getuid() && readFileSync(process.argv[3], 'utf8') === expected) {
+    unlinkSync(process.argv[3]); console.log('Removed the old PATH shortcut for this installation.');
+  }
+} catch (error) { if (error.code !== 'ENOENT') console.log('Existing PATH shortcut left untouched.'); }
 JS
 CCNG_VERSION=$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1])).version' "$CCNG_INSTALL_DIR/package.json")
 echo "Installed Command Center NG $CCNG_VERSION into $CCNG_INSTALL_DIR"
-echo "Launcher: $CCNG_BIN_DIR/command-center-ng"
+echo "Launcher: $CCNG_INSTALL_DIR/command-center-ng"
 echo 'If not set during installation, set your password with:'
 echo "  node '$CCNG_INSTALL_DIR/server/password.mjs'"
-echo 'Start: command-center-ng --host 127.0.0.1 --port 4242'
+echo "Start: '$CCNG_INSTALL_DIR/command-center-ng' --host 127.0.0.1 --port 4242"
+echo 'For updates, run ./install.sh --update TARGET_DIR from the source checkout, then restart the app.'
 echo 'The Codex CLI must already be installed, signed in, and its daemon running.'
