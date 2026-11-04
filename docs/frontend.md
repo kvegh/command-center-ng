@@ -18,7 +18,7 @@ interfaces. Linux is the primary platform.
 
 This selects the frontend foundation only. It does not select agent APIs, a
 server framework, a database, a state-management library, or a component suite.
-Package versions are pinned in package.json and package-lock.json for 0.6.0.
+Package versions are pinned in package.json and package-lock.json for the current 0.7.0 development version.
 The approved local Node.js service uses the existing Codex daemon.
 
 ## Visual principles

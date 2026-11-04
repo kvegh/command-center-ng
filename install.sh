@@ -3,30 +3,37 @@ set -eu
 
 CCNG_INSTALL_DIR=''
 CCNG_UPDATE=0
+CCNG_CHECK_ONLY=0
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --prefix) [ "$#" -ge 2 ] || { echo 'Missing --prefix directory.' >&2; exit 1; }; CCNG_INSTALL_DIR=$2; shift 2 ;;
         --update) CCNG_UPDATE=1; shift ;;
-        --help|-h) echo 'Usage: ./install.sh [--update] [DIRECTORY_UNDER_YOUR_HOME]'; echo 'Without a directory, the installer prompts before doing any work.'; echo 'Run --update from a clean source checkout to fetch latest main automatically.'; exit 0 ;;
+        --check) CCNG_CHECK_ONLY=1; shift ;;
+        --help|-h) echo 'Usage: ./install.sh [--update | --check] [DIRECTORY_UNDER_YOUR_HOME]'; echo 'Without a directory, installation prompts before doing any work.'; echo '--check reports prerequisites without installing or changing configuration.'; echo 'RHEL 9 can install missing prerequisites after explicit terminal confirmation.'; echo 'Run --update from a clean source checkout to fetch latest main automatically.'; exit 0 ;;
         -*) echo "Unknown argument: $1" >&2; exit 1 ;;
         *) [ -z "$CCNG_INSTALL_DIR" ] || { echo 'Provide one installation directory.' >&2; exit 1; }; CCNG_INSTALL_DIR=$1; shift ;;
     esac
 done
+for CCNG_TOOL in id uname dirname; do command -v "$CCNG_TOOL" >/dev/null 2>&1 || { echo 'A basic Linux installation with coreutils is required to start this installer.' >&2; exit 1; }; done
+[ "$(uname -s)" = Linux ] || { echo 'Linux is required.' >&2; exit 1; }
+CCNG_SOURCE_DIR=$(dirname "$0")
+. "$CCNG_SOURCE_DIR/installer/prerequisites.sh"
+if [ "$CCNG_CHECK_ONLY" -eq 1 ]; then
+    [ "$CCNG_UPDATE" -eq 0 ] || { echo 'Choose --check or --update.' >&2; exit 1; }
+    if [ -n "$CCNG_INSTALL_DIR" ] && [ -d "$CCNG_INSTALL_DIR/tools/node_modules/.bin" ]; then PATH="$CCNG_INSTALL_DIR/tools/node_modules/.bin:$PATH"; export PATH; fi
+    ccng_environment_report
+    exit $?
+fi
 while [ -z "$CCNG_INSTALL_DIR" ]; do
     printf 'Installation target directory (inside your home): '
     IFS= read -r CCNG_INSTALL_DIR || { echo 'No target directory provided.' >&2; exit 1; }
 done
-[ "$(uname -s)" = Linux ] || { echo 'Linux is required.' >&2; exit 1; }
 [ "$(id -u)" -ne 0 ] || { echo 'Run this installer as an unprivileged user, without sudo.' >&2; exit 1; }
-for CCNG_TOOL in node npm tar realpath bd; do
-    command -v "$CCNG_TOOL" >/dev/null 2>&1 || { echo "Install the missing prerequisite first: $CCNG_TOOL" >&2; exit 1; }
-done
-node -e 'const [major,minor]=process.versions.node.split(".").map(Number);if(major<22||(major===22&&minor<12)){console.error("Node.js 22.12 or newer is required.");process.exit(1)}'
+ccng_system_prerequisites
 CCNG_INSTALL_DIR=$(realpath -m "$CCNG_INSTALL_DIR")
 CCNG_USER_HOME=$(realpath "$HOME")
 case "$CCNG_INSTALL_DIR" in "$CCNG_USER_HOME"/*) ;; *) echo 'Installation must stay inside your home directory.' >&2; exit 1 ;; esac
 CCNG_SOURCE_DIR=$(dirname "$(realpath "$0")")
-node "$CCNG_SOURCE_DIR/server/beads-check.mjs"
 [ "$CCNG_SOURCE_DIR" != "$CCNG_INSTALL_DIR" ] || { echo 'Run the installer from a separate source checkout.' >&2; exit 1; }
 if [ -e "$CCNG_INSTALL_DIR" ]; then
     node -e 'const fs=require("node:fs");const p=process.argv[1]+"/package.json";if(!fs.existsSync(p)||JSON.parse(fs.readFileSync(p)).name!=="command-center-ng")process.exit(1)' "$CCNG_INSTALL_DIR" || { echo 'Refusing to replace an unrelated directory.' >&2; exit 1; }
@@ -60,6 +67,13 @@ mkdir -p "$CCNG_PARENT"
 CCNG_STAGE=$(mktemp -d "$CCNG_PARENT/.command-center-ng-install.XXXXXXXX")
 trap 'rm -rf -- "$CCNG_STAGE"' EXIT HUP INT TERM
 mkdir "$CCNG_STAGE/app"
+if [ -d "$CCNG_INSTALL_DIR/tools" ]; then
+    [ ! -L "$CCNG_INSTALL_DIR/tools" ] || { echo 'Refusing to use a symlink as the managed CLI directory.' >&2; exit 1; }
+    cp -a "$CCNG_INSTALL_DIR/tools" "$CCNG_STAGE/app/tools"
+fi
+PATH="$CCNG_STAGE/app/tools/node_modules/.bin:$PATH"
+export PATH
+ccng_agent_prerequisites
 tar -C "$CCNG_SOURCE_DIR" -cf "$CCNG_STAGE/source.tar" package.json package-lock.json index.html tsconfig.json vite.config.mjs src server README.md docs AGENTS.md design_decisions_history.md
 tar -C "$CCNG_STAGE/app" -xf "$CCNG_STAGE/source.tar"
 (
@@ -76,6 +90,8 @@ cat > "$CCNG_STAGE/app/command-center-ng" <<'SH'
 #!/bin/sh
 # Command Center NG launcher
 CCNG_APP_DIR=$(dirname "$(realpath "$0")")
+PATH="$CCNG_APP_DIR/tools/node_modules/.bin:$PATH"
+export PATH
 exec node "$CCNG_APP_DIR/server/main.mjs" "$@"
 SH
 chmod 755 "$CCNG_STAGE/app/command-center-ng"
@@ -94,6 +110,8 @@ try {
     unlinkSync(process.argv[3]); console.log('Removed the old PATH shortcut for this installation.');
   }
 } catch (error) { if (error.code !== 'ENOENT') console.log('Existing PATH shortcut left untouched.'); }
+console.log('For native CLI commands in this terminal:');
+console.log('  export PATH=' + quote(process.argv[2] + '/tools/node_modules/.bin') + ':"$PATH"');
 JS
 CCNG_VERSION=$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1])).version' "$CCNG_INSTALL_DIR/package.json")
 echo "Installed Command Center NG $CCNG_VERSION into $CCNG_INSTALL_DIR"
@@ -102,4 +120,6 @@ echo 'If not set during installation, set your password with:'
 echo "  node '$CCNG_INSTALL_DIR/server/password.mjs'"
 echo "Start: '$CCNG_INSTALL_DIR/command-center-ng' --host 127.0.0.1 --port 4242"
 echo 'For updates, run ./install.sh --update TARGET_DIR from the source checkout, then restart the app.'
-echo 'The Codex CLI must already be installed, signed in, and its daemon running.'
+if [ "${CCNG_LOGIN_PENDING:-0}" -eq 1 ]; then echo 'Setup pending: run codex login --device-auth using the tool PATH shown above.'; fi
+echo 'Start the native daemon from a terminal with that tool PATH: codex app-server daemon start'
+echo 'Existing daemons keep their original PATH. If Beads was just added, restart the daemon when existing work is idle before starting new agents.'

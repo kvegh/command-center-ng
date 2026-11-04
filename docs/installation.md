@@ -6,20 +6,25 @@ The user selected the installation model:
 
 - Provide a simple Linux shell script.
 - Install into the invoking unprivileged user's home directory.
-- Do not require root or sudo.
+- Run as an unprivileged user; optional prerequisite RPM installation may use
+  sudo only after explicit terminal confirmation.
 
 The interface must remain usable from a Linux desktop browser and a smartphone
 browser. Browser support does not imply a selected remote-access or hosting
 arrangement.
 
-Version 0.6.0 includes the installer. Linux, Node.js 22.12+, npm, tar, realpath,
-and Beads (`bd`) must already be installed. The installer validates the bd JSON/
-read-only/brief-list interface before building; the app checks it again at startup.
-Beads 1.3.2 was verified. See the [official installation guide](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md).
-Use an embedded-capable Beads build if you do not already operate its server
-mode. The application reuses existing Beads configuration and does not install
-or manage a Dolt service. Missing tools are reported, not installed automatically. Codex must be installed and signed in to manage
-agents; version 0.166.0 was tested. No system packages or services are installed.
+Version 0.7.0 is in development. The installer checks RHEL 9 prerequisites and
+can offer missing RPMs and user-local CLI packages after confirmation. Other
+Linux distributions are not yet tested; automatic package setup is RHEL 9 only.
+Run `./install.sh --check` for a read-only inventory. Full details and package
+names are in [RHEL 9 prerequisites](rhel9-prerequisites.md).
+
+Beads 1.3.2 and Codex 0.166.0 are the verified CLI versions used for optional
+fresh local installation. Existing compatible CLIs are reused. The application
+checks Beads JSON/read-only/brief-list support. Existing trackers are preserved;
+fresh tracker/shared Dolt setup still awaits the user's architecture choice and
+is not yet automated. No system package, global tool, tracker or service is
+changed without its explicit setup authorization.
 
 From the cloned repository:
 
@@ -49,6 +54,11 @@ with the password file. Browser drafts/order/positions stay in local browser
 storage. On restart, sign in again to see restored tabs. Restoring reads existing
 history without starting worker work; already-running Codex tasks remain native.
 See [workspace restore and recovery](workspace-restore.md).
+
+If CLIs were installed under the target, export its
+`tools/node_modules/.bin` on PATH before starting the daemon so native agents
+can also find Beads. An already-running daemon retains its original PATH; after
+adding Beads, restart it only when existing work is idle.
 
 Start `codex app-server daemon start` using the same account and Codex home as
 the conversations to manage, then run `"$HOME/apps/command-center-ng/command-center-ng"`

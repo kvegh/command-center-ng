@@ -18,6 +18,7 @@ test('installer updates distinguish nested installation output from actual sourc
   try {
     await mkdir(upstream);
     await cp(fileURLToPath(new URL('../install.sh', import.meta.url)), join(upstream, 'install.sh'));
+    await cp(fileURLToPath(new URL('../installer', import.meta.url)), join(upstream, 'installer'), { recursive: true });
     for (const name of ['src', 'server', 'docs']) { await mkdir(join(upstream, name)); await writeFile(join(upstream, name, 'fixture'), 'synthetic fixture'); }
     for (const name of ['beads.mjs', 'beads-check.mjs']) await cp(fileURLToPath(new URL('../server/' + name, import.meta.url)), join(upstream, 'server', name));
     await writeFile(join(upstream, 'package.json'), JSON.stringify({ name: 'command-center-ng', version: '0.0.1' }));
@@ -32,8 +33,9 @@ test('installer updates distinguish nested installation output from actual sourc
     const bin = join(dir, 'bin'); await mkdir(bin);
     // Stop at the build boundary: these tests exercise real Git and the shell
     // installer without installing dependencies or replacing the fixture target.
-    await writeFile(join(bin, 'npm'), '#!/bin/sh\necho CCNG_FIXTURE_BUILD_REACHED\nexit 42\n', { mode: 0o755 });
+    await writeFile(join(bin, 'npm'), '#!/bin/sh\nif [ "$1" = --version ]; then echo 10.9.2; exit 0; fi\necho CCNG_FIXTURE_BUILD_REACHED\nexit 42\n', { mode: 0o755 });
     await writeFile(join(bin, 'bd'), '#!/bin/sh\ncase \"$*\" in *version*) echo \"bd version 1.3.2\" ;; *) echo \"--json --readonly --brief --flat\" ;; esac\n', { mode: 0o755 });
+    await writeFile(join(bin, 'codex'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
     const env = { ...process.env, PATH: bin + ':' + process.env.PATH };
     await mkdir(join(checkout, targetName));
     await writeFile(join(checkout, targetName, 'package.json'), JSON.stringify({ name: 'command-center-ng', version: '0.0.1' }));

@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current version: 0.6.0
+## Current development version: 0.7.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -155,6 +155,12 @@ answer stays listed until confirmed. Multi-question requests show each question,
 and externally owned requests direct the user to their native client. Branch
 chat moves beside Interrupt and Send in the chat composer. Ordinary-chat question
 inference is not included; the requested scope choice remains open.
+
+The next installer work adds a read-only environment inventory, confirmed RHEL 9
+RPM installation, target-local missing CLI installation and explicit sign-in
+readiness. Existing tools/trackers are preserved. Fresh shared Dolt configuration
+is proposed for parallel writers but remains pending user direction. RHEL 9
+prerequisites are documented; other distributions are not yet tested.
 
 ## Decisions still open
 

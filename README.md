@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.6.0** implements the Codex workspace and Linux installer. It supports
+**Version 0.7.0 (in development)** includes the Codex workspace and Linux installer. It supports
 four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -67,12 +67,19 @@ and the [original discussion summary](docs/supervisor-design-discussion.md).
 
 ## Installation and startup
 
-Prerequisites: Linux, Node.js 22.12+, npm, tar/realpath, Beads (`bd`), and a
-signed-in Codex CLI. Beads must be on PATH for both the app and working agents.
+Prerequisites: Linux, Node.js 22.12+, npm, core shell utilities, Git, tar/gzip,
+Beads (`bd`) and a signed-in Codex CLI. RHEL 9 is the documented setup target;
+other distributions are not yet tested. Run `./install.sh --check` to inspect the
+environment without installing anything. Interactive installation can offer
+missing RHEL 9 RPMs through sudo and missing Beads/Codex CLI packages under the
+chosen target, always after terminal confirmation. See the
+[RHEL 9 prerequisite guide](docs/rhel9-prerequisites.md). Beads must be on PATH for both the app and working agents.
 The installer and app check for JSON/read-only/brief-list support; Beads 1.3.2
 was verified. See the [official Beads installation guide](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md).
-The native integration is tested with Codex 0.166.0. System tools are not
-installed automatically.
+The native integration is tested with Codex 0.166.0. Fresh automatic Beads
+tracker/Dolt configuration remains pending the user's architecture choice;
+existing trackers are preserved. System packages are changed only after
+explicit installer confirmation.
 
 Clone this repository and run the installer with a target directory:
 
@@ -86,9 +93,11 @@ builds the app, removes build-only dependencies, and creates the launcher
 `command-center-ng` inside that target directory. The first interactive install also prompts for
 an application password; its hash stays outside the repository.
 
-Start the native Codex daemon, then the application:
+If the installer added CLIs locally, first add them to the terminal PATH. Start
+the native Codex daemon from that terminal, then the application:
 
 ```sh
+export PATH="$HOME/apps/command-center-ng/tools/node_modules/.bin:$PATH"
 codex app-server daemon start
 "$HOME/apps/command-center-ng/command-center-ng"
 ```
@@ -290,6 +299,11 @@ Additional rendering/navigation checks cover multi-question requests, confirmati
 and error visibility, distinct typed request targets, answer-control focus,
 composer placement and the 40% width increase. No interactive browser was
 available; rendered desktop/mobile review still awaits the user's screenshot.
+
+The 0.7.0 prerequisite checkpoint passed all 63 regressions and the production
+build. Consent tests use simulated commands; no actual RPM or new CLI was
+installed. A fresh staged home installation passed with existing tools. Fresh
+Beads/Dolt configuration and minimal-RHEL bootstrap validation remain pending.
 
 ## Public source policy
 

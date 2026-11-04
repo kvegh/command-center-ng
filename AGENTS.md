@@ -129,3 +129,13 @@ Branch chat in the chat composer beside Interrupt and Send, with per-reply
 Branch here still available. Preserve stacked mobile context and wrapping
 composer controls. Do not infer ordinary-chat questions without a separate
 agreed approach.
+
+
+The user requested RHEL 9 prerequisite checking and optional package installation
+through sudo after installer confirmation. The application itself still installs
+and runs unprivileged under the chosen target. Missing Beads/Codex CLIs may be
+offered under that target; preserve compatible global tools, native settings and
+existing trackers. Check-only mode must not install anything. Fresh Beads/shared
+Dolt setup remains subject to the pending user choice; do not initialize or
+migrate a tracker or start a new service until that approach is approved. Do not
+claim other Linux distributions have been tested.
