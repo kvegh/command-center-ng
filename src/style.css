@@ -378,7 +378,7 @@ kbd { font-family: inherit; }
 /* Use the browser window for work; only message text has a reading-width limit. */
 .app-shell { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 .topbar { flex-shrink: 0; }
-.workspace { width: 100%; max-width: none; margin: 0; padding: 12px; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.workspace { width: 100%; max-width: none; margin: 0; padding: 0 12px 12px; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .workspace-frame { flex: 1; min-height: 0; }
 .workspace-frame .agent-panel { height: 100%; min-height: 0; max-height: none; }
 .workspace-restoring { height: 100%; display: grid; place-content: center; color: var(--muted); font-size: 14px; }
@@ -402,7 +402,7 @@ kbd { font-family: inherit; }
   .parent-link span { max-width: 100%; }
 }
 @media (max-width: 900px) {
-  .workspace { padding: 8px; }
+  .workspace { padding: 0 8px 8px; }
   .context { flex-shrink: 0; max-height: 38dvh; overflow-y: auto; }
   .composer { flex-shrink: 0; }
 }
