@@ -272,3 +272,46 @@ review, and diff checks. Regression coverage specifically reproduces old raw
 requests and an older unfinished plan beside a new current turn, verifies that
 only the new plan appears, excludes completed steps, and expires that plan on
 the following turn. Browser visual checks remain unavailable.
+
+## 2026-11-03 — Use Beads task state and refine navigation in 0.3.0
+
+Implementation commit: `b0b9774a5435ee4744a3ff6f65a08d7378cf367d`.
+
+The user selected Beads after native plans and chat reports proved insufficient
+for durable current-work tracking. The backend now reads stored task titles,
+states, ownership and parent links through bd, with no extra model call. Closed
+tasks leave the current-work panel; tracker failures clear stale rows and show
+an error. The panel refreshes every five seconds and after completed turns.
+
+Conversation associations use namespaced labels in the existing tracker rather
+than a second database. Explicit linking changes only the association label.
+On app-started turns, application context directs working agents to maintain
+their substantive tasks through bd and use their own conversation label.
+Branches retain separate links; handoffs include relevant IDs and unfinished
+work without automatically closing or reassigning tasks. The installer and app
+check the approved bd prerequisite but do not install tools, initialize or
+migrate trackers, or manage a Dolt service.
+
+The user requested immediate typing after selecting an agent. Tab selection,
+including reselecting the current tab, focuses the enabled chat input at the
+end of its draft. Streaming updates do not repeatedly take focus. A generated
+transparent airport control-tower icon replaces the square mark and supplies
+the favicon; its asset and generation prompt are documented in docs/brand.md.
+Branding remains at the far right. No new npm dependency was added.
+
+Validation passed: production build, all 25 reported checks including six nested
+installer scenarios, staged public-content review, and diff checks. A real
+Beads/Codex check verified native application context, persisted labels across a
+fresh adapter, conversation isolation, stored in-progress updates, disappearance
+of closed work, and the authenticated task catalog. A complete Linux installer
+lifecycle verified fresh and nested installation, fetched updates, executable
+target-local launcher, production assets, dependency pruning, password-file and
+existing shortcut preservation, dirty/diverged checkout rejection, and retention
+of the previous installation after a failed build. Owned validation conversations
+were archived, test tasks closed, and fixtures removed. Browser visual review
+remains unperformed.
+
+Workspace restoration is requested but its persistence choice remains pending.
+Cross-client approval/question resolution is under investigation. The proposed
+assistant-team summarizer and approval reviewer are not enabled; their integration
+and approval authority require an agreed design and policy.
