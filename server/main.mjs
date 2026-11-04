@@ -26,7 +26,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
   const verify = await loadPassword(authFile);
   const sessions = new Sessions(); const clients = new Set();
   rpc ||= new CodexRpc({ socketPath: settings.socketPath });
-  workspace ||= new Workspace(rpc);
+  workspace ||= new Workspace(rpc, { coordinator: true });
   await workspace.beads?.checkAvailable(settings.cwd);
   const taskTimer = setInterval(() => {
     for (const id of workspace.agents.keys()) void workspace.refreshTasks(id);
@@ -92,13 +92,21 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
         }
         if (path === '/api/agents' && request.method === 'GET') return json(response, await workspace.list(url.searchParams.get('cursor')));
         if (path === '/api/agents' && request.method === 'POST') return json(response, { id: await workspace.create(await body(request)) }, 201);
+        if (path === '/api/coordinator' && request.method === 'POST') {
+          if (!workspace.coordinator) throw failure('The coordinator is unavailable.', 503);
+          const data = await body(request);
+          if (data.action === 'clear-messages') { workspace.coordinator.clearMessages(); return json(response, workspace.coordinator.snapshot()); }
+          if (Object.hasOwn(data, 'paused')) await workspace.coordinator.setPaused(data.paused);
+          else { await workspace.coordinator.ensure(); if (data.action === 'refresh') { for (const worker of workspace.coordinator.workers()) workspace.coordinator.mark(worker.id, 'User requested a fresh summary', true); await workspace.coordinator.pump(); } }
+          return json(response, workspace.coordinator.snapshot());
+        }
         const taskRoute = path.match(/^\/api\/agents\/([^/]+)\/tasks$/);
         if (taskRoute) {
           const id = decodeURIComponent(taskRoute[1]);
           if (request.method === 'GET') return json(response, await workspace.taskCatalog(id));
           if (request.method === 'POST') return json(response, await workspace.linkTasks(id, (await body(request)).ids));
         }
-        const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|interrupt|history|answer|fork|parent|summary|return)$/);
+        const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|interrupt|history|answer|review|fork|parent|summary|return)$/);
         if (match && request.method === 'POST') {
           const [, encoded, action] = match; const id = decodeURIComponent(encoded); const data = await body(request);
           if (action === 'open') await workspace.open(id);
@@ -107,6 +115,13 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           if (action === 'interrupt') await workspace.interrupt(id);
           if (action === 'history') await workspace.history(id, data.cursor);
           if (action === 'answer') await workspace.answer(id, data.requestId, data);
+          if (action === 'review') {
+            if (!workspace.coordinator || workspace.coordinator.paused) throw failure('Resume the coordinator before requesting a review.', 409);
+            const agent = workspace.agent(id); const question = agent.questions.find(q => q.id === data.requestId);
+            if (!question || !['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method)) throw failure('Choose a pending command or file approval.', 400);
+            question.review = { decision: 'queued', rationale: 'Review requested by the user.' };
+            await workspace.coordinator.ensure(); workspace.coordinator.mark(id, 'User requested approval review', true); workspace.changed();
+          }
           if (action === 'fork') return json(response, { id: await workspace.fork(id, data.lastTurnId) }, 201);
           if (action === 'parent') return json(response, { id: await workspace.parent(id) });
           if (action === 'summary') return json(response, await workspace.summarize(id));
@@ -133,7 +148,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
     const { createServer } = await import('vite');
     vite = await createServer({ root, server: { middlewareMode: true, hmr: { server } }, appType: 'spa' });
   }
-  const close = async () => { clearInterval(taskTimer); clearTimeout(broadcastTimer); for (const client of clients) client.response.end(); clients.clear(); workspace.off('change', publish); rpc.close(); await vite?.close(); await new Promise(resolve => server.close(resolve)); };
+  const close = async () => { await workspace.coordinator?.shutdown(); clearInterval(taskTimer); clearTimeout(broadcastTimer); for (const client of clients) client.response.end(); clients.clear(); workspace.off('change', publish); rpc.close(); await vite?.close(); await new Promise(resolve => server.close(resolve)); };
   return { server, workspace, rpc, close, settings };
 }
 

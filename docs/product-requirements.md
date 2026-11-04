@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current version: 0.3.1
+## Current version: 0.4.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -114,17 +114,21 @@ Unconfirmed submissions remain visible with an error; another client's native
 resolution clears the matching conversation/request. A real two-client check
 verified clarification resolution and continuation of the original turn.
 
+Version 0.4.0 implements the subsequently authorized native Codex coordinator.
+It starts with the first worker, has its own visually separated chat tab in
+addition to four worker slots, reads worker history/Beads and publishes recaps.
+It requests reports and queues attributed summaries into idle worker chats.
+It reviews pending command/file approvals against actual user scope, including
+permitted resource changes, with exact request identity and real-user evidence.
+Uncertain authority remains with the user. Its prompt and reduced native tool
+configuration stay separate from workers; no AAP credential or enforcement
+service is introduced. Worker tabs can be dragged or moved with accessible
+controls. See [coordinator implementation](coordinator.md).
+
 ## Decisions still open
 
-The user requested an automatically started supervisor with a predefined prompt
-to follow the one to four worker conversations. It may read their conversation
-history and Beads records, request task reports, and summarize current progress.
-The requested approval-review role may assess pending requests on demand.
-Legitimate project work can include creating or removing resources, so a
-read-only-only rule is insufficient. Exact authority, protected targets, model
-and enforcement boundaries remain design questions; none is enabled yet.
-
-Workspace-restore persistence, assistant-team summarizer/reviewer integration,
-other agent runtimes, and actual
-deployment proxy/TLS configuration remain open. Architectural changes require
-user direction unless specifically delegated.
+Workspace-restore persistence, stronger independently enforced remote-resource
+boundaries, integration with a separately running assistant-team, other agent
+runtimes and actual deployment proxy/TLS configuration remain open. The current
+coordinator inherits the configured native Codex model. Architectural changes
+require user direction unless specifically delegated.

@@ -1,9 +1,11 @@
 import { EventEmitter } from 'node:events';
+import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { VERSION } from './version.mjs';
 import { taskSummary, reportedPlan } from './task-summary.mjs';
 import { BeadsTasks, sessionLabel } from './beads.mjs';
+import { Coordinator } from './coordinator.mjs';
 import { SUMMARY_LIMIT, SUMMARY_SCHEMA, summaryPrompt, readSummary } from './branch-summary.mjs';
 
 export const input = text => [{ type: 'text', text, text_elements: [] }];
@@ -25,11 +27,12 @@ function itemText(item) {
 }
 
 export class Workspace extends EventEmitter {
-  constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, beads = new BeadsTasks() } = {}) {
+  constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, beads = new BeadsTasks(), coordinator = false } = {}) {
     super(); this.rpc = rpc; this.agents = new Map(); this.pending = new Map(); this.opening = new Set(); this.watched = new Set(); this.creating = 0; this.error = null;
     this.summaryJobs = new Map(); this.returnJobs = new Map(); this.summaryTimeout = summaryTimeout;
     this.workerReads = new Set(); this.beads = beads; this.trackerReads = new Map();
     this.answerJobs = new Map(); this.answerTimeout = answerTimeout;
+    this.coordinator = coordinator ? new Coordinator(this, typeof coordinator === 'object' ? coordinator : {}) : null;
     rpc.on('notification', message => this.notification(message));
     rpc.on('request', message => this.request(message));
     rpc.on('disconnected', message => {
@@ -41,8 +44,10 @@ export class Workspace extends EventEmitter {
     rpc.on('connected', () => { this.error = null; this.changed(); });
   }
   changed() { this.emit('change'); }
+  workerCount() { return [...this.agents.values()].filter(agent => agent.role !== 'coordinator').length; }
+  workerSlots() { return this.workerCount() + [...this.opening].filter(id => id !== this.coordinator?.id).length + this.creating; }
   snapshot() {
-    return { connected: this.rpc.ready, error: this.error, version: VERSION, backgroundQuestions: [...this.pending.values()].filter(q => !this.agents.has(q.params.threadId)).length, agents: [...this.agents.values()].map(agent => ({ ...agent, ...taskSummary(agent), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), status: this.rpc.ready ? statusOf(agent.thread, agent.questions) : 'offline', thread: undefined })) };
+    return { connected: this.rpc.ready, error: this.error, version: VERSION, coordinator: this.coordinator?.snapshot() || null, backgroundQuestions: [...this.pending.values()].filter(q => !this.agents.has(q.params.threadId)).length, agents: [...this.agents.values()].map(agent => ({ ...agent, ...taskSummary(agent), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), status: this.rpc.ready ? statusOf(agent.thread, agent.questions) : 'offline', thread: undefined })) };
   }
   agent(id) { const agent = this.agents.get(id); if (!agent) throw Object.assign(new Error('Open this agent first.'), { status: 404 }); return agent; }
   async list(cursor) {
@@ -51,16 +56,20 @@ export class Workspace extends EventEmitter {
   }
   async open(id) {
     if (this.agents.has(id)) return this.agent(id);
-    if (this.agents.size + this.opening.size + this.creating >= 4) throw Object.assign(new Error('Four agent tabs are open. Close a tab to open another; its agent keeps running.'), { status: 409 });
+    const role = id === this.coordinator?.id ? 'coordinator' : 'worker';
+    if (role === 'worker' && this.workerSlots() >= 4) throw Object.assign(new Error('Four agent tabs are open. Close a tab to open another; its agent keeps running.'), { status: 409 });
     if (this.opening.has(id)) throw Object.assign(new Error('This agent is already opening.'), { status: 409 });
     this.opening.add(id);
     try {
-      const { thread } = await this.rpc.call('thread/resume', { threadId: id, excludeTurns: true });
+      const { thread, instructionSources } = await this.rpc.call('thread/resume', { threadId: id, excludeTurns: true });
       const agent = { id, name: thread.name || 'Codex agent', goal: thread.name || thread.preview?.split('\n')[0] || 'No goal recorded', cwd: thread.cwd, model: thread.model || null, thread, parentId: thread.forkedFromId || null, canSend: thread.canAcceptDirectInput !== false, messages: [], tasks: [], workers: [], questions: [], turnId: null, lastCompletedTurnId: null, olderCursor: null, activity: null, summary: null };
       agent.questions = [...this.pending.values()].filter(q => q.params.threadId === id);
+      agent.role = role; agent.instructionSources = instructionSources || [];
       this.watched.add(id); this.agents.set(id, agent);
       try { await this.history(id); await this.refreshTasks(id); } catch (error) { this.agents.delete(id); throw error; }
-      this.changed(); return agent;
+      this.changed();
+      if (role === 'worker' && this.coordinator) { void this.coordinator.ensure().catch(() => {}); this.coordinator.mark(id, 'Worker opened'); }
+      return agent;
     } finally { this.opening.delete(id); }
   }
   addItem(agent, item, turnId, branchable = false) {
@@ -120,12 +129,13 @@ export class Workspace extends EventEmitter {
     if (!this.beads) return;
     if (this.trackerReads.has(id)) return this.trackerReads.get(id);
     const agent = this.agents.get(id); if (!agent) return;
+    if (agent.role === 'coordinator') return;
     const job = (async () => {
       const before = agent.tracker;
       try { agent.tracker = await this.beads.linked(agent.cwd, id); }
       catch (error) { agent.tracker = { status: 'unavailable', label: sessionLabel(id), tasks: [], error: error.message, checkedAt: new Date().toISOString() }; }
       const content = value => JSON.stringify(value && { status: value.status, tasks: value.tasks, error: value.error });
-      if (content(before) !== content(agent.tracker)) this.changed();
+      if (content(before) !== content(agent.tracker)) { this.changed(); this.coordinator?.mark(id, 'Beads tasks changed'); }
       return agent.tracker;
     })();
     this.trackerReads.set(id, job);
@@ -143,10 +153,10 @@ export class Workspace extends EventEmitter {
     catch (error) { await this.refreshTasks(id); throw error; }
   }
   async create({ goal, cwd }) {
-    if (this.agents.size + this.opening.size + this.creating >= 4) throw Object.assign(new Error('Four tabs are already open.'), { status: 409 });
+    if (this.workerSlots() >= 4) throw Object.assign(new Error('Four tabs are already open.'), { status: 409 });
     if (typeof goal !== 'string' || !goal.trim() || goal.length > 2000) throw Object.assign(new Error('Enter a goal of 1–2000 characters.'), { status: 400 });
     if (typeof cwd !== 'string' || !isAbsolute(cwd) || !(await stat(cwd)).isDirectory()) throw Object.assign(new Error('Choose an existing absolute working-directory path.'), { status: 400 });
-    if (this.agents.size + this.opening.size + this.creating >= 4) throw Object.assign(new Error('Four tabs are already open.'), { status: 409 });
+    if (this.workerSlots() >= 4) throw Object.assign(new Error('Four tabs are already open.'), { status: 409 });
     this.creating++; let reserved = true;
     try {
       // Do not override native model, permissions, instructions, or approval policy.
@@ -171,7 +181,7 @@ export class Workspace extends EventEmitter {
     if (agent.thread.status?.type === 'active' && agent.turnId) {
       await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: agent.turnId, input: input(text.trim()) });
     } else {
-      const { turn } = await this.rpc.call('turn/start', { threadId: id, input: input(text.trim()), ...(this.beads ? { additionalContext: this.beads.context(id) } : {}) }); agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed();
+      const { turn } = await this.rpc.call('turn/start', { threadId: id, input: input(text.trim()), ...(this.beads && agent.role !== 'coordinator' ? { additionalContext: this.beads.context(id) } : {}) }); agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed();
     }
   }
   async interrupt(id) {
@@ -181,9 +191,10 @@ export class Workspace extends EventEmitter {
   }
   async fork(id, lastTurnId) {
     const source = this.agent(id);
+    if (source.role === 'coordinator') throw Object.assign(new Error('Branch a worker conversation instead.'), { status: 400 });
     const point = lastTurnId || source.lastCompletedTurnId;
     if (!point || !source.messages.some(message => message.turnId === point && message.branchable)) throw Object.assign(new Error('Choose a completed reply to branch from.'), { status: 400 });
-    if (this.agents.size + this.opening.size + this.creating >= 4) throw Object.assign(new Error('Close an agent tab before opening a branch. Conversations are kept.'), { status: 409 });
+    if (this.workerSlots() >= 4) throw Object.assign(new Error('Close an agent tab before opening a branch. Conversations are kept.'), { status: 409 });
     this.creating++; let reserved = true;
     try {
       const { thread } = await this.rpc.call('thread/fork', { threadId: id, lastTurnId: point, excludeTurns: true, deferGoalContinuation: true });
@@ -199,7 +210,7 @@ export class Workspace extends EventEmitter {
     const branch = this.agent(id); const parentId = branch.parentId;
     if (!parentId) throw Object.assign(new Error('This conversation has no parent branch.'), { status: 400 });
     if (this.agents.has(parentId)) return parentId;
-    const replace = this.agents.size + this.opening.size + this.creating >= 4;
+    const replace = this.workerSlots() >= 4;
     if (replace) this.agents.delete(id);
     try { await this.open(parentId); return parentId; }
     catch (error) { if (replace) this.agents.set(id, branch); this.changed(); throw error; }
@@ -257,7 +268,7 @@ export class Workspace extends EventEmitter {
       branch.thread = thread;
       if (statusOf(thread, branch.questions) !== 'idle') throw new Error('Wait for the child session to finish before closing it.');
       await this.rpc.call('thread/archive', { threadId: branch.id });
-      this.agents.delete(branch.id); this.watched.delete(branch.id); this.changed();
+      this.agents.delete(branch.id); this.watched.delete(branch.id); this.coordinator?.closed(branch.id); this.changed();
       return parentId;
     } catch (error) {
       if (!this.agents.has(branch.id)) { if (!parentWasOpen) this.agents.delete(branch.parentId); this.agents.set(branch.id, branch); }
@@ -266,17 +277,19 @@ export class Workspace extends EventEmitter {
       throw error;
     }
   }
-  close(id) { this.agent(id); if (this.summaryJobs.has(id) || this.returnJobs.has(id)) throw Object.assign(new Error('Wait for the branch handoff to finish before closing its tab.'), { status: 409 }); this.agents.delete(id); this.changed(); }
+  close(id) { const agent = this.agent(id); if (agent.role === 'coordinator') throw Object.assign(new Error('Pause the coordinator using its controls.'), { status: 409 }); if (this.summaryJobs.has(id) || this.returnJobs.has(id)) throw Object.assign(new Error('Wait for the branch handoff to finish before closing its tab.'), { status: 409 }); this.agents.delete(id); this.coordinator?.closed(id); this.changed(); }
   request(message) {
     const p = message.params || {};
     if (message.method === 'currentTime/read') { this.rpc.respond(message.id, { currentTime: new Date().toISOString() }); return; }
+    if (message.method === 'item/tool/call' && p.threadId === this.coordinator?.id) { void this.coordinator.handle(message); return; }
     if (!this.watched.has(p.threadId)) return;
     const supported = ['item/tool/requestUserInput', 'item/commandExecution/requestApproval', 'item/fileChange/requestApproval', 'mcpServer/elicitation/request', 'item/permissions/requestApproval'];
     if (!supported.includes(message.method)) { this.rpc.refuse(message.id, 'This client does not implement this tool. Use the Codex client for it.'); return; }
-    const question = { id: message.id, method: message.method, params: p };
+    const question = { id: message.id, method: message.method, params: p, reviewToken: randomUUID() };
     const key = requestKey(p.threadId, message.id);
     if (this.pending.has(key)) return;
     this.pending.set(key, question); this.agents.get(p.threadId)?.questions.push(question); this.changed();
+    this.coordinator?.mark(p.threadId, 'Approval or question needs review', true);
   }
   answer(id, requestId, answer) {
     const key = requestKey(id, requestId); const question = this.pending.get(key);
@@ -320,6 +333,7 @@ export class Workspace extends EventEmitter {
     this.pending.delete(key);
     const agent = this.agents.get(threadId); if (agent) agent.questions = agent.questions.filter(q => q.id !== id);
     this.answerJobs.get(key)?.finish();
+    if (agent) void this.coordinator?.flush(threadId);
   }
   notification({ method, params: p = {} }) {
     if (method === 'serverRequest/resolved') { this.removeQuestion(p.threadId, p.requestId); this.changed(); return; }
@@ -336,6 +350,7 @@ export class Workspace extends EventEmitter {
         if (reply) { reply.branchable = true; reply.state = 'completed'; agent.lastCompletedTurnId = p.turn.id; }
       }
       void this.refreshTasks(id);
+      this.coordinator?.completed(id);
     }
     if (method === 'turn/plan/updated') agent.tasks = (p.plan || []).map((t, i) => ({ id: String(i), text: t.step, state: t.status }));
     if (method === 'item/started' || method === 'item/completed') this.addItem(agent, p.item, p.turnId);

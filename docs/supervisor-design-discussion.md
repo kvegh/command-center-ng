@@ -1,8 +1,9 @@
 # Supervisor and approval-review discussion
 
-Status: requested product direction; implementation and detailed authority policy
-are still pending. This document summarizes the discussion. Version 0.3.1 does
-not start a supervisor or approve requests automatically.
+Status: historical discussion summary. The user subsequently authorized
+implementation; version 0.4.0 adds the native coordinator. See
+[implemented behavior and limits](coordinator.md). This document preserves the
+discussion and distinguishes requested ideas from the later implementation.
 
 ## Purpose and interface
 

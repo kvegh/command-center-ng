@@ -333,9 +333,10 @@ test('password stays hashed/private; HTTP login protects controls, rejects cross
   const request = (path, data, cookie, origin = base) => fetch(base + path, { method: data === undefined ? 'GET' : 'POST', headers: { ...(data === undefined ? {} : { 'Content-Type': 'application/json', Origin: origin }), ...(cookie ? { Cookie: cookie } : {}) }, ...(data === undefined ? {} : { body: JSON.stringify(data) }) });
   try {
     assert.equal((await request('/api/state')).status, 401);
+    assert.equal((await request('/api/coordinator', {})).status, 401);
     assert.equal((await request('/api/agents/existing/tasks')).status, 401);
     assert.equal((await request('/api/agents/existing/tasks', { ids: [] })).status, 401);
-    for (const action of ['fork', 'parent', 'summary', 'return', 'answer']) assert.equal((await request('/api/agents/existing/' + action, {})).status, 401);
+    for (const action of ['fork', 'parent', 'summary', 'return', 'answer', 'review']) assert.equal((await request('/api/agents/existing/' + action, {})).status, 401);
     assert.equal((await request('/api/login', { password }, undefined, 'https://unrelated.example')).status, 403);
     const login = await request('/api/login', { password }); assert.equal(login.status, 200);
     const cookie = login.headers.get('set-cookie'); assert.match(cookie, /HttpOnly/); assert.match(cookie, /SameSite=Strict/);
@@ -348,6 +349,8 @@ test('password stays hashed/private; HTTP login protects controls, rejects cross
     assert.deepEqual(linkCalls, [{ cwd: f.dir, id: 'existing', ids: ['demo-a'] }]);
     assert.equal((await request('/api/agents/existing/message', { text: 'Continue' }, cookie, 'https://unrelated.example')).status, 403);
     assert.equal((await request('/api/agents/existing/fork', {}, cookie, 'https://unrelated.example')).status, 403);
+    assert.equal((await request('/api/coordinator', { paused: false }, cookie, 'https://unrelated.example')).status, 403);
+    assert.equal((await request('/api/agents/existing/review', {}, cookie, 'https://unrelated.example')).status, 403);
     f.ask('http-question', 'existing'); await waitFor(() => f.workspace.pending.size === 1);
     const answer = { requestId: 'http-question', answers: { choice: 'Small' } };
     assert.equal((await request('/api/agents/existing/answer', answer, cookie, 'https://unrelated.example')).status, 403);

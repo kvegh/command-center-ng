@@ -5,8 +5,8 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.3.1** implements the Codex workspace and Linux installer. It supports
-four agent tabs, live running/idle/attention state, existing conversations, new
+**Version 0.4.0** implements the Codex workspace and Linux installer. It supports
+four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
 green running states, and amber attention states.
@@ -47,12 +47,14 @@ and tradeoffs.
 
 See [product requirements](docs/product-requirements.md) for the agreed behavior.
 
-The requested supervisor would have a visually separate coordinator chat tab
-alongside the 1–4 worker tabs, summarize their progress, send summaries into worker
-chats and review pending approvals within user-authorized project scope. The
-[supervisor discussion summary](docs/supervisor-design-discussion.md) documents
-the requested behavior, proposed approval guidance, VM lifecycle examples and
-unresolved design choices. This supervisor is not implemented or enabled yet.
+The coordinator starts automatically when a worker is opened and has its own
+visually separated chat tab. It reads worker history and Beads, publishes progress
+recaps, requests reports, sends attributed summaries into worker conversations
+and reviews pending command/file approvals against actual user-authorized scope.
+It can approve permitted resource changes, including cleanup; uncertain authority
+returns to you. You can pause it, ask it questions and review its decisions.
+Messages wait until workers are idle. See [coordinator behavior and limits](docs/coordinator.md)
+and the [original discussion summary](docs/supervisor-design-discussion.md).
 
 ## Installation and startup
 
@@ -161,8 +163,9 @@ On new app-started turns, Codex receives task-tracking application context and
 uses `bd` to create/claim/update substantive work with its conversation label.
 Existing running turns retain their instructions; link their tasks explicitly
 or provide direction on the next turn. Agents still need to report accurate
-state in Beads. No additional summarizer agent or model call is used for task
-reads. Branches use their own conversation labels; returning a branch includes
+state in Beads. Direct task reads do not use a model call; the separate coordinator
+uses Codex turns for interpretation and approval review. Branches use their own
+conversation labels; returning a branch includes
 relevant task IDs in its summary and does not automatically close/reassign tasks.
 
 Each working directory needs an existing Beads tracker (including a configured
@@ -180,8 +183,10 @@ stealing focus on streaming updates. Drafts remain browser-memory state for now.
 Recent history can be paged backward, with a bounded 600-item in-memory view per
 tab; Codex retains model context. Tabs are shared within the single-user app
 process and reset when it restarts. Workspace restoration is approved but its
-persistence choice is still pending. Persistent decision summaries, automatic
-progress summarization, and approval-reviewer integration remain future work.
+persistence choice is still pending. Worker tabs can be dragged into order;
+left/right controls and Alt+Left/Right support phones and keyboards. Tab order
+is local to the current browser view and resets on refresh. Persistent decision
+summaries beyond native conversation history remain future work.
 
 Command/file approvals and structured questions can be answered here. An answer
 waits for Codex's request-resolved notification before the question disappears
@@ -191,7 +196,11 @@ visible. A later native resolution still clears it. Resolutions are scoped to
 the conversation and exact request ID, including its numeric/string type.
 Answers made in another client clear the corresponding question here too.
 Disconnects fail unconfirmed submissions and discard requests tied to the lost
-connection. No answer or approval is sent automatically.
+connection. The coordinator can send an approve-once/decline decision for a worker
+command/file request after scope review. It requires an exact reference to a real
+user instruction; coordinator-generated messages cannot authorize actions. This
+is model-based judgment, not containment of arbitrary scripts. Native permissions
+stay in force. Pause the coordinator to keep all reviews manual.
 
 Requests
 owned by another client, broader filesystem/network grants, and connector forms
@@ -199,6 +208,11 @@ can require the native Codex client. App passwords use salted scrypt hashes in
 private home configuration; sessions use HttpOnly/SameSite cookies. Set an HTTPS
 public origin for Secure cookies behind nginx. No hypervisor, nginx, firewall,
 TLS, or VM changes are performed by this application.
+
+Version 0.4.0 passed 36 reported checks and the production build. A native
+coordinator check verified its read-only sandbox, dynamic tools, published recap,
+real summary delivery and worker acknowledgement. The complete Linux installer
+and automatic-update lifecycle passed. Browser visual testing is unperformed.
 
 Validation includes production builds, protocol/auth/control integration tests,
 Beads task/link isolation and error-handling fixtures, installer update guards,

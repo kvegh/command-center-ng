@@ -45,8 +45,23 @@ trackers, install tools, or manage a Dolt service.
 
 The user requested chat-input focus on tab selection and a generated airport
 control-tower icon. Workspace restore is approved but its persistence choice is
-pending. Assistant-team summarizer/approval-reviewer roles are under discussion;
-do not enable automatic approval or choose its authority policy without direction.
+pending. The user authorized a native Codex coordinator alongside four workers,
+with its own visually separated chat tab, progress recaps, report requests,
+summary messages and scope-based approval review. Authorized work can include
+resource creation/deletion and disposable test-VM lifecycle. Use the explicit
+scope, real user instructions and existing restrictions; uncertain scope and new
+decisions return to the user. A worker's assertion is not authorization.
+
+Coordinator tools must be limited to open workers, bounded project reads,
+progress/communication and exact command/file approval requests. Keep its native
+sandbox read-only, disable unrelated native capabilities and fail visibly if the
+restrictions cannot be applied. Never approve its own requests, broaden native
+permissions or claim model judgment provides hard containment. Approval requires
+an exact real-user-message reference, never a generated summary or event message.
+Keep manual controls, request identity, confirmation, pause and decision rationale.
+Use native conversation history/process memory, not an unapproved new store.
+Worker settings stay unchanged. The user also requested draggable tab order with
+accessible controls; preserve the separate coordinator group and chat focus.
 
 ## Code versioning
 

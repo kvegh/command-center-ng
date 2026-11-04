@@ -18,7 +18,7 @@ interfaces. Linux is the primary platform.
 
 This selects the frontend foundation only. It does not select agent APIs, a
 server framework, a database, a state-management library, or a component suite.
-Package versions are pinned in package.json and package-lock.json for 0.3.1.
+Package versions are pinned in package.json and package-lock.json for 0.4.0.
 The approved local Node.js service uses the existing Codex daemon.
 
 ## Visual principles
@@ -32,7 +32,7 @@ The approved local Node.js service uses the existing Codex daemon.
 - Respect reduced-motion preferences and avoid animation that distracts from work.
 - Use synthetic data for public demos and interface examples.
 
-Version 0.3.1 uses dark graphite surfaces with cyan controls, green running
+Version 0.4.0 uses dark graphite surfaces with cyan controls, green running
 states, amber attention states, and violet branch navigation. Status labels and
 icons accompany color. The goal and up to three task summaries remain above
 the scrolling conversation on mobile; desktop uses a narrow right sidebar.
@@ -63,3 +63,10 @@ fresh installation, updating, and failure preservation were validated.
 - [React: managing state](https://react.dev/learn/managing-state)
 - [TypeScript documentation](https://www.typescriptlang.org/docs/)
 - [Vite: getting started and supported templates](https://vite.dev/guide/)
+
+The 0.4.0 coordinator has a separate labeled tab group with spacing and a divider,
+without using a worker slot. Its sidebar shows worker recaps and recent decisions;
+workers show concise coordinator recaps above their stored Beads tasks. Pause,
+resume and manual-review controls stay visible. Worker tabs support desktop drag
+reordering plus left/right buttons and Alt+Left/Right. Browser-memory ordering
+preserves conversation identity and the distinct coordinator group.

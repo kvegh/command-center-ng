@@ -12,7 +12,7 @@ The interface must remain usable from a Linux desktop browser and a smartphone
 browser. Browser support does not imply a selected remote-access or hosting
 arrangement.
 
-Version 0.3.1 includes the installer. Linux, Node.js 22.12+, npm, tar, realpath,
+Version 0.4.0 includes the installer. Linux, Node.js 22.12+, npm, tar, realpath,
 and Beads (`bd`) must already be installed. The installer validates the bd JSON/
 read-only/brief-list interface before building; the app checks it again at startup.
 Beads 1.3.2 was verified. See the [official installation guide](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md).
