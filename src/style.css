@@ -58,9 +58,9 @@ a { color: var(--accent); }
 .tabs-row { display: flex; align-items: stretch; gap: 10px; min-height: 48px; padding: 0 15px; background: #101723; border-bottom: 1px solid var(--line); }
 .tabs { flex: 1; min-width: 0; display: flex; align-items: flex-end; gap: 4px; overflow-x: auto; overflow-y: hidden; padding-top: 0; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
-.tab-wrap { position: relative; display: flex; align-items: stretch; flex: 1; min-width: 155px; max-width: 260px; min-height: 34px; border: 1px solid transparent; border-bottom: 0; border-top: 2px solid #495970; border-radius: 7px 7px 0 0; color: #8193ad; }
+.tab-wrap { position: relative; display: flex; align-items: stretch; flex: 1; min-width: 155px; max-width: 260px; min-height: 34px; background: var(--surface); border: 1px solid transparent; border-bottom: 0; border-top: 2px solid #495970; border-radius: 7px 7px 0 0; color: #8193ad; }
 .tab-wrap.running { border-top-color: var(--green); }
-.tab-wrap.attention { border-top-color: var(--amber); background: #30271d; }
+.tab-wrap.attention { border-top-color: var(--amber); }
 .tab-wrap.idle { border-top-color: #778aa6; }
 .tab-wrap.error { border-top-color: #ff8b8b; }
 .tab-wrap.active { min-height: 40px; background: linear-gradient(180deg, #234252, #1b2c3c 55%, var(--surface)); border-color: var(--accent); box-shadow: inset 1px 0 var(--accent), inset -1px 0 var(--accent); margin-bottom: 0; z-index: 1; }
@@ -152,7 +152,8 @@ a { color: var(--accent); }
 .branch-button { color: var(--accent); background: #68d9fa0b; border-color: #68d9fa30; }
 .branch-button:hover { background: #68d9fa18; border-color: #68d9fa65; }
 
-.conversation { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 20px 27px 26px; scrollbar-width: thin; scrollbar-color: #3a4c65 transparent; }
+/* This fixed inset keeps scrolling text clear of the attached tabs. */
+.conversation { flex: 1; min-height: 0; margin-top: 12px; overflow: auto; overscroll-behavior: contain; padding: 20px 27px 26px; scrollbar-width: thin; scrollbar-color: #3a4c65 transparent; }
 .conversation-top { display: flex; justify-content: space-between; color: #7086a7; font: 9px var(--mono); letter-spacing: 1px; margin-bottom: 25px; }
 .conversation-top > span:last-child { color: #8096b6; letter-spacing: 0; }
 .tiny-dot { color: #687e9b; margin: 0 8px; }
