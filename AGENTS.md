@@ -102,6 +102,10 @@ license or accept legal terms on the user's behalf.
 ## Interface
 
 Keep workspace branding at the far right of the full-width navigation bar.
+Keep workers and Add agent on the left. The coordinator belongs to a separate
+right-aligned group outside the workers' scrolling strip, with a distinct violet
+rounded treatment and overview icon. Preserve its running/attention indicators
+and compact mobile presentation.
 Favor simple navigation, readable type, consistent spacing, clear status labels,
 accessible controls, and restrained effects. Keep the project goal and current
 work easy to recover when switching contexts. Branching must remain a simple

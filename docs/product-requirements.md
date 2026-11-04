@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current version: 0.4.1
+## Current version: 0.4.2
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -129,6 +129,11 @@ Version 0.4.1 corrects tab dragging with pointer capture on the tab button,
 visible drop markers and cancellation/click handling for mouse, touch and pen.
 The coordinator stays outside worker reordering. No task, permission or storage
 behavior changes.
+
+Version 0.4.2 makes the requested coordinator separation explicit: one to four
+worker tabs and Add agent align left; a distinct violet, rounded coordinator
+tab aligns right outside their scrolling strip. It retains a unique overview
+icon, state/attention indicators, compact mobile form and its existing chat.
 
 ## Decisions still open
 

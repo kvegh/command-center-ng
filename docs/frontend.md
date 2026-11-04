@@ -18,7 +18,7 @@ interfaces. Linux is the primary platform.
 
 This selects the frontend foundation only. It does not select agent APIs, a
 server framework, a database, a state-management library, or a component suite.
-Package versions are pinned in package.json and package-lock.json for 0.4.1.
+Package versions are pinned in package.json and package-lock.json for 0.4.2.
 The approved local Node.js service uses the existing Codex daemon.
 
 ## Visual principles
@@ -32,7 +32,7 @@ The approved local Node.js service uses the existing Codex daemon.
 - Respect reduced-motion preferences and avoid animation that distracts from work.
 - Use synthetic data for public demos and interface examples.
 
-Version 0.4.1 uses dark graphite surfaces with cyan controls, green running
+Version 0.4.2 uses dark graphite surfaces with cyan controls, green running
 states, amber attention states, and violet branch navigation. Status labels and
 icons accompany color. The goal and up to three task summaries remain above
 the scrolling conversation on mobile; desktop uses a narrow right sidebar.
@@ -80,3 +80,11 @@ panning remains available, and dragging near the strip edges scrolls it.
 The pointer controller is exercised with mouse/touch/pen event sequences in
 Node tests using the existing TypeScript compiler. These tests do not replace
 interactive browser validation; no browser or new dependency was installed.
+
+Version 0.4.2 places the coordinator outside the worker scrolling strip in its
+own right-aligned header group. Workers and Add agent remain together on the
+left, separated by flexible space and a divider from the coordinator. A violet
+surface, rounded full border and overview icon distinguish its role; running
+and attention indicators remain. The phone presentation uses a compact Coord
+label. Branding remains the final item at the far right. Worker dragging still
+targets only the left strip.
