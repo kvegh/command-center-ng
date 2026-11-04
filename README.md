@@ -343,8 +343,9 @@ failed before the fix. Coverage includes requests arriving during resume, late
 native replay, exact IDs, per-conversation loading/errors, coordinator restrictions,
 read-only restoration and blocking sends while request details are missing.
 Matching Codex 0.166.0 source confirms pending-request replay on native rejoin.
-The user's live waiting request was inspected without submitting an answer;
-live recovery and browser rendering still require verification in the installation.
+After updating the installation to 0.9.1, the user confirmed that **Load pending
+request** worked. The latest native read also showed the worker active without
+an approval-wait flag. Browser rendering still requires verification.
 
 ## Public source policy
 

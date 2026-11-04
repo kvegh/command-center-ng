@@ -162,10 +162,11 @@ All 75 checks and the production build pass; six regressions failed before the
 fix. Matching native 0.166.0 source confirms replay behavior. Direct arbitrary
 socket diagnostics are restricted in the session sandbox; native read tools work.
 No worker approval, interruption, permission change or application restart was
-performed. The last live read still showed approval waiting. User confirmation
-of an actual recovered card remains pending. The existing-UI workaround is to
-close only that worker tab and reopen the same conversation; native work continues.
-After updating, the explicit Load pending request control is also available.
+performed by this development work. The user subsequently confirmed their
+installation was on 0.9.1 and that Load pending request worked. The latest native
+read showed the worker active without an approval-wait flag. This verifies live
+request recovery; it does not establish completion of the worker's underlying
+task. The recovery bug is closed.
 
 The user's original folder-tab request was verified in coordinator history.
 Version 0.9.1 joins selected tabs to the pane using common fill and stronger
@@ -198,7 +199,7 @@ but do not infer approval from a default choice or elapsed time.
 | bead-wd-1rl.26 | Role and project-directory safeguards published in 0.8.0; semantic/legacy-name limits documented |
 | bead-wd-1rl.27 | Tab/chat gap correction published in 0.7.1 and included in 0.8.0 |
 | bead-wd-1rl.28 | Shared coordinator tab styling/order published in 0.8.1 |
-| bead-wd-1rl.29 | Recovery source published in 0.9.0; live request-card confirmation pending |
+| bead-wd-1rl.29 | Closed: recovery published in 0.9.0 and confirmed live by the user on 0.9.1 |
 | bead-wd-1rl.30 | Connected folder-tab source published in 0.9.1; rendered review remains in .23 |
 | bead-wd-ywg | Existing shared Dolt restart and successful reads verified |
 | bead-wd-9so | Closed: generated Beads no-remote Git rule investigated and corrected |

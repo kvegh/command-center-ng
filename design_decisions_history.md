@@ -668,3 +668,14 @@ status colors, keyboard focus and worker reordering are preserved.
 Validation: all 75 existing checks and the production build pass. No new tests
 were added for this reversible visual change. Rendered desktop/mobile review is
 still pending, and no user installation or native daemon was restarted.
+
+## 2026-11-04 — Confirm live pending-request recovery
+
+Implementation: `6e78051` (0.9.0), included in 0.9.1 at `162bb73`.
+
+After confirming their installation was on 0.9.1, the user reported that Load
+pending request worked. The latest native read also showed the worker active
+without an approval-wait flag. This closes the live recovery validation gap and
+the recovery bug. It does not establish completion of the worker's underlying
+task or every historical session-mixing cause. Rendered browser review remains
+pending. This follow-up changes documentation only; the version remains 0.9.1.
