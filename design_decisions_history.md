@@ -456,3 +456,42 @@ existing pointer-drag checks, version/privacy review and diff checks. No new
 test suite was added for this presentation correction. Interactive browser
 visual verification remains unperformed. Agent behavior, approval policy,
 dependencies, installation and persistence did not change.
+
+## 2026-11-04 — Restore workspaces and refine navigation in 0.5.0
+
+Implementation: `38063bf322a849ff0ddce14e205bf91e73de6a74`.
+
+The user explicitly approved split file storage after discussing which server
+would hold it: the existing Command Center Node.js backend, with no additional
+service or database. It saves worker/coordinator IDs and coordinator pause state
+in a private file beside login configuration. Browser-local storage preserves
+drafts, selection, worker order and reading positions. Native histories and
+Beads tasks remain in their existing stores. Runtime files stay outside Git.
+
+Restoring views uses native read calls so opening the dashboard does not resume
+unloaded worker goals or start model turns. Explicit continuation activates the
+existing conversation; the coordinator reapplies its restrictions first. Missing
+conversations report errors without blocking other tabs, and the same saved
+coordinator is retried instead of silently replaced. Approval answers, review
+tokens, queued messages and live decision lists are not replayed. Browser state
+is device/origin-specific and reading positions are limited to loaded history.
+
+The user requested the coordinator immediately beside Add agent, a more prominent
+Add button, space above the colored tab borders, roughly 30% thinner tabs, a
+recognizable airport tower and the exact wordmark command center NG. Workers
+remain left; Add and the violet coordinator form a compact right-hand pair;
+branding remains rightmost. Source review found the palette coherent and header
+controls crowded. The changes simplify that hierarchy while retaining status
+colors and the full-window workspace. The tower uses a clearer complete-building
+silhouette; its built-in generation prompt is recorded in docs/brand.md.
+
+All 59 regression checks and the production build passed. A disposable native
+restart check verified the same worker/coordinator/history, paused state,
+private file, unchanged password and required login, with no thread start/resume
+or model turn during restoration. Linux fresh-install/update validation verified
+the target-local executable, production assets, automatic fetch, both private
+configuration files, source protection and failed-build preservation. Header
+structure, wordmark text, version consistency, staged privacy and diff checks
+passed. Interactive browser/phone rendering and the final visual review remain
+pending the user's screenshot after updating. No dependency was added and no
+existing user app, daemon, proxy, approval or infrastructure was changed.
