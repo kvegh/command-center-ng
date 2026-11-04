@@ -702,3 +702,15 @@ tests were added for this reversible CSS change. Rendered desktop/mobile review
 is still pending. The implementation is committed locally; GitHub rejected SSH
 authentication for both push and read-only ls-remote. Publication is blocked,
 with SSH configuration/keys and the running installation preserved.
+
+## 2026-11-04 — Publish the validated 0.9.2 correction
+
+Implementation: `cf29429`; implementation and prior handover published at `ceed67e`.
+
+After earlier authentication and server-side failures, the user explicitly asked
+to retry publication. The push succeeded using the unchanged existing SSH
+configuration. The tab correction is now published and the publication blocker
+is cleared. No code changed during this follow-up; the existing 75 passing tests
+and production build remain the implementation validation. Rendered review and
+updating the user's running installation remain pending. Claude monitoring still
+awaits the connection choice and target; no transport or AAP change was added.

@@ -5,11 +5,11 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative development version is **0.9.2** in package.json and the
-lockfile. Its implementation is `cf29429`, committed locally. The last verified
-published version is 0.9.1. Publishing 0.9.2 is blocked: GitHub rejected SSH
-public-key authentication for both push and an independent read-only ls-remote.
-Existing SSH configuration and keys were preserved; do not bypass access controls.
+The authoritative development and published version is **0.9.2** in package.json
+and the lockfile. Its implementation is `cf29429`, published with the handover at
+`ceed67e` over the existing SSH connection. Earlier attempts failed authentication
+or the server-side branch update; the user's explicit retry succeeded. Existing
+SSH configuration, keys and access controls were preserved.
 The formerly local 0.6.0/0.7.0 checkpoints and the 0.7.1 spacing correction are
 included, alongside the 0.8.0 conversation safeguards. The earlier published baseline was 0.5.0 at
 `c24d84c318fe967993bd3e00552e129e7d32531e`.
@@ -235,7 +235,7 @@ but do not infer approval from a default choice or elapsed time.
 | bead-wd-1rl.29 | Closed: recovery published in 0.9.0 and confirmed live by the user on 0.9.1 |
 | bead-wd-1rl.30 | Connected folder-tab source published in 0.9.1; rendered review remains in .23 |
 | bead-wd-1rl.31 | Claude monitoring investigated; connection approach and target await user direction |
-| bead-wd-1rl.32 | 0.9.2 implemented and validated locally; publication blocked by SSH authentication |
+| bead-wd-1rl.32 | Closed: visible-tab emphasis and doubled top spacing published in 0.9.2 |
 | bead-wd-ywg | Existing shared Dolt restart and successful reads verified |
 | bead-wd-9so | Closed: generated Beads no-remote Git rule investigated and corrected |
 
