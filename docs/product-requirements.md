@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current version: 0.4.2
+## Current version: 0.5.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -135,9 +135,22 @@ worker tabs and Add agent align left; a distinct violet, rounded coordinator
 tab aligns right outside their scrolling strip. It retains a unique overview
 icon, state/attention indicators, compact mobile form and its existing chat.
 
+Version 0.5.0 implements the user-approved workspace-restore split. The existing
+backend stores open worker/coordinator IDs and coordinator pause state in a
+private file beside login configuration; drafts, selected tab, order and reading
+positions stay browser-local. Startup reads views without resuming unloaded
+workers or starting turns. The same coordinator is reused, with restrictions
+reapplied when it acts. No queued approval answer or message is replayed.
+
+The same release places the coordinator immediately after a more prominent
+Add agent button in a right-hand group, keeps workers left and branding
+rightmost, adds top spacing and reduces tab height roughly 30%. It replaces the
+unclear tower with a recognizable complete-building icon and uses the exact
+wordmark command center NG. Rendered design review awaits the user's screenshot.
+
 ## Decisions still open
 
-Workspace-restore persistence, stronger independently enforced remote-resource
+Stronger independently enforced remote-resource
 boundaries, integration with a separately running assistant-team, other agent
 runtimes and actual deployment proxy/TLS configuration remain open. The current
 coordinator inherits the configured native Codex model. Architectural changes

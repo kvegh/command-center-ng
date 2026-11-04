@@ -33,6 +33,7 @@ export class Workspace extends EventEmitter {
     this.workerReads = new Set(); this.beads = beads; this.trackerReads = new Map();
     this.answerJobs = new Map(); this.answerTimeout = answerTimeout;
     this.coordinator = coordinator ? new Coordinator(this, typeof coordinator === 'object' ? coordinator : {}) : null;
+    this.restoring = false; this.observedReads = new Map(); this.restoration = null;
     rpc.on('notification', message => this.notification(message));
     rpc.on('request', message => this.request(message));
     rpc.on('disconnected', message => {
@@ -47,30 +48,55 @@ export class Workspace extends EventEmitter {
   workerCount() { return [...this.agents.values()].filter(agent => agent.role !== 'coordinator').length; }
   workerSlots() { return this.workerCount() + [...this.opening].filter(id => id !== this.coordinator?.id).length + this.creating; }
   snapshot() {
-    return { connected: this.rpc.ready, error: this.error, version: VERSION, coordinator: this.coordinator?.snapshot() || null, backgroundQuestions: [...this.pending.values()].filter(q => !this.agents.has(q.params.threadId)).length, agents: [...this.agents.values()].map(agent => ({ ...agent, ...taskSummary(agent), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), status: this.rpc.ready ? statusOf(agent.thread, agent.questions) : 'offline', thread: undefined })) };
+    return { connected: this.rpc.ready, error: this.error, version: VERSION, restoration: this.restoration, coordinator: this.coordinator?.snapshot() || null, backgroundQuestions: [...this.pending.values()].filter(q => !this.agents.has(q.params.threadId)).length, agents: [...this.agents.values()].map(agent => ({ ...agent, ...taskSummary(agent), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), status: this.rpc.ready ? (agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline', thread: undefined })) };
   }
   agent(id) { const agent = this.agents.get(id); if (!agent) throw Object.assign(new Error('Open this agent first.'), { status: 404 }); return agent; }
   async list(cursor) {
     const result = await this.rpc.call('thread/list', { limit: 50, useStateDbOnly: true, ...(cursor ? { cursor } : {}) });
     return { agents: result.data.map(t => ({ id: t.id, name: t.name || t.preview?.split('\n')[0]?.slice(0, 90) || 'Untitled agent', cwd: t.cwd, status: statusOf(t), parentId: t.parentThreadId || null, forkedFromId: t.forkedFromId || null })), nextCursor: result.nextCursor };
   }
-  async open(id) {
+  async open(id, { observeOnly = false } = {}) {
     if (this.agents.has(id)) return this.agent(id);
     const role = id === this.coordinator?.id ? 'coordinator' : 'worker';
     if (role === 'worker' && this.workerSlots() >= 4) throw Object.assign(new Error('Four agent tabs are open. Close a tab to open another; its agent keeps running.'), { status: 409 });
     if (this.opening.has(id)) throw Object.assign(new Error('This agent is already opening.'), { status: 409 });
     this.opening.add(id);
     try {
-      const { thread, instructionSources } = await this.rpc.call('thread/resume', { threadId: id, excludeTurns: true });
+      const { thread, instructionSources } = await this.rpc.call(observeOnly ? 'thread/read' : 'thread/resume', { threadId: id, ...(observeOnly ? {} : { excludeTurns: true }) });
+      if (!thread) throw Object.assign(new Error('The saved conversation is unavailable.'), { status: 404 });
       const agent = { id, name: thread.name || 'Codex agent', goal: thread.name || thread.preview?.split('\n')[0] || 'No goal recorded', cwd: thread.cwd, model: thread.model || null, thread, parentId: thread.forkedFromId || null, canSend: thread.canAcceptDirectInput !== false, messages: [], tasks: [], workers: [], questions: [], turnId: null, lastCompletedTurnId: null, olderCursor: null, activity: null, summary: null };
       agent.questions = [...this.pending.values()].filter(q => q.params.threadId === id);
-      agent.role = role; agent.instructionSources = instructionSources || [];
+      agent.role = role; agent.observingOnly = observeOnly; agent.instructionSources = instructionSources || [];
       this.watched.add(id); this.agents.set(id, agent);
       try { await this.history(id); await this.refreshTasks(id); } catch (error) { this.agents.delete(id); throw error; }
       this.changed();
-      if (role === 'worker' && this.coordinator) { void this.coordinator.ensure().catch(() => {}); this.coordinator.mark(id, 'Worker opened'); }
+      if (role === 'worker' && this.coordinator && !this.restoring) { void this.coordinator.ensure().catch(() => {}); this.coordinator.mark(id, 'Worker opened'); }
       return agent;
     } finally { this.opening.delete(id); }
+  }
+  async activate(id) {
+    const agent = this.agent(id); if (!agent.observingOnly) return;
+    if (agent.role === 'coordinator') return this.coordinator.activate();
+    const resumed = await this.rpc.call('thread/resume', { threadId: id, excludeTurns: true });
+    agent.thread = resumed.thread; agent.instructionSources = resumed.instructionSources || [];
+    agent.observingOnly = false; agent.canSend = resumed.thread.canAcceptDirectInput !== false;
+    this.changed();
+  }
+  async refreshObserved(id) {
+    const agent = this.agents.get(id); if (!agent?.observingOnly || !this.rpc.ready || this.restoring) return;
+    if (this.observedReads.has(id)) return this.observedReads.get(id);
+    const job = (async () => {
+      try {
+        const { thread } = await this.rpc.call('thread/read', { threadId: id });
+        if (!thread) throw new Error('Saved conversation is unavailable.');
+        const signature = value => JSON.stringify([value.status, value.updatedAt, value.preview]);
+        const changed = signature(thread) !== signature(agent.thread); const recovered = !!agent.observeError; agent.thread = thread; agent.observeError = null;
+        if (changed || thread.status?.type === 'active') { await this.history(id); this.changed(); }
+        else if (recovered) this.changed();
+        if (changed && agent.role !== 'coordinator') this.coordinator?.mark(id, 'Watched worker changed');
+      } catch (error) { agent.observeError = error.message; this.changed(); }
+    })();
+    this.observedReads.set(id, job); try { await job; } finally { this.observedReads.delete(id); }
   }
   addItem(agent, item, turnId, branchable = false) {
     const plan = reportedPlan(item); if (plan) agent.tasks = plan;
@@ -100,7 +126,7 @@ export class Workspace extends EventEmitter {
     const agent = this.agent(id);
     const page = await this.rpc.call('thread/turns/list', { threadId: id, limit: 20, itemsView: 'full', ...(cursor ? { cursor } : {}) });
     const current = { tasks: agent.tasks, workers: agent.workers.map(worker => ({ ...worker })), summary: agent.summary, activity: agent.activity };
-    const live = agent.messages; agent.messages = [];
+    const live = agent.messages; agent.messages = []; if (!cursor) agent.turnId = null;
     for (const turn of [...page.data].reverse()) {
       agent.tasks = []; agent.summary = null;
       if (turn.status === 'inProgress') agent.turnId = turn.id;
@@ -135,7 +161,7 @@ export class Workspace extends EventEmitter {
       try { agent.tracker = await this.beads.linked(agent.cwd, id); }
       catch (error) { agent.tracker = { status: 'unavailable', label: sessionLabel(id), tasks: [], error: error.message, checkedAt: new Date().toISOString() }; }
       const content = value => JSON.stringify(value && { status: value.status, tasks: value.tasks, error: value.error });
-      if (content(before) !== content(agent.tracker)) { this.changed(); this.coordinator?.mark(id, 'Beads tasks changed'); }
+      if (content(before) !== content(agent.tracker)) { this.changed(); if (!this.restoring) this.coordinator?.mark(id, 'Beads tasks changed'); }
       return agent.tracker;
     })();
     this.trackerReads.set(id, job);
@@ -173,6 +199,7 @@ export class Workspace extends EventEmitter {
     if (!agent.canSend) throw Object.assign(new Error('Codex does not allow direct input to this agent.'), { status: 409 });
     if (typeof text !== 'string' || !text.trim() || text.length > 32_000) throw Object.assign(new Error('Enter a message of 1–32000 characters.'), { status: 400 });
     if (agent.questions.length) throw Object.assign(new Error('Answer the pending question before sending another message.'), { status: 409 });
+    await this.activate(id);
     if (agent.freshBranch) {
       const title = text.trim().split('\n')[0].slice(0, 120);
       await this.rpc.call('thread/name/set', { threadId: id, name: title });

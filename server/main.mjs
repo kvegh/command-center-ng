@@ -1,12 +1,13 @@
 import http from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { dirname, extname, resolve, sep } from 'node:path';
+import { dirname, extname, resolve, sep, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { CodexRpc } from './rpc.mjs';
 import { Workspace } from './workspace.mjs';
 import { defaultAuthFile, loadPassword, Sessions } from './auth.mjs';
 import { VERSION } from './version.mjs';
+import { WorkspaceStore, WorkspacePersistence } from './workspace-store.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.ico': 'image/x-icon' };
@@ -17,7 +18,7 @@ async function body(request) {
   try { return JSON.parse(text || '{}'); } catch { throw failure('Invalid JSON.'); }
 }
 
-export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), config = {} } = {}) {
+export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), workspaceFile, config = {} } = {}) {
   const settings = { host: '127.0.0.1', port: 4242, cwd: process.cwd(), dev: false, ...config };
   if (settings.publicOrigin) {
     const parsed = new URL(settings.publicOrigin);
@@ -28,8 +29,10 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
   rpc ||= new CodexRpc({ socketPath: settings.socketPath });
   workspace ||= new Workspace(rpc, { coordinator: true });
   await workspace.beads?.checkAvailable(settings.cwd);
+  const persistence = new WorkspacePersistence(workspace, new WorkspaceStore(workspaceFile || join(dirname(authFile), 'workspace.json')));
+  await persistence.initialize();
   const taskTimer = setInterval(() => {
-    for (const id of workspace.agents.keys()) void workspace.refreshTasks(id);
+    for (const id of workspace.agents.keys()) { void workspace.refreshTasks(id); void workspace.refreshObserved(id); }
   }, 5000);
   taskTimer.unref();
   let vite; let broadcastTimer;
@@ -87,10 +90,17 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
         }
         if (path === '/api/connect' && request.method === 'POST') {
           await rpc.connect();
-          for (const agent of [...workspace.agents.values()]) { const { thread } = await rpc.call('thread/resume', { threadId: agent.id, excludeTurns: true }); agent.thread = thread; agent.questions = []; await workspace.history(agent.id); }
+          await persistence.retry();
+          for (const agent of [...workspace.agents.values()]) {
+            if (agent.observingOnly) { await workspace.refreshObserved(agent.id); continue; }
+            if (agent.role === 'coordinator') { agent.observingOnly = true; await workspace.activate(agent.id); }
+            else { const { thread } = await rpc.call('thread/resume', { threadId: agent.id, excludeTurns: true }); agent.thread = thread; }
+            agent.questions = []; await workspace.history(agent.id);
+          }
           workspace.changed(); return json(response, { connected: true });
         }
         if (path === '/api/agents' && request.method === 'GET') return json(response, await workspace.list(url.searchParams.get('cursor')));
+        if (request.method === 'POST') await persistence.restore();
         if (path === '/api/agents' && request.method === 'POST') return json(response, { id: await workspace.create(await body(request)) }, 201);
         if (path === '/api/coordinator' && request.method === 'POST') {
           if (!workspace.coordinator) throw failure('The coordinator is unavailable.', 503);
@@ -148,8 +158,8 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
     const { createServer } = await import('vite');
     vite = await createServer({ root, server: { middlewareMode: true, hmr: { server } }, appType: 'spa' });
   }
-  const close = async () => { await workspace.coordinator?.shutdown(); clearInterval(taskTimer); clearTimeout(broadcastTimer); for (const client of clients) client.response.end(); clients.clear(); workspace.off('change', publish); rpc.close(); await vite?.close(); await new Promise(resolve => server.close(resolve)); };
-  return { server, workspace, rpc, close, settings };
+  const close = async () => { await workspace.coordinator?.shutdown(); clearInterval(taskTimer); clearTimeout(broadcastTimer); for (const client of clients) client.response.end(); clients.clear(); workspace.off('change', publish); rpc.close(); await vite?.close(); await new Promise(resolve => server.close(resolve)); await persistence.close(); };
+  return { server, workspace, rpc, close, settings, persistence };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

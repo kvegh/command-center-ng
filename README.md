@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.4.2** implements the Codex workspace and Linux installer. It supports
+**Version 0.5.0** implements the Codex workspace and Linux installer. It supports
 four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -15,7 +15,9 @@ A compact top bar puts the agent tabs and controls first, with branding at the
 far right. It spans the full browser width. The workspace fills the window, with goal/tasks in a right sidebar on desktop and
 above the conversation on smaller screens. Selecting a tab focuses its chat
 input and places the cursor at the end of its saved draft. The generated airport
-control-tower icon replaces the previous square brand mark.
+control-tower icon now uses a clearer complete-building silhouette. The visible
+wordmark is **command center NG**. Tabs have an eight-pixel top inset and are
+about 30% thinner, retaining their vivid status colors.
 
 Linux is the first and primary platform for installation and operation. The
 interface must work well in a Linux desktop browser and a smartphone browser;
@@ -48,8 +50,9 @@ and tradeoffs.
 See [product requirements](docs/product-requirements.md) for the agreed behavior.
 
 The coordinator starts automatically when a worker is opened and has its own
-right-aligned violet chat tab outside the workers' scrolling strip. Workers and
-Add agent stay on the left. The coordinator uses a rounded full border and
+right-aligned violet chat tab outside the workers' scrolling strip. Worker tabs
+stay left; the more prominent cyan Add agent button sits immediately before
+the coordinator in a shared right-hand group. The coordinator uses a rounded full border and
 overview icon, while keeping running/attention indicators. It reads worker history and Beads, publishes progress
 recaps, requests reports, sends attributed summaries into worker conversations
 and reviews pending command/file approvals against actual user-authorized scope.
@@ -109,7 +112,7 @@ To update, run this from your clean source checkout, using the same target:
 It fetches latest `main` automatically, advances the source without overwriting
 local changes, and rebuilds the installation. For the first update from 0.0.x,
 run `git pull --ff-only` first to obtain the new installer. Restart the application
-after installation. Your password file is preserved; the Codex daemon stays running.
+after installation. Your password and saved workspace files are preserved; the Codex daemon stays running.
 An installation inside the checkout, such as `./targetdir`, is supported: its
 untracked output is excluded from the source-change check. Tracked source edits
 and unrelated untracked files still block automatic updates.
@@ -147,7 +150,7 @@ development. For production from source, run `npm run build` and `npm start`.
 
 Existing Codex model, sign-in, and permission settings are preserved. Enter
 sends; Shift+Enter inserts a newline. Drafts and reading positions survive tab
-switches. Closing a tab does not delete or interrupt its native conversation.
+switches and browser refreshes in the same browser. Closing a tab does not delete or interrupt its native conversation.
 
 The task panel reads Beads directly through the backend, refreshing every five
 seconds and after an agent turn. It shows up to three linked tasks, prioritizing
@@ -181,14 +184,27 @@ Tabs use compact single-line titles, colored status dots, and status tooltips;
 the full status label stays beside the goal. Horizontal tab scrolling remains
 available on narrow screens, with no vertical scrollbar in the tab strip.
 Selecting or reselecting an enabled chat focuses its input immediately without
-stealing focus on streaming updates. Drafts remain browser-memory state for now.
+stealing focus on streaming updates. Worker tabs can be dragged into order;
+left/right controls and Alt+Left/Right support phones and keyboards.
+
+Workspace restore uses the approved split: the existing Node.js backend saves
+open worker IDs, the coordinator ID and its paused state in a private mode-600
+`workspace.json` beside the login configuration. The browser stores drafts,
+selected tab, tab order and reading positions locally. No extra service or
+database is introduced. Server restarts reopen the same conversations through
+native read calls; restoring a view does not resume an unloaded worker or start
+a model turn. Sending a message activates that conversation with its existing
+settings. Already-running native work continues independently. You sign in again
+after an app restart, using the same password.
+
 Recent history can be paged backward, with a bounded 600-item in-memory view per
-tab; Codex retains model context. Tabs are shared within the single-user app
-process and reset when it restarts. Workspace restoration is approved but its
-persistence choice is still pending. Worker tabs can be dragged into order;
-left/right controls and Alt+Left/Right support phones and keyboards. Tab order
-is local to the current browser view and resets on refresh. Persistent decision
-summaries beyond native conversation history remain future work.
+tab; Codex retains model context. Reading positions apply to loaded history and
+may be clamped when older pages are not loaded. Browser state is specific to the
+browser and origin; it does not synchronize drafts between devices. Pending
+approval answers, queued coordinator messages and live decision lists are not
+replayed after restart. Persistent decision summaries beyond native conversation
+history remain future work. See [workspace restore](docs/workspace-restore.md)
+for storage, privacy and recovery details.
 
 In 0.4.1, press a worker tab's title and drag it horizontally toward another
 worker. A cyan marker shows the drop position; release to apply the order.
@@ -242,6 +258,14 @@ build preservation have also been exercised in temporary home installations.
 Browser desktop/mobile focus and visual automation remain unavailable here.
 The [brand note](docs/brand.md) records the generated tower asset and exact prompt.
 
+The 0.5.0 regression suite covers private atomic workspace writes, four-worker
+and coordinator restoration, failed-ID retries, read-only startup, explicit
+activation and browser-state round trips. A disposable native restart check
+verified history, coordinator identity/pause, unchanged password and login,
+without worker resumes or model turns during restoration. Production build and
+Linux installer/update checks passed. Interactive desktop/mobile visual testing
+still awaits a rendered screenshot; source review alone cannot establish it.
+
 ## Public source policy
 
 This repository is public. Keep all secrets, access tokens,
@@ -255,6 +279,7 @@ are a convenience; review the complete staged changes before publishing.
 - [Product requirements](docs/product-requirements.md)
 - [Frontend direction](docs/frontend.md)
 - [Installation requirements](docs/installation.md)
+- [Workspace restore](docs/workspace-restore.md)
 - [Design decisions and rationale](design_decisions_history.md)
 - [Contributor instructions](AGENTS.md)
 

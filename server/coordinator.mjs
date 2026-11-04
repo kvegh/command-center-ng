@@ -30,18 +30,35 @@ export class Coordinator {
   workers() { return [...this.workspace.agents.values()].filter(agent => agent.role !== 'coordinator'); }
   snapshot() { return { id: this.id, starting: !!this.starting, error: this.error, paused: this.paused, queuedMessages: [...this.deliveries.values()].reduce((n, rows) => n + rows.length, 0), audit: this.audit.slice(-20) }; }
   worker(id) { const agent = this.workspace.agent(id); if (agent.role === 'coordinator') throw fail('Choose an open worker conversation.', 400); return agent; }
+  async restrictedOptions(cwd) {
+    const { config } = await this.rpc.call('config/read', { includeLayers: false, cwd });
+    const overrides = { 'features.shell_tool': false, 'features.apps': false, 'features.plugins': false, 'features.memories': false, 'features.request_permissions_tool': false, 'features.multi_agent': false, web_search: 'disabled' };
+    for (const name of Object.keys(config?.mcp_servers || {})) {
+      if (!/^[a-zA-Z0-9_-]+$/.test(name)) throw fail('The coordinator cannot safely scope this MCP server name. Worker sessions remain available.');
+      overrides['mcp_servers.' + name + '.enabled'] = false;
+    }
+    return { sandbox: 'read-only', developerInstructions: COORDINATOR_PROMPT, config: overrides };
+  }
+  async activate() {
+    const agent = this.workspace.agent(this.id); if (!agent.observingOnly) return;
+    const resumed = await this.rpc.call('thread/resume', { threadId: this.id, excludeTurns: true, ...(await this.restrictedOptions(agent.cwd)) });
+    if (resumed.sandbox?.type !== 'readOnly') throw fail('Codex did not confirm the coordinator read-only sandbox.');
+    agent.thread = resumed.thread; agent.instructionSources = resumed.instructionSources || []; agent.observingOnly = false;
+    this.workspace.changed();
+  }
   async ensure() {
     if (this.id && this.workspace.agents.has(this.id)) return this.id;
+    if (this.id) {
+      try {
+        const agent = await this.workspace.open(this.id, { observeOnly: true });
+        agent.name = 'Coordinator'; agent.goal = 'Coordinate open workers, summarize progress, and review authorized actions.';
+        this.error = null; this.workspace.changed(); return this.id;
+      } catch (error) { this.error = 'Saved coordinator could not be restored: ' + error.message; this.workspace.changed(); throw error; }
+    }
     if (this.starting) return this.starting;
     const first = this.workers()[0]; if (!first || this.stopped) return null;
     this.starting = (async () => {
-      const { config } = await this.rpc.call('config/read', { includeLayers: false, cwd: first.cwd });
-      const overrides = { 'features.shell_tool': false, 'features.apps': false, 'features.plugins': false, 'features.memories': false, 'features.request_permissions_tool': false, 'features.multi_agent': false, web_search: 'disabled' };
-      for (const name of Object.keys(config?.mcp_servers || {})) {
-        if (!/^[a-zA-Z0-9_-]+$/.test(name)) throw fail('The coordinator cannot safely scope this MCP server name. Worker sessions remain available.');
-        overrides['mcp_servers.' + name + '.enabled'] = false;
-      }
-      const started = await this.rpc.call('thread/start', { cwd: first.cwd, sandbox: 'read-only', developerInstructions: COORDINATOR_PROMPT, dynamicTools: COORDINATOR_TOOLS, config: overrides });
+      const started = await this.rpc.call('thread/start', { cwd: first.cwd, dynamicTools: COORDINATOR_TOOLS, ...(await this.restrictedOptions(first.cwd)) });
       this.id = started.thread.id;
       try {
         if (started.sandbox?.type !== 'readOnly') throw fail('Codex did not confirm the coordinator read-only sandbox.');
@@ -53,7 +70,7 @@ export class Coordinator {
     this.workspace.changed(); return this.starting;
   }
   mark(id, reason, urgent = false) {
-    if (this.stopped || this.paused || id === this.id || !this.workspace.agents.has(id)) return;
+    if (this.stopped || this.paused || this.workspace.restoring || id === this.id || !this.workspace.agents.has(id)) return;
     if (!this.dirty.has(id)) this.dirty.set(id, new Set()); this.dirty.get(id).add(reason);
     clearTimeout(this.timer);
     const delay = urgent ? this.debounceMs : Math.max(this.debounceMs, this.intervalMs - (Date.now() - this.lastRun));
@@ -72,6 +89,7 @@ export class Coordinator {
   async setPaused(paused) {
     if (typeof paused !== 'boolean') throw fail('Choose paused or running.', 400);
     this.paused = paused; clearTimeout(this.timer); this.timer = null;
+    this.workspace.changed();
     if (paused && this.id && this.workspace.agents.get(this.id)?.turnId) await this.workspace.interrupt(this.id);
     if (!paused) { await this.ensure(); for (const worker of this.workers()) this.mark(worker.id, 'Coordinator resumed', true); }
     this.workspace.changed();

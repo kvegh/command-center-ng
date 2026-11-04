@@ -12,7 +12,7 @@ The interface must remain usable from a Linux desktop browser and a smartphone
 browser. Browser support does not imply a selected remote-access or hosting
 arrangement.
 
-Version 0.4.2 includes the installer. Linux, Node.js 22.12+, npm, tar, realpath,
+Version 0.5.0 includes the installer. Linux, Node.js 22.12+, npm, tar, realpath,
 and Beads (`bd`) must already be installed. The installer validates the bd JSON/
 read-only/brief-list interface before building; the app checks it again at startup.
 Beads 1.3.2 was verified. See the [official installation guide](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md).
@@ -40,6 +40,15 @@ permissions. Set `CCNG_CONFIG_DIR` to select another private directory outside
 the checkout. Reinstalling preserves this file. For noninteractive installs or
 password changes, run the installed `server/password.mjs` with Node in a terminal,
 then restart the app. Sessions are invalidated when the app restarts.
+
+The same configuration directory holds private `workspace.json` (mode 600):
+open conversation IDs, coordinator ID and pause state. It is written by the
+existing Command Center backend on port 4242; no additional server/service or
+database is installed. Installer updates preserve it outside the target, along
+with the password file. Browser drafts/order/positions stay in local browser
+storage. On restart, sign in again to see restored tabs. Restoring reads existing
+history without starting worker work; already-running Codex tasks remain native.
+See [workspace restore and recovery](workspace-restore.md).
 
 Start `codex app-server daemon start` using the same account and Codex home as
 the conversations to manage, then run `"$HOME/apps/command-center-ng/command-center-ng"`
@@ -110,7 +119,7 @@ On the first update from 0.0.1 or 0.0.2, run `git pull --ff-only` first: those
 installers do not yet understand `--update`. Future updates fetch automatically.
 Ordinary installation after a manual pull also remains supported.
 
-The application password file stays in private configuration outside the target.
+The application password and workspace files stay in private configuration outside the target.
 Restart the app after updating, using `TARGET_DIR/command-center-ng`; the installer
 does not restart running applications or the Codex daemon. Update an existing
 service's launch path yourself if it previously used the global shortcut.

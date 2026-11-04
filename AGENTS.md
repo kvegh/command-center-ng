@@ -44,8 +44,14 @@ content, and project tracker configuration. Do not auto-initialize or migrate
 trackers, install tools, or manage a Dolt service.
 
 The user requested chat-input focus on tab selection and a generated airport
-control-tower icon. Workspace restore is approved but its persistence choice is
-pending. The user authorized a native Codex coordinator alongside four workers,
+control-tower icon. Workspace restore uses the user-approved split: a private file beside login
+configuration in the existing Node.js backend, plus browser-local drafts,
+selected tab, order and reading positions. Persist only open worker IDs,
+coordinator ID and pause state on the server. Keep runtime files outside the
+checkout. Restore views using native reads; do not resume unloaded workers or
+start worker/model turns merely to restore tabs. Reuse the same coordinator;
+reapply its restrictions before activation. Do not replay approvals or queued
+messages. No separate storage service or database is approved. The user authorized a native Codex coordinator alongside four workers,
 with its own visually separated chat tab, progress recaps, report requests,
 summary messages and scope-based approval review. Authorized work can include
 resource creation/deletion and disposable test-VM lifecycle. Use the explicit
@@ -59,7 +65,8 @@ restrictions cannot be applied. Never approve its own requests, broaden native
 permissions or claim model judgment provides hard containment. Approval requires
 an exact real-user-message reference, never a generated summary or event message.
 Keep manual controls, request identity, confirmation, pause and decision rationale.
-Use native conversation history/process memory, not an unapproved new store.
+Keep transcripts in native conversation history, live reviews/queues in process
+memory and only the approved workspace metadata in the private workspace file.
 Worker settings stay unchanged. The user also requested draggable tab order with
 accessible controls; preserve the separate coordinator group and chat focus.
 
@@ -102,9 +109,11 @@ license or accept legal terms on the user's behalf.
 ## Interface
 
 Keep workspace branding at the far right of the full-width navigation bar.
-Keep workers and Add agent on the left. The coordinator belongs to a separate
-right-aligned group outside the workers' scrolling strip, with a distinct violet
-rounded treatment and overview icon. Preserve its running/attention indicators
+Keep worker tabs on the left. Group the prominent cyan Add agent button and
+coordinator together on the right, with the coordinator immediately after Add
+agent and outside the workers' scrolling strip. Keep its distinct violet
+rounded treatment and overview icon. Preserve the eight-pixel top inset and
+approximately 34-pixel worker tabs. The visible wordmark is command center NG. Preserve its running/attention indicators
 and compact mobile presentation.
 Favor simple navigation, readable type, consistent spacing, clear status labels,
 accessible controls, and restrained effects. Keep the project goal and current

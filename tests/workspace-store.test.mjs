@@ -1,0 +1,140 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import { mkdtemp, readFile, writeFile, chmod, stat, symlink, readlink, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { WorkspaceStore, WorkspacePersistence, emptyWorkspace } from '../server/workspace-store.mjs';
+import { Workspace } from '../server/workspace.mjs';
+
+const record = (workerIds = ['one'], coordinatorId = null, coordinatorPaused = false) => ({ version: 1, workerIds, coordinatorId, coordinatorPaused });
+async function fixture() { const dir = await mkdtemp(join(tmpdir(), 'ccng-workspace-')); return { dir, store: new WorkspaceStore(join(dir, 'config', 'workspace.json')), close: () => rm(dir, { recursive: true, force: true }) }; }
+class Rpc extends EventEmitter {
+  constructor(cwd) { super(); this.ready = true; this.calls = []; this.cwd = cwd; this.missing = new Set(); }
+  async call(method, params) {
+    this.calls.push({ method, params });
+    if (method === 'thread/read' || method === 'thread/resume') {
+      if (this.missing.has(params.threadId)) throw new Error('Conversation temporarily unavailable');
+      return { thread: { id: params.threadId, name: params.threadId, cwd: this.cwd, status: { type: 'notLoaded' }, canAcceptDirectInput: true, turns: [], model: 'saved-model' }, instructionSources: [], sandbox: { type: 'readOnly' } };
+    }
+    if (method === 'thread/turns/list') return { data: [], nextCursor: null };
+    if (method === 'config/read') return { config: { mcp_servers: {} } };
+    if (method === 'turn/start') return { turn: { id: 'new-turn' } };
+    throw new Error('Unexpected native mutation: ' + method);
+  }
+  respond() { throw new Error('Restoration must not answer approvals'); }
+}
+async function restored(saved) {
+  const f = await fixture(); await f.store.save(saved); const rpc = new Rpc(f.dir);
+  const workspace = new Workspace(rpc, { beads: null, coordinator: { debounceMs: 1000000 } });
+  const persistence = new WorkspacePersistence(workspace, f.store); await persistence.initialize(); await persistence.restore(); await persistence.queue;
+  return { ...f, rpc, workspace, persistence, close: async () => { workspace.coordinator.stop(); await persistence.close(); await f.close(); } };
+}
+
+test('workspace writes are private, atomic and contain only selected metadata', async () => {
+  const f = await fixture();
+  try {
+    assert.deepEqual(await f.store.load(), emptyWorkspace());
+    await Promise.all(Array.from({ length: 8 }, (_, i) => f.store.save({ ...record(['worker-' + i]), password: 'synthetic-not-to-save', approvalAnswers: ['not-to-save'] })));
+    assert.deepEqual(await f.store.load(), record(['worker-7']));
+    assert.equal((await stat(f.store.file)).mode & 0o777, 0o600);
+    assert.equal((await stat(join(f.dir, 'config'))).mode & 0o777, 0o700);
+    const data = await readFile(f.store.file, 'utf8'); assert.ok(!data.includes('not-to-save'));
+    assert.deepEqual(Object.keys(JSON.parse(data)).sort(), ['coordinatorId', 'coordinatorPaused', 'version', 'workerIds']);
+  } finally { await f.close(); }
+});
+
+test('invalid, unsafe and linked workspace files are rejected without overwrite', async () => {
+  const f = await fixture();
+  try {
+    await f.store.save(record()); await chmod(f.store.file, 0o644);
+    await assert.rejects(f.store.load(), /private file/); await assert.rejects(f.store.save(record(['two'])), /private file/);
+    await chmod(f.store.file, 0o600); await writeFile(f.store.file, '{invalid synthetic-marker');
+    await assert.rejects(f.store.load(), error => error.message === 'Saved workspace contains invalid JSON.');
+    await assert.rejects(f.store.save(record(['two'])), /invalid JSON/);
+    assert.equal(await readFile(f.store.file, 'utf8'), '{invalid synthetic-marker');
+    await rm(f.store.file); const target = join(f.dir, 'original.json'); await writeFile(target, JSON.stringify(record()), { mode: 0o600 }); await symlink(target, f.store.file);
+    await assert.rejects(f.store.load(), error => error.code === 'ELOOP');
+    await assert.rejects(f.store.save(record(['two'])), error => error.code === 'ELOOP'); assert.equal(await readlink(f.store.file), target);
+  } finally { await f.close(); }
+});
+
+test('workspace metadata rejects invalid IDs and more than four workers', async () => {
+  const f = await fixture();
+  try {
+    for (const value of [record(['../invalid']), record(['one', 'one']), record(['one', 'two', 'three', 'four', 'five']), record(['one'], 'one'), { ...record(), coordinatorPaused: 'yes' }]) {
+      assert.throws(() => f.store.save(value), /Invalid saved workspace/);
+    }
+  } finally { await f.close(); }
+});
+
+test('startup restores four workers and the same paused coordinator with read-only native calls', async () => {
+  const f = await restored(record(['one', 'two', 'three', 'four'], 'coordinator', true));
+  try {
+    assert.equal(f.workspace.workerCount(), 4); assert.equal(f.workspace.agents.size, 5);
+    assert.equal(f.workspace.coordinator.id, 'coordinator'); assert.equal(f.workspace.coordinator.paused, true);
+    assert.equal(f.workspace.restoration.status, 'ready');
+    assert.ok(f.rpc.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)));
+    assert.ok(f.workspace.snapshot().agents.every(agent => agent.observingOnly && agent.status === 'idle'));
+    assert.deepEqual(await f.store.load(), record(['one', 'two', 'three', 'four'], 'coordinator', true));
+  } finally { await f.close(); }
+});
+
+test('sending after restore explicitly resumes the worker without permission/model overrides', async () => {
+  const f = await restored(record(['one']));
+  try {
+    await f.workspace.send('one', 'Continue the authorized task.');
+    const resume = f.rpc.calls.find(call => call.method === 'thread/resume');
+    assert.deepEqual(resume.params, { threadId: 'one', excludeTurns: true });
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
+    assert.equal(f.workspace.agent('one').observingOnly, false);
+  } finally { await f.close(); }
+});
+
+test('coordinator activation reapplies restrictions and reuses its saved history', async () => {
+  const f = await restored(record(['one'], 'coordinator', true));
+  try {
+    await f.workspace.send('coordinator', 'Summarize the existing context only.');
+    const resume = f.rpc.calls.find(call => call.method === 'thread/resume');
+    assert.equal(resume.params.threadId, 'coordinator'); assert.equal(resume.params.sandbox, 'read-only');
+    assert.equal(resume.params.config['features.shell_tool'], false);
+    assert.equal(resume.params.model, undefined); assert.equal(f.rpc.calls.some(call => call.method === 'thread/start'), false);
+    assert.equal(f.workspace.coordinator.paused, true);
+  } finally { await f.close(); }
+});
+
+test('one unavailable conversation does not prevent restoration and can be retried', async () => {
+  const f = await fixture(); await f.store.save(record(['one', 'two'])); const rpc = new Rpc(f.dir); rpc.missing.add('two');
+  const workspace = new Workspace(rpc, { beads: null }); const persistence = new WorkspacePersistence(workspace, f.store);
+  try {
+    await persistence.initialize(); await persistence.restore(); await persistence.queue;
+    assert.equal(workspace.agents.size, 1); assert.equal(workspace.restoration.warnings.length, 1);
+    assert.deepEqual((await f.store.load()).workerIds, ['one', 'two']);
+    rpc.missing.clear(); await persistence.retry(); assert.equal(workspace.agents.size, 2);
+    workspace.close('one'); await persistence.queue; assert.deepEqual((await f.store.load()).workerIds, ['two']);
+  } finally { await persistence.close(); await f.close(); }
+});
+
+test('disconnected startup retains saved IDs until native connection is available', async () => {
+  const f = await fixture(); await f.store.save(record(['one'])); const rpc = new Rpc(f.dir); rpc.ready = false;
+  const workspace = new Workspace(rpc, { beads: null }); const persistence = new WorkspacePersistence(workspace, f.store);
+  try {
+    await persistence.initialize(); await persistence.restore();
+    assert.equal(workspace.agents.size, 0); assert.deepEqual((await f.store.load()).workerIds, ['one']);
+    rpc.ready = true; rpc.emit('connected'); await persistence.restore(); assert.ok(workspace.agents.has('one'));
+  } finally { await persistence.close(); await f.close(); }
+});
+
+test('an unavailable saved coordinator is retried by ID without creating a replacement', async () => {
+  const f = await fixture(); await f.store.save(record(['one'], 'coordinator', true)); const rpc = new Rpc(f.dir); rpc.missing.add('coordinator');
+  const workspace = new Workspace(rpc, { beads: null, coordinator: true }); const persistence = new WorkspacePersistence(workspace, f.store);
+  try {
+    await persistence.initialize(); await persistence.restore(); await persistence.queue;
+    assert.equal(workspace.workerCount(), 1); assert.equal(workspace.coordinator.id, 'coordinator');
+    await assert.rejects(workspace.coordinator.ensure(), /unavailable/);
+    assert.equal(rpc.calls.some(call => call.method === 'thread/start'), false);
+    rpc.missing.clear(); await persistence.retry();
+    assert.equal(workspace.agent('coordinator').role, 'coordinator'); assert.equal(workspace.coordinator.paused, true);
+    assert.ok(rpc.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)));
+  } finally { workspace.coordinator.stop(); await persistence.close(); await f.close(); }
+});

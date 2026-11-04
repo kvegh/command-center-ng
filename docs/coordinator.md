@@ -1,9 +1,9 @@
 # Workspace coordinator
 
 Version 0.4.0 adds one native Codex coordinator alongside up to four worker tabs.
-It starts automatically when the first worker is opened. Since 0.4.2, its
+It starts automatically when the first worker is opened. In 0.5.0, its
 Coordinator tab sits in a separate right-aligned group outside the worker
-scrolling strip; workers and Add agent stay left. A violet rounded background,
+scrolling strip, immediately after the prominent Add agent button; workers stay left. A violet rounded background,
 full border and overview icon distinguish its role, while status dots and an
 amber attention border preserve its state. Mobile uses a compact presentation.
 The tab gives it its own chat, state and controls. All four
@@ -100,10 +100,14 @@ decisions and their safeguards are covered by protocol fixtures; no live AAP/VM
 changes or existing user approvals were used for testing. Browser visual testing
 remains unperformed.
 
-Open tabs, the live decision list and coordinator state are currently process
-memory. Native conversation histories remain with Codex. A new app process creates
-a new coordinator; durable workspace restoration is still pending its storage
-decision.
+Workspace restoration reopens the same saved coordinator ID and preserves its
+paused state. Views are read without resuming unloaded conversations or starting
+turns. Before the coordinator next acts, its read-only sandbox and reduced
+capabilities are reapplied and checked. An unavailable saved coordinator reports
+an error and retries its existing ID instead of silently creating a replacement.
+The live decision list, pending reviews/tokens and queued messages remain process
+memory and are not replayed. Native tool-call history remains with Codex.
+See [workspace restore](workspace-restore.md) for the approved storage split.
 
 ## Reordering tabs
 
@@ -115,5 +119,5 @@ reorder; a drag does not activate the tab as a click. The active worker also has
 left/right buttons for keyboard and phone use; Alt+Left/Alt+Right works when its
 tab button has focus. Selection, drafts and agent state stay attached to the
 conversation. The Coordinator group remains visually separate. Order is local
-to the current browser view and resets on refresh; persistence belongs to the
-separate workspace-restore work.
+to the current browser and origin and now survives refreshes through browser
+storage; it does not reorder another device.

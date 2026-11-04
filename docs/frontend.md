@@ -18,7 +18,7 @@ interfaces. Linux is the primary platform.
 
 This selects the frontend foundation only. It does not select agent APIs, a
 server framework, a database, a state-management library, or a component suite.
-Package versions are pinned in package.json and package-lock.json for 0.4.2.
+Package versions are pinned in package.json and package-lock.json for 0.5.0.
 The approved local Node.js service uses the existing Codex daemon.
 
 ## Visual principles
@@ -32,7 +32,7 @@ The approved local Node.js service uses the existing Codex daemon.
 - Respect reduced-motion preferences and avoid animation that distracts from work.
 - Use synthetic data for public demos and interface examples.
 
-Version 0.4.2 uses dark graphite surfaces with cyan controls, green running
+Version 0.5.0 uses dark graphite surfaces with cyan controls, green running
 states, amber attention states, and violet branch navigation. Status labels and
 icons accompany color. The goal and up to three task summaries remain above
 the scrolling conversation on mobile; desktop uses a narrow right sidebar.
@@ -68,7 +68,7 @@ The 0.4.0 coordinator has a separate labeled tab group with spacing and a divide
 without using a worker slot. Its sidebar shows worker recaps and recent decisions;
 workers show concise coordinator recaps above their stored Beads tasks. Pause,
 resume and manual-review controls stay visible. Worker tabs support desktop drag
-reordering plus left/right buttons and Alt+Left/Right. Browser-memory ordering
+reordering plus left/right buttons and Alt+Left/Right. Browser-local ordering
 preserves conversation identity and the distinct coordinator group.
 
 Version 0.4.1 replaces native HTML tab dragging with a small pointer controller
@@ -88,3 +88,26 @@ surface, rounded full border and overview icon distinguish its role; running
 and attention indicators remain. The phone presentation uses a compact Coord
 label. Branding remains the final item at the far right. Worker dragging still
 targets only the left strip.
+
+## Current hierarchy review: 0.5.0
+
+The graphite surfaces and cyan/green/amber states remain coherent; violet marks
+the coordinator's different role. The main source-level issue was competing
+header controls. Worker tabs now stay left and a compact right-hand pair places
+the more prominent cyan Add agent button immediately before the violet
+coordinator. The divider/extra gap between that pair is removed. Branding stays
+rightmost with the exact wordmark command center NG and a clearer architectural
+tower mark.
+
+An eight-pixel top inset separates vivid tab borders from the screen edge.
+Worker tabs are about 34 pixels tall instead of 48, a roughly 30% reduction;
+mobile retains horizontal scrolling and accessible movement controls. The
+workspace still fills the available width and height. This preserves the user's
+requested information density without adding decoration.
+
+Selected tab, draft, worker order and reading position persist in browser-local
+storage. Open IDs and coordinator pause state restore from the existing backend's
+private file. Storage errors leave in-memory operation available and visible.
+Production build and event/storage tests pass; no interactive browser is
+available here. The user will provide a screenshot after updating for a rendered
+review of spacing, legibility, touch usability and overall balance.

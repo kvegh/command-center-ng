@@ -23,6 +23,9 @@ secrets/
 vault*.yml
 vault*.yaml
 
+auth.json
+workspace.json
+
 # Agent, tracker, conversation, and runtime state
 .beads/
 .codex/
