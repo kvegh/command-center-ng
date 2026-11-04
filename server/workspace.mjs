@@ -262,12 +262,13 @@ export class Workspace extends EventEmitter {
   async fork(id, lastTurnId) {
     const source = this.agent(id);
     if (source.role === 'coordinator') throw Object.assign(new Error('Branch a worker conversation instead.'), { status: 400 });
-    const point = lastTurnId || source.lastCompletedTurnId;
-    if (!point || !source.messages.some(message => message.turnId === point && message.branchable)) throw Object.assign(new Error('Choose a completed reply to branch from.'), { status: 400 });
+    const atReply = lastTurnId !== undefined && lastTurnId !== null;
+    if (atReply && (typeof lastTurnId !== 'string' || !source.messages.some(message => message.turnId === lastTurnId && message.branchable))) throw Object.assign(new Error('Choose a completed reply to branch from.'), { status: 400 });
     if (this.workerSlots() >= 4) throw Object.assign(new Error('Close an agent tab before opening a branch. Conversations are kept.'), { status: 409 });
     this.creating++; let reserved = true;
     try {
-      const { thread } = await this.rpc.call('thread/fork', { threadId: id, lastTurnId: point, excludeTurns: true, deferGoalContinuation: true });
+      // Omit the cutoff for Branch chat; only Branch here selects a historical reply.
+      const { thread } = await this.rpc.call('thread/fork', { threadId: id, ...(atReply ? { lastTurnId } : {}), excludeTurns: true, deferGoalContinuation: true });
       const name = `Branch · ${source.goal}`.slice(0, 120);
       await this.rpc.call('thread/name/set', { threadId: thread.id, name });
       this.creating--; reserved = false;

@@ -40,9 +40,11 @@ async function fixture() {
       case 'thread/turns/list': result = { data: histories.get(p.threadId) || [{ id: 'turn-' + p.threadId, status: threads.get(p.threadId).status.type === 'active' ? 'inProgress' : 'completed', items: [{ id: 'message-' + p.threadId, type: 'agentMessage', text: 'Ready to work.' }] }], nextCursor: null }; break;
       case 'thread/start': { const id = 'new-' + (++sequence); threads.set(id, { ...thread(id), cwd: p.cwd }); result = { thread: threads.get(id) }; break; }
       case 'thread/fork': {
-        const id = 'branch-' + (++sequence); const source = histories.get(p.threadId);
-        const point = source.findIndex(turn => turn.id === p.lastTurnId);
-        histories.set(id, structuredClone(source.slice(point)));
+        const id = 'branch-' + (++sequence); const source = histories.get(p.threadId) || [];
+        const point = p.lastTurnId === undefined ? 0 : source.findIndex(turn => turn.id === p.lastTurnId);
+        const copied = structuredClone(source.slice(point));
+        for (const turn of copied) if (turn.status === 'inProgress') turn.status = 'interrupted';
+        histories.set(id, copied);
         threads.set(id, { ...thread(id), forkedFromId: p.threadId });
         result = { thread: threads.get(id) }; break;
       }
@@ -141,6 +143,56 @@ test('branches use native completed-turn context and keep parent navigation sepa
     assert.ok(!f.workspace.agents.has(id));
     assert.ok(f.threads.has(id), 'return navigation keeps the native branch');
     assert.equal(f.calls.filter(c => c.method === 'turn/interrupt').length, 0);
+  } finally { await f.close(); }
+});
+
+test('Branch chat keeps the ongoing exchange and leaves parent work and approval untouched', async () => {
+  const f = await fixture();
+  try {
+    f.histories.set('existing', [
+      { id: 'active', status: 'inProgress', items: [
+        { id: 'new-request', type: 'userMessage', content: [{ type: 'text', text: 'Investigate the next issue.' }] },
+        { id: 'new-progress', type: 'agentMessage', text: 'Checking the available evidence.' },
+        { id: 'new-followup', type: 'userMessage', content: [{ type: 'text', text: 'Keep the current deployment running.' }] }
+      ] },
+      { id: 'completed', status: 'completed', items: [{ id: 'completed-reply', type: 'agentMessage', text: 'The prerequisites are ready.' }] },
+      { id: 'earlier', status: 'completed', items: [{ id: 'earlier-reply', type: 'agentMessage', text: 'Earlier context.' }] }
+    ]);
+    f.threads.get('existing').status.activeFlags = ['waitingOnApproval'];
+    f.resumeRequests.set('existing', [{ id: 'parent-approval', method: 'item/commandExecution/requestApproval', params: { threadId: 'existing', turnId: 'active', command: 'printf synthetic' } }]);
+    const parent = await f.workspace.open('existing');
+    await waitFor(() => parent.questions.length === 1);
+    const original = structuredClone({ messages: parent.messages, turnId: parent.turnId, questions: parent.questions, status: parent.thread.status });
+    const before = f.calls.length;
+    const id = await f.workspace.fork('existing');
+    assert.deepEqual(f.calls.find(call => call.method === 'thread/fork').params, { threadId: 'existing', excludeTurns: true, deferGoalContinuation: true });
+    assert.deepEqual(f.workspace.agent(id).messages.map(message => message.text), [
+      'Earlier context.', 'The prerequisites are ready.', 'Investigate the next issue.',
+      'Checking the available evidence.', 'Keep the current deployment running.'
+    ]);
+    assert.equal(f.workspace.agent(id).turnId, null);
+    assert.deepEqual(f.workspace.agent(id).questions, []);
+    assert.deepEqual({ messages: parent.messages, turnId: parent.turnId, questions: parent.questions, status: parent.thread.status }, original);
+    assert.equal(f.histories.get('existing')[0].status, 'inProgress');
+    assert.equal(f.calls.slice(before).some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false);
+    assert.equal(f.replies.length, 0, 'forking does not answer the parent approval');
+  } finally { await f.close(); }
+});
+
+test('Branch chat works during the first turn without a completed reply', async () => {
+  const f = await fixture();
+  try {
+    f.histories.set('existing', [{ id: 'first-active', status: 'inProgress', items: [
+      { id: 'first-request', type: 'userMessage', content: [{ type: 'text', text: 'Review this project.' }] },
+      { id: 'first-progress', type: 'agentMessage', text: 'Reading the project.' }
+    ] }]);
+    const parent = await f.workspace.open('existing');
+    assert.equal(parent.lastCompletedTurnId, null);
+    const id = await f.workspace.fork('existing');
+    assert.deepEqual(f.workspace.agent(id).messages.map(message => message.text), ['Review this project.', 'Reading the project.']);
+    assert.equal(parent.turnId, 'first-active');
+    assert.equal(f.workspace.agent(id).turnId, null);
+    assert.equal(f.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false);
   } finally { await f.close(); }
 });
 

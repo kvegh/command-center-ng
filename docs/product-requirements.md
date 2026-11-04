@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.9.3
+## Current development version: 0.10.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -198,6 +198,13 @@ viewport. Scrolling text clips below the tabs while the folder-tab/pane join
 remains seamless. Inactive worker and coordinator tabs use the pane's background
 across activity states; dots and top edges continue to indicate status. The
 selected tab keeps its size and bold label. Desktop and mobile use the same inset.
+
+Version 0.10.0 corrects the composer Branch chat cutoff. It snapshots the current
+stored conversation, including messages from an ongoing turn, instead of stopping
+at the latest completed reply. The child waits for explicit input; native handling
+marks its copied partial turn interrupted while the parent continues unchanged.
+Branch here still selects a completed historical reply. Existing branches keep
+their original snapshot and histories; no automatic replacement or replay is added.
 
 ## Decisions still open
 

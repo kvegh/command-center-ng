@@ -142,6 +142,13 @@ Branch here still available. Preserve stacked mobile context and wrapping
 composer controls. Do not infer ordinary-chat questions without a separate
 agreed approach.
 
+Branch chat must use the native current-history snapshot without lastTurnId,
+including persisted messages from an ongoing exchange. Only per-reply Branch
+here supplies a validated completed-turn cutoff. Preserve deferGoalContinuation,
+parent activity/questions, settings and the worker limit. A native interruption
+marker belongs only to the copied partial turn in the child; do not interrupt
+the parent or rewrite existing branches to apply this correction.
+
 An attention flag without request details does not establish another client's
 ownership. Preserve explicit request loading for only the selected active native
 conversation, exact request IDs and native answer confirmation. Loading must not

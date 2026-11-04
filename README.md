@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.9.3 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.10.0 (in development)** includes the Codex workspace and Linux installer. It supports
 four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -157,9 +157,13 @@ and unrelated untracked files still block automatic updates.
 
 ## Branching a conversation
 
-Choose **Branch here** beside a completed Codex reply, or **Branch chat** beside
-Interrupt and Send in the chat input area to fork from the latest completed reply. Codex copies its stored context
-through that turn into a separate conversation; later parent messages are excluded.
+Choose **Branch here** beside a completed Codex reply to copy the conversation
+through that reply. **Branch chat**, beside Interrupt and Send, takes a native
+snapshot of the current stored conversation, including messages from an ongoing
+turn. Version 0.10.0 removes its earlier completed-reply cutoff, which could
+silently leave out a newer exchange. A completed reply is no longer required.
+If work is ongoing, Codex marks the copied partial turn interrupted in the child;
+the parent keeps running. Later parent messages are outside that snapshot.
 The branch waits for your follow-up question or subtask. Its first message becomes
 its goal. A branch uses one of the four tabs; close a tab first if all are occupied.
 
@@ -176,6 +180,10 @@ child session and remove its tab. Archived history is retained by Codex and is
 excluded from the normal active-conversation picker. Summary or delivery errors
 keep the branch open. If delivery succeeds but archiving fails, retry closes the
 child without resending within the current app process.
+
+Existing branches retain their original snapshot. After updating from an earlier
+version, make a new branch from the parent to include a previously omitted exchange;
+the update does not rewrite or replace your old branch.
 
 Parent links survive reopening through native Codex metadata. Branches share the
 working directory; conversation branching does not create a Git branch or worktree.
@@ -366,6 +374,14 @@ tabs. Rendered desktop/mobile review remains pending.
 Version 0.9.3 passed all 75 existing checks and the production build. The inset
 belongs to the scrolling viewport, so it remains clear while messages scroll.
 Rendered desktop/mobile review remains pending.
+
+Version 0.10.0 passed all 77 tests and the production build. Two regressions
+failed before the fix, reproducing omission of the ongoing exchange and inability
+to branch during the first turn. Coverage verifies retained messages, unchanged
+parent activity/approval, no automatic child turn and explicit historical cutoffs.
+The native snapshot behavior is documented in the
+[official App Server reference](https://learn.chatgpt.com/docs/app-server).
+No existing user branch was rewritten or replaced for validation.
 
 ## Public source policy
 
