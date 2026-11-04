@@ -1,0 +1,405 @@
+---
+# RHEL 9 only. Reuses an existing unprivileged Codex/Beads account and tracker.
+# Installs the app through its maintained installer, then enables its systemd
+# service. Codex/Beads services, login, permissions and project data are preserved.
+- name: Deploy Command Center NG on RHEL 9 using an existing account
+  hosts: command_center
+  gather_facts: true
+  gather_subset:
+    - "!all"
+    - min
+  become: true
+  no_log: true
+  vars_files:
+    - vars/command_center_defaults.yml
+  vars:
+    ccng_deployment_version: "{{ (lookup('ansible.builtin.file', playbook_dir ~ '/../package.json') | from_json).version }}"
+
+  pre_tasks:
+    - name: Validate the supported operating system before changes
+      ansible.builtin.import_tasks: tasks/command_center_platform.yml
+
+    - name: Require deployment mode for the stateful installer
+      ansible.builtin.assert:
+        that: not ansible_check_mode
+        fail_msg: Use syntax checks and the isolated fixture suite locally; installer deployment requires normal mode.
+        quiet: true
+
+    - name: Require the account, project and SSH source repository inputs
+      ansible.builtin.assert:
+        that:
+          - command_center_user is defined and command_center_user is string
+          - command_center_user is match('^[a-z_][a-z0-9_-]{0,31}$')
+          - command_center_project_dir is defined and command_center_project_dir is string
+          - command_center_repository is defined and command_center_repository is string
+          - command_center_repository is match('^(git@[^\s]+:|ssh://)[^\s]+$')
+        quiet: true
+
+    - name: Look up the existing application account
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ command_center_user }}"
+
+    - name: Record the existing account identity and home
+      ansible.builtin.set_fact:
+        ccng_user_uid: "{{ ansible_facts.getent_passwd[command_center_user][1] | int }}"
+        ccng_user_home: "{{ ansible_facts.getent_passwd[command_center_user][4] }}"
+
+    - name: Refuse a root application account
+      ansible.builtin.assert:
+        that:
+          - ccng_user_uid | int != 0
+          - ccng_user_home is match('^/[A-Za-z0-9_./ -]+$')
+        quiet: true
+
+    - name: Resolve defaults while preserving inventory and extra variables
+      ansible.builtin.import_tasks: tasks/command_center_defaults.yml
+
+    - name: Inspect any existing systemd unit before taking ownership
+      ansible.builtin.stat:
+        path: /etc/systemd/system/command-center-ng.service
+        follow: false
+        get_checksum: false
+      register: ccng_unit
+
+    - name: Read an existing unit for its management marker
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/command-center-ng.service
+      register: ccng_unit_content
+      when: ccng_unit.stat.isreg | default(false)
+
+    - name: Inspect the existing systemd service without changing it
+      ansible.builtin.command:
+        argv: [systemctl, show, command-center-ng.service, --property=LoadState, --value]
+      register: ccng_unit_state
+      changed_when: false
+      failed_when: ccng_unit_state.rc not in [0, 1, 4]
+
+    - name: Refuse to overwrite an unrelated or linked service
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ccng_unit_state.stdout | trim == 'not-found' and not ccng_unit.stat.exists) or
+            (ccng_unit.stat.isreg | default(false) and
+             not (ccng_unit.stat.islnk | default(false)) and
+             (ccng_unit_content.content | default('') | b64decode).startswith(
+               '# Managed by Command Center Ansible deployment\n'))
+        fail_msg: An existing service must be deliberately migrated before this playbook manages it.
+        quiet: true
+
+  tasks:
+    - name: Refuse to take over an occupied port on first deployment
+      ansible.builtin.wait_for:
+        host: >-
+          {{ '127.0.0.1' if command_center_bind_address == '0.0.0.0' else
+          ('::1' if command_center_bind_address == '::' else command_center_bind_address) }}
+        port: "{{ command_center_port }}"
+        state: stopped
+        timeout: 1
+      when: ccng_unit_state.stdout | trim == 'not-found'
+
+    - name: Install RHEL 9 base prerequisites when package management is enabled
+      ansible.builtin.dnf:
+        name: [acl, ca-certificates, coreutils, git, gzip, tar]
+        state: present
+      when: command_center_manage_packages | bool
+
+    - name: Inspect the account's selected Node.js version
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/env
+          - node
+          - --eval
+          - >-
+            const [major,minor]=process.versions.node.split('.').map(Number);
+            process.exit(major>22||(major===22&&minor>=12)?0:1);
+      become: true
+      become_user: "{{ command_center_user }}"
+      environment:
+        PATH: "{{ command_center_path }}"
+      register: ccng_node_probe
+      changed_when: false
+      failed_when: false
+
+    - name: Install the RHEL 9 Node.js 22 profile without resetting streams
+      ansible.builtin.dnf:
+        name: "@nodejs:22/common"
+        state: present
+      when:
+        - command_center_manage_packages | bool
+        - ccng_node_probe.rc != 0
+
+    - name: Install and configure the application as its existing user
+      become: true
+      become_user: "{{ command_center_user }}"
+      environment:
+        PATH: "{{ command_center_path }}"
+        CODEX_HOME: "{{ command_center_codex_home }}"
+        CCNG_CONFIG_DIR: "{{ command_center_config_dir }}"
+        GIT_TERMINAL_PROMPT: "0"
+      block:
+        - name: Validate path syntax before resolving remote locations
+          ansible.builtin.assert:
+            that:
+              - item is string and item is match('^/[A-Za-z0-9_./ -]+$')
+            quiet: true
+          loop:
+            - "{{ ccng_user_home }}"
+            - "{{ command_center_source_dir }}"
+            - "{{ command_center_install_dir }}"
+            - "{{ command_center_config_dir }}"
+            - "{{ command_center_codex_home }}"
+            - "{{ command_center_project_dir }}"
+
+        - name: Resolve the target paths without changing them
+          ansible.builtin.command:
+            argv: [realpath, -m, --, "{{ item }}"]
+          loop:
+            - "{{ ccng_user_home }}"
+            - "{{ command_center_source_dir }}"
+            - "{{ command_center_install_dir }}"
+            - "{{ command_center_config_dir }}"
+            - "{{ command_center_codex_home }}"
+            - "{{ command_center_project_dir }}"
+          register: ccng_paths
+          changed_when: false
+
+        - name: Record canonical paths for installation and service configuration
+          ansible.builtin.set_fact:
+            ccng_home: "{{ ccng_paths.results[0].stdout }}"
+            ccng_source_dir: "{{ ccng_paths.results[1].stdout }}"
+            ccng_install_dir: "{{ ccng_paths.results[2].stdout }}"
+            ccng_config_dir: "{{ ccng_paths.results[3].stdout }}"
+            ccng_codex_home: "{{ ccng_paths.results[4].stdout }}"
+            ccng_project_dir: "{{ ccng_paths.results[5].stdout }}"
+
+        - name: Validate canonical managed paths and protect the existing profile
+          ansible.builtin.import_tasks: tasks/command_center_paths.yml
+
+        - name: Check existing project and Codex profile locations
+          ansible.builtin.stat:
+            path: "{{ item }}"
+          loop: ["{{ ccng_project_dir }}", "{{ ccng_codex_home }}"]
+          register: ccng_existing_paths
+
+        - name: Require the existing project and owned Codex profile
+          ansible.builtin.assert:
+            that:
+              - ccng_existing_paths.results[0].stat.isdir | default(false)
+              - ccng_existing_paths.results[1].stat.isdir | default(false)
+              - ccng_existing_paths.results[1].stat.uid == ccng_user_uid | int
+            quiet: true
+
+        - name: Validate Node.js and npm under the actual application PATH
+          ansible.builtin.command:
+            argv: "{{ item }}"
+          loop:
+            - [node, --eval, "const [a,b]=process.versions.node.split('.').map(Number);process.exit(a>22||(a===22&&b>=12)?0:1)"]
+            - [npm, --version]
+          changed_when: false
+
+        - name: Require the existing Codex sign-in
+          ansible.builtin.command:
+            argv: [codex, login, status]
+          changed_when: false
+
+        - name: Read the existing native daemon status without starting or restarting it
+          ansible.builtin.command:
+            argv: [codex, app-server, daemon, version]
+          register: ccng_daemon
+          changed_when: false
+
+        - name: Require the existing native daemon to be running
+          ansible.builtin.assert:
+            that:
+              - (ccng_daemon.stdout | from_json).status == 'running'
+              - (ccng_daemon.stdout | from_json).socketPath | length > 0
+            fail_msg: Start the existing native daemon under this account and Codex home before deployment.
+            quiet: true
+
+        - name: Verify the existing project tracker read-only
+          ansible.builtin.command:
+            argv: [bd, --sandbox, --readonly, list, --json, --brief, --flat, --limit, "1"]
+            chdir: "{{ ccng_project_dir }}"
+          changed_when: false
+
+        - name: Inspect an existing source checkout before updating it
+          ansible.builtin.stat:
+            path: "{{ ccng_source_dir }}"
+          register: ccng_source
+
+        - name: Verify an existing checkout's origin before changing it
+          ansible.builtin.command:
+            argv: [git, -C, "{{ ccng_source_dir }}", remote, get-url, origin]
+          register: ccng_origin
+          changed_when: false
+          when: ccng_source.stat.exists
+
+        - name: Refuse to adopt a different source repository
+          ansible.builtin.assert:
+            that:
+              - not ccng_source.stat.exists or ccng_origin.stdout | trim == command_center_repository
+            quiet: true
+
+        - name: Inspect the existing source parent without changing its permissions
+          ansible.builtin.stat:
+            path: "{{ ccng_source_dir | dirname }}"
+          register: ccng_source_parent
+
+        - name: Create a missing private source parent as the application user
+          ansible.builtin.file:
+            path: "{{ ccng_source_dir | dirname }}"
+            state: directory
+            mode: "0700"
+          when: not ccng_source_parent.stat.exists
+
+        - name: Clone the selected source without overwriting an existing checkout
+          ansible.builtin.git:
+            repo: "{{ command_center_repository }}"
+            dest: "{{ ccng_source_dir }}"
+            version: "{{ command_center_revision }}"
+            update: false
+            force: false
+            accept_hostkey: false
+
+        - name: Require a clean source checkout
+          ansible.builtin.command:
+            argv: [git, -C, "{{ ccng_source_dir }}", status, --porcelain]
+          register: ccng_source_changes
+          changed_when: false
+          failed_when: ccng_source_changes.rc != 0 or ccng_source_changes.stdout | length > 0
+
+        - name: Fetch the selected revision without changing source files
+          ansible.builtin.command:
+            argv: [git, -C, "{{ ccng_source_dir }}", fetch, --no-tags, origin, "{{ command_center_revision }}"]
+          changed_when: false
+
+        - name: Read the current and fetched source revisions before advancing
+          ansible.builtin.command:
+            argv: [git, -C, "{{ ccng_source_dir }}", rev-parse, "{{ item }}"]
+          loop: [HEAD, FETCH_HEAD]
+          register: ccng_revision_comparison
+          changed_when: false
+
+        - name: Refuse to discard local commits or perform an implicit downgrade
+          ansible.builtin.command:
+            argv: [git, -C, "{{ ccng_source_dir }}", merge-base, --is-ancestor, HEAD, FETCH_HEAD]
+          changed_when: false
+
+        - name: Advance the source checkout using fast-forward only
+          ansible.builtin.command:
+            argv: [git, -C, "{{ ccng_source_dir }}", merge, --ff-only, FETCH_HEAD]
+          register: ccng_source_advance
+          changed_when: ccng_revision_comparison.results[0].stdout != ccng_revision_comparison.results[1].stdout
+
+        - name: Read the selected source commit
+          ansible.builtin.command:
+            argv: [git, -C, "{{ ccng_source_dir }}", rev-parse, HEAD]
+          register: ccng_source_revision
+          changed_when: false
+
+        - name: Read and validate the source application identity
+          ansible.builtin.command:
+            argv:
+              - node
+              - --eval
+              - >-
+                const p=require(process.argv[1]);
+                if(p.name!=='command-center-ng')process.exit(1);
+                console.log(p.version);
+              - "{{ ccng_source_dir }}/package.json"
+          register: ccng_app_version
+          changed_when: false
+
+        - name: Inspect the installed launcher
+          ansible.builtin.stat:
+            path: "{{ ccng_install_dir }}/command-center-ng"
+            follow: false
+          register: ccng_launcher
+
+        - name: Inspect the last successful installation marker
+          ansible.builtin.stat:
+            path: "{{ ccng_install_dir }}/.ansible-source-revision"
+          register: ccng_marker_stat
+
+        - name: Read the last successful installation revision
+          ansible.builtin.slurp:
+            src: "{{ ccng_install_dir }}/.ansible-source-revision"
+          register: ccng_install_marker
+          when: ccng_marker_stat.stat.isreg | default(false)
+
+        - name: Determine whether installation is necessary
+          ansible.builtin.import_tasks: tasks/command_center_install_needed.yml
+
+        - name: Install through the maintained unprivileged installer
+          ansible.builtin.command:
+            argv: [sh, "{{ ccng_source_dir }}/install.sh", "{{ ccng_install_dir }}"]
+            chdir: "{{ ccng_project_dir }}"
+          when: ccng_install_needed | bool
+          changed_when: true
+          notify: Restart Command Center
+
+        - name: Record the successfully installed source revision
+          ansible.builtin.copy:
+            dest: "{{ ccng_install_dir }}/.ansible-source-revision"
+            content: "{{ ccng_source_revision.stdout | trim }}\n"
+            mode: "0600"
+
+        - name: Create the private application configuration directory
+          ansible.builtin.file:
+            path: "{{ ccng_config_dir }}"
+            state: directory
+            mode: "0700"
+
+        - name: Preserve or initialize the protected application password
+          ansible.builtin.import_tasks: tasks/command_center_password.yml
+
+        - name: Write private service configuration without including credentials
+          ansible.builtin.template:
+            src: templates/command-center-ng.env.j2
+            dest: "{{ ccng_config_dir }}/service.env"
+            mode: "0600"
+          notify: Restart Command Center
+
+    - name: Install the systemd unit that runs under the unprivileged account
+      ansible.builtin.template:
+        src: templates/command-center-ng.service.j2
+        dest: /etc/systemd/system/command-center-ng.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Command Center
+
+    - name: Apply completed application changes before checking service health
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable automatic startup and ensure the application is running
+      ansible.builtin.systemd_service:
+        name: command-center-ng.service
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Verify the deployed application's health and exact version
+      ansible.builtin.uri:
+        url: >-
+          http://{{ ('[' ~ ('::1' if command_center_bind_address == '::' else command_center_bind_address) ~ ']') if ':' in command_center_bind_address else
+          ('127.0.0.1' if command_center_bind_address == '0.0.0.0' else command_center_bind_address) }}:{{ command_center_port }}/healthz
+        use_proxy: false
+        return_content: true
+        status_code: 200
+      register: ccng_health
+      until:
+        - ccng_health.status | default(0) == 200
+        - ccng_health.json.ok | default(false) | bool
+        - ccng_health.json.version | default('') == ccng_app_version.stdout | trim
+      retries: 12
+      delay: 5
+
+  handlers:
+    - name: Restart Command Center
+      ansible.builtin.systemd_service:
+        name: command-center-ng.service
+        daemon_reload: true
+        state: restarted
+        enabled: true

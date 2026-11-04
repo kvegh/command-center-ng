@@ -1,0 +1,9 @@
+---
+# SYNTHETIC EXAMPLE ONLY. Real inventory belongs in private Vault configuration.
+all:
+  children:
+    command_center:
+      hosts:
+        example-tra:
+          ansible_host: tra.example.invalid
+# Supply remote SSH/become credentials through the existing AAP Machine credential.

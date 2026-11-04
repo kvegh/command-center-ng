@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.10.0 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.11.0 (in development)** includes the Codex workspace and Linux installer. It supports
 four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -187,6 +187,35 @@ the update does not rewrite or replace your old branch.
 
 Parent links survive reopening through native Codex metadata. Branches share the
 working directory; conversation branching does not create a Git branch or worktree.
+
+## Compact activity and editable drafts
+
+Consecutive command/tool activity now appears as one collapsed **N actions**
+row between conversation messages. Expand it to see the individual commands,
+then expand a command for its existing full details. Running, failed and stopped
+counts remain visible while the group is closed. Conversation messages and
+approval/answer cards remain separate.
+
+You can keep typing a draft while a native question or approval is displayed.
+Sending remains unavailable until that request resolves. Enter adds a newline
+while sending is unavailable; normal Enter-to-send resumes when ready.
+Typing during a pending send acknowledgment preserves the newer draft.
+
+## Ansible deployment on RHEL 9
+
+[`ansible/deploy_command_center.yml`](ansible/deploy_command_center.yml) deploys
+through the maintained installer and enables `command-center-ng.service`, whose
+process runs as an existing unprivileged account. A first preflight rejects
+anything other than genuine RHEL 9 with systemd before making target changes.
+This mode reuses an existing signed-in Codex profile, running native daemon and
+ready Beads tracker. It does not provision a fresh agent environment.
+
+Reusable playbooks, templates and synthetic examples live in this public repo.
+AAP CaC and all actual deployment settings belong as whole-file Vault ciphertext
+in private `command-center-ng-secrets`; no encrypted payload belongs here.
+See the [deployment guide](docs/ansible-deployment.md) for inputs, AAP integration,
+password preservation, upgrade behavior and validation limits. Local checks do
+not constitute a real RHEL 9 deployment or a configured AAP Job Template.
 
 ## Open questions
 
@@ -382,6 +411,12 @@ parent activity/approval, no automatic child turn and explicit historical cutoff
 The native snapshot behavior is documented in the
 [official App Server reference](https://learn.chatgpt.com/docs/app-server).
 No existing user branch was rewritten or replaced for validation.
+
+Version 0.11.0 passes 85 application regressions and the production build.
+Deployment validation uses real Ansible against disposable localhost fixtures,
+syntax checking, production lint and offline systemd unit parsing. It never
+applies the deployment playbook to the development machine. Actual RHEL 9/AAP
+deployment and interactive desktop/mobile rendering remain unverified.
 
 ## Public source policy
 

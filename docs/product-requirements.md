@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.10.0
+## Current development version: 0.11.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -213,3 +213,17 @@ boundaries, integration with a separately running assistant-team, other agent
 runtimes and actual deployment proxy/TLS configuration remain open. The current
 coordinator inherits the configured native Codex model. Architectural changes
 require user direction unless specifically delegated.
+
+## Version 0.11.0 additions
+
+Collapse consecutive tool activity by default while exposing running/failure
+counts and preserving individual detail controls. Keep drafts editable during
+pending native questions, block actual sends until resolution, and preserve
+newer typing across an earlier send acknowledgment.
+
+Provide a genuine-RHEL-9-only Ansible playbook using an existing account and
+Codex/Beads profile, with unprivileged systemd runtime and private password
+handling. Public project owns reusable deployment logic; the private project
+companion owns whole-file Vault-encrypted AAP CaC and environment settings.
+Actual VM deployment and AAP integration require protected inputs and live
+verification. Claude monitoring remains a separately pending integration.

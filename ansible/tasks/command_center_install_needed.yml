@@ -1,0 +1,10 @@
+---
+- name: Decide whether the installed application needs rebuilding
+  ansible.builtin.set_fact:
+    ccng_install_needed: >-
+      {{ command_center_force_install | bool
+         or not (ccng_launcher.stat.isreg | default(false))
+         or (ccng_launcher.stat.islnk | default(false))
+         or not (ccng_launcher.stat.executable | default(false))
+         or (ccng_install_marker.content | default('') | b64decode | trim)
+            != ccng_source_revision.stdout | trim }}

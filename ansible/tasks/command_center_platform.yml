@@ -1,0 +1,10 @@
+---
+- name: Require genuine RHEL 9 with systemd before any target changes
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.system == 'Linux'
+      - ansible_facts.distribution == 'RedHat'
+      - ansible_facts.distribution_major_version | string == '9'
+      - ansible_facts.service_mgr == 'systemd'
+    fail_msg: This playbook is built for RHEL 9 with systemd only.
+    quiet: true

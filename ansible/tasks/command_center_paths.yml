@@ -1,0 +1,36 @@
+---
+- name: Require canonical paths that can be represented literally in the unit
+  ansible.builtin.assert:
+    that:
+      - item is match('^/[A-Za-z0-9_./ -]+$')
+      - item == item | trim
+    quiet: true
+  loop:
+    - "{{ ccng_home }}"
+    - "{{ ccng_source_dir }}"
+    - "{{ ccng_install_dir }}"
+    - "{{ ccng_config_dir }}"
+    - "{{ ccng_codex_home }}"
+    - "{{ ccng_project_dir }}"
+
+- name: Keep managed directories distinct and separate from the existing profile
+  ansible.builtin.assert:
+    that:
+      - item.startswith(ccng_home ~ '/')
+      - item != ccng_home
+      - not ccng_project_dir.startswith(item ~ '/') and ccng_project_dir != item
+      - not ccng_codex_home.startswith(item ~ '/') and ccng_codex_home != item
+      - not item.startswith(ccng_codex_home ~ '/')
+      - "[ccng_source_dir, ccng_install_dir, ccng_config_dir] | unique | length == 3"
+    quiet: true
+  loop: ["{{ ccng_source_dir }}", "{{ ccng_install_dir }}", "{{ ccng_config_dir }}"]
+
+- name: Refuse overlapping source installation and configuration trees
+  ansible.builtin.assert:
+    that:
+      - not item[0].startswith(item[1] ~ '/')
+    quiet: true
+  loop: >-
+    {{ [ccng_source_dir, ccng_install_dir, ccng_config_dir]
+       | product([ccng_source_dir, ccng_install_dir, ccng_config_dir]) | list }}
+  when: item[0] != item[1]

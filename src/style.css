@@ -176,6 +176,21 @@ pre { max-width: 100%; padding: 14px 16px; background: #0d1420; border: 1px soli
 .activity-message summary > span:nth-child(2) { max-width: 75%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .activity-message small { color: #6b819f; font: 9px var(--mono); margin-left: auto; }
 .activity-dot { width: 4px; height: 4px; flex-shrink: 0; background: #4b647f; border-radius: 50%; }
+.activity-group { margin: 4px 0 18px 42px; color: #91a5bf; font-size: 11px; }
+.activity-group > summary { display: flex; align-items: center; gap: 8px; padding: 7px 8px; cursor: pointer; list-style: none; border-radius: 5px; }
+.activity-group > summary::-webkit-details-marker { display: none; }
+.activity-group > summary:hover { background: #ffffff06; color: #c7d9ed; }
+.activity-group > summary small { margin-left: auto; color: #8198b5; font: 9px var(--mono); text-align: right; }
+.activity-chevron { flex-shrink: 0; }
+.activity-group[open] > summary .activity-chevron { transform: rotate(90deg); }
+.activity-group.running > summary small { color: var(--green); }
+.activity-group.running > summary .activity-dot { background: var(--green); }
+.activity-group.failed > summary small { color: #ff9c9c; }
+.activity-group.failed > summary .activity-dot { background: #ff9c9c; }
+.activity-group.stopped > summary small { color: var(--amber); }
+.activity-entries { margin: 5px 0 0 13px; padding: 5px 0 1px 13px; border-left: 1px solid var(--line); }
+.activity-entries .activity-message { margin-left: 0; }
+@media (max-width: 760px) { .activity-group { margin-left: 0; } }
 .older-button { display: block; margin: 0 auto 22px; color: #83b5d7; background: none; border: 0; font: 10px var(--mono); text-decoration: underline; text-underline-offset: 4px; }
 
 .composer { padding: 14px 23px 12px; background: #111a27; border-top: 1px solid var(--line); }

@@ -165,3 +165,24 @@ existing trackers. Check-only mode must not install anything. Fresh Beads/shared
 Dolt setup remains subject to the pending user choice; do not initialize or
 migrate a tracker or start a new service until that approach is approved. Do not
 claim other Linux distributions have been tested.
+
+## Approved deployment and chat refinements
+
+The user explicitly selected public command-center-ng for application code and
+deployment playbooks, and private command-center-ng-secrets for Vault-encrypted
+AAP CaC and environment settings, following the other AAP projects. Do not put
+encrypted payloads in this public repository. Use the existing shared CaC
+importer rather than adding a wrapper or second importer. Consult the user
+before choosing a Vault credential source or changing this architecture.
+
+The deployment playbook targets genuine RHEL 9 with systemd, reuses an existing
+unprivileged account and signed-in Codex/Beads setup, and runs the app through a
+system-managed unit with User= set. Preserve existing auth, native daemons,
+trackers, SSH trust and unrelated units. Never apply this deployment to the
+development host as a local validation method. Use isolated temporary fixtures.
+
+Group consecutive tool activity under a closed native details control, retaining
+per-action details and visible running/failure counts. Keep questions and chat
+messages separate. Pending requests may block sending, but must allow local
+draft editing. Preserve backend send protections, IME and Shift+Enter, and newer
+drafts typed while an earlier send acknowledgment is outstanding.

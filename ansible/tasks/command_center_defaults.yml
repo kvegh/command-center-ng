@@ -1,0 +1,29 @@
+---
+# Capture defaults after account lookup, while respecting inventory/extra vars.
+- name: Resolve deployment inputs without shadowing inventory values
+  ansible.builtin.set_fact:
+    command_center_revision: "{{ command_center_revision | default(ccng_default_revision) }}"
+    command_center_manage_packages: "{{ command_center_manage_packages | default(ccng_default_manage_packages) }}"
+    command_center_force_install: "{{ command_center_force_install | default(ccng_default_force_install) }}"
+    command_center_source_dir: "{{ command_center_source_dir | default(ccng_default_source_dir) }}"
+    command_center_install_dir: "{{ command_center_install_dir | default(ccng_default_install_dir) }}"
+    command_center_config_dir: "{{ command_center_config_dir | default(ccng_default_config_dir) }}"
+    command_center_codex_home: "{{ command_center_codex_home | default(ccng_default_codex_home) }}"
+    command_center_bind_address: "{{ command_center_bind_address | default(ccng_default_bind_address) }}"
+    command_center_port: "{{ command_center_port | default(ccng_default_port) }}"
+    command_center_public_origin: "{{ command_center_public_origin | default(ccng_default_public_origin) }}"
+
+- name: Resolve the application PATH after installation paths are known
+  ansible.builtin.set_fact:
+    command_center_path: "{{ command_center_path | default(ccng_default_path) }}"
+
+- name: Validate the resolved runtime and source selection
+  ansible.builtin.assert:
+    that:
+      - command_center_revision is match('^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$')
+      - command_center_port | int >= 1 and command_center_port | int <= 65535
+      - command_center_bind_address is match('^[A-Za-z0-9.:-]+$')
+      - >-
+        command_center_public_origin == '' or
+        command_center_public_origin is match('^https?://[^/\s"%@?#]+$')
+    quiet: true

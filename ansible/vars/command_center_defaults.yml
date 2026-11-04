@@ -1,0 +1,14 @@
+---
+# Deployment inputs containing real account/host/path values belong in Vault.
+ccng_default_revision: main
+ccng_default_manage_packages: true
+ccng_default_force_install: false
+ccng_default_source_dir: "{{ ccng_user_home }}/.local/src/command-center-ng"
+ccng_default_install_dir: "{{ ccng_user_home }}/apps/command-center-ng"
+ccng_default_config_dir: "{{ ccng_user_home }}/.config/command-center-ng"
+ccng_default_codex_home: "{{ ccng_user_home }}/.codex"
+ccng_default_bind_address: 127.0.0.1
+ccng_default_port: 4242
+ccng_default_public_origin: ""
+ccng_default_path: >-
+  {{ command_center_install_dir }}/tools/node_modules/.bin:{{ ccng_user_home }}/.local/bin:{{ ccng_user_home }}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin

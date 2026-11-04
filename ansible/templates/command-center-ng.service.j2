@@ -1,0 +1,22 @@
+# Managed by Command Center Ansible deployment
+# Command Center {{ ccng_deployment_version }}
+[Unit]
+Description=Command Center NG
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User={{ command_center_user }}
+WorkingDirectory={{ ccng_project_dir }}
+EnvironmentFile={{ (ccng_config_dir ~ '/service.env') | to_json }}
+ExecStart={{ (ccng_install_dir ~ '/command-center-ng') | to_json }}
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

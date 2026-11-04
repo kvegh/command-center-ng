@@ -49,3 +49,8 @@ transcripts/
 .DS_Store
 *~
 *.swp
+
+# Local Ansible validation output
+.ansible/
+__pycache__/
+*.pyc
