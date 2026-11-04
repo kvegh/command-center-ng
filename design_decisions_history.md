@@ -679,3 +679,26 @@ without an approval-wait flag. This closes the live recovery validation gap and
 the recovery bug. It does not establish completion of the worker's underlying
 task or every historical session-mixing cause. Rendered browser review remains
 pending. This follow-up changes documentation only; the version remains 0.9.1.
+
+## 2026-11-04 — Distinguish the visible conversation tab in 0.9.2
+
+Implementation: `cf29429`.
+
+The user found the selected tab difficult to identify and clarified that selection
+means the chat history currently visible, independently of the agent's activity.
+Their newer request doubles the top inset from 8 to 16 pixels, makes the selected
+tab somewhat bigger and uses bold text only there. It supersedes the earlier
+eight-pixel inset and uniform compact tab height.
+
+The selected tab is about 40 pixels tall with a 13-pixel bold label; inactive
+tabs stay about 34 pixels with regular 12-pixel labels. Bottom alignment preserves
+the folder-tab connection. Cyan top/side edges and a brighter upper fill fading
+into the pane reinforce selection for every activity state, while status dots
+retain their independent colors. Worker/coordinator styling and mobile behavior
+follow the same rule, with no bottom selection stripe or joining line.
+
+Validation: all 75 existing tests and the production build pass. No additional
+tests were added for this reversible CSS change. Rendered desktop/mobile review
+is still pending. The implementation is committed locally; GitHub rejected SSH
+authentication for both push and read-only ls-remote. Publication is blocked,
+with SSH configuration/keys and the running installation preserved.

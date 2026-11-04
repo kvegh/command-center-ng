@@ -5,13 +5,17 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative development and published application version is **0.9.1** in
-package.json and the lockfile. Its implementation is `162bb73`, published over SSH.
+The authoritative development version is **0.9.2** in package.json and the
+lockfile. Its implementation is `cf29429`, committed locally. The last verified
+published version is 0.9.1. Publishing 0.9.2 is blocked: GitHub rejected SSH
+public-key authentication for both push and an independent read-only ls-remote.
+Existing SSH configuration and keys were preserved; do not bypass access controls.
 The formerly local 0.6.0/0.7.0 checkpoints and the 0.7.1 spacing correction are
 included, alongside the 0.8.0 conversation safeguards. The earlier published baseline was 0.5.0 at
 `c24d84c318fe967993bd3e00552e129e7d32531e`.
 The agent did not update or restart the user's installation or native daemon;
-source publication alone does not deploy these changes.
+source publication alone does not deploy these changes. The user's last confirmed
+installed version is 0.9.1.
 
 | Version | Local implementation | Decision record |
 | --- | --- | --- |
@@ -23,6 +27,7 @@ source publication alone does not deploy these changes.
 | 0.8.1 coordinator tab style/order | `1cfc9b8` | Recorded in design_decisions_history.md |
 | 0.9.0 pending request recovery | `6e78051` | Recorded in design_decisions_history.md |
 | 0.9.1 connected folder tabs | `162bb73` | Recorded in design_decisions_history.md |
+| 0.9.2 visible-tab emphasis and top spacing | `cf29429` | Recorded in design_decisions_history.md |
 
 Inspect Git status and history before continuing. Use SSH for authorized Git
 network operations and preserve unrelated edits. Keep numeric versions and
@@ -174,6 +179,34 @@ label/side edges, removing the bottom selection stripe, header/pane joining
 border and scrollbar gutter. Horizontal scrolling, status/focus controls and the
 coordinator-before-Add-agent order remain. Rendered browser review is unverified.
 
+## Visible-tab emphasis: 0.9.2
+
+The user clarified that the selected tab means the conversation whose chat history
+is currently visible, independently of running/idle/attention status. Their newer
+direction doubles the top inset from 8 to 16 pixels, makes that tab bigger and
+uses bold text only for its label. The selected tab is about 40 pixels tall with
+a 13-pixel bold label; inactive tabs stay about 34 pixels with regular 12-pixel
+labels. Both groups align at the pane. Cyan top/side edges and brighter fill
+fading into the pane reinforce selection; status dots retain their own colors.
+No bottom selection stripe or joining line returns. Mobile uses the same inset
+and size distinction. All 75 existing tests and the production build pass;
+rendered desktop/mobile review remains pending. No installation was restarted.
+
+## Requested Claude monitoring: proposal awaiting direction
+
+The user wants to follow Claude when AAP launches claude -p. Source inspection
+found the existing AIOps launcher captures shell output and displays it after
+completion. Official Claude documentation describes native session transcripts
+and headless streaming output; the installed local CLI help/version was checked
+without starting a model run. The target VM/version has not been verified.
+
+Proposed, not approved: follow native Claude session files read-only, locally or
+through existing SSH access on the agent VM, showing messages and tool activity
+as saved without changing the AAP launcher. Token-by-token streaming would instead
+require an approved launcher output-capture change. The user was asked for the
+architecture choice and exact target. No transport, service, credential, launcher
+or live AAP change has been made. Continue only after the required direction.
+
 ## Decisions still awaiting the user
 
 The two architecture questions were asked again in this session and remain unanswered:
@@ -201,6 +234,8 @@ but do not infer approval from a default choice or elapsed time.
 | bead-wd-1rl.28 | Shared coordinator tab styling/order published in 0.8.1 |
 | bead-wd-1rl.29 | Closed: recovery published in 0.9.0 and confirmed live by the user on 0.9.1 |
 | bead-wd-1rl.30 | Connected folder-tab source published in 0.9.1; rendered review remains in .23 |
+| bead-wd-1rl.31 | Claude monitoring investigated; connection approach and target await user direction |
+| bead-wd-1rl.32 | 0.9.2 implemented and validated locally; publication blocked by SSH authentication |
 | bead-wd-ywg | Existing shared Dolt restart and successful reads verified |
 | bead-wd-9so | Closed: generated Beads no-remote Git rule investigated and corrected |
 
