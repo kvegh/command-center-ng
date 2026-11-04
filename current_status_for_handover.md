@@ -5,8 +5,8 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative development and published version is **0.9.3** in package.json
-and the lockfile. Its implementation is `a9f29df`, published over the existing SSH
+The authoritative development and published version is **0.10.0** in package.json
+and the lockfile. Its implementation is `ec4cb6e`, published over the existing SSH
 connection. The earlier 0.9.2 publication failures were cleared by the user's
 explicit retry. Existing SSH configuration, keys and access controls were preserved.
 The formerly local 0.6.0/0.7.0 checkpoints and the 0.7.1 spacing correction are
@@ -28,6 +28,7 @@ installed version is 0.9.1.
 | 0.9.1 connected folder tabs | `162bb73` | Recorded in design_decisions_history.md |
 | 0.9.2 visible-tab emphasis and top spacing | `cf29429` | Recorded in design_decisions_history.md |
 | 0.9.3 chat clipping inset and inactive tab fill | `a9f29df` | Recorded in design_decisions_history.md |
+| 0.10.0 current-conversation branching | `ec4cb6e` | Recorded in design_decisions_history.md |
 
 Inspect Git status and history before continuing. Use SSH for authorized Git
 network operations and preserve unrelated edits. Keep numeric versions and
@@ -204,6 +205,40 @@ Selected size, bold label and fill treatment remain. Desktop/mobile share the
 inset. All 75 tests and the production build pass; rendered review remains open.
 No running installation or native daemon was updated/restarted.
 
+## Current-conversation branching: 0.10.0
+
+The user identified a branch ending at an earlier reply despite later conversation
+messages being visible in its parent. Read-only native metadata and message checks
+confirmed the app's default completed-turn cutoff excluded the newer exchange;
+this was not random session mixing or just unloaded history. No private transcript
+or native identifier is stored in source.
+
+Branch chat now omits lastTurnId and takes the native current stored-history
+snapshot, including persisted messages from an ongoing turn. Its copied partial
+turn is interrupted only in the child; the parent keeps working and its questions
+remain unanswered. Branch here still passes a validated completed-turn cutoff.
+Both actions retain deferred goal continuation, worker limits and existing
+settings. The composer no longer requires a completed reply to offer branching.
+
+Two synthetic regressions failed before the correction; all 77 tests and the
+production build now pass. Matching installed protocol/source and the official
+App Server documentation confirm native snapshot handling. No real user branch
+was created, rewritten, archived or interrupted for this validation. Existing
+branches keep their old snapshot; after updating, make a fresh branch to include
+a previously omitted exchange. Rendered review remains pending.
+
+## Requested Ansible deployment: choices awaiting direction
+
+The user requested a playbook to deploy Command Center to a Linux VM. Reusable
+deployment code belongs in the existing private environment setup repository;
+private inputs belong in its existing encrypted companion. Existing installer,
+authentication stdin support and local Ansible/lint capabilities were inspected.
+No playbook or live deployment has been implemented. Required choices remain
+install-only versus automatic startup, Linux distribution/version, and reusing
+an existing Codex/Beads profile versus fresh setup. Do not infer these choices
+from the intervening branch investigation. Fresh Beads/Dolt provisioning still
+requires its existing separate architecture decision.
+
 ## Requested Claude monitoring: proposal awaiting direction
 
 The user wants to follow Claude when AAP launches claude -p. Source inspection
@@ -249,6 +284,8 @@ but do not infer approval from a default choice or elapsed time.
 | bead-wd-1rl.31 | Claude monitoring investigated; connection approach and target await user direction |
 | bead-wd-1rl.32 | Closed: visible-tab emphasis and doubled top spacing published in 0.9.2 |
 | bead-wd-1rl.34 | Closed: fixed chat clipping inset and matching inactive tab fill published in 0.9.3 |
+| bead-wd-1rl.35 | Ansible VM deployment requested; startup, platform and profile choices await direction |
+| bead-wd-1rl.36 | Closed: current-conversation Branch chat correction published in 0.10.0 |
 | bead-wd-ywg | Existing shared Dolt restart and successful reads verified |
 | bead-wd-9so | Closed: generated Beads no-remote Git rule investigated and corrected |
 

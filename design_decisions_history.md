@@ -734,3 +734,30 @@ the same fixed inset, with no new joining border or outside gap.
 Validation: all 75 existing tests and the production build pass. No new tests
 were added for these reversible CSS changes. Rendered desktop/mobile review
 remains pending. No dependencies, native settings or running installation changed.
+
+## 2026-11-04 — Preserve the ongoing exchange when branching in 0.10.0
+
+Implementation: `ec4cb6e`.
+
+The user reported conversation messages missing from a branch. Native history
+metadata and the specific message boundary confirmed that Branch chat had selected
+an earlier completed reply and omitted the later exchange. This matched the
+previous implementation, but made the composer action an unexpected historical
+branch instead of a current-conversation snapshot.
+
+The existing native fork transport supports the correction without adding a
+service or context store. Branch chat now omits the historical cutoff and forks
+current stored history. The native child receives an interruption marker for an
+incomplete copied turn while the parent continues. Branch here retains its
+explicit completed-turn cutoff. Deferred goal continuation, settings, parent
+questions and worker limits remain intact. The composer can branch during the
+first turn, before a completed reply exists.
+
+Two regressions failed before implementation. All 77 tests and the production
+build pass, covering retained recent messages, historical branching, first-turn
+branching, unchanged parent activity/approval and no automatic child turn. The
+matching installed native schema/source and fetched official App Server reference
+confirm the protocol behavior. Synthetic fixtures contain no user transcript or
+native identifiers. Existing user branches were preserved and require a fresh
+branch after updating to obtain a newer snapshot; no live branch was created or
+rewritten for validation. Rendered browser review remains pending.
