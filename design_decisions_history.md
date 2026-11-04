@@ -315,3 +315,38 @@ Workspace restoration is requested but its persistence choice remains pending.
 Cross-client approval/question resolution is under investigation. The proposed
 assistant-team summarizer and approval reviewer are not enabled; their integration
 and approval authority require an agreed design and policy.
+
+## 2026-11-03 — Confirm native request resolution in 0.3.1
+
+Implementation commit: `64cf1a18e3810ce0ff2a755616e8ef071a424000`.
+
+The user reported that answering in the dashboard left the original harness
+question visible. The app previously dismissed its question immediately after
+sending an unacknowledged response. It now waits for native request resolution
+before removing the question or reporting API success. Duplicate submissions
+are blocked while waiting. Timeout errors retain the question; a late resolution
+still clears it. Disconnects reject unconfirmed answers and remove requests
+belonging to the lost connection. Exact conversation and typed request identity
+prevent unrelated resolution notifications from clearing the wrong question.
+
+The production build and all 29 reported checks passed. Regression coverage
+includes command/file decisions, unconfirmed HTTP responses, duplicate answers,
+late and other-client resolution, request identity and disconnects. A real
+two-client clarification check verified an observer answer, resolution in both
+clients and continuation/completion of the original turn. The temporary native
+conversation was archived. This does not verify a particular tmux frontend's
+rendering or enable automatic approvals.
+
+## 2026-11-03 — Document the requested coordinator
+
+Discussion-summary commit: `44b8aa2e567e673b55b726ef6e386edf107ce2ff`.
+
+The user requested a predefined, automatically started coordinator that follows
+one to four workers, reads Beads and conversation history, requests reports and
+summarizes current work. It has its own visually separated chat tab and can send
+summaries into selected worker conversations. Scope-based approval review must
+support authorized resource lifecycle operations, including VM recreation and
+reclaiming disposable test capacity. The discussion distinguishes model judgment
+from independently enforced limits and leaves uncertain authority with the user.
+The user subsequently authorized implementation. The discussion document records
+the requested behavior and remaining details; no supervisor exists in 0.3.1.
