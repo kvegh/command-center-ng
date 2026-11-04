@@ -5,8 +5,8 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative development and published application version is **0.8.1** in
-package.json and the lockfile. Its implementation is `1cfc9b8`, published over SSH.
+The authoritative development and published application version is **0.9.1** in
+package.json and the lockfile. Its implementation is `162bb73`, published over SSH.
 The formerly local 0.6.0/0.7.0 checkpoints and the 0.7.1 spacing correction are
 included, alongside the 0.8.0 conversation safeguards. The earlier published baseline was 0.5.0 at
 `c24d84c318fe967993bd3e00552e129e7d32531e`.
@@ -21,6 +21,8 @@ source publication alone does not deploy these changes.
 | 0.7.1 spacing correction | `101f2f6` | `7ea87d4` |
 | 0.8.0 conversation-role/project safeguards | `e1e9363` | Recorded in design_decisions_history.md |
 | 0.8.1 coordinator tab style/order | `1cfc9b8` | Recorded in design_decisions_history.md |
+| 0.9.0 pending request recovery | `6e78051` | Recorded in design_decisions_history.md |
+| 0.9.1 connected folder tabs | `162bb73` | Recorded in design_decisions_history.md |
 
 Inspect Git status and history before continuing. Use SSH for authorized Git
 network operations and preserve unrelated edits. Keep numeric versions and
@@ -139,6 +141,38 @@ reflect this newer direction. All 67 existing checks and the production build
 pass; header-order source review passed. Rendered browser review remains pending.
 The agent did not update or restart the running user installation.
 
+## Missing request recovery and folder tabs: 0.9.0/0.9.1
+
+The user reported attention notices claiming another client owned a pending
+request while using Command Center. The native thread was waiting for approval,
+but the old UI inferred ownership from missing details. A regression reproduced
+requests being dropped during resume before watching was registered.
+
+The app now watches before resume and offers Load pending request for the selected
+already-active conversation. Fresh status is read first; a native rejoin can
+replay the original request IDs. It starts no worker turn and adds no worker
+model/permission override. Ordinary chat sends wait while request details are
+missing. Loading/errors remain scoped to that conversation, and unavailable
+replay leaves an error and the pending state. Coordinator restrictions and its
+existing review policy remain. Native user-verification requests excluded from
+replay keep their native limits; missing details alone prove no client ownership.
+Startup restoration remains read-only, with no stored answers replayed.
+
+All 75 checks and the production build pass; six regressions failed before the
+fix. Matching native 0.166.0 source confirms replay behavior. Direct arbitrary
+socket diagnostics are restricted in the session sandbox; native read tools work.
+No worker approval, interruption, permission change or application restart was
+performed. The last live read still showed approval waiting. User confirmation
+of an actual recovered card remains pending. The existing-UI workaround is to
+close only that worker tab and reopen the same conversation; native work continues.
+After updating, the explicit Load pending request control is also available.
+
+The user's original folder-tab request was verified in coordinator history.
+Version 0.9.1 joins selected tabs to the pane using common fill and stronger
+label/side edges, removing the bottom selection stripe, header/pane joining
+border and scrollbar gutter. Horizontal scrolling, status/focus controls and the
+coordinator-before-Add-agent order remain. Rendered browser review is unverified.
+
 ## Decisions still awaiting the user
 
 The two architecture questions were asked again in this session and remain unanswered:
@@ -164,6 +198,8 @@ but do not infer approval from a default choice or elapsed time.
 | bead-wd-1rl.26 | Role and project-directory safeguards published in 0.8.0; semantic/legacy-name limits documented |
 | bead-wd-1rl.27 | Tab/chat gap correction published in 0.7.1 and included in 0.8.0 |
 | bead-wd-1rl.28 | Shared coordinator tab styling/order published in 0.8.1 |
+| bead-wd-1rl.29 | Recovery source published in 0.9.0; live request-card confirmation pending |
+| bead-wd-1rl.30 | Connected folder-tab source published in 0.9.1; rendered review remains in .23 |
 | bead-wd-ywg | Existing shared Dolt restart and successful reads verified |
 | bead-wd-9so | Closed: generated Beads no-remote Git rule investigated and corrected |
 

@@ -619,3 +619,52 @@ Validation: production build, all 67 existing checks, header-order source review
 version/privacy checks and diff checks passed. No tests were added for a small
 reversible layout correction. No browser is installed, so rendered desktop/mobile
 review remains pending. The running user installation was not updated/restarted.
+
+## 2026-11-04 — Recover missing pending requests in 0.9.0
+
+Implementation: `6e78051`.
+
+The user reported duplicate chat/sidebar messages claiming an approval belonged
+to another client while using Command Center. Read-only inspection confirmed a
+worker was waiting on approval. The UI inferred ownership solely from attention
+without local request details; it had no ownership evidence. A regression also
+reproduced a request being dropped while a conversation was opening, because
+request watching began after awaiting native resume.
+
+The app now watches a validated conversation before resume and offers explicit
+loading of missing request details. It reads fresh status and rejoins only the
+selected already-active native conversation, preserving original request IDs.
+Loading is bounded, deduplicated and scoped to that chat, with an explicit error
+when replay is unavailable. Ordinary chat sends cannot replace or steer a turn
+while request details are missing. Startup restoration remains read-only, and
+loading submits no decision, creates no worker turn and adds no worker permission
+or model override. Existing coordinator restrictions and review policy remain.
+Native user-verification requests excluded from replay retain their native limits.
+
+Matching Codex 0.166.0 source confirms pending-request replay after rejoin. Six
+regressions failed before the fix; all 75 checks and the production build pass
+with added late-replay and coordinator-restriction coverage. Live recovery in the
+user installation and browser rendering remain unverified. The existing-UI
+close-tab/reopen-same-conversation workaround was provided without interrupting,
+answering or changing the worker. No live approval was submitted by this work.
+
+## 2026-11-04 — Attach folder tabs to the pane in 0.9.1
+
+Implementation: `162bb73`.
+
+The original user request in coordinator history was read to verify the relayed
+visual direction: small folder-like tabs should join their chat-history pane
+without intervening lines, and selection should use something other than the
+bottom marker. The implementation uses matching pane/tab fill, stronger selected
+labels and clearer side edges. These are implementation choices for the requested
+effect, rather than separately recorded user choices of exact colors or weights.
+
+The joining header padding/border and pane top border/corners are removed. The
+context panel shares the same surface, including the coordinator and stacked
+mobile view. Horizontal scrolling remains available without a visible scrollbar
+gutter separating tabs from the pane. The coordinator stays before Add agent;
+status colors, keyboard focus and worker reordering are preserved.
+
+Validation: all 75 existing checks and the production build pass. No new tests
+were added for this reversible visual change. Rendered desktop/mobile review is
+still pending, and no user installation or native daemon was restarted.
