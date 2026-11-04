@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.7.1
+## Current development version: 0.8.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -161,6 +161,13 @@ RPM installation, target-local missing CLI installation and explicit sign-in
 readiness. Existing tools/trackers are preserved. Fresh shared Dolt configuration
 is proposed for parallel writers but remains pending user direction. RHEL 9
 prerequisites are documented; other distributions are not yet tested.
+
+Version 0.7.1 removes the extra workspace top gap below the tab bar. Version
+0.8.0 requires an explicit project directory when creating a worker, excludes
+coordinator conversations from worker selection and verifies native roles before
+opening or restoring them. New coordinators carry a native source marker that
+survives renaming; older coordinators retain their reserved native name. No
+separate role database or automatic rewrite of existing chats is introduced.
 
 ## Decisions still open
 

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { mkdtemp, rm, chmod, stat, readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, chmod, stat, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -34,7 +34,7 @@ async function fixture() {
       case 'thread/list': result = { data: [...threads.values()], nextCursor: null }; break;
       case 'thread/resume': case 'thread/read': result = { thread: threads.get(p.threadId) }; break;
       case 'thread/turns/list': result = { data: histories.get(p.threadId) || [{ id: 'turn-' + p.threadId, status: threads.get(p.threadId).status.type === 'active' ? 'inProgress' : 'completed', items: [{ id: 'message-' + p.threadId, type: 'agentMessage', text: 'Ready to work.' }] }], nextCursor: null }; break;
-      case 'thread/start': { const id = 'new-' + (++sequence); threads.set(id, thread(id)); result = { thread: threads.get(id) }; break; }
+      case 'thread/start': { const id = 'new-' + (++sequence); threads.set(id, { ...thread(id), cwd: p.cwd }); result = { thread: threads.get(id) }; break; }
       case 'thread/fork': {
         const id = 'branch-' + (++sequence); const source = histories.get(p.threadId);
         const point = source.findIndex(turn => turn.id === p.lastTurnId);
@@ -64,6 +64,51 @@ async function fixture() {
   const rpc = new CodexRpc({ socketPath, timeout: 2000 }); await rpc.connect(); const workspace = new Workspace(rpc, { beads: null });
   return { dir, rpc, workspace, calls, replies, threads, histories, failures, summary, notify, ask, request: message => connection.send(JSON.stringify(message)), close: async () => { rpc.close(); for (const client of wss.clients) client.terminate(); await new Promise(resolve => wss.close(resolve)); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); } };
 }
+
+test('the worker picker excludes named and renamed coordinator conversations', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.threads.get('existing');
+    f.threads.set('old-coordinator', { ...worker, id: 'old-coordinator', name: 'Command Center coordinator' });
+    f.threads.set('renamed-coordinator', { ...worker, id: 'renamed-coordinator', name: 'Overview', threadSource: 'command-center-coordinator' });
+    worker.preview = '[Command Center coordinator]\nA quoted summary in an ordinary worker.';
+    const page = await f.workspace.list();
+    assert.deepEqual(page.agents.map(agent => agent.id), ['existing']);
+    assert.deepEqual(f.calls.map(call => call.method), ['initialize', 'thread/list']);
+  } finally { await f.close(); }
+});
+
+test('opening a former coordinator as a worker is refused before native resume', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.threads.get('existing');
+    f.threads.set('old-coordinator', { ...worker, id: 'old-coordinator', name: 'Command Center coordinator' });
+    f.threads.set('renamed-coordinator', { ...worker, id: 'renamed-coordinator', name: 'Overview', threadSource: 'command-center-coordinator' });
+    for (const id of ['old-coordinator', 'renamed-coordinator']) {
+      await assert.rejects(f.workspace.open(id), /coordinator.*worker/i);
+      await assert.rejects(f.workspace.open(id, { observeOnly: true }), /coordinator.*worker/i);
+    }
+    assert.equal(f.workspace.agents.size, 0);
+    assert.equal(f.workspace.opening.size, 0);
+    assert.ok(f.calls.every(call => ['initialize', 'thread/read'].includes(call.method)));
+    await assert.rejects(f.workspace.create({ goal: 'Command Center coordinator', cwd: f.dir }), /reserved/i);
+    assert.equal(f.calls.some(call => call.method === 'thread/start'), false);
+  } finally { await f.close(); }
+});
+
+test('new workers require an explicit project directory and use it unchanged', async () => {
+  const f = await fixture();
+  try {
+    for (const cwd of [undefined, '', 'relative-project', join(f.dir, 'missing')]) {
+      await assert.rejects(f.workspace.create({ goal: 'Work in the selected project', cwd }));
+    }
+    assert.equal(f.calls.some(call => call.method === 'thread/start'), false);
+    const cwd = join(f.dir, 'selected project'); await mkdir(cwd);
+    const id = await f.workspace.create({ goal: 'Work in the selected project', cwd });
+    assert.deepEqual(f.calls.find(call => call.method === 'thread/start').params, { cwd });
+    assert.equal(f.workspace.agent(id).cwd, cwd);
+  } finally { await f.close(); }
+});
 
 test('branches use native completed-turn context and keep parent navigation separate from summary handoff', async () => {
   const f = await fixture();

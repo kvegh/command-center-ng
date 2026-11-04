@@ -13,9 +13,9 @@ class Rpc extends EventEmitter {
   async call(method, params) {
     this.calls.push({ method, params });
     if (method === 'config/read') return { config: { mcp_servers: { fixture: { enabled: true } } } };
-    if (method === 'thread/start') { const thread = this.thread('coordinator-' + ++this.sequence); this.threads.set(thread.id, thread); return { thread, sandbox: { type: 'readOnly' } }; }
-    if (method === 'thread/name/set') return {};
-    if (method === 'thread/resume') { if (!this.threads.has(params.threadId)) this.threads.set(params.threadId, this.thread(params.threadId)); return { thread: this.threads.get(params.threadId), instructionSources: [] }; }
+    if (method === 'thread/start') { const thread = { ...this.thread('coordinator-' + ++this.sequence), threadSource: params.threadSource }; this.threads.set(thread.id, thread); return { thread, sandbox: { type: 'readOnly' } }; }
+    if (method === 'thread/name/set') { this.threads.get(params.threadId).name = params.name; return {}; }
+    if (method === 'thread/read' || method === 'thread/resume') { if (!this.threads.has(params.threadId)) this.threads.set(params.threadId, this.thread(params.threadId)); return { thread: this.threads.get(params.threadId), instructionSources: [] }; }
     if (method === 'thread/turns/list') return { data: [{ id: 'base-' + params.threadId, status: 'completed', items: [{ type: 'userMessage', id: 'user-' + params.threadId, content: [{ type: 'text', text: this.thread(params.threadId).preview }] }, { type: 'agentMessage', id: 'reply-' + params.threadId, text: 'Ready.' }] }], nextCursor: null };
     if (method === 'turn/start') { const id = 'turn-' + ++this.turn; queueMicrotask(() => { this.emit('notification', { method: 'turn/started', params: { threadId: params.threadId, turn: { id } } }); this.emit('notification', { method: 'item/completed', params: { threadId: params.threadId, turnId: id, item: { id: 'input-' + id, type: 'userMessage', content: params.input } } }); }); return { turn: { id } }; }
     if (method === 'turn/interrupt') { this.complete(params.threadId, params.turnId); return {}; }
@@ -44,6 +44,7 @@ test('coordinator starts separately with reduced capabilities and preserves four
     assert.equal(f.rpc.calls.filter(call => call.method === 'thread/start').length, 1);
     await assert.rejects(f.workspace.open('fifth'), /Four agent tabs/);
     const start = f.rpc.calls.find(call => call.method === 'thread/start').params;
+    assert.equal(start.threadSource, 'command-center-coordinator');
     assert.equal(start.sandbox, 'read-only'); assert.equal(start.config['features.shell_tool'], false);
     assert.equal(start.config['features.plugins'], false); assert.equal(start.config['features.apps'], false);
     assert.equal(start.config['mcp_servers.fixture.enabled'], false);

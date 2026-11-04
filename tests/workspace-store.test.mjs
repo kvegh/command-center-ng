@@ -10,12 +10,12 @@ import { Workspace } from '../server/workspace.mjs';
 const record = (workerIds = ['one'], coordinatorId = null, coordinatorPaused = false) => ({ version: 1, workerIds, coordinatorId, coordinatorPaused });
 async function fixture() { const dir = await mkdtemp(join(tmpdir(), 'ccng-workspace-')); return { dir, store: new WorkspaceStore(join(dir, 'config', 'workspace.json')), close: () => rm(dir, { recursive: true, force: true }) }; }
 class Rpc extends EventEmitter {
-  constructor(cwd) { super(); this.ready = true; this.calls = []; this.cwd = cwd; this.missing = new Set(); }
+  constructor(cwd) { super(); this.ready = true; this.calls = []; this.cwd = cwd; this.missing = new Set(); this.threads = new Map(); }
   async call(method, params) {
     this.calls.push({ method, params });
     if (method === 'thread/read' || method === 'thread/resume') {
       if (this.missing.has(params.threadId)) throw new Error('Conversation temporarily unavailable');
-      return { thread: { id: params.threadId, name: params.threadId, cwd: this.cwd, status: { type: 'notLoaded' }, canAcceptDirectInput: true, turns: [], model: 'saved-model' }, instructionSources: [], sandbox: { type: 'readOnly' } };
+      return { thread: this.threads.get(params.threadId) || { id: params.threadId, name: params.threadId === 'coordinator' ? 'Command Center coordinator' : params.threadId, cwd: this.cwd, status: { type: 'notLoaded' }, canAcceptDirectInput: true, turns: [], model: 'saved-model' }, instructionSources: [], sandbox: { type: 'readOnly' } };
     }
     if (method === 'thread/turns/list') return { data: [], nextCursor: null };
     if (method === 'config/read') return { config: { mcp_servers: {} } };
@@ -78,6 +78,22 @@ test('startup restores four workers and the same paused coordinator with read-on
     assert.ok(f.workspace.snapshot().agents.every(agent => agent.observingOnly && agent.status === 'idle'));
     assert.deepEqual(await f.store.load(), record(['one', 'two', 'three', 'four'], 'coordinator', true));
   } finally { await f.close(); }
+});
+
+test('restoration refuses swapped worker/coordinator roles without changing native conversations', async () => {
+  const f = await fixture(); const saved = record(['one', 'old-coordinator'], 'wrong-coordinator', true);
+  await f.store.save(saved); const rpc = new Rpc(f.dir);
+  rpc.threads.set('old-coordinator', { id: 'old-coordinator', name: 'Command Center coordinator', cwd: f.dir });
+  const workspace = new Workspace(rpc, { beads: null, coordinator: true });
+  const persistence = new WorkspacePersistence(workspace, f.store);
+  try {
+    await persistence.initialize(); await persistence.restore(); await persistence.queue;
+    assert.deepEqual([...workspace.agents.keys()], ['one']);
+    assert.equal(workspace.restoration.warnings.length, 2);
+    assert.match(workspace.coordinator.error, /coordinator/i);
+    assert.ok(rpc.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)));
+    assert.deepEqual(await f.store.load(), saved, 'invalid saved roles stay available for explicit recovery');
+  } finally { workspace.coordinator.stop(); await persistence.close(); await f.close(); }
 });
 
 test('sending after restore explicitly resumes the worker without permission/model overrides', async () => {

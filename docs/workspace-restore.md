@@ -26,6 +26,12 @@ tabs by reading native conversation metadata and recent history. It does not
 resume unloaded workers or start a model turn just to restore a view. Existing
 native work can continue independently while Command Center is stopped.
 The read-only views refresh every five seconds and follow native events.
+Version 0.8.0 verifies the native coordinator marker/name against the saved role
+before opening a view. A former coordinator listed as a worker, or an ordinary
+worker listed as coordinator, is refused with a restoration warning. The other
+tabs remain available; saved IDs are retained for explicit recovery. No native
+resume, conversation rewrite or replacement coordinator is used to repair a
+role mismatch automatically.
 Sending a new message activates that conversation with its existing native
 model and permission settings. The saved coordinator is reused; its restrictions
 are reapplied and checked before activation. Its paused state survives restart.

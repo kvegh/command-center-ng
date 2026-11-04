@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.7.1 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.8.0 (in development)** includes the Codex workspace and Linux installer. It supports
 four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -54,6 +54,13 @@ and tradeoffs.
   or subtask results to its parent.
 
 See [product requirements](docs/product-requirements.md) for the agreed behavior.
+
+When choosing **Start new**, enter the project's working directory explicitly.
+The field starts empty, so launching the app from its installation directory
+does not silently select that directory and its project instructions for a new
+worker. Opening an existing conversation preserves its own native directory.
+Coordinator conversations are excluded from the worker picker, and opening or
+restoring a conversation checks its role before any native resume call.
 
 The coordinator starts automatically when a worker is opened and has its own
 right-aligned violet chat tab outside the workers' scrolling strip. Worker tabs
@@ -306,6 +313,15 @@ The 0.7.0 prerequisite checkpoint passed all 63 regressions and the production
 build. Consent tests use simulated commands; no actual RPM or new CLI was
 installed. A fresh staged home installation passed with existing tools. Fresh
 Beads/Dolt configuration and minimal-RHEL bootstrap validation remain pending.
+
+Version 0.8.0 passed all 67 regression checks and the production build. New
+regressions reproduce and prevent coordinator-as-worker selection, direct-open
+and restore errors, including renamed coordinators carrying the new native
+source marker. Project-directory checks verify rejection of missing directories
+and use of an explicitly selected directory. These checks address two identified
+entry points for session confusion; they do not establish every cause of the
+earlier mixed agent behavior. Existing chats keep their histories and directories.
+Interactive browser validation remains pending.
 
 ## Public source policy
 

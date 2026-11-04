@@ -88,6 +88,10 @@ codex app-server daemon start
 "$HOME/apps/command-center-ng/command-center-ng" --cwd "$HOME/projects/PROJECT"
 ```
 
+The `--cwd` option sets the application's startup context. In **Start new**, enter
+the intended project's directory explicitly so that worker loads its own project
+instructions. Existing conversations keep their saved native working directory.
+
 Replace PROJECT with an existing task workspace. Native Codex supports browser
 sign-in and device-code sign-in; `codex login status` reports credential presence.
 The installer suppresses its authentication output and never collects tokens.

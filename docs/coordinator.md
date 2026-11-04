@@ -80,6 +80,19 @@ No new AAP credential, wrapper, permission policy or service is deployed here.
 
 ## Coordinator restrictions and limits
 
+Version 0.8.0 keeps coordinator conversations out of the worker picker and
+rejects an attempt to open one as a worker before resuming it. Saved roles are
+also checked during read-only restoration; a mismatch produces a visible
+warning and preserves the saved IDs for explicit recovery. A worker cannot use
+the reserved native name `Command Center coordinator` as its creation goal.
+
+New coordinators use the native `threadSource` value
+`command-center-coordinator`, so their identity survives renaming. Earlier
+coordinators are recognized by their existing native name
+`Command Center coordinator`. A renamed coordinator from before 0.8.0 that lacks
+the marker cannot be identified reliably by these metadata checks; do not open
+that conversation as a worker. No extra role store or history migration is added.
+
 The coordinator starts with a native read-only sandbox and disabled shell, apps,
 plugins, memories, permission-request and multi-agent features. Configured MCP
 servers are disabled only for its thread. Worker settings are unchanged.

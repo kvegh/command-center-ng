@@ -5,7 +5,7 @@ import { isAbsolute } from 'node:path';
 import { VERSION } from './version.mjs';
 import { taskSummary, reportedPlan } from './task-summary.mjs';
 import { BeadsTasks, sessionLabel } from './beads.mjs';
-import { Coordinator } from './coordinator.mjs';
+import { Coordinator, COORDINATOR_NAME, isCoordinatorThread } from './coordinator.mjs';
 import { SUMMARY_LIMIT, SUMMARY_SCHEMA, summaryPrompt, readSummary } from './branch-summary.mjs';
 
 export const input = text => [{ type: 'text', text, text_elements: [] }];
@@ -53,7 +53,7 @@ export class Workspace extends EventEmitter {
   agent(id) { const agent = this.agents.get(id); if (!agent) throw Object.assign(new Error('Open this agent first.'), { status: 404 }); return agent; }
   async list(cursor) {
     const result = await this.rpc.call('thread/list', { limit: 50, useStateDbOnly: true, ...(cursor ? { cursor } : {}) });
-    return { agents: result.data.map(t => ({ id: t.id, name: t.name || t.preview?.split('\n')[0]?.slice(0, 90) || 'Untitled agent', cwd: t.cwd, status: statusOf(t), parentId: t.parentThreadId || null, forkedFromId: t.forkedFromId || null })), nextCursor: result.nextCursor };
+    return { agents: result.data.filter(t => !isCoordinatorThread(t)).map(t => ({ id: t.id, name: t.name || t.preview?.split('\n')[0]?.slice(0, 90) || 'Untitled agent', cwd: t.cwd, status: statusOf(t), parentId: t.parentThreadId || null, forkedFromId: t.forkedFromId || null })), nextCursor: result.nextCursor };
   }
   async open(id, { observeOnly = false } = {}) {
     if (this.agents.has(id)) return this.agent(id);
@@ -62,8 +62,11 @@ export class Workspace extends EventEmitter {
     if (this.opening.has(id)) throw Object.assign(new Error('This agent is already opening.'), { status: 409 });
     this.opening.add(id);
     try {
-      const { thread, instructionSources } = await this.rpc.call(observeOnly ? 'thread/read' : 'thread/resume', { threadId: id, ...(observeOnly ? {} : { excludeTurns: true }) });
-      if (!thread) throw Object.assign(new Error('The saved conversation is unavailable.'), { status: 404 });
+      const observed = await this.rpc.call('thread/read', { threadId: id });
+      if (!observed.thread) throw Object.assign(new Error('The saved conversation is unavailable.'), { status: 404 });
+      if (role === 'worker' && isCoordinatorThread(observed.thread)) throw Object.assign(new Error('A coordinator conversation cannot be opened as a worker. Open a worker conversation instead.'), { status: 409 });
+      if (role === 'coordinator' && !isCoordinatorThread(observed.thread)) throw Object.assign(new Error('The saved coordinator ID belongs to a worker or an unrecognized coordinator. Check the saved workspace before continuing.'), { status: 409 });
+      const { thread, instructionSources } = observeOnly ? observed : await this.rpc.call('thread/resume', { threadId: id, excludeTurns: true });
       const agent = { id, name: thread.name || 'Codex agent', goal: thread.name || thread.preview?.split('\n')[0] || 'No goal recorded', cwd: thread.cwd, model: thread.model || null, thread, parentId: thread.forkedFromId || null, canSend: thread.canAcceptDirectInput !== false, messages: [], tasks: [], workers: [], questions: [], turnId: null, lastCompletedTurnId: null, olderCursor: null, activity: null, summary: null };
       agent.questions = [...this.pending.values()].filter(q => q.params.threadId === id);
       agent.role = role; agent.observingOnly = observeOnly; agent.instructionSources = instructionSources || [];
@@ -181,6 +184,7 @@ export class Workspace extends EventEmitter {
   async create({ goal, cwd }) {
     if (this.workerSlots() >= 4) throw Object.assign(new Error('Four tabs are already open.'), { status: 409 });
     if (typeof goal !== 'string' || !goal.trim() || goal.length > 2000) throw Object.assign(new Error('Enter a goal of 1–2000 characters.'), { status: 400 });
+    if (goal.trim().split('\n')[0].slice(0, 120) === COORDINATOR_NAME) throw Object.assign(new Error('This name is reserved for the coordinator. Enter a worker goal.'), { status: 400 });
     if (typeof cwd !== 'string' || !isAbsolute(cwd) || !(await stat(cwd)).isDirectory()) throw Object.assign(new Error('Choose an existing absolute working-directory path.'), { status: 400 });
     if (this.workerSlots() >= 4) throw Object.assign(new Error('Four tabs are already open.'), { status: 409 });
     this.creating++; let reserved = true;

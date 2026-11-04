@@ -13,7 +13,7 @@ The interface must remain usable from a Linux desktop browser and a smartphone
 browser. Browser support does not imply a selected remote-access or hosting
 arrangement.
 
-Version 0.7.0 is in development. The installer checks RHEL 9 prerequisites and
+Version 0.8.0 is in development. The installer checks RHEL 9 prerequisites and
 can offer missing RPMs and user-local CLI packages after confirmation. Other
 Linux distributions are not yet tested; automatic package setup is RHEL 9 only.
 Run `./install.sh --check` for a read-only inventory. Full details and package
@@ -93,8 +93,11 @@ Replace every placeholder. Keep proxy credentials outside this repository. The
 application password remains required behind nginx. Proxy, certificate, firewall,
 and VM configuration are not changed by the installer.
 
-Additional runtime options: `--cwd DIRECTORY` selects the default agent working
-directory, and `--socket PATH` selects an existing Codex Unix socket explicitly.
+Additional runtime options: `--cwd DIRECTORY` selects the application's working
+directory for startup checks, and `--socket PATH` selects an existing Codex Unix
+socket explicitly. In **Start new**, always enter the intended project directory;
+it is no longer filled from the app's working directory. Opening an existing
+conversation preserves that conversation's saved native directory.
 `CCNG_HOST`, `CCNG_PORT`, and `CCNG_PUBLIC_ORIGIN` provide environment equivalents
 for the listening options. Stop the foreground app with Ctrl+C.
 
