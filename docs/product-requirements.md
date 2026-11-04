@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current version: 0.5.0
+## Current version: 0.6.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -148,9 +148,17 @@ rightmost, adds top spacing and reduces tab height roughly 30%. It replaces the
 unclear tower with a recognizable complete-building icon and uses the exact
 wordmark command center NG. Rendered design review awaits the user's screenshot.
 
+Version 0.6.0 widens the desktop context sidebar by about 40% and adds explicit
+Open questions with amber counts, request text, coordinator decision rationale
+and links to the answer cards. Native resolution remains authoritative; a sent
+answer stays listed until confirmed. Multi-question requests show each question,
+and externally owned requests direct the user to their native client. Branch
+chat moves beside Interrupt and Send in the chat composer. Ordinary-chat question
+inference is not included; the requested scope choice remains open.
+
 ## Decisions still open
 
-Stronger independently enforced remote-resource
+Coordinator tracking of unanswered ordinary-chat questions, stronger independently enforced remote-resource
 boundaries, integration with a separately running assistant-team, other agent
 runtimes and actual deployment proxy/TLS configuration remain open. The current
 coordinator inherits the configured native Codex model. Architectural changes

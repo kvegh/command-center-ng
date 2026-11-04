@@ -119,3 +119,13 @@ Favor simple navigation, readable type, consistent spacing, clear status labels,
 accessible controls, and restrained effects. Keep the project goal and current
 work easy to recover when switching contexts. Branching must remain a simple
 context-preserving action with easy return navigation and optional result return.
+
+
+Keep the desktop goal/task context panel about 40% wider than the pre-0.6.0
+sidebar, with a visible Open questions section derived from current native
+requests. Preserve request identity, confirmation/error state and manual answer
+controls; showing or opening a question must not answer or resolve it. Keep
+Branch chat in the chat composer beside Interrupt and Send, with per-reply
+Branch here still available. Preserve stacked mobile context and wrapping
+composer controls. Do not infer ordinary-chat questions without a separate
+agreed approach.

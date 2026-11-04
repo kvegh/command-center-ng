@@ -121,3 +121,10 @@ tab button has focus. Selection, drafts and agent state stay attached to the
 conversation. The Coordinator group remains visually separate. Order is local
 to the current browser and origin and now survives refreshes through browser
 storage; it does not reorder another device.
+
+
+In 0.6.0, the widened context panel also lists that conversation's native open
+questions. A coordinator ask decision remains an amber item with its rationale
+in the worker's panel until the request is resolved. Clicking it opens existing
+manual answer controls; it does not grant approval. Ordinary-chat question
+inference and a separate question store are not implemented.

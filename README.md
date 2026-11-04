@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.5.0** implements the Codex workspace and Linux installer. It supports
+**Version 0.6.0** implements the Codex workspace and Linux installer. It supports
 four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -13,7 +13,11 @@ green running states, and amber attention states.
 The interface uses a local Node.js service and the existing Codex daemon.
 A compact top bar puts the agent tabs and controls first, with branding at the
 far right. It spans the full browser width. The workspace fills the window, with goal/tasks in a right sidebar on desktop and
-above the conversation on smaller screens. Selecting a tab focuses its chat
+above the conversation on smaller screens. The desktop sidebar is about 40%
+wider and includes Goal, current task summaries and **Open questions**. Live
+clarification questions and approvals have an amber count, full question text
+and links to their answer controls, so requests remain easy to find while
+reading older messages. Selecting a tab focuses its chat
 input and places the cursor at the end of its saved draft. The generated airport
 control-tower icon now uses a clearer complete-building silhouette. The visible
 wordmark is **command center NG**. Tabs have an eight-pixel top inset and are
@@ -120,7 +124,7 @@ and unrelated untracked files still block automatic updates.
 ## Branching a conversation
 
 Choose **Branch here** beside a completed Codex reply, or **Branch chat** beside
-the goal to fork from the latest completed reply. Codex copies its stored context
+Interrupt and Send in the chat input area to fork from the latest completed reply. Codex copies its stored context
 through that turn into a separate conversation; later parent messages are excluded.
 The branch waits for your follow-up question or subtask. Its first message becomes
 its goal. A branch uses one of the four tabs; close a tab first if all are occupied.
@@ -141,6 +145,21 @@ child without resending within the current app process.
 
 Parent links survive reopening through native Codex metadata. Branches share the
 working directory; conversation branching does not create a Git branch or worktree.
+
+## Open questions
+
+The sidebar lists live structured clarification requests, command/file approvals
+and other native actions for the selected conversation, including the
+coordinator. A request containing several questions lists each one. Click an item
+to scroll to its existing answer card and focus the first available control.
+Coordinator requests for your decision and failed/unconfirmed answers remain
+visible until native resolution confirms they are answered. No question is
+answered or dismissed by opening it. Requests owned by another client show a
+clear notice directing you there. With no pending request, the panel says so.
+
+This list follows native pending requests; unanswered questions written only in
+ordinary chat prose are not inferred. Coordinator tracking of those questions
+remains a separate scope choice. No new question store or model call is added.
 
 ## Development and current limits
 
@@ -265,6 +284,12 @@ verified history, coordinator identity/pause, unchanged password and login,
 without worker resumes or model turns during restoration. Production build and
 Linux installer/update checks passed. Interactive desktop/mobile visual testing
 still awaits a rendered screenshot; source review alone cannot establish it.
+
+The 0.6.0 production build and all 59 existing regression checks pass.
+Additional rendering/navigation checks cover multi-question requests, confirmation
+and error visibility, distinct typed request targets, answer-control focus,
+composer placement and the 40% width increase. No interactive browser was
+available; rendered desktop/mobile review still awaits the user's screenshot.
 
 ## Public source policy
 

@@ -18,7 +18,7 @@ interfaces. Linux is the primary platform.
 
 This selects the frontend foundation only. It does not select agent APIs, a
 server framework, a database, a state-management library, or a component suite.
-Package versions are pinned in package.json and package-lock.json for 0.5.0.
+Package versions are pinned in package.json and package-lock.json for 0.6.0.
 The approved local Node.js service uses the existing Codex daemon.
 
 ## Visual principles
@@ -32,7 +32,7 @@ The approved local Node.js service uses the existing Codex daemon.
 - Respect reduced-motion preferences and avoid animation that distracts from work.
 - Use synthetic data for public demos and interface examples.
 
-Version 0.5.0 uses dark graphite surfaces with cyan controls, green running
+Version 0.6.0 uses dark graphite surfaces with cyan controls, green running
 states, amber attention states, and violet branch navigation. Status labels and
 icons accompany color. The goal and up to three task summaries remain above
 the scrolling conversation on mobile; desktop uses a narrow right sidebar.
@@ -111,3 +111,23 @@ private file. Storage errors leave in-memory operation available and visible.
 Production build and event/storage tests pass; no interactive browser is
 available here. The user will provide a screenshot after updating for a rendered
 review of spacing, legibility, touch usability and overall balance.
+
+
+## Context and question visibility: 0.6.0
+
+The user requested a roughly 40% wider summary/goal panel because missed
+questions can silently block work. Above 900px, its width changes from
+clamp(260px, 23vw, 320px) to clamp(364px, 32.2vw, 448px). The existing stacked,
+scrollable mobile context remains. Goal, coordinator recap and up to three Beads
+tasks are followed by an Open questions section. Amber cards/counts show pending
+clarifications, approvals, coordinator decision requests and unconfirmed-answer
+errors. Clicking a row scrolls its existing question card into view and focuses
+an enabled answer control, without answering or resolving it. Numeric and string
+request IDs retain distinct targets. Multiple questions in one request remain
+separate rows. A native request owned elsewhere directs the user to that client.
+
+The list comes directly from pending native state, so it clears through the
+existing acknowledged-resolution behavior. Ordinary prose questions are not
+inferred. There is no new storage, model call or approval authority. Branch chat
+moves from the goal sidebar to the chat composer, alongside Interrupt and Send;
+per-reply Branch here remains. Composer controls wrap on narrow screens.
