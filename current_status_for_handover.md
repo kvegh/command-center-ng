@@ -5,9 +5,10 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative development and published version is **0.10.0** in package.json
-and the lockfile. Its implementation is `ec4cb6e`, published over the existing SSH
-connection. The earlier 0.9.2 publication failures were cleared by the user's
+The authoritative version is **0.11.0** in package.json and the lockfile.
+Its implementation is `70490b8ffd8a6225ba0d3b831b5f20088b0765ce`. Check current Git history
+and remote refs for publication state; the earlier published baseline was
+0.10.0 (implementation `ec4cb6e`). The earlier 0.9.2 publication failures were cleared by the user's
 explicit retry. Existing SSH configuration, keys and access controls were preserved.
 The formerly local 0.6.0/0.7.0 checkpoints and the 0.7.1 spacing correction are
 included, alongside the 0.8.0 conversation safeguards. The earlier published baseline was 0.5.0 at
@@ -29,6 +30,7 @@ installed version is 0.9.1.
 | 0.9.2 visible-tab emphasis and top spacing | `cf29429` | Recorded in design_decisions_history.md |
 | 0.9.3 chat clipping inset and inactive tab fill | `a9f29df` | Recorded in design_decisions_history.md |
 | 0.10.0 current-conversation branching | `ec4cb6e` | Recorded in design_decisions_history.md |
+| 0.11.0 compact activity, drafts and RHEL 9 playbook | `70490b8` | Recorded in design_decisions_history.md |
 
 Inspect Git status and history before continuing. Use SSH for authorized Git
 network operations and preserve unrelated edits. Keep numeric versions and
@@ -227,17 +229,34 @@ was created, rewritten, archived or interrupted for this validation. Existing
 branches keep their old snapshot; after updating, make a fresh branch to include
 a previously omitted exchange. Rendered review remains pending.
 
-## Requested Ansible deployment: choices awaiting direction
+## RHEL 9 deployment and chat refinements: 0.11.0
 
-The user requested a playbook to deploy Command Center to a Linux VM. Reusable
-deployment code belongs in the existing private environment setup repository;
-private inputs belong in its existing encrypted companion. Existing installer,
-authentication stdin support and local Ansible/lint capabilities were inspected.
-No playbook or live deployment has been implemented. Required choices remain
-install-only versus automatic startup, Linux distribution/version, and reusing
-an existing Codex/Beads profile versus fresh setup. Do not infer these choices
-from the intervening branch investigation. Fresh Beads/Dolt provisioning still
-requires its existing separate architecture decision.
+The user approved genuine RHEL 9, an unprivileged systemd application process,
+and reuse of an existing Codex/Beads account/profile. The later explicit layout
+puts deployment code, templates, synthetic examples and tests in this public
+project. AAP CaC and actual deployment settings belong only as whole-file Vault
+ciphertext in private command-center-ng-secrets. The companion was created and
+GitHub private visibility verified. Its scaffold has no actual payload yet.
+The required Vault credential source has been asked for and remains undecided.
+Target identity is recorded only in protected context/Beads, not public source.
+
+The entry point is ansible/deploy_command_center.yml. Its first guard rejects
+other platforms before target changes. It preserves existing auth and native
+services, protects profile/project paths, refuses unrelated units and dirty or
+divergent source, and deploys using the maintained installer. Its system unit
+runs as the existing account. No new Codex/Dolt bootstrap or proxy setup is added.
+All seven isolated real-Ansible fixtures, syntax checking, offline unit parsing
+and production lint pass. This development machine was not a deployment target.
+A live target run, shared AAP importer catalog integration, actual CaC capture,
+credential bindings and browser access verification remain open.
+
+Consecutive tool activity now appears in closed expandable groups, retaining
+per-action detail controls and visible running/failure counts. Native question
+cards and conversation messages stay separate. Draft editing stays enabled while
+questions/attention block sending; Enter becomes a normal newline while blocked.
+The existing backend send guard stays in force. Delayed send acknowledgment does
+not erase newer typing. All 85 application tests and the production build pass.
+Interactive browser review remains unperformed. No user installation was restarted.
 
 ## Requested Claude monitoring: proposal awaiting direction
 
@@ -284,8 +303,11 @@ but do not infer approval from a default choice or elapsed time.
 | bead-wd-1rl.31 | Claude monitoring investigated; connection approach and target await user direction |
 | bead-wd-1rl.32 | Closed: visible-tab emphasis and doubled top spacing published in 0.9.2 |
 | bead-wd-1rl.34 | Closed: fixed chat clipping inset and matching inactive tab fill published in 0.9.3 |
-| bead-wd-1rl.35 | Ansible VM deployment requested; startup, platform and profile choices await direction |
+| bead-wd-1rl.35 | RHEL 9 playbook implemented and locally validated; live target run pending protected inputs |
 | bead-wd-1rl.36 | Closed: current-conversation Branch chat correction published in 0.10.0 |
+| bead-wd-1rl.37 | Collapsed tool activity implemented in 0.11.0 |
+| bead-wd-1rl.38 | Draft editing during questions implemented in 0.11.0 |
+| bead-wd-1rl.39 | Private companion created; payload/importer/credential setup pending |
 | bead-wd-ywg | Existing shared Dolt restart and successful reads verified |
 | bead-wd-9so | Closed: generated Beads no-remote Git rule investigated and corrected |
 

@@ -761,3 +761,38 @@ confirm the protocol behavior. Synthetic fixtures contain no user transcript or
 native identifiers. Existing user branches were preserved and require a fresh
 branch after updating to obtain a newer snapshot; no live branch was created or
 rewritten for validation. Rendered browser review remains pending.
+
+## 2026-11-04 — Compact activity, editable drafts and RHEL 9 deployment in 0.11.0
+
+Implementation: `70490b8ffd8a6225ba0d3b831b5f20088b0765ce`.
+
+The user requested collapsing intermediate command rows while retaining access
+to each command's existing details. Consecutive activity now uses an initially
+closed native disclosure group. Its summary keeps running, failed and stopped
+counts visible; chat messages and request controls stay in their original order.
+The user also requested typing while a question is displayed. Draft editing is
+separate from send readiness, with newline behavior while blocked and protection
+against an older send acknowledgment erasing newer typing. Native/backend
+request protections and answer confirmation remain unchanged.
+
+The user approved an Ansible playbook for genuine RHEL 9, automatic systemd
+startup with an unprivileged application process, and reuse of an existing
+Codex/Beads profile. A first OS guard runs before target changes; the maintained
+installer handles application files. The playbook protects existing auth,
+profile paths, native services, unrelated units and local Git work. It verifies
+application health and version without provisioning a fresh agent environment.
+
+The user's later explicit layout places application/deployment code in this
+public project and whole-file Vault-encrypted CaC/settings in a private
+command-center-ng-secrets companion, matching their other AAP projects.
+No private target data or encrypted payload was added to public source. Actual
+CaC capture, Vault credential choice, shared-importer integration, live deployment
+and browser-access checks remain pending; creating a repository is not proof of
+a configured AAP Job Template or successful VM startup. Claude monitoring remains
+an independent, unimplemented request.
+
+Validation: 85 application tests and production build passed; seven real-Ansible
+fixture tests, syntax checking and 14-file production lint passed. Fixtures use
+only disposable localhost files, including real password hashing and offline
+systemd parsing; the deployment playbook was never applied to this development
+machine. Interactive desktop/mobile review remains unperformed.
