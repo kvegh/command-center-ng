@@ -495,3 +495,33 @@ structure, wordmark text, version consistency, staged privacy and diff checks
 passed. Interactive browser/phone rendering and the final visual review remain
 pending the user's screenshot after updating. No dependency was added and no
 existing user app, daemon, proxy, approval or infrastructure was changed.
+
+## 2026-11-04 — Surface open questions and widen context in 0.6.0
+
+Implementation: `5b63d56a9e99b46631dbeb166f1ca24ff3d6c46e`.
+
+The user requested a roughly 40% wider summary/goal panel because overlooked
+questions can leave work blocked. The desktop sidebar now scales from
+260–320px to 364–448px at the same relative width range. Goal, current task
+summaries and native Open questions remain together. Amber counts/cards show
+clarifications, approval requests, coordinator decision rationale and answer
+errors. A multi-question request lists each question; numeric/string request
+identities remain distinct. Clicking a row reveals the existing answer card and
+focuses an enabled control. It does not answer or resolve the request. Native
+confirmation remains the condition for clearing it. Requests owned elsewhere
+show a notice directing the user to the native client.
+
+The user also requested Branch chat beside Interrupt and Send. It moves into
+the chat composer with an explicit non-submit button type; per-reply Branch here
+and native fork behavior remain. Controls wrap on narrow screens and mobile
+retains stacked context. Ordinary prose questions are not inferred; coordinator
+tracking of those decisions remains a separate unanswered scope choice.
+
+Production build and all 59 existing regressions passed. Additional rendering
+and navigation checks covered multi-question requests, pending/error visibility,
+typed targets, focus, button placement and 40% width scaling. Privacy/version
+and diff checks passed. No tool/dependency, storage or approval authority was
+added. Interactive desktop/mobile rendering awaits a screenshot. This change is
+committed locally only: the active session received a generated no-remote Git
+instruction, whose source was investigated and corrected for future hook loads.
+No Git network operation was performed for this version.
