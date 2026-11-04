@@ -553,3 +553,15 @@ bootstrap and rendered browser tests remain unperformed. This checkpoint is
 local and unpublished. The user subsequently requested a Git-tracked handover
 file before continuing in another chat; current_status_for_handover.md records
 the saved work, remaining decisions and validation limits without private data.
+
+## 2026-11-04 — Remove the gap below agent tabs in 0.7.1
+
+Implementation: `101f2f6`.
+
+The user requested that chat history meet the tab bar without the extra blank
+strip. The workspace now has zero top padding on desktop and mobile, preserving
+its side/bottom spacing and the tab bar's existing eight-pixel internal top
+inset. This is a layout correction within the existing responsive design.
+
+Validation: production TypeScript/Vite build and diff checks passed. No browser
+executable is installed, so the rendered desktop/mobile result remains unverified.
