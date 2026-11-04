@@ -431,3 +431,28 @@ exercise pointer sequences and state changes using the production TypeScript
 controller and the existing compiler. They do not exercise browser rendering or
 prove the reported gesture in the user's browser; that installed retry remains
 pending. No browser/tool was installed or live user app restarted.
+
+## 2026-11-04 — Separate the coordinator on the right in 0.4.2
+
+Implementation commit: `fcf05551892eef23028e45e42704a70765968f0b`.
+
+The user clarified that the existing divider was insufficient: the coordinator
+must align right while workers align left, and its appearance must communicate
+a different role. It now sits outside the workers' scrolling strip as a separate
+header group. Workers and Add agent stay together on the left; flexible space
+and a divider separate them from the right coordinator. Branding remains the
+final item at the far right.
+
+A violet surface, rounded full border and overview icon distinguish the
+coordinator from the worker tabs. Status dots and the amber attention border
+retain running/attention information. The compact phone treatment shortens its
+label to Coord, leaving room for worker navigation. Worker drag destinations
+remain confined to the left strip. Project contributor guidance records the
+requested placement and visual distinction.
+
+Validation passed: production build, inspection of the parsed header structure
+(left worker/Add group, separate coordinator, controls, final branding), all ten
+existing pointer-drag checks, version/privacy review and diff checks. No new
+test suite was added for this presentation correction. Interactive browser
+visual verification remains unperformed. Agent behavior, approval policy,
+dependencies, installation and persistence did not change.
