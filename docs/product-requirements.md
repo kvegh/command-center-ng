@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.9.1
+## Current development version: 0.9.2
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -184,6 +184,14 @@ Version 0.9.1 applies the verified folder-tab request: the active tab joins the
 pane without an intervening border or bottom selection stripe. Matching fill,
 clearer side edges and a stronger label indicate selection. The coordinator
 remains immediately before Add agent, and status/focus controls are preserved.
+
+Version 0.9.2 strengthens selection of the tab whose chat history is visible.
+The top inset doubles from 8 to 16 pixels. The selected tab is about 40 pixels
+tall versus 34 pixels for inactive tabs, with a larger bold white label and
+regular-weight inactive labels. Cyan top/side edges and brighter upper fill
+reinforce selection independently of agent activity. All tabs align at the pane;
+the fill fades into it at the open bottom. Status dots and keyboard focus remain
+distinct, with no bottom selection stripe.
 
 ## Decisions still open
 

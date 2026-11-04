@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.9.1 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.9.2 (in development)** includes the Codex workspace and Linux installer. It supports
 four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -20,13 +20,19 @@ and links to their answer controls, so requests remain easy to find while
 reading older messages. Selecting a tab focuses its chat
 input and places the cursor at the end of its saved draft. The generated airport
 control-tower icon now uses a clearer complete-building silhouette. The visible
-wordmark is **command center NG**. Tabs have an eight-pixel top inset and are
-about 30% thinner, retaining their vivid status colors.
+wordmark is **command center NG**. Tabs have a sixteen-pixel top inset.
+Inactive tabs stay compact at about 34 pixels; the selected tab is about 40 pixels
+tall. Status dots retain their vivid colors.
 The chat workspace begins directly below the tab bar, with the extra desktop
 and mobile top gap removed in 0.7.1.
 In 0.9.1, small folder-style tabs join the pane without a separating line.
 The selected tab shares the pane's fill and uses a stronger label and outline;
-the bottom selection stripe is removed. Status colors and keyboard focus remain.
+the bottom selection stripe is removed. Version 0.9.2 doubles the top inset
+from eight to sixteen pixels and makes the tab for the visible conversation
+taller, with a larger bold white label, cyan top/side outline and brighter fill
+fading into the pane. Inactive labels use regular text. The same treatment applies
+whether its agent is running, idle or waiting; the status dot keeps its own color.
+Keyboard focus remains separate from selection.
 
 Linux is the first and primary platform for installation and operation. The
 interface must work well in a Linux desktop browser and a smartphone browser;
@@ -346,6 +352,10 @@ Matching Codex 0.166.0 source confirms pending-request replay on native rejoin.
 After updating the installation to 0.9.1, the user confirmed that **Load pending
 request** worked. The latest native read also showed the worker active without
 an approval-wait flag. Browser rendering still requires verification.
+
+Version 0.9.2 passed all 75 existing checks and the production build. Selection
+styles apply after activity styles and bottom-align both worker and coordinator
+tabs. Rendered desktop/mobile review remains pending.
 
 ## Public source policy
 

@@ -113,8 +113,11 @@ Keep worker tabs on the left. Group the coordinator and prominent cyan Add agent
 button together on the right, with the coordinator immediately before Add agent
 and outside the workers' scrolling strip. Use the same tab shape, height,
 typography and state styling as worker tabs, retaining its overview icon and
-separate coordinator identity. Preserve the eight-pixel top inset and
-approximately 34-pixel worker tabs. The visible wordmark is command center NG. Preserve its running/attention indicators
+separate coordinator identity. Preserve the sixteen-pixel top inset, approximately
+34-pixel inactive tabs and 40-pixel selected tab. Use a larger bold label only for
+the tab whose chat history is visible, with regular inactive labels; bottom-align
+tabs at the pane. Selection uses cyan top/side edges independently of the status
+dot's running/attention color. The visible wordmark is command center NG. Preserve its running/attention indicators
 and compact mobile presentation.
 Use small folder-style tabs joined seamlessly to the pane. The selected tab
 shares its fill with the pane and uses label/shape contrast, with no bottom
