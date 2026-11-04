@@ -5,11 +5,10 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative development and published version is **0.9.2** in package.json
-and the lockfile. Its implementation is `cf29429`, published with the handover at
-`ceed67e` over the existing SSH connection. Earlier attempts failed authentication
-or the server-side branch update; the user's explicit retry succeeded. Existing
-SSH configuration, keys and access controls were preserved.
+The authoritative development and published version is **0.9.3** in package.json
+and the lockfile. Its implementation is `a9f29df`, published over the existing SSH
+connection. The earlier 0.9.2 publication failures were cleared by the user's
+explicit retry. Existing SSH configuration, keys and access controls were preserved.
 The formerly local 0.6.0/0.7.0 checkpoints and the 0.7.1 spacing correction are
 included, alongside the 0.8.0 conversation safeguards. The earlier published baseline was 0.5.0 at
 `c24d84c318fe967993bd3e00552e129e7d32531e`.
@@ -28,6 +27,7 @@ installed version is 0.9.1.
 | 0.9.0 pending request recovery | `6e78051` | Recorded in design_decisions_history.md |
 | 0.9.1 connected folder tabs | `162bb73` | Recorded in design_decisions_history.md |
 | 0.9.2 visible-tab emphasis and top spacing | `cf29429` | Recorded in design_decisions_history.md |
+| 0.9.3 chat clipping inset and inactive tab fill | `a9f29df` | Recorded in design_decisions_history.md |
 
 Inspect Git status and history before continuing. Use SSH for authorized Git
 network operations and preserve unrelated edits. Keep numeric versions and
@@ -192,6 +192,18 @@ No bottom selection stripe or joining line returns. Mobile uses the same inset
 and size distinction. All 75 existing tests and the production build pass;
 rendered desktop/mobile review remains pending. No installation was restarted.
 
+## Chat clipping and inactive tab fill: 0.9.3
+
+The user wanted scrolling text to disappear before reaching the bottom of the
+tabs and inactive tabs to share the chat-history background. The conversation
+scroll viewport now starts twelve pixels inside the pane. This fixed inset stays
+clear while content scrolls, preserving the folder-tab/pane connection. Inactive
+worker/coordinator tabs use the pane fill across activity states; the earlier
+amber attention background is removed, with status dots and top edges retained.
+Selected size, bold label and fill treatment remain. Desktop/mobile share the
+inset. All 75 tests and the production build pass; rendered review remains open.
+No running installation or native daemon was updated/restarted.
+
 ## Requested Claude monitoring: proposal awaiting direction
 
 The user wants to follow Claude when AAP launches claude -p. Source inspection
@@ -236,6 +248,7 @@ but do not infer approval from a default choice or elapsed time.
 | bead-wd-1rl.30 | Connected folder-tab source published in 0.9.1; rendered review remains in .23 |
 | bead-wd-1rl.31 | Claude monitoring investigated; connection approach and target await user direction |
 | bead-wd-1rl.32 | Closed: visible-tab emphasis and doubled top spacing published in 0.9.2 |
+| bead-wd-1rl.34 | Closed: fixed chat clipping inset and matching inactive tab fill published in 0.9.3 |
 | bead-wd-ywg | Existing shared Dolt restart and successful reads verified |
 | bead-wd-9so | Closed: generated Beads no-remote Git rule investigated and corrected |
 

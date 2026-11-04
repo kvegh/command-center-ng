@@ -714,3 +714,23 @@ is cleared. No code changed during this follow-up; the existing 75 passing tests
 and production build remain the implementation validation. Rendered review and
 updating the user's running installation remain pending. Claude monitoring still
 awaits the connection choice and target; no transport or AAP change was added.
+
+## 2026-11-04 — Keep scrolling text below the attached tabs in 0.9.3
+
+Implementation: `a9f29df`.
+
+The user wanted chat-history text to disappear a little before it reaches the
+tab bottoms, while retaining the folder-tab connection. A fixed twelve-pixel
+inset moves the conversation's scroll viewport inside the pane. Unlike ordinary
+content padding, that space remains clear when the conversation is scrolled.
+The composer and sidebar retain their existing placement and behavior.
+
+The user also requested the chat-history background for inactive tabs. Worker
+and coordinator tabs now use the shared pane fill across activity states; the
+amber attention fill is removed while status dots/top edges remain. Selected
+height, bold label, top/side outline and brighter fill remain intact. Mobile uses
+the same fixed inset, with no new joining border or outside gap.
+
+Validation: all 75 existing tests and the production build pass. No new tests
+were added for these reversible CSS changes. Rendered desktop/mobile review
+remains pending. No dependencies, native settings or running installation changed.
