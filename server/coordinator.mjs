@@ -42,8 +42,8 @@ export class Coordinator {
     }
     return { sandbox: 'read-only', developerInstructions: COORDINATOR_PROMPT, config: overrides };
   }
-  async activate() {
-    const agent = this.workspace.agent(this.id); if (!agent.observingOnly) return;
+  async activate({ force = false } = {}) {
+    const agent = this.workspace.agent(this.id); if (!agent.observingOnly && !force) return;
     const resumed = await this.rpc.call('thread/resume', { threadId: this.id, excludeTurns: true, ...(await this.restrictedOptions(agent.cwd)) });
     if (resumed.sandbox?.type !== 'readOnly') throw fail('Codex did not confirm the coordinator read-only sandbox.');
     agent.thread = resumed.thread; agent.instructionSources = resumed.instructionSources || []; agent.observingOnly = false;

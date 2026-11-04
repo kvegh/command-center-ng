@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 export type Question = {
   id: string | number; method: string; params: Record<string, any>;
@@ -17,6 +17,20 @@ export function revealQuestion(agentId: string, requestId: string | number) {
   (control || card).focus({ preventScroll: true });
 }
 
+export function RequestRecovery({ recovering, error, disabled, recover }: { recovering: boolean; error?: string | null; disabled: boolean; recover: () => Promise<unknown> }) {
+  const [busy, setBusy] = useState(false); const [localError, setError] = useState('');
+  const loading = busy || recovering;
+  return <section className="request-recovery" aria-label="Pending request details">
+    <strong>Codex is waiting for your response.</strong>
+    <span>The request details are not loaded in Command Center. Load them to review the request here.</span>
+    {(localError || error) && <span className="error-text" role="alert">{localError || error}</span>}
+    <button type="button" className="button subtle small" disabled={disabled || loading} onClick={async () => {
+      setBusy(true); setError('');
+      try { await recover(); } catch (problem) { setError((problem as Error).message); } finally { setBusy(false); }
+    }}>{loading ? 'Loading request…' : localError || error ? 'Retry loading request' : 'Load pending request'}</button>
+  </section>;
+}
+
 export function OpenQuestions({ agentId, questions, attention }: { agentId: string; questions: Question[]; attention: boolean }) {
   const rows = questions.flatMap(question => {
     const clarification = question.method === 'item/tool/requestUserInput';
@@ -30,7 +44,7 @@ export function OpenQuestions({ agentId, questions, attention }: { agentId: stri
   });
   const pending = rows.length > 0 || attention;
   return <section className={`open-questions ${pending ? 'has-questions' : ''}`} aria-label="Open questions">
-    <div className="open-questions-heading"><span className="context-label">OPEN QUESTIONS</span><span className="question-count" role="status" aria-live="polite" aria-label={rows.length ? `${rows.length} open questions` : attention ? 'Pending request in another Codex client' : 'No open questions'}>{rows.length || (attention ? '!' : '0')}</span></div>
+    <div className="open-questions-heading"><span className="context-label">OPEN QUESTIONS</span><span className="question-count" role="status" aria-live="polite" aria-label={rows.length ? `${rows.length} open questions` : attention ? 'Pending request details not loaded' : 'No open questions'}>{rows.length || (attention ? '!' : '0')}</span></div>
     {rows.length ? <ul>{rows.map(({ question, kind, text, key }) => <li key={key}>
       <button type="button" className="open-question" onClick={() => revealQuestion(agentId, question.id)} aria-label={`Open ${kind.toLowerCase()}: ${text}`}>
         <span className="open-question-kind">{kind}{question.review?.decision === 'ask' ? ' · Needs your decision' : ''}</span>
@@ -39,6 +53,6 @@ export function OpenQuestions({ agentId, questions, attention }: { agentId: stri
         {question.error && <span className="error-text">{question.error}</span>}
         <span className="open-question-action">{question.responding ? 'Confirming answer…' : question.error ? 'Review answer error →' : 'Go to question →'}</span>
       </button>
-    </li>)}</ul> : <p className="open-questions-empty">{attention ? 'A pending request belongs to another Codex client. Answer it there.' : 'No pending requests.'}</p>}
+    </li>)}</ul> : <p className="open-questions-empty">{attention ? 'Codex reports a pending request. Its details are not loaded here; use Load pending request in the conversation.' : 'No pending requests.'}</p>}
   </section>;
 }

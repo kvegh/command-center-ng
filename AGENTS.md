@@ -131,6 +131,13 @@ Branch here still available. Preserve stacked mobile context and wrapping
 composer controls. Do not infer ordinary-chat questions without a separate
 agreed approach.
 
+An attention flag without request details does not establish another client's
+ownership. Preserve explicit request loading for only the selected active native
+conversation, exact request IDs and native answer confirmation. Loading must not
+submit a decision, start a worker turn or broaden worker permissions; startup
+restoration remains read-only. Keep coordinator restrictions and existing review
+policy intact.
+
 
 The user requested RHEL 9 prerequisite checking and optional package installation
 through sudo after installer confirmation. The application itself still installs

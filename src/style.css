@@ -227,7 +227,7 @@ kbd { font-family: inherit; }
 .choice span { font-size: 11px; line-height: 1.6; color: #ac987d; }
 .choice.selected { background: #49351e; border-color: #d6a45c; color: #ffe0b4; }
 .question-card pre { background: #211d18; border-color: #53422c; color: #e3bb86; }
-.external-question { display: flex; flex-direction: column; gap: 7px; padding: 13px 16px; margin: 15px 0 15px 42px; border-radius: 6px; background: #2b251d; border: 1px solid #665038; color: #d1b387; font-size: 12px; line-height: 1.6; }
+.request-recovery { display: flex; flex-direction: column; gap: 7px; padding: 13px 16px; margin: 15px 0 15px 42px; border-radius: 6px; background: #2b251d; border: 1px solid #665038; color: #d1b387; font-size: 12px; line-height: 1.6; }
 
 .agent-dialog { width: 620px; max-width: calc(100vw - 28px); max-height: 85dvh; padding: 26px; border: 1px solid #425574; border-radius: 12px; background: #151e2c; color: var(--ink); box-shadow: 0 25px 100px #00000060; }
 .agent-dialog::backdrop { background: #02050abd; backdrop-filter: blur(4px); }
@@ -319,7 +319,7 @@ kbd { font-family: inherit; }
   .message-body { font-size: 14px; }
   .message-author { font-size: 10px; }
   .message-branch { font-size: 9px; }
-  .activity-message, .question-card, .external-question { margin-left: 34px; }
+  .activity-message, .question-card, .request-recovery { margin-left: 34px; }
   .activity-message summary { font-size: 10px; }
   .activity-message small { font-size: 8px; }
   .composer { padding: 11px 10px 10px; }
@@ -413,3 +413,5 @@ kbd { font-family: inherit; }
 .open-questions-empty { margin: 0; font-size: 11px; line-height: 1.7; color: var(--muted); }
 .has-questions .open-questions-empty { padding: 10px 12px; border: 1px solid #ffc16c40; border-radius: 7px; color: #ead7b7; background: #ffc16c09; }
 .question-card { scroll-margin-top: 16px; }
+
+.request-recovery .button { align-self: flex-start; }

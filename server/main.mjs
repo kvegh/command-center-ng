@@ -116,7 +116,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           if (request.method === 'GET') return json(response, await workspace.taskCatalog(id));
           if (request.method === 'POST') return json(response, await workspace.linkTasks(id, (await body(request)).ids));
         }
-        const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|interrupt|history|answer|review|fork|parent|summary|return)$/);
+        const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|interrupt|history|answer|review|requests|fork|parent|summary|return)$/);
         if (match && request.method === 'POST') {
           const [, encoded, action] = match; const id = decodeURIComponent(encoded); const data = await body(request);
           if (action === 'open') await workspace.open(id);
@@ -124,6 +124,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           if (action === 'message') await workspace.send(id, data.text);
           if (action === 'interrupt') await workspace.interrupt(id);
           if (action === 'history') await workspace.history(id, data.cursor);
+          if (action === 'requests') return json(response, await workspace.recoverRequests(id));
           if (action === 'answer') await workspace.answer(id, data.requestId, data);
           if (action === 'review') {
             if (!workspace.coordinator || workspace.coordinator.paused) throw failure('Resume the coordinator before requesting a review.', 409);

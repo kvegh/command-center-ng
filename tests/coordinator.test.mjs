@@ -8,14 +8,14 @@ import { Workspace } from '../server/workspace.mjs';
 import { COORDINATOR_TOOLS } from '../server/coordinator.mjs';
 
 class Rpc extends EventEmitter {
-  constructor(cwd) { super(); this.ready = true; this.cwd = cwd; this.calls = []; this.replies = []; this.threads = new Map(); this.sequence = 0; this.turn = 0; this.requests = new Map(); }
+  constructor(cwd) { super(); this.ready = true; this.cwd = cwd; this.calls = []; this.replies = []; this.threads = new Map(); this.sequence = 0; this.turn = 0; this.requests = new Map(); this.replayOnResume = new Map(); }
   thread(id) { return { id, cwd: this.cwd, name: id, preview: 'Create and clean up disposable test resources. Keep production unchanged.', status: { type: 'idle' }, canAcceptDirectInput: true }; }
   async call(method, params) {
     this.calls.push({ method, params });
     if (method === 'config/read') return { config: { mcp_servers: { fixture: { enabled: true } } } };
     if (method === 'thread/start') { const thread = { ...this.thread('coordinator-' + ++this.sequence), threadSource: params.threadSource }; this.threads.set(thread.id, thread); return { thread, sandbox: { type: 'readOnly' } }; }
     if (method === 'thread/name/set') { this.threads.get(params.threadId).name = params.name; return {}; }
-    if (method === 'thread/read' || method === 'thread/resume') { if (!this.threads.has(params.threadId)) this.threads.set(params.threadId, this.thread(params.threadId)); return { thread: this.threads.get(params.threadId), instructionSources: [] }; }
+    if (method === 'thread/read' || method === 'thread/resume') { if (!this.threads.has(params.threadId)) this.threads.set(params.threadId, this.thread(params.threadId)); if (method === 'thread/resume') for (const request of this.replayOnResume.get(params.threadId) || []) this.emit('request', request); return { thread: this.threads.get(params.threadId), instructionSources: [], sandbox: { type: 'readOnly' } }; }
     if (method === 'thread/turns/list') return { data: [{ id: 'base-' + params.threadId, status: 'completed', items: [{ type: 'userMessage', id: 'user-' + params.threadId, content: [{ type: 'text', text: this.thread(params.threadId).preview }] }, { type: 'agentMessage', id: 'reply-' + params.threadId, text: 'Ready.' }] }], nextCursor: null };
     if (method === 'turn/start') { const id = 'turn-' + ++this.turn; queueMicrotask(() => { this.emit('notification', { method: 'turn/started', params: { threadId: params.threadId, turn: { id } } }); this.emit('notification', { method: 'item/completed', params: { threadId: params.threadId, turnId: id, item: { id: 'input-' + id, type: 'userMessage', content: params.input } } }); }); return { turn: { id } }; }
     if (method === 'turn/interrupt') { this.complete(params.threadId, params.turnId); return {}; }
@@ -52,6 +52,20 @@ test('coordinator starts separately with reduced capabilities and preserves four
     assert.throws(() => f.workspace.close(f.coordinator.id), /Pause the coordinator/);
     f.workspace.close('fourth'); await f.workspace.open('fifth'); assert.equal(f.workspace.agents.size, 5);
     await assert.rejects(f.workspace.fork(f.coordinator.id), /Branch a worker/);
+  } finally { await f.close(); }
+});
+
+test('loading a missing coordinator request retains its read-only restrictions and sends no decision', async () => {
+  const f = await fixture();
+  try {
+    f.workspace.agent(f.coordinator.id).thread.status = { type: 'active', activeFlags: ['waitingOnUserInput'] };
+    f.rpc.replayOnResume.set(f.coordinator.id, [{ id: 'coordinator-question', method: 'item/tool/requestUserInput', params: { threadId: f.coordinator.id, questions: [{ id: 'direction', question: 'Choose the next direction.' }] } }]);
+    assert.deepEqual(await f.workspace.recoverRequests(f.coordinator.id), { requests: 1 });
+    const params = f.rpc.calls.findLast(call => call.method === 'thread/resume').params;
+    assert.equal(params.threadId, f.coordinator.id); assert.equal(params.sandbox, 'read-only');
+    assert.equal(params.config['features.shell_tool'], false); assert.equal(params.config['mcp_servers.fixture.enabled'], false);
+    assert.equal(params.model, undefined); assert.equal(params.approvalPolicy, undefined);
+    assert.equal(f.rpc.replies.length, 0); assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
   } finally { await f.close(); }
 });
 

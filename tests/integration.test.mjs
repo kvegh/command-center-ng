@@ -18,7 +18,7 @@ async function waitFor(predicate) {
 async function fixture() {
   const dir = await mkdtemp(join(tmpdir(), 'ccng-protocol-'));
   const socketPath = join(dir, 'codex.sock'); const server = http.createServer(); const wss = new WebSocketServer({ server });
-  const calls = []; const replies = []; const threads = new Map(); const histories = new Map(); const failures = new Map(); const summary = { text: 'Use the smaller option. Verification passed; no open questions.', status: 'completed' }; let sequence = 0; let turnSequence = 0; let connection;
+  const calls = []; const replies = []; const threads = new Map(); const histories = new Map(); const failures = new Map(); const resumeRequests = new Map(); const summary = { text: 'Use the smaller option. Verification passed; no open questions.', status: 'completed' }; let sequence = 0; let turnSequence = 0; let connection;
   const thread = (id, status = 'idle') => ({ id, name: `Agent ${id}`, preview: 'Build a useful feature', cwd: dir, status: { type: status, activeFlags: [] }, canAcceptDirectInput: true, turns: [], model: 'configured-model' });
   threads.set('existing', thread('existing', 'active'));
   const notify = (method, params) => connection.send(JSON.stringify({ method, params }));
@@ -32,7 +32,11 @@ async function fixture() {
     switch (message.method) {
       case 'initialize': result = { userAgent: 'fixture' }; break;
       case 'thread/list': result = { data: [...threads.values()], nextCursor: null }; break;
-      case 'thread/resume': case 'thread/read': result = { thread: threads.get(p.threadId) }; break;
+      case 'thread/read': result = { thread: threads.get(p.threadId) }; break;
+      case 'thread/resume': {
+        for (const request of resumeRequests.get(p.threadId) || []) ws.send(JSON.stringify(request));
+        result = { thread: threads.get(p.threadId) }; break;
+      }
       case 'thread/turns/list': result = { data: histories.get(p.threadId) || [{ id: 'turn-' + p.threadId, status: threads.get(p.threadId).status.type === 'active' ? 'inProgress' : 'completed', items: [{ id: 'message-' + p.threadId, type: 'agentMessage', text: 'Ready to work.' }] }], nextCursor: null }; break;
       case 'thread/start': { const id = 'new-' + (++sequence); threads.set(id, { ...thread(id), cwd: p.cwd }); result = { thread: threads.get(id) }; break; }
       case 'thread/fork': {
@@ -62,7 +66,7 @@ async function fixture() {
   }); });
   await new Promise(resolve => server.listen(socketPath, resolve));
   const rpc = new CodexRpc({ socketPath, timeout: 2000 }); await rpc.connect(); const workspace = new Workspace(rpc, { beads: null });
-  return { dir, rpc, workspace, calls, replies, threads, histories, failures, summary, notify, ask, request: message => connection.send(JSON.stringify(message)), close: async () => { rpc.close(); for (const client of wss.clients) client.terminate(); await new Promise(resolve => wss.close(resolve)); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); } };
+  return { dir, rpc, workspace, calls, replies, threads, histories, failures, resumeRequests, summary, notify, ask, request: message => connection.send(JSON.stringify(message)), close: async () => { rpc.close(); for (const client of wss.clients) client.terminate(); await new Promise(resolve => wss.close(resolve)); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); } };
 }
 
 test('the worker picker excludes named and renamed coordinator conversations', async () => {
@@ -268,6 +272,90 @@ test('five simultaneous creates start only four agents; closing a tab never inte
   } finally { await f.close(); }
 });
 
+test('an approval delivered before the resume response stays visible without being answered', async () => {
+  const f = await fixture();
+  try {
+    const request = { id: 'opening-approval', method: 'item/commandExecution/requestApproval', params: { threadId: 'existing', turnId: 'turn-existing', itemId: 'fixture-command', reason: 'Synthetic approval during resume', command: 'fixture-command', availableDecisions: ['accept', 'decline'] } };
+    f.resumeRequests.set('existing', [request]);
+    await f.workspace.open('existing');
+    assert.equal(f.workspace.agent('existing').questions.length, 1);
+    assert.equal(f.workspace.agent('existing').questions[0].id, request.id);
+    assert.equal(f.workspace.snapshot().agents[0].status, 'attention');
+    assert.equal(f.replies.length, 0);
+    assert.equal(f.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false);
+  } finally { await f.close(); }
+});
+
+test('request recovery rejoins only the selected waiting worker and preserves the native request ID', async () => {
+  const f = await fixture();
+  try {
+    f.threads.get('existing').status.activeFlags = ['waitingOnApproval'];
+    f.threads.set('other', { ...f.threads.get('existing'), id: 'other', status: { type: 'idle' } });
+    await f.workspace.open('existing', { observeOnly: true }); await f.workspace.open('other', { observeOnly: true });
+    f.resumeRequests.set('existing', [{ id: 71, method: 'item/commandExecution/requestApproval', params: { threadId: 'existing', turnId: 'turn-existing', itemId: 'fixture-command', command: 'fixture-command' } }]);
+    const results = await Promise.all([f.workspace.recoverRequests('existing'), f.workspace.recoverRequests('existing')]);
+    assert.deepEqual(results, [{ requests: 1 }, { requests: 1 }]);
+    assert.equal(f.workspace.agent('existing').questions[0].id, 71);
+    assert.equal(f.workspace.agent('other').questions.length, 0);
+    const resumes = f.calls.filter(call => call.method === 'thread/resume');
+    assert.deepEqual(resumes.map(call => call.params), [{ threadId: 'existing', excludeTurns: true }]);
+    assert.equal(f.replies.length, 0);
+    assert.equal(f.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false);
+  } finally { await f.close(); }
+});
+
+test('request recovery accepts native replay after the resume response', async () => {
+  const f = await fixture();
+  try {
+    f.threads.get('existing').status.activeFlags = ['waitingOnApproval'];
+    await f.workspace.open('existing', { observeOnly: true });
+    const recovery = f.workspace.recoverRequests('existing');
+    await waitFor(() => !f.workspace.agent('existing').observingOnly);
+    f.request({ id: 'late-approval', method: 'item/fileChange/requestApproval', params: { threadId: 'existing', turnId: 'turn-existing', itemId: 'fixture-file-change' } });
+    assert.deepEqual(await recovery, { requests: 1 });
+    assert.equal(f.workspace.agent('existing').questions[0].id, 'late-approval');
+    assert.equal(f.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('missing request details block chat sends instead of replacing or steering the waiting turn', async () => {
+  const f = await fixture();
+  try {
+    f.threads.get('existing').status.activeFlags = ['waitingOnApproval'];
+    await f.workspace.open('existing', { observeOnly: true });
+    await assert.rejects(f.workspace.send('existing', 'Continue'), /pending request/i);
+    assert.ok(f.calls.every(call => ['initialize', 'thread/read', 'thread/turns/list'].includes(call.method)));
+  } finally { await f.close(); }
+});
+
+test('request recovery refreshes an already cleared wait without resuming an unloaded worker', async () => {
+  const f = await fixture();
+  try {
+    await f.workspace.open('existing', { observeOnly: true });
+    f.workspace.agent('existing').thread = { ...f.workspace.agent('existing').thread, status: { type: 'active', activeFlags: ['waitingOnApproval'] } };
+    f.threads.get('existing').status = { type: 'notLoaded' };
+    assert.deepEqual(await f.workspace.recoverRequests('existing'), { requests: 0 });
+    assert.equal(f.workspace.agent('existing').thread.status.type, 'notLoaded');
+    assert.equal(f.calls.some(call => call.method === 'thread/resume'), false);
+  } finally { await f.close(); }
+});
+
+test('a request that cannot be replayed keeps its attention state and a scoped recovery error', async () => {
+  const f = await fixture(); f.workspace.recoveryTimeout = 25;
+  try {
+    f.threads.get('existing').status.activeFlags = ['waitingOnApproval'];
+    await f.workspace.open('existing', { observeOnly: true });
+    f.threads.set('other', { ...f.threads.get('existing'), id: 'other', status: { type: 'idle' } });
+    await f.workspace.open('other', { observeOnly: true });
+    await assert.rejects(f.workspace.recoverRequests('existing'), /did not resend/i);
+    assert.match(f.workspace.agent('existing').requestError, /did not resend/i);
+    assert.equal(f.workspace.agent('other').requestError, undefined);
+    assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'existing').status, 'attention');
+    assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'existing').recoveringRequests, false);
+    assert.equal(f.replies.length, 0);
+  } finally { await f.close(); }
+});
+
 test('questions change status, require explicit answers, and reject stale request ids', async () => {
   const f = await fixture();
   try {
@@ -381,7 +469,7 @@ test('password stays hashed/private; HTTP login protects controls, rejects cross
     assert.equal((await request('/api/coordinator', {})).status, 401);
     assert.equal((await request('/api/agents/existing/tasks')).status, 401);
     assert.equal((await request('/api/agents/existing/tasks', { ids: [] })).status, 401);
-    for (const action of ['fork', 'parent', 'summary', 'return', 'answer', 'review']) assert.equal((await request('/api/agents/existing/' + action, {})).status, 401);
+    for (const action of ['fork', 'parent', 'summary', 'return', 'answer', 'review', 'requests']) assert.equal((await request('/api/agents/existing/' + action, {})).status, 401);
     assert.equal((await request('/api/login', { password }, undefined, 'https://unrelated.example')).status, 403);
     const login = await request('/api/login', { password }); assert.equal(login.status, 200);
     const cookie = login.headers.get('set-cookie'); assert.match(cookie, /HttpOnly/); assert.match(cookie, /SameSite=Strict/);

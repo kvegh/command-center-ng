@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.8.1 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.9.0 (in development)** includes the Codex workspace and Linux installer. It supports
 four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -173,8 +173,19 @@ coordinator. A request containing several questions lists each one. Click an ite
 to scroll to its existing answer card and focus the first available control.
 Coordinator requests for your decision and failed/unconfirmed answers remain
 visible until native resolution confirms they are answered. No question is
-answered or dismissed by opening it. Requests owned by another client show a
-clear notice directing you there. With no pending request, the panel says so.
+answered or dismissed by opening it. With no pending request, the panel says so.
+
+If Codex reports a pending request but its details are missing, choose **Load
+pending request** in the conversation. This explicitly rejoins that selected,
+already-active conversation and retrieves native requests with their original
+IDs. Loading submits no decision, starts no worker turn and does not change
+worker permissions. Ordinary chat sends wait until the request is available or
+resolved. A failed load keeps the waiting state and shows a retryable error in
+that conversation. Existing coordinator review behavior still applies; pause the
+coordinator when you want all reviews to remain manual.
+
+An attention flag without a local answer card does not identify another client
+as the owner. The sidebar reports missing details instead of making that claim.
 
 This list follows native pending requests; unanswered questions written only in
 ordinary chat prose are not inferred. Coordinator tracking of those questions
@@ -264,9 +275,9 @@ user instruction; coordinator-generated messages cannot authorize actions. This
 is model-based judgment, not containment of arbitrary scripts. Native permissions
 stay in force. Pause the coordinator to keep all reviews manual.
 
-Requests
-owned by another client, broader filesystem/network grants, and connector forms
-can require the native Codex client. App passwords use salted scrypt hashes in
+Some authentication forms, broader filesystem/network grants, and connector forms
+can require native Codex controls. Native request replay preserves those limits.
+App passwords use salted scrypt hashes in
 private home configuration; sessions use HttpOnly/SameSite cookies. Set an HTTPS
 public origin for Secure cookies behind nginx. No hypervisor, nginx, firewall,
 TLS, or VM changes are performed by this application.
@@ -323,6 +334,14 @@ and use of an explicitly selected directory. These checks address two identified
 entry points for session confusion; they do not establish every cause of the
 earlier mixed agent behavior. Existing chats keep their histories and directories.
 Interactive browser validation remains pending.
+
+Version 0.9.0 passed all 75 checks and the production build. Six new regressions
+failed before the fix. Coverage includes requests arriving during resume, late
+native replay, exact IDs, per-conversation loading/errors, coordinator restrictions,
+read-only restoration and blocking sends while request details are missing.
+Matching Codex 0.166.0 source confirms pending-request replay on native rejoin.
+The user's live waiting request was inspected without submitting an answer;
+live recovery and browser rendering still require verification in the installation.
 
 ## Public source policy
 

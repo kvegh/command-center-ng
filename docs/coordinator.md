@@ -78,6 +78,14 @@ remote API call or enforce AAP resource boundaries. Restricted execution account
 or checked API operations remain possible future controls, requiring direction.
 No new AAP credential, wrapper, permission policy or service is deployed here.
 
+In 0.9.0, **Load pending request** can retrieve missing requests for a selected
+active worker or the coordinator. Loading itself sends no decision; recovered
+worker approvals remain subject to the existing coordinator review policy and
+manual controls. Pause the coordinator to keep all reviews manual. A coordinator
+rejoin reapplies its existing restrictions, and native read-only confirmation is
+still required. Missing request details are not treated as proof of another
+client's ownership.
+
 ## Coordinator restrictions and limits
 
 Version 0.8.0 keeps coordinator conversations out of the worker picker and

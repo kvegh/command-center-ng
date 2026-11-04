@@ -39,9 +39,18 @@ are reapplied and checked before activation. Its paused state survives restart.
 Closing a tab saves its removal without interrupting or deleting the native
 conversation. A failed individual restore leaves other tabs usable and retains
 the unavailable ID for retry through Reconnect. No pending approval answer,
-review token, queued summary or report is persisted or replayed. Requests owned
-by another native client still require that client's controls when they are
-not available to this connection.
+review token, queued summary or report is persisted or replayed.
+
+Version 0.9.0 adds explicit **Load pending request** when a restored active
+conversation reports attention without request details. It reads current status
+and rejoins only the selected already-active conversation so Codex can replay
+its pending requests. Startup still uses native reads; an unloaded worker is not
+resumed to look for a request. Native IDs and normal answer confirmation are
+preserved. This retrieves request details rather than replaying stored answers.
+It starts no worker turn and adds no worker model/permission override. Native
+user-verification requests that Codex excludes from replay remain subject to
+their native controls. A failed load keeps an explicit error and the waiting
+state; missing details alone do not establish ownership by another client.
 
 ## Browser state and limits
 
