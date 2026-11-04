@@ -105,6 +105,39 @@ rejoin reapplies its existing restrictions, and native read-only confirmation is
 still required. Missing request details are not treated as proof of another
 client's ownership.
 
+## Multiple pending requests
+
+Version 0.12.0 makes the complete delivered request list explicit in both
+`ccng_list_workers` and `ccng_read_worker`. `requestSummary` reports the total
+request records, command/file approvals, clarification request records and their
+individual questions, other native requests, unreviewed approvals, answers
+awaiting native confirmation and requests needing the user. The existing
+`questions` array retains every request's original ID, full received parameters,
+independent current review token, review/confirmation state and any answer error.
+One request containing three clarification prompts is not three approval requests.
+
+The coordinator is instructed to inspect the entire list, review each eligible
+command/file approval separately, and refresh before finishing. Each successful
+review or referral to the user returns the current remaining list and counts,
+including requests that arrived while another answer was being confirmed.
+Referring one request to the user leaves it open while other eligible approvals
+can be reviewed. The one-message/report limit does not limit independent reviews.
+
+After a resolution or referral, remaining unreviewed approvals keep the existing
+event scheduler marked. Once only manual questions, existing referrals or answer
+errors remain, they do not schedule repeated automatic reviews. An answer error
+stays visible for user review; it is not automatically submitted again. No bulk
+approval operation or extra service/store has been added.
+
+Every action still requires its own current token and actual user authority.
+Clarification questions, broad permissions, inaccessible source and uncertain
+scope stay with the user. Missing paths/diff cannot be inferred from a file-count
+activity label. Counts describe requests whose details reached this client; they
+do not prove the total of unreplayed native requests or another client's ownership.
+This change does not add automatic native rejoins or widen request recovery.
+Guidance is included in new/restored instructions and event reminders, so it also
+reaches existing coordinators after an app update without tool-schema replacement.
+
 ## Coordinator restrictions and limits
 
 Version 0.8.0 keeps coordinator conversations out of the worker picker and

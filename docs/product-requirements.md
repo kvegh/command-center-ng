@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.11.1
+## Current development version: 0.12.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -235,3 +235,12 @@ Task IDs are optional supporting references rather than user-facing explanations
 Routine idle/closed-record/no-approval bookkeeping is omitted unless relevant.
 The same guidance reaches initial/restored coordinator instructions, event
 reminders and worker report requests without replacing the coordinator.
+
+Version 0.12.0 exposes all delivered simultaneous worker requests and explicit
+counts to the coordinator. A single clarification request may contain several
+questions; those counts stay distinct. Each review returns current remaining
+requests, and unreviewed approvals remain scheduled after another request is
+resolved or referred to the user. Requests keep independent IDs/tokens, native
+confirmation and exact authority checks; one manual decision does not block
+review of unrelated requests. Counts cannot establish an authoritative total
+of native requests whose details have not reached this client.

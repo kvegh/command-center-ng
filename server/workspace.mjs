@@ -404,7 +404,7 @@ export class Workspace extends EventEmitter {
     this.pending.delete(key);
     const agent = this.agents.get(threadId); if (agent) agent.questions = agent.questions.filter(q => q.id !== id);
     this.answerJobs.get(key)?.finish();
-    if (agent) void this.coordinator?.flush(threadId);
+    if (agent) { this.coordinator?.markRemainingApprovals(threadId); void this.coordinator?.flush(threadId); }
   }
   notification({ method, params: p = {} }) {
     if (method === 'serverRequest/resolved') { this.removeQuestion(p.threadId, p.requestId); this.changed(); return; }

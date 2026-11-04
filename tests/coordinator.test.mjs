@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Workspace } from '../server/workspace.mjs';
 import { COORDINATOR_TOOLS } from '../server/coordinator.mjs';
-import { COORDINATOR_RECAP_GUIDANCE } from '../server/coordinator-prompt.mjs';
+import { COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE } from '../server/coordinator-prompt.mjs';
 
 class Rpc extends EventEmitter {
   constructor(cwd) { super(); this.ready = true; this.cwd = cwd; this.calls = []; this.replies = []; this.threads = new Map(); this.sequence = 0; this.turn = 0; this.requests = new Map(); this.replayOnResume = new Map(); }
@@ -56,22 +56,22 @@ test('coordinator starts separately with reduced capabilities and preserves four
   } finally { await f.close(); }
 });
 
-test('recap guidance reaches new and restored coordinators and event turns without replacing the coordinator', async () => {
+test('recap and multi-request guidance reach new and restored coordinators and event turns without replacement', async () => {
   const f = await fixture();
   try {
     const id = f.coordinator.id;
     const started = f.rpc.calls.find(call => call.method === 'thread/start').params;
-    assert.ok(started.developerInstructions.includes(COORDINATOR_RECAP_GUIDANCE));
+    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE]) assert.ok(started.developerInstructions.includes(guidance));
     const agent = f.workspace.agent(id);
     agent.turnId = null; agent.thread.status = { type: 'idle' }; agent.observingOnly = true;
     await f.coordinator.pump();
     const resumed = f.rpc.calls.findLast(call => call.method === 'thread/resume').params;
     assert.equal(resumed.threadId, id);
-    assert.ok(resumed.developerInstructions.includes(COORDINATOR_RECAP_GUIDANCE));
+    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE]) assert.ok(resumed.developerInstructions.includes(guidance));
     assert.equal(resumed.sandbox, 'read-only');
     const event = f.rpc.calls.findLast(call => call.method === 'turn/start');
     assert.equal(event.params.threadId, id);
-    assert.ok(event.params.input[0].text.includes(COORDINATOR_RECAP_GUIDANCE));
+    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE]) assert.ok(event.params.input[0].text.includes(guidance));
     assert.equal(f.rpc.calls.filter(call => call.method === 'thread/start').length, 1);
     assert.equal(f.rpc.replies.length, 0, 'reporting guidance does not answer a request');
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
@@ -141,6 +141,98 @@ test('approval review requires exact user authority and a current request, while
     await assert.rejects(f.call('ccng_review_approval', args), /no longer available/);
     f.rpc.ask('clarify', 'worker', 'item/tool/requestUserInput'); const clarification = f.workspace.agent('worker').questions[0];
     await assert.rejects(f.call('ccng_review_approval', { ...args, reviewToken: clarification.reviewToken }), /cannot answer user preferences/);
+  } finally { await f.close(); }
+});
+
+test('four pending approvals stay visible and one manual review does not hide the other three', async () => {
+  const f = await fixture();
+  try {
+    const ids = [101, '101', 103, 104];
+    ids.forEach((id, index) => f.rpc.ask(id, 'worker', index === 3 ? 'item/fileChange/requestApproval' : 'item/commandExecution/requestApproval'));
+    const row = (await f.call('ccng_list_workers'))[0];
+    const details = await f.call('ccng_read_worker', { agentId: 'worker' });
+    for (const value of [row, details]) {
+      assert.deepEqual(value.questions.map(q => q.id), ids);
+      assert.equal(value.requestSummary.totalRequests, 4);
+      assert.equal(value.requestSummary.commandApprovals, 3);
+      assert.equal(value.requestSummary.fileApprovals, 1);
+      assert.equal(value.requestSummary.unreviewedApprovals, 4);
+      assert.equal(new Set(value.questions.map(q => q.reviewToken)).size, 4);
+    }
+    f.coordinator.dirty.clear();
+    const manual = await f.call('ccng_review_approval', { agentId: 'worker', reviewToken: row.questions[0].reviewToken, decision: 'ask', rationale: 'The exact source could not be inspected.', authorizationMessageId: null, authorizationQuote: null });
+    assert.equal(manual.outcome, 'needs_user');
+    assert.equal(manual.requestSummary.totalRequests, 4);
+    assert.equal(manual.requestSummary.unreviewedApprovals, 3);
+    assert.equal(manual.requestSummary.needsUserRequests, 1);
+    assert.deepEqual(manual.questions.map(q => q.id), ids);
+    assert.equal(f.rpc.replies.length, 0);
+    assert.ok(f.coordinator.dirty.has('worker'), 'other approvals must remain scheduled after asking about one');
+    for (let index = 1; index < ids.length; index++) {
+      f.coordinator.dirty.clear();
+      const token = row.questions[index].reviewToken;
+      const result = await f.call('ccng_review_approval', { agentId: 'worker', reviewToken: token, decision: 'approve', rationale: 'This exact disposable test action is within the user scope.', authorizationMessageId: 'user-worker', authorizationQuote: 'Create and clean up disposable test resources.' });
+      assert.equal(result.outcome, 'resolved');
+      assert.equal(result.requestSummary.totalRequests, 4 - index);
+      assert.equal(result.requestSummary.unreviewedApprovals, 3 - index);
+      assert.deepEqual(result.questions.map(q => q.id), [ids[0], ...ids.slice(index + 1)]);
+      assert.equal(f.coordinator.dirty.has('worker'), index < 3, 'only unreviewed approvals need another wake-up');
+      await assert.rejects(f.call('ccng_review_approval', { agentId: 'worker', reviewToken: token, decision: 'approve', rationale: 'Do not approve a resolved token twice.' }), /no longer available/);
+    }
+    assert.deepEqual(f.rpc.replies.map(reply => reply.id), ids.slice(1));
+    assert.deepEqual(f.workspace.agent('worker').questions.map(q => q.id), [ids[0]]);
+    assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'worker').status, 'attention');
+  } finally { await f.close(); }
+});
+
+test('coordinator counts clarification prompts separately and never answers them while reviewing approvals', async () => {
+  const f = await fixture();
+  try {
+    f.rpc.ask('approval', 'worker');
+    const clarification = { threadId: 'worker', turnId: 'work-turn', questions: [
+      { id: 'first', question: 'Choose the first preference.' },
+      { id: 'second', question: 'Choose the second preference.' },
+      { id: 'third', question: 'Choose the third preference.' }
+    ] };
+    f.rpc.requests.set('preferences', clarification);
+    f.rpc.emit('request', { id: 'preferences', method: 'item/tool/requestUserInput', params: clarification });
+    const row = (await f.call('ccng_list_workers'))[0];
+    assert.equal(row.requestSummary.totalRequests, 2);
+    assert.equal(row.requestSummary.clarificationRequests, 1);
+    assert.equal(row.requestSummary.clarificationQuestions, 3);
+    const result = await f.call('ccng_review_approval', { agentId: 'worker', reviewToken: row.questions[0].reviewToken, decision: 'approve', rationale: 'Only the exact authorized command is being approved.', authorizationMessageId: 'user-worker', authorizationQuote: 'Create and clean up disposable test resources.' });
+    assert.equal(result.requestSummary.totalRequests, 1);
+    assert.equal(result.requestSummary.unreviewedApprovals, 0);
+    assert.equal(result.requestSummary.clarificationQuestions, 3);
+    assert.deepEqual(result.questions[0].params.questions, clarification.questions);
+    assert.deepEqual(f.rpc.replies.map(reply => reply.id), ['approval']);
+    await assert.rejects(f.call('ccng_review_approval', { agentId: 'worker', reviewToken: result.questions[0].reviewToken, decision: 'approve', rationale: 'Preferences stay with the user.' }), /cannot answer user preferences/);
+  } finally { await f.close(); }
+});
+
+test('a new approval arriving during confirmation appears in the remaining list with its own token', async () => {
+  const f = await fixture();
+  try {
+    f.rpc.ask('initial', 'worker');
+    const token = f.workspace.agent('worker').questions[0].reviewToken;
+    const respond = f.rpc.respond.bind(f.rpc);
+    f.rpc.respond = (id, result) => {
+      if (id === 'initial') f.rpc.ask('arrived-during-confirmation', 'worker', 'item/fileChange/requestApproval');
+      respond(id, result);
+    };
+    const result = await f.call('ccng_review_approval', { agentId: 'worker', reviewToken: token, decision: 'approve', rationale: 'The exact initial action is authorized.', authorizationMessageId: 'user-worker', authorizationQuote: 'Create and clean up disposable test resources.' });
+    assert.equal(result.requestSummary.totalRequests, 1);
+    assert.equal(result.requestSummary.unreviewedApprovals, 1);
+    assert.equal(result.requestSummary.fileApprovals, 1);
+    assert.equal(result.questions[0].id, 'arrived-during-confirmation');
+    assert.notEqual(result.questions[0].reviewToken, token);
+    assert.deepEqual(f.rpc.replies.map(reply => reply.id), ['initial']);
+    f.coordinator.dirty.clear();
+    f.rpc.ask('next', 'worker'); f.coordinator.dirty.clear();
+    f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: 'worker', requestId: 'arrived-during-confirmation' } });
+    assert.deepEqual(f.workspace.agent('worker').questions.map(q => q.id), ['next']);
+    assert.ok(f.coordinator.dirty.has('worker'), 'external resolution also keeps remaining approvals scheduled');
+    assert.deepEqual(f.rpc.replies.map(reply => reply.id), ['initial'], 'observing native resolution sends no response');
   } finally { await f.close(); }
 });
 

@@ -356,6 +356,30 @@ test('request recovery rejoins only the selected waiting worker and preserves th
   } finally { await f.close(); }
 });
 
+test('all four requests replayed during resume survive duplicate delivery with independent tokens', async () => {
+  const f = await fixture();
+  try {
+    const ids = [51, '51', 52, 53];
+    const requests = ids.map((id, index) => ({ id, method: index === 3 ? 'item/fileChange/requestApproval' : 'item/commandExecution/requestApproval', params: { threadId: 'existing', turnId: 'turn-existing', itemId: `synthetic-item-${index}`, command: `synthetic-command-${index}` } }));
+    f.resumeRequests.set('existing', [...requests, requests[0]]);
+    const agent = await f.workspace.open('existing');
+    assert.deepEqual(agent.questions.map(q => q.id), ids);
+    assert.equal(f.workspace.pending.size, 4);
+    assert.equal(new Set(agent.questions.map(q => q.reviewToken)).size, 4);
+    assert.deepEqual(agent.questions.map(q => q.params), requests.map(q => q.params));
+    const tokens = agent.questions.map(q => q.reviewToken);
+    f.request(requests[0]);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.deepEqual(agent.questions.map(q => q.reviewToken), tokens);
+    f.notify('serverRequest/resolved', { threadId: 'existing', requestId: 51 });
+    await waitFor(() => agent.questions.length === 3);
+    assert.deepEqual(agent.questions.map(q => q.id), ids.slice(1));
+    assert.deepEqual(agent.questions.map(q => q.reviewToken), tokens.slice(1));
+    assert.equal(f.replies.length, 0);
+    assert.equal(f.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false);
+  } finally { await f.close(); }
+});
+
 test('request recovery accepts native replay after the resume response', async () => {
   const f = await fixture();
   try {

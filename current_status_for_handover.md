@@ -5,11 +5,12 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.11.1** in package.json and the lockfile.
-It adds coordinator recap wording to the published 0.11.0 implementation
-`70490b8ffd8a6225ba0d3b831b5f20088b0765ce`. The 0.11.1 implementation is `a75515d093660ab6ac2aafb047b3adc80c674e8d`.
-Check current Git/remote refs for publication state. The earlier 0.9.2 publication failures were cleared by the user's
-explicit retry. Existing SSH configuration, keys and access controls were preserved.
+The authoritative version is **0.12.0** in package.json and the lockfile.
+It adds explicit multiple-request visibility and continued independent review to
+the published 0.11.1 recap wording and 0.11.0 UI/deployment artifacts. See
+current Git/remote refs and design_decisions_history.md for implementation and
+publication state. Earlier SSH publication retries preserved the existing keys
+and access controls.
 The formerly local 0.6.0/0.7.0 checkpoints and the 0.7.1 spacing correction are
 included, alongside the 0.8.0 conversation safeguards. The earlier published baseline was 0.5.0 at
 `c24d84c318fe967993bd3e00552e129e7d32531e`.
@@ -52,6 +53,29 @@ the next automatic event can produce a new recap; old prose is not rewritten.
 No live worker report/model call was used for validation, and no approval policy,
 native daemon or user installation was changed. Model wording still requires
 real use to assess. Deployment and Claude prerequisites remain open separately.
+
+## All delivered requests in coordinator review: 0.12.0
+
+The user reported the coordinator seeing one request while four were open.
+Source inspection and native-protocol fixtures confirm the backend already
+retains simultaneous requests; the coordinator did not reliably inspect/continue
+the full list. Worker reads now expose requestSummary counts alongside every
+request's received parameters and independent token. Counts separate request
+records from nested clarification prompts. Review results return the current
+remaining list, and resolution/referral keeps other unreviewed approvals marked
+for the existing scheduler. An ask leaves that request open without blocking
+independent review of the others. Existing referrals/errors do not create
+automatic repeat reviews. New/restored instructions and events carry this rule.
+No bulk approval, permission change or automatic native rejoin is introduced.
+Native waiting flags still cannot prove the number of unreplayed requests.
+All 90 application tests and build pass; two new regressions failed before the
+fix. Validation used synthetic requests only, not real user approvals.
+
+The user also asked why two dashboard tasks looked blocked despite delivered
+features. Existing records were narrowed to the pending ordinary-chat question
+tracking choice and fresh Beads/Dolt provisioning choice. The wider sidebar,
+structured questions and prerequisite installer remain delivered; no decision
+was inferred from this status question. Ownership/labels/dependencies were kept.
 
 ## Delivered baseline: 0.5.0
 
@@ -309,8 +333,8 @@ but do not infer approval from a default choice or elapsed time.
 | --- | --- |
 | bead-wd-1rl | Broader Command Center project |
 | bead-wd-1rl.23 | Rendered design review; source review done, screenshot pending |
-| bead-wd-1rl.24 | Structured UI changes published; ordinary-chat scope remains pending |
-| bead-wd-1rl.25 | Prerequisite checkpoint published; fresh Beads/Dolt configuration remains pending |
+| bead-wd-1rl.24 | Only ordinary-chat unanswered-question tracking choice remains pending |
+| bead-wd-1rl.25 | Only fresh Beads/Dolt provisioning choice remains pending |
 | bead-wd-1rl.26 | Role and project-directory safeguards published in 0.8.0; semantic/legacy-name limits documented |
 | bead-wd-1rl.27 | Tab/chat gap correction published in 0.7.1 and included in 0.8.0 |
 | bead-wd-1rl.28 | Shared coordinator tab styling/order published in 0.8.1 |
@@ -325,7 +349,8 @@ but do not infer approval from a default choice or elapsed time.
 | bead-wd-1rl.38 | Draft editing during questions implemented in 0.11.0 |
 | bead-wd-1rl.39 | Closed: private companion scaffold published; actual setup remains in .40 |
 | bead-wd-1rl.40 | Actual AAP/VM rollout pending the user-selected Vault credential |
-| bead-wd-1rl.41 | Coordinator recap wording corrected in 0.11.1; consult Git for publication |
+| bead-wd-1rl.41 | Closed: coordinator recap wording published in 0.11.1 |
+| bead-wd-1rl.42 | Multiple-request visibility and independent review in 0.12.0; consult Git for publication |
 | bead-wd-ywg | Existing shared Dolt restart and successful reads verified |
 | bead-wd-9so | Closed: generated Beads no-remote Git rule investigated and corrected |
 

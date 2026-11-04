@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.11.1 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.12.0 (in development)** includes the Codex workspace and Linux installer. It supports
 four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -94,6 +94,12 @@ lists and routine idle/no-approval notices are omitted unless relevant to your
 question. Sidebar fields and worker report requests use the same guidance.
 Existing coordinators receive a style reminder during their next automatic or
 Summarize now event after updating; no new coordinator conversation is needed.
+Version 0.12.0 makes multiple simultaneous requests explicit: coordinator reads
+include the complete delivered request list and separate counts for command/file
+approvals and clarification questions. Each review returns the current remaining
+list. A request needing your decision stays visible while other eligible requests
+can be reviewed independently; remaining unreviewed approvals keep an event
+scheduled. Every approval still needs its own current token and user authority.
 Messages wait until workers are idle. See [coordinator behavior and limits](docs/coordinator.md)
 and the [original discussion summary](docs/supervisor-design-discussion.md).
 
@@ -429,6 +435,12 @@ Version 0.11.1 passes all 86 application tests and the production build.
 A protocol fixture verifies recap guidance reaches fresh/restored coordinator
 instructions and event turns while preserving identity and request controls.
 No live model response or existing worker report was generated for validation.
+
+Version 0.12.0 passes all 90 application tests and the production build. Two
+new coordinator regressions failed before the fix. Native-protocol fixtures also
+verify four replayed requests, duplicate handling, independent tokens, mixed
+numeric/string IDs and arrivals during confirmation. These are synthetic tests;
+no real user approval, worker interruption or model call was used for validation.
 
 ## Public source policy
 

@@ -195,3 +195,12 @@ unless relevant. Keep this guidance in new/restored instructions, event reminder
 and worker report requests, preserving coordinator identity, review protections
 and limits on messages/reports. Do not rewrite model output using guessed task
 semantics or start a live worker report merely to test reporting instructions.
+
+Expose every delivered pending request to the coordinator with explicit counts,
+distinguishing request records from nested clarification questions. Each review
+returns the current remaining list and preserves exact IDs/tokens and native
+confirmation. Continue reviewing other eligible approvals after a referral;
+existing unreviewed approvals remain scheduled after resolution/referral. Manual
+questions, unchanged ask decisions and answer errors must not cause automatic
+review/retry loops. Keep the one-message/report limit distinct from independent
+reviews, and never add bulk approval or infer missing action/ownership details.
