@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.8.0 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.8.1 (in development)** includes the Codex workspace and Linux installer. It supports
 four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -63,10 +63,11 @@ Coordinator conversations are excluded from the worker picker, and opening or
 restoring a conversation checks its role before any native resume call.
 
 The coordinator starts automatically when a worker is opened and has its own
-right-aligned violet chat tab outside the workers' scrolling strip. Worker tabs
-stay left; the more prominent cyan Add agent button sits immediately before
-the coordinator in a shared right-hand group. The coordinator uses a rounded full border and
-overview icon, while keeping running/attention indicators. It reads worker history and Beads, publishes progress
+chat tab outside the workers' scrolling strip. Worker tabs stay left; the
+coordinator sits immediately before the prominent cyan Add agent button in their
+shared right-hand group. Version 0.8.1 gives it the same tab shape, height,
+typography and state styling as worker tabs, retaining its overview icon and
+running/attention indicators. It reads worker history and Beads, publishes progress
 recaps, requests reports, sends attributed summaries into worker conversations
 and reviews pending command/file approvals against actual user-authorized scope.
 It can approve permitted resource changes, including cleanup; uncertain authority

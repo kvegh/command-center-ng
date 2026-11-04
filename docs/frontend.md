@@ -131,3 +131,16 @@ existing acknowledged-resolution behavior. Ordinary prose questions are not
 inferred. There is no new storage, model call or approval authority. Branch chat
 moves from the goal sidebar to the chat composer, alongside Interrupt and Send;
 per-reply Branch here remains. Composer controls wrap on narrow screens.
+
+## Coordinator tab revision: 0.8.1
+
+The user requested that the coordinator match the worker tabs and swap places
+with Add agent. The order is now worker tabs, coordinator, Add agent, then status
+and rightmost branding. The coordinator remains outside the workers' scrolling
+and reordering strip, with its own icon, identity and chat.
+
+It inherits the same tab border shape, height, text and active/running/attention
+states as workers. The separate violet full-border pill treatment is removed.
+Startup/retry also uses the shared tab markup, and the existing compact mobile
+label remains. This supersedes the 0.5.0 visual order/treatment while preserving
+its tab top inset and the gap correction delivered in 0.7.1.

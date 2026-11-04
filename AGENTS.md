@@ -109,10 +109,11 @@ license or accept legal terms on the user's behalf.
 ## Interface
 
 Keep workspace branding at the far right of the full-width navigation bar.
-Keep worker tabs on the left. Group the prominent cyan Add agent button and
-coordinator together on the right, with the coordinator immediately after Add
-agent and outside the workers' scrolling strip. Keep its distinct violet
-rounded treatment and overview icon. Preserve the eight-pixel top inset and
+Keep worker tabs on the left. Group the coordinator and prominent cyan Add agent
+button together on the right, with the coordinator immediately before Add agent
+and outside the workers' scrolling strip. Use the same tab shape, height,
+typography and state styling as worker tabs, retaining its overview icon and
+separate coordinator identity. Preserve the eight-pixel top inset and
 approximately 34-pixel worker tabs. The visible wordmark is command center NG. Preserve its running/attention indicators
 and compact mobile presentation.
 Favor simple navigation, readable type, consistent spacing, clear status labels,

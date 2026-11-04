@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.8.0
+## Current development version: 0.8.1
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -168,6 +168,10 @@ coordinator conversations from worker selection and verifies native roles before
 opening or restoring them. New coordinators carry a native source marker that
 survives renaming; older coordinators retain their reserved native name. No
 separate role database or automatic rewrite of existing chats is introduced.
+
+Version 0.8.1 applies the user's revised tab treatment: the coordinator uses the
+same tab styling as workers and sits immediately before Add agent. Its identity
+and controls remain separate from worker reordering.
 
 ## Decisions still open
 
