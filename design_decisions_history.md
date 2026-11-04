@@ -350,3 +350,58 @@ reclaiming disposable test capacity. The discussion distinguishes model judgment
 from independently enforced limits and leaves uncertain authority with the user.
 The user subsequently authorized implementation. The discussion document records
 the requested behavior and remaining details; no supervisor exists in 0.3.1.
+
+## 2026-11-04 — Add the native coordinator and tab ordering in 0.4.0
+
+Implementation commit: `962041ced0ae6b4ff420dbeaad94f24367980324`.
+
+The user authorized implementation of the discussion summary, then requested
+dragging tabs into a different order. A native Codex coordinator now starts
+with the first worker. It has its own visually separated chat tab alongside all
+four worker slots. The existing account/model and local service are reused;
+no assistant-team deployment, new provider, dependency or persistence service
+was introduced. The user can chat with it, request summaries, pause/resume it,
+and review recent decisions and deliveries.
+
+Host tools expose watched worker history, bounded project instructions/source,
+Beads records, high-level progress publishing, report requests, summary delivery
+and exact pending command/file approvals. Recaps supplement stored task state
+without changing Beads. Changed evidence and completed work trigger coalesced
+turns; unchanged task polls do not make model calls. Messages wait for idle,
+unblocked workers outside a branch handoff and are attributed to the coordinator.
+Report replies wake the coordinator. Message/report limits and suppression of
+summary acknowledgements prevent repeated reporting loops. Unconfirmed sends
+retain an error and do not retry automatically; queued messages can be cleared.
+
+The approval prompt follows user-authorized project scope rather than treating
+all writes/deletions as forbidden. This covers permitted resource lifecycle,
+including disposable VM recreation and resource reclamation. Native request
+identity, a current token, active coordinator turn and exact real-user-message
+reference are checked before an approve-once response. Generated coordinator
+messages and branch handoffs cannot supply authority. Uncertainty remains with
+the user. Preferences, broad permission grants and connector forms stay manual.
+This is model judgment, not hard containment of arbitrary scripts or AAP effects.
+
+The coordinator's native sandbox is read-only; unrelated shell/apps/plugins,
+MCP, memories, permission-request and multi-agent capabilities are disabled for
+its thread. Startup verifies the sandbox and fails visibly if the restrictions
+cannot be applied. Worker configuration is preserved. The initial live check
+exposed an incorrect MCP override quoting format; the corrected format passed.
+Unusual MCP server names currently fail coordinator startup explicitly.
+
+Desktop drag ordering and left/right buttons plus Alt+Left/Right reorder worker
+tabs while preserving conversation identity, draft/focus behavior and the separate
+coordinator group. Order is local browser memory. Native history remains with
+Codex; workspace restoration and stronger remote-resource enforcement remain
+separate future decisions.
+
+Validation passed: production build, all 36 reported regression checks, staged
+privacy/version/documentation-link review and diff checks. Coordinator fixtures
+cover four workers plus the extra role, scoped tools/source reads, queued delivery,
+actual-user authority, stale requests, uncertain/manual decisions, event coalescing
+and report-loop prevention. Auth/origin checks cover the new controls. A real
+native test verified the read-only sandbox, dynamic tools, context read, published
+recap, actual summary message and worker acknowledgement. Full Linux installer
+validation passed, including fetched updates and failed-build recovery. Owned
+validation conversations were archived. No live AAP/VM changes or existing user
+approval requests were used; browser visual testing remains unperformed.
