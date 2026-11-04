@@ -320,6 +320,7 @@ are a convenience; review the complete staged changes before publishing.
 - [Installation requirements](docs/installation.md)
 - [Workspace restore](docs/workspace-restore.md)
 - [Design decisions and rationale](design_decisions_history.md)
+- [Current development handover](current_status_for_handover.md)
 - [Contributor instructions](AGENTS.md)
 
 Development work is currently tracked in the surrounding workspace's Beads

@@ -525,3 +525,31 @@ added. Interactive desktop/mobile rendering awaits a screenshot. This change is
 committed locally only: the active session received a generated no-remote Git
 instruction, whose source was investigated and corrected for future hook loads.
 No Git network operation was performed for this version.
+
+## 2026-11-04 — Check prerequisites and offer confirmed RHEL 9 setup
+
+Implementation: `818b3cd059325456efe206ee06f61f179d3b4a7f`.
+
+The user requested prerequisite checks and optional installation with sudo after
+approval, plus RHEL 9 documentation and Beads configuration. The local 0.7.0
+checkpoint adds a read-only inventory, Node/npm and system-tool checks, RHEL 9
+RPM offers, and separately confirmed target-local installation of missing
+Beads/Codex CLIs. Existing compatible tools are reused. Deferred Codex sign-in
+keeps installation possible while reporting incomplete agent readiness. Local
+CLI paths are included in the launcher and documented for native daemon startup.
+
+Fresh tracker/Dolt server configuration is deliberately not selected: the user
+has not yet answered the proposed shared-server architecture choice. Existing
+trackers and services remain unchanged. The RHEL 9 guide documents all package
+requirements, embedded/server differences, vendor references, preserved settings
+and the untested status of other distributions. Ordinary-chat question tracking
+also remains an unanswered scope choice from the preceding UI change.
+
+All 63 regressions, production build, shell syntax and privacy/version/diff
+checks passed. Simulated terminal tests verified affirmative, negative and
+noninteractive consent. A staged home installation with existing CLIs passed.
+No actual system package, new CLI, tracker or server was installed. Minimal-RHEL
+bootstrap and rendered browser tests remain unperformed. This checkpoint is
+local and unpublished. The user subsequently requested a Git-tracked handover
+file before continuing in another chat; current_status_for_handover.md records
+the saved work, remaining decisions and validation limits without private data.
