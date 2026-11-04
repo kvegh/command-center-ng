@@ -5,10 +5,10 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative development and published application version is **0.8.0** in
-package.json and the lockfile. Its implementation is `e1e9363`, published over SSH.
+The authoritative development and published application version is **0.8.1** in
+package.json and the lockfile. Its implementation is `1cfc9b8`, published over SSH.
 The formerly local 0.6.0/0.7.0 checkpoints and the 0.7.1 spacing correction are
-included. The earlier published baseline was 0.5.0 at
+included, alongside the 0.8.0 conversation safeguards. The earlier published baseline was 0.5.0 at
 `c24d84c318fe967993bd3e00552e129e7d32531e`.
 The agent did not update or restart the user's installation or native daemon;
 source publication alone does not deploy these changes.
@@ -20,6 +20,7 @@ source publication alone does not deploy these changes.
 | 0.7.0 prerequisite checkpoint | `818b3cd059325456efe206ee06f61f179d3b4a7f` | `70ad201` |
 | 0.7.1 spacing correction | `101f2f6` | `7ea87d4` |
 | 0.8.0 conversation-role/project safeguards | `e1e9363` | Recorded in design_decisions_history.md |
+| 0.8.1 coordinator tab style/order | `1cfc9b8` | Recorded in design_decisions_history.md |
 
 Inspect Git status and history before continuing. Use SSH for authorized Git
 network operations and preserve unrelated edits. Keep numeric versions and
@@ -127,6 +128,17 @@ permission errors; those errors alone do not prove Dolt stopped. Tools confirmed
 working include shell/file edits, Node/npm, Git over SSH, Beads and native Codex
 conversation reads/title updates. No new dependency was installed.
 
+## Coordinator tab revision: 0.8.1
+
+The user explicitly requested the coordinator match worker tabs and move to the
+left of Add agent. It now uses the shared tab shape, height, typography and state
+styling, retaining its own icon/chat and staying outside worker reordering.
+Startup/retry uses shared tab markup as well. Existing compact mobile labels and
+the zero workspace top gap remain. Project contributor rules and current docs
+reflect this newer direction. All 67 existing checks and the production build
+pass; header-order source review passed. Rendered browser review remains pending.
+The agent did not update or restart the running user installation.
+
 ## Decisions still awaiting the user
 
 The two architecture questions were asked again in this session and remain unanswered:
@@ -151,6 +163,7 @@ but do not infer approval from a default choice or elapsed time.
 | bead-wd-1rl.25 | Prerequisite checkpoint published; fresh Beads/Dolt configuration remains pending |
 | bead-wd-1rl.26 | Role and project-directory safeguards published in 0.8.0; semantic/legacy-name limits documented |
 | bead-wd-1rl.27 | Tab/chat gap correction published in 0.7.1 and included in 0.8.0 |
+| bead-wd-1rl.28 | Shared coordinator tab styling/order published in 0.8.1 |
 | bead-wd-ywg | Existing shared Dolt restart and successful reads verified |
 | bead-wd-9so | Closed: generated Beads no-remote Git rule investigated and corrected |
 

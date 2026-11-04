@@ -599,3 +599,23 @@ the native source field used here. Staged and unpublished additions passed
 privacy-pattern and diff checks. Interactive browser checks and proof of all
 earlier semantic mixing remain unperformed. Source publication does not update
 an already running installation.
+
+## 2026-11-04 — Match coordinator and worker tabs in 0.8.1
+
+Implementation: `1cfc9b8`.
+
+The user requested the coordinator use the same kind of tab as workers and sit
+to the left of Add agent, swapping their previous order. The coordinator now
+inherits worker tab shape, height, typography and state styling. Its startup/retry
+control uses shared tab markup too. The coordinator retains its overview icon,
+compact mobile label, separate chat/role and position outside worker reordering.
+The existing tab-bar top inset and zero workspace top gap are retained.
+
+Contributor guidance and current design documentation reflect this explicit
+revision of the older violet-pill/after-Add-agent direction. This is a patch-level
+presentation correction; it changes no native conversation or permission behavior.
+
+Validation: production build, all 67 existing checks, header-order source review,
+version/privacy checks and diff checks passed. No tests were added for a small
+reversible layout correction. No browser is installed, so rendered desktop/mobile
+review remains pending. The running user installation was not updated/restarted.
