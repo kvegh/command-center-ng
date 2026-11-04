@@ -47,6 +47,13 @@ and tradeoffs.
 
 See [product requirements](docs/product-requirements.md) for the agreed behavior.
 
+The requested supervisor would have a visually separate coordinator chat tab
+alongside the 1–4 worker tabs, summarize their progress, send summaries into worker
+chats and review pending approvals within user-authorized project scope. The
+[supervisor discussion summary](docs/supervisor-design-discussion.md) documents
+the requested behavior, proposed approval guidance, VM lifecycle examples and
+unresolved design choices. This supervisor is not implemented or enabled yet.
+
 ## Installation and startup
 
 Prerequisites: Linux, Node.js 22.12+, npm, tar/realpath, Beads (`bd`), and a
