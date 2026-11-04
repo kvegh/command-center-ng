@@ -106,7 +106,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           if (action === 'message') await workspace.send(id, data.text);
           if (action === 'interrupt') await workspace.interrupt(id);
           if (action === 'history') await workspace.history(id, data.cursor);
-          if (action === 'answer') workspace.answer(id, data.requestId, data);
+          if (action === 'answer') await workspace.answer(id, data.requestId, data);
           if (action === 'fork') return json(response, { id: await workspace.fork(id, data.lastTurnId) }, 201);
           if (action === 'parent') return json(response, { id: await workspace.parent(id) });
           if (action === 'summary') return json(response, await workspace.summarize(id));

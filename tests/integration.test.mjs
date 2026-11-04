@@ -62,7 +62,7 @@ async function fixture() {
   }); });
   await new Promise(resolve => server.listen(socketPath, resolve));
   const rpc = new CodexRpc({ socketPath, timeout: 2000 }); await rpc.connect(); const workspace = new Workspace(rpc, { beads: null });
-  return { dir, rpc, workspace, calls, replies, threads, histories, failures, summary, notify, ask, close: async () => { rpc.close(); for (const client of wss.clients) client.terminate(); await new Promise(resolve => wss.close(resolve)); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); } };
+  return { dir, rpc, workspace, calls, replies, threads, histories, failures, summary, notify, ask, request: message => connection.send(JSON.stringify(message)), close: async () => { rpc.close(); for (const client of wss.clients) client.terminate(); await new Promise(resolve => wss.close(resolve)); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); } };
 }
 
 test('branches use native completed-turn context and keep parent navigation separate from summary handoff', async () => {
@@ -230,11 +230,87 @@ test('questions change status, require explicit answers, and reject stale reques
     await waitFor(() => f.workspace.snapshot().agents[0].status === 'attention');
     await assert.rejects(f.workspace.send('existing', 'do something'), /pending question/);
     assert.throws(() => f.workspace.answer('existing', 'question-1', { answers: {} }), /Answer every question/);
-    f.workspace.answer('existing', 'question-1', { answers: { choice: 'Small' } });
+    const answer = f.workspace.answer('existing', 'question-1', { answers: { choice: 'Small' } });
     await waitFor(() => f.replies.length === 1);
     assert.deepEqual(f.replies[0], { id: 'question-1', result: { answers: { choice: { answers: ['Small'] } } } });
+    assert.equal(f.workspace.agent('existing').questions.length, 1, 'sending alone is not resolution');
+    assert.equal(f.workspace.agent('existing').questions[0].responding, true);
+    assert.throws(() => f.workspace.answer('existing', 'question-1', { answers: { choice: 'Large' } }), /awaiting confirmation/);
+    assert.equal(f.replies.length, 1, 'a pending answer is not sent twice');
+    f.notify('serverRequest/resolved', { threadId: 'existing', requestId: 'question-1' });
+    await answer;
+    assert.equal(f.workspace.agent('existing').questions.length, 0);
     assert.throws(() => f.workspace.answer('existing', 'question-1', {}), /already been resolved/);
     assert.equal(statusOf({ status: { type: 'active', activeFlags: ['waitingOnApproval'] } }), 'attention');
+  } finally { await f.close(); }
+});
+
+test('command and file approval decisions await native resolution without broad permission grants', async () => {
+  const f = await fixture();
+  try {
+    await f.workspace.open('existing');
+    for (const [kind, decision] of [['commandExecution', 'accept'], ['fileChange', 'decline']]) {
+      const requestId = 'approval-' + kind;
+      f.request({ id: requestId, method: `item/${kind}/requestApproval`, params: { threadId: 'existing', turnId: 'turn-existing', itemId: 'action-' + kind, reason: 'Synthetic protocol fixture' } });
+      await waitFor(() => f.workspace.agent('existing').questions.length === 1);
+      const answer = f.workspace.answer('existing', requestId, { decision });
+      await waitFor(() => f.replies.some(reply => reply.id === requestId));
+      assert.deepEqual(f.replies.find(reply => reply.id === requestId), { id: requestId, result: { decision } });
+      assert.equal(f.workspace.agent('existing').questions.length, 1);
+      f.notify('serverRequest/resolved', { threadId: 'existing', requestId }); await answer;
+      assert.equal(f.workspace.agent('existing').questions.length, 0);
+    }
+  } finally { await f.close(); }
+});
+
+test('unconfirmed answers stay visible after timeout and late native resolution clears them', async () => {
+  const f = await fixture(); f.workspace.answerTimeout = 35;
+  try {
+    await f.workspace.open('existing'); f.ask('unconfirmed', 'existing');
+    await waitFor(() => f.workspace.agent('existing').questions.length === 1);
+    await assert.rejects(f.workspace.answer('existing', 'unconfirmed', { answers: { choice: 'Small' } }), /did not confirm/);
+    const question = f.workspace.agent('existing').questions[0];
+    assert.equal(question.responding, false); assert.match(question.error, /native session/);
+    assert.equal(f.replies.length, 1); assert.equal(f.workspace.snapshot().agents[0].status, 'attention');
+    f.notify('serverRequest/resolved', { threadId: 'existing', requestId: 'unconfirmed' });
+    await waitFor(() => f.workspace.agent('existing').questions.length === 0);
+  } finally { await f.close(); }
+});
+
+test('native resolution is scoped to the conversation and preserves numeric versus string request ids', async () => {
+  const f = await fixture();
+  try {
+    f.threads.set('other', { ...f.threads.get('existing'), id: 'other', status: { type: 'idle' } });
+    await f.workspace.open('existing'); await f.workspace.open('other');
+    f.ask(7, 'existing'); f.ask('7', 'existing'); f.ask(7, 'other');
+    await waitFor(() => f.workspace.pending.size === 3);
+    f.notify('serverRequest/resolved', { threadId: 'unrelated', requestId: 7 });
+    f.notify('serverRequest/resolved', { requestId: 7 });
+    f.notify('serverRequest/resolved', { threadId: 'existing', requestId: 7 });
+    await waitFor(() => f.workspace.pending.size === 2);
+    assert.deepEqual(f.workspace.agent('existing').questions.map(q => q.id), ['7']);
+    assert.equal(f.workspace.agent('other').questions.length, 1);
+    f.notify('serverRequest/resolved', { threadId: 'existing', requestId: '7' });
+    await waitFor(() => f.workspace.agent('existing').questions.length === 0);
+    assert.equal(f.replies.length, 0, 'answers from another client clear questions without sending another response');
+    const answer = f.workspace.answer('other', 7, { answers: { choice: 'Small' } });
+    await waitFor(() => f.replies.length === 1);
+    f.notify('serverRequest/resolved', { threadId: 'other', requestId: 7 }); await answer;
+    assert.equal(f.workspace.pending.size, 0);
+  } finally { await f.close(); }
+});
+
+test('disconnect rejects an unconfirmed answer and clears requests tied to the lost connection', async () => {
+  const f = await fixture();
+  try {
+    await f.workspace.open('existing'); f.ask('disconnect', 'existing');
+    await waitFor(() => f.workspace.pending.size === 1);
+    const answer = f.workspace.answer('existing', 'disconnect', { answers: { choice: 'Small' } });
+    const rejected = assert.rejects(answer, /disconnected before confirming/);
+    f.rpc.disconnected('Fixture disconnect'); await rejected;
+    assert.equal(f.workspace.answerJobs.size, 0); assert.equal(f.workspace.pending.size, 0);
+    assert.equal(f.workspace.agent('existing').questions.length, 0);
+    assert.equal(f.workspace.snapshot().agents[0].status, 'offline');
   } finally { await f.close(); }
 });
 
@@ -259,7 +335,7 @@ test('password stays hashed/private; HTTP login protects controls, rejects cross
     assert.equal((await request('/api/state')).status, 401);
     assert.equal((await request('/api/agents/existing/tasks')).status, 401);
     assert.equal((await request('/api/agents/existing/tasks', { ids: [] })).status, 401);
-    for (const action of ['fork', 'parent', 'summary', 'return']) assert.equal((await request('/api/agents/existing/' + action, {})).status, 401);
+    for (const action of ['fork', 'parent', 'summary', 'return', 'answer']) assert.equal((await request('/api/agents/existing/' + action, {})).status, 401);
     assert.equal((await request('/api/login', { password }, undefined, 'https://unrelated.example')).status, 403);
     const login = await request('/api/login', { password }); assert.equal(login.status, 200);
     const cookie = login.headers.get('set-cookie'); assert.match(cookie, /HttpOnly/); assert.match(cookie, /SameSite=Strict/);
@@ -272,6 +348,15 @@ test('password stays hashed/private; HTTP login protects controls, rejects cross
     assert.deepEqual(linkCalls, [{ cwd: f.dir, id: 'existing', ids: ['demo-a'] }]);
     assert.equal((await request('/api/agents/existing/message', { text: 'Continue' }, cookie, 'https://unrelated.example')).status, 403);
     assert.equal((await request('/api/agents/existing/fork', {}, cookie, 'https://unrelated.example')).status, 403);
+    f.ask('http-question', 'existing'); await waitFor(() => f.workspace.pending.size === 1);
+    const answer = { requestId: 'http-question', answers: { choice: 'Small' } };
+    assert.equal((await request('/api/agents/existing/answer', answer, cookie, 'https://unrelated.example')).status, 403);
+    assert.equal(f.replies.length, 0);
+    f.workspace.answerTimeout = 35;
+    assert.equal((await request('/api/agents/existing/answer', answer, cookie)).status, 504, 'HTTP must not report success before native resolution');
+    assert.equal(f.workspace.agent('existing').questions.length, 1);
+    f.notify('serverRequest/resolved', { threadId: 'existing', requestId: 'http-question' });
+    await waitFor(() => f.workspace.pending.size === 0);
     assert.equal((await request('/api/logout', {}, cookie)).status, 200);
     assert.equal((await request('/api/state', undefined, cookie)).status, 401);
   } finally { await app.close(); await f.close(); }

@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.3.0** implements the Codex workspace and Linux installer. It supports
+**Version 0.3.1** implements the Codex workspace and Linux installer. It supports
 four agent tabs, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -176,7 +176,17 @@ process and reset when it restarts. Workspace restoration is approved but its
 persistence choice is still pending. Persistent decision summaries, automatic
 progress summarization, and approval-reviewer integration remain future work.
 
-Command/file approvals and structured questions can be answered here. Requests
+Command/file approvals and structured questions can be answered here. An answer
+waits for Codex's request-resolved notification before the question disappears
+and the API reports success. Duplicate submissions are blocked while waiting;
+an unconfirmed answer times out with an explicit error and keeps the question
+visible. A later native resolution still clears it. Resolutions are scoped to
+the conversation and exact request ID, including its numeric/string type.
+Answers made in another client clear the corresponding question here too.
+Disconnects fail unconfirmed submissions and discard requests tied to the lost
+connection. No answer or approval is sent automatically.
+
+Requests
 owned by another client, broader filesystem/network grants, and connector forms
 can require the native Codex client. App passwords use salted scrypt hashes in
 private home configuration; sessions use HttpOnly/SameSite cookies. Set an HTTPS
@@ -185,7 +195,11 @@ TLS, or VM changes are performed by this application.
 
 Validation includes production builds, protocol/auth/control integration tests,
 Beads task/link isolation and error-handling fixtures, installer update guards,
-and a real Beads/Codex check. Real task labels survived a fresh adapter, stored
+and real Beads/Codex checks. A two-client native clarification check verified
+that the observer's answer resolved the request in both clients and the original
+turn continued to completion. This does not verify a particular tmux frontend's
+rendering; historical prompt text may remain visible there.
+Real task labels survived a fresh adapter, stored
 in-progress changes appeared, closed work disappeared, and the authenticated
 catalog returned the linked task. Codex received the task-tracking application
 context. Validation tasks/conversations were cleaned up. Production installation,

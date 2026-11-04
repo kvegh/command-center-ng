@@ -7,6 +7,7 @@ import { BeadsTasks, sessionLabel } from './beads.mjs';
 import { SUMMARY_LIMIT, SUMMARY_SCHEMA, summaryPrompt, readSummary } from './branch-summary.mjs';
 
 export const input = text => [{ type: 'text', text, text_elements: [] }];
+const requestKey = (threadId, requestId) => JSON.stringify([threadId, requestId]);
 export function statusOf(thread, requests = []) {
   if (requests.length || thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag))) return 'attention';
   return ({ active: 'running', idle: 'idle', notLoaded: 'offline', systemError: 'error' })[thread.status?.type] || 'offline';
@@ -24,13 +25,19 @@ function itemText(item) {
 }
 
 export class Workspace extends EventEmitter {
-  constructor(rpc, { summaryTimeout = 120_000, beads = new BeadsTasks() } = {}) {
+  constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, beads = new BeadsTasks() } = {}) {
     super(); this.rpc = rpc; this.agents = new Map(); this.pending = new Map(); this.opening = new Set(); this.watched = new Set(); this.creating = 0; this.error = null;
     this.summaryJobs = new Map(); this.returnJobs = new Map(); this.summaryTimeout = summaryTimeout;
     this.workerReads = new Set(); this.beads = beads; this.trackerReads = new Map();
+    this.answerJobs = new Map(); this.answerTimeout = answerTimeout;
     rpc.on('notification', message => this.notification(message));
     rpc.on('request', message => this.request(message));
-    rpc.on('disconnected', message => { this.error = message; this.pending.clear(); this.changed(); });
+    rpc.on('disconnected', message => {
+      this.error = message;
+      for (const job of this.answerJobs.values()) job.finish(Object.assign(new Error('Codex disconnected before confirming the answer. Check the native session.'), { status: 503 }));
+      this.pending.clear(); for (const agent of this.agents.values()) agent.questions = [];
+      this.changed();
+    });
     rpc.on('connected', () => { this.error = null; this.changed(); });
   }
   changed() { this.emit('change'); }
@@ -267,11 +274,14 @@ export class Workspace extends EventEmitter {
     const supported = ['item/tool/requestUserInput', 'item/commandExecution/requestApproval', 'item/fileChange/requestApproval', 'mcpServer/elicitation/request', 'item/permissions/requestApproval'];
     if (!supported.includes(message.method)) { this.rpc.refuse(message.id, 'This client does not implement this tool. Use the Codex client for it.'); return; }
     const question = { id: message.id, method: message.method, params: p };
-    this.pending.set(String(message.id), question); this.agents.get(p.threadId)?.questions.push(question); this.changed();
+    const key = requestKey(p.threadId, message.id);
+    if (this.pending.has(key)) return;
+    this.pending.set(key, question); this.agents.get(p.threadId)?.questions.push(question); this.changed();
   }
   answer(id, requestId, answer) {
-    const question = this.pending.get(String(requestId));
+    const key = requestKey(id, requestId); const question = this.pending.get(key);
     if (!question || question.params.threadId !== id) throw Object.assign(new Error('This question has already been resolved.'), { status: 409 });
+    if (this.answerJobs.has(key)) throw Object.assign(new Error('An answer is already awaiting confirmation.'), { status: 409 });
     let result;
     if (question.method === 'item/tool/requestUserInput') {
       const answers = {};
@@ -292,14 +302,27 @@ export class Workspace extends EventEmitter {
       if (!['accept', 'decline', 'cancel'].includes(answer.decision)) throw Object.assign(new Error('Invalid approval decision.'), { status: 400 });
       result = { decision: answer.decision };
     }
-    this.rpc.respond(question.id, result); this.removeQuestion(question.id); this.changed();
+    return new Promise((resolve, reject) => {
+      let timer;
+      const finish = error => {
+        clearTimeout(timer); this.answerJobs.delete(key); question.responding = false;
+        if (error) question.error = error.message;
+        this.changed(); error ? reject(error) : resolve();
+      };
+      this.answerJobs.set(key, { finish }); question.responding = true; question.error = null; this.changed();
+      timer = setTimeout(() => finish(Object.assign(new Error('Codex did not confirm that this request was resolved. Check the native session before retrying.'), { status: 504 })), this.answerTimeout);
+      try { this.rpc.respond(question.id, result); }
+      catch (error) { finish(Object.assign(new Error('The answer could not be sent. ' + error.message), { status: 503 })); }
+    });
   }
-  removeQuestion(id) {
-    this.pending.delete(String(id));
-    for (const agent of this.agents.values()) agent.questions = agent.questions.filter(q => String(q.id) !== String(id));
+  removeQuestion(threadId, id) {
+    const key = requestKey(threadId, id); if (!this.pending.has(key)) return;
+    this.pending.delete(key);
+    const agent = this.agents.get(threadId); if (agent) agent.questions = agent.questions.filter(q => q.id !== id);
+    this.answerJobs.get(key)?.finish();
   }
   notification({ method, params: p = {} }) {
-    if (method === 'serverRequest/resolved') { this.removeQuestion(p.requestId); this.changed(); return; }
+    if (method === 'serverRequest/resolved') { this.removeQuestion(p.threadId, p.requestId); this.changed(); return; }
     const id = p.threadId || p.thread?.id; const agent = this.agents.get(id); if (!agent) return;
     if (method === 'thread/status/changed') agent.thread.status = p.status;
     if (method === 'thread/name/updated') agent.name = p.threadName || p.name || agent.name;

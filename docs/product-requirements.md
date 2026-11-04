@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current version: 0.3.0
+## Current version: 0.3.1
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -109,7 +109,20 @@ backend polls them without another agent/model call. Explicit task linking does
 not mutate status or ownership. The same release focuses the chat input on tab
 selection and replaces the square brand mark with a generated control tower.
 
+Version 0.3.1 waits for native resolution of answered questions and approvals.
+Unconfirmed submissions remain visible with an error; another client's native
+resolution clears the matching conversation/request. A real two-client check
+verified clarification resolution and continuation of the original turn.
+
 ## Decisions still open
+
+The user requested an automatically started supervisor with a predefined prompt
+to follow the one to four worker conversations. It may read their conversation
+history and Beads records, request task reports, and summarize current progress.
+The requested approval-review role may assess pending requests on demand.
+Legitimate project work can include creating or removing resources, so a
+read-only-only rule is insufficient. Exact authority, protected targets, model
+and enforcement boundaries remain design questions; none is enabled yet.
 
 Workspace-restore persistence, assistant-team summarizer/reviewer integration,
 other agent runtimes, and actual
