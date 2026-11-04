@@ -5,15 +5,17 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.2.2** implements the Codex workspace and Linux installer. It supports
+**Version 0.3.0** implements the Codex workspace and Linux installer. It supports
 four agent tabs, live running/idle/attention state, existing conversations, new
-agents, conversation branches, up to three task summaries, chat, steering,
+agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
 green running states, and amber attention states.
 The interface uses a local Node.js service and the existing Codex daemon.
 A compact top bar puts the agent tabs and controls first, with branding at the
 far right. It spans the full browser width. The workspace fills the window, with goal/tasks in a right sidebar on desktop and
-above the conversation on smaller screens.
+above the conversation on smaller screens. Selecting a tab focuses its chat
+input and places the cursor at the end of its saved draft. The generated airport
+control-tower icon replaces the previous square brand mark.
 
 Linux is the first and primary platform for installation and operation. The
 interface must work well in a Linux desktop browser and a smartphone browser;
@@ -37,7 +39,7 @@ and tradeoffs.
 - Keep the short project goal, current tasks, task states, and next steps visible.
 - See agent and subagent progress, blockers, and requests for attention.
 - Review short decision summaries, their rationale, and the original discussion.
-- Track work durably, with the task-system integration still to be selected.
+- Track work durably in Beads, with explicit conversation/task links.
 - Branch a conversation with its whole context, ask a follow-up or start a
   subtask, and return to the main conversation whenever needed.
 - Use an optional **Bring back to main** action to return a branch's findings
@@ -47,7 +49,10 @@ See [product requirements](docs/product-requirements.md) for the agreed behavior
 
 ## Installation and startup
 
-Prerequisites: Linux, Node.js 22.12+, npm, tar/realpath, and a signed-in Codex CLI.
+Prerequisites: Linux, Node.js 22.12+, npm, tar/realpath, Beads (`bd`), and a
+signed-in Codex CLI. Beads must be on PATH for both the app and working agents.
+The installer and app check for JSON/read-only/brief-list support; Beads 1.3.2
+was verified. See the [official Beads installation guide](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md).
 The native integration is tested with Codex 0.166.0. System tools are not
 installed automatically.
 
@@ -133,27 +138,43 @@ Existing Codex model, sign-in, and permission settings are preserved. Enter
 sends; Shift+Enter inserts a newline. Drafts and reading positions survive tab
 switches. Closing a tab does not delete or interrupt its native conversation.
 
-The task panel shows up to three current high-level tasks from Codex plans,
-explicit progress reports, and live subagent activity. Completed work and raw
-historical requests are excluded. A new turn clears the previous turn's plan
-and progress rows, so old tasks cannot occupy the current-work panel.
+The task panel reads Beads directly through the backend, refreshing every five
+seconds and after an agent turn. It shows up to three linked tasks, prioritizing
+in-progress and blocked work. Titles, assignees, parent IDs, and states come from
+stored records; closed tasks disappear from current work. Chat text, native
+plans, and idle state do not update Beads or substitute guessed task status.
 
-Numbered requests provide labels only when Codex explicitly reports their
-current state (for example `Task 1: in progress`) or includes them in a current
-plan. Merely asking for a task does not establish that it is running. Idle does
-not establish completion. Native-history replay restores the latest turn's
-reports, without promoting older plans into current work. This remains a
-summary display; an external runtime task tracker has not been selected.
+Use **Link tasks** to select existing issues for a conversation, or add their IDs.
+The link is stored as a `ccng-session:CONVERSATION_ID` label in the existing
+tracker, so it survives app restarts without another task database. A task can
+be linked to multiple conversations. Explicit link edits change only that label;
+they do not change task state, ownership, content, or other labels.
 
-Without reported tasks, an agent-reported progress summary can appear; the panel
-never substitutes the last shell command. Detailed activity stays in the chat.
+On new app-started turns, Codex receives task-tracking application context and
+uses `bd` to create/claim/update substantive work with its conversation label.
+Existing running turns retain their instructions; link their tasks explicitly
+or provide direction on the next turn. Agents still need to report accurate
+state in Beads. No additional summarizer agent or model call is used for task
+reads. Branches use their own conversation labels; returning a branch includes
+relevant task IDs in its summary and does not automatically close/reassign tasks.
+
+Each working directory needs an existing Beads tracker (including a configured
+parent/shared tracker). Initialize it deliberately with `bd init` if required;
+the app does not create or migrate trackers automatically. If the database is
+unavailable, the panel reports the error and clears stale rows. It distinguishes
+no linked tasks from all linked tasks being closed. Existing Beads storage mode
+and access configuration are preserved; the app does not manage a Dolt service.
+
 Tabs use compact single-line titles, colored status dots, and status tooltips;
 the full status label stays beside the goal. Horizontal tab scrolling remains
 available on narrow screens, with no vertical scrollbar in the tab strip.
+Selecting or reselecting an enabled chat focuses its input immediately without
+stealing focus on streaming updates. Drafts remain browser-memory state for now.
 Recent history can be paged backward, with a bounded 600-item in-memory view per
 tab; Codex retains model context. Tabs are shared within the single-user app
-process and reset when it restarts. Persistent decision summaries and runtime
-task-tracker integration are future work.
+process and reset when it restarts. Workspace restoration is approved but its
+persistence choice is still pending. Persistent decision summaries, automatic
+progress summarization, and approval-reviewer integration remain future work.
 
 Command/file approvals and structured questions can be answered here. Requests
 owned by another client, broader filesystem/network grants, and connector forms
@@ -162,22 +183,16 @@ private home configuration; sessions use HttpOnly/SameSite cookies. Set an HTTPS
 public origin for Secure cookies behind nginx. No hypervisor, nginx, firewall,
 TLS, or VM changes are performed by this application.
 
-Validation: production build and fourteen protocol/auth/API integration tests,
-including native fork parameters, completed-turn boundaries, parent navigation,
-summary generation, reviewed handoff, child archiving/tab removal, retry handling,
-task-summary limits, numbered-task recovery, native subagent activity, and authentication. Real Codex
-branching retained inherited context and generated a concise summary, delivered
-it to the parent, and archived the child while removing its tab. A temporary home installation verified automatic
-update fetching, target-local executable launcher, private configuration
-preservation, dependency pruning, refusal of dirty/diverged sources, and a failed
-build leaving the previous installation usable. Earlier validation also covered
-four real parallel agents with steering/interruption.
-The 0.1.1 patch adds six installer regression scenarios covering nested targets,
-unrelated untracked files, tracked edits, literal path names, and source/target
-overlap. A complete install/update cycle into `checkout/targetdir` also passed.
-The 0.2.2 correction verifies that stale historical requests, completed steps,
-and previous-turn plans cannot crowd out current task reports.
-No browser executable was available for automated desktop/mobile visual checks.
+Validation includes production builds, protocol/auth/control integration tests,
+Beads task/link isolation and error-handling fixtures, installer update guards,
+and a real Beads/Codex check. Real task labels survived a fresh adapter, stored
+in-progress changes appeared, closed work disappeared, and the authenticated
+catalog returned the linked task. Codex received the task-tracking application
+context. Validation tasks/conversations were cleaned up. Production installation,
+automatic updates, dependency pruning, private-config preservation, and failed
+build preservation have also been exercised in temporary home installations.
+Browser desktop/mobile focus and visual automation remain unavailable here.
+The [brand note](docs/brand.md) records the generated tower asset and exact prompt.
 
 ## Public source policy
 
@@ -196,6 +211,6 @@ are a convenience; review the complete staged changes before publishing.
 - [Contributor instructions](AGENTS.md)
 
 Development work is currently tracked in the surrounding workspace's Beads
-tracker. That does not select the task tracker the application will expose.
+tracker. The runtime integration now also uses Beads, scoped by conversation labels.
 
 No license has been selected; public visibility alone does not grant a license.

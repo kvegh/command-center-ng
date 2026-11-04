@@ -19,6 +19,7 @@ test('installer updates distinguish nested installation output from actual sourc
     await mkdir(upstream);
     await cp(fileURLToPath(new URL('../install.sh', import.meta.url)), join(upstream, 'install.sh'));
     for (const name of ['src', 'server', 'docs']) { await mkdir(join(upstream, name)); await writeFile(join(upstream, name, 'fixture'), 'synthetic fixture'); }
+    for (const name of ['beads.mjs', 'beads-check.mjs']) await cp(fileURLToPath(new URL('../server/' + name, import.meta.url)), join(upstream, 'server', name));
     await writeFile(join(upstream, 'package.json'), JSON.stringify({ name: 'command-center-ng', version: '0.0.1' }));
     for (const name of ['package-lock.json', 'index.html', 'tsconfig.json', 'vite.config.mjs', 'README.md', 'AGENTS.md', 'design_decisions_history.md']) await writeFile(join(upstream, name), 'synthetic fixture');
     await git(upstream, 'init', '--initial-branch=main');
@@ -32,6 +33,7 @@ test('installer updates distinguish nested installation output from actual sourc
     // Stop at the build boundary: these tests exercise real Git and the shell
     // installer without installing dependencies or replacing the fixture target.
     await writeFile(join(bin, 'npm'), '#!/bin/sh\necho CCNG_FIXTURE_BUILD_REACHED\nexit 42\n', { mode: 0o755 });
+    await writeFile(join(bin, 'bd'), '#!/bin/sh\ncase \"$*\" in *version*) echo \"bd version 1.3.2\" ;; *) echo \"--json --readonly --brief --flat\" ;; esac\n', { mode: 0o755 });
     const env = { ...process.env, PATH: bin + ':' + process.env.PATH };
     await mkdir(join(checkout, targetName));
     await writeFile(join(checkout, targetName, 'package.json'), JSON.stringify({ name: 'command-center-ng', version: '0.0.1' }));

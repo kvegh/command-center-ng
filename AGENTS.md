@@ -31,11 +31,22 @@ The user subsequently selected concise generated branch summaries, followed by
 native child archiving and UI tab removal after accepted delivery. Parent-only
 navigation stays separate. The user approved a full-window workspace, desktop
 right sidebar for goal/tasks, compact single-line tabs in the functional top bar,
-and removal of redundant status text and unused heading space. Numbered chat
-task requests supply labels only for explicit current progress reports. Current
-plans/reports and active subagent events feed the task display; historical raw
-requests and completed work do not appear as current tasks;
-no external task tracker or additional service has been selected.
+and removal of redundant status text and unused heading space.
+
+The user approved Beads as a runtime dependency and authoritative task store.
+Working agents create/update task records using bd; the backend reads structured
+state directly without another agent/model call. Conversation associations live
+in Beads labels (ccng-session:CONVERSATION_ID), not another database. The backend
+adds/removes that label only for explicit user link edits; working agents associate
+their substantive work through the normal bd workflow. Do not infer task status from chat,
+native plans, idle state, or archiving. Preserve other labels, ownership, task
+content, and project tracker configuration. Do not auto-initialize or migrate
+trackers, install tools, or manage a Dolt service.
+
+The user requested chat-input focus on tab selection and a generated airport
+control-tower icon. Workspace restore is approved but its persistence choice is
+pending. Assistant-team summarizer/approval-reviewer roles are under discussion;
+do not enable automatic approval or choose its authority policy without direction.
 
 ## Code versioning
 
@@ -61,7 +72,7 @@ this repository. Keep screenshots and fixtures free of private data.
 
 Use Beads for development tracking in the existing workspace. Do not create
 Markdown task backlogs or initialize a separate tracker without user direction.
-The application's runtime task-tracking integration remains undecided.
+The runtime integration also uses Beads, scoped to explicit conversation labels.
 
 Keep README.md current with design changes. Record the change, reason, and real
 implementation commit ID in design_decisions_history.md. If that ID is not yet

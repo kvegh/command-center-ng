@@ -1,0 +1,130 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import { BeadsTasks, sessionLabel } from '../server/beads.mjs';
+import { Workspace } from '../server/workspace.mjs';
+
+function fixture() {
+  const calls = []; const rows = new Map(); const faults = new Map();
+  const add = (id, title, status, labels = [], cwd = '/project') => rows.set(cwd + ':' + id, { id, title, status, priority: 2, assignee: 'agent-a', parent: 'demo-parent', labels, cwd, owner: 'private@example.invalid', notes: 'Private fixture notes must not enter dashboard task records.' });
+  const run = async (binary, args, options) => {
+    calls.push({ binary, args, ...options });
+    const command = args.find(arg => ['version', 'list', 'update'].includes(arg));
+    if (faults.has(command)) throw faults.get(command);
+    if (command === 'version') return { stdout: 'bd version 1.3.2\n' };
+    if (args.includes('--help')) return { stdout: '--json --readonly --brief --flat' };
+    if (command === 'list') {
+      let data = [...rows.values()].filter(row => row.cwd === options.cwd);
+      if (args.includes('--label')) data = data.filter(row => row.labels.includes(args[args.indexOf('--label') + 1]));
+      if (args.includes('--id')) data = data.filter(row => args[args.indexOf('--id') + 1].split(',').includes(row.id));
+      if (args.includes('--status')) data = data.filter(row => args[args.indexOf('--status') + 1].split(',').includes(row.status));
+      return { stdout: JSON.stringify(data) };
+    }
+    if (command === 'update') {
+      const mode = args.includes('--add-label') ? '--add-label' : '--remove-label';
+      if (mode === '--remove-label' && faults.has('remove')) throw faults.get('remove');
+      const ids = args.slice(args.indexOf('update') + 1, args.indexOf(mode)); const label = args[args.indexOf(mode) + 1];
+      for (const id of ids) {
+        const row = rows.get(options.cwd + ':' + id);
+        row.labels = mode === '--add-label' ? [...new Set([...row.labels, label])] : row.labels.filter(value => value !== label);
+      }
+      return { stdout: '{}' };
+    }
+    throw new Error('Unexpected fixture command.');
+  };
+  return { beads: new BeadsTasks({ run }), calls, rows, add, faults };
+}
+
+function workspace(beads) {
+  const rpc = new EventEmitter(); rpc.ready = true;
+  const w = new Workspace(rpc, { beads });
+  const attach = (id, cwd = '/project') => w.agents.set(id, { id, cwd, name: 'Agent', thread: { status: { type: 'active' } }, questions: [], tasks: [{ id: 'old', text: 'Old native plan', state: 'inProgress' }], requestedTasks: [{ id: 'stale', text: 'Old chat request', state: 'inProgress' }], workers: [], summary: 'Old commentary', messages: [] });
+  attach('alpha'); return { w, attach };
+}
+
+test('Beads reads are scoped to the conversation/project and expose only selected fields', async () => {
+  const f = fixture(); const label = sessionLabel('alpha');
+  f.add('demo-a', 'Implement a feature', 'in_progress', [label]);
+  f.add('demo-b', 'Unrelated conversation work', 'in_progress', [sessionLabel('beta')]);
+  f.add('demo-a', 'Another project with the same ID', 'blocked', [label], '/other-project');
+  await f.beads.checkAvailable('/project');
+  const result = await f.beads.linked('/project', 'alpha');
+  assert.equal(result.status, 'ready'); assert.equal(result.tasks.length, 1);
+  assert.equal(result.tasks[0].text, 'Implement a feature'); assert.equal(result.tasks[0].state, 'in_progress');
+  assert.ok(!('notes' in result.tasks[0])); assert.ok(!('owner' in result.tasks[0])); assert.equal(result.tasks[0].parentId, 'demo-parent');
+  assert.ok(f.calls.every(call => call.args.includes('--readonly') && call.args.includes('--sandbox')));
+  assert.ok(f.calls.every(call => !call.shell));
+});
+
+test('stored states drive up to three current rows; closed tasks disappear without guessing from chat', async () => {
+  const f = fixture(); const { w } = workspace(f.beads); const label = sessionLabel('alpha');
+  f.add('demo-open', 'Queued work', 'open', [label]); f.add('demo-running', 'Current work', 'in_progress', [label]);
+  f.add('demo-blocked', 'Blocked work', 'blocked', [label]); f.add('demo-later', 'Deferred work', 'deferred', [label]);
+  f.add('demo-done', 'Closed work', 'closed', [label]);
+  await w.refreshTasks('alpha');
+  let agent = w.snapshot().agents[0]; assert.equal(agent.taskCount, 4); assert.equal(agent.tasks.length, 3);
+  assert.deepEqual(agent.tasks.map(task => task.id), ['demo-running', 'demo-blocked', 'demo-open']);
+  f.rows.get('/project:demo-running').status = 'closed'; await w.refreshTasks('alpha');
+  agent = w.snapshot().agents[0]; assert.equal(agent.taskCount, 3); assert.ok(!agent.tasks.some(task => task.id === 'demo-running'));
+  f.rows.get('/project:demo-blocked').status = 'closed'; f.rows.get('/project:demo-open').status = 'closed'; f.rows.get('/project:demo-later').status = 'closed';
+  await w.refreshTasks('alpha'); assert.deepEqual(w.snapshot().agents[0].tasks, []);
+});
+
+test('explicit links survive new workspace instances and change labels only', async () => {
+  const f = fixture(); const { w } = workspace(f.beads);
+  f.add('demo-a', 'First task', 'in_progress', ['existing-label']); f.add('demo-b', 'Second task', 'blocked');
+  await w.linkTasks('alpha', ['demo-a', 'demo-b']);
+  const writes = f.calls.filter(call => call.args.includes('update'));
+  assert.equal(writes.length, 1); assert.ok(!writes[0].args.includes('--readonly')); assert.ok(writes[0].args.includes('--sandbox'));
+  assert.ok(!writes[0].args.some(arg => ['--status', '--assignee', '--claim', '--set-labels'].includes(arg)));
+  const fresh = workspace(f.beads); await fresh.w.refreshTasks('alpha'); assert.equal(fresh.w.snapshot().agents[0].taskCount, 2);
+  await fresh.w.linkTasks('alpha', ['demo-b']);
+  assert.deepEqual(f.rows.get('/project:demo-a').labels, ['existing-label']); assert.equal(f.rows.get('/project:demo-a').status, 'in_progress');
+  assert.equal(f.rows.get('/project:demo-a').assignee, 'agent-a');
+});
+
+test('invalid or missing IDs cannot mutate links or inject commands', async () => {
+  const f = fixture();
+  await assert.rejects(f.beads.setLinks('/project', 'alpha', ['--status=closed']), /valid Beads task IDs/);
+  await assert.rejects(f.beads.setLinks('/project', 'alpha', ['demo-a; touch unsafe']), /valid Beads task IDs/);
+  await assert.rejects(f.beads.setLinks('/project', 'alpha', ['demo-missing']), /do not exist/);
+  assert.equal(f.calls.filter(call => call.args.includes('update')).length, 0);
+  assert.throws(() => sessionLabel('alpha,other'), /Invalid conversation/);
+});
+
+test('partially failed link edits report failure and refresh the actual remaining links', async () => {
+  const f = fixture(); const { w } = workspace(f.beads);
+  f.add('demo-a', 'Previously linked', 'in_progress', [sessionLabel('alpha')]); f.add('demo-b', 'New link', 'open');
+  f.faults.set('remove', Object.assign(new Error('Write unavailable'), { stderr: 'Fixture removal failed.' }));
+  await assert.rejects(w.linkTasks('alpha', ['demo-b']), /could not be fully updated/);
+  assert.equal(w.agent('alpha').tracker.status, 'ready');
+  assert.deepEqual(w.agent('alpha').tracker.tasks.map(task => task.id).sort(), ['demo-a', 'demo-b']);
+});
+
+test('Beads failures clear stale rows and never fall back to transcript guesses', async () => {
+  const f = fixture(); const { w } = workspace(f.beads);
+  f.add('demo-a', 'Real task', 'in_progress', [sessionLabel('alpha')]); await w.refreshTasks('alpha');
+  f.faults.set('list', Object.assign(new Error('Unavailable'), { stderr: 'Fixture database is unavailable.' }));
+  await w.refreshTasks('alpha');
+  const agent = w.snapshot().agents[0]; assert.equal(agent.tracker.status, 'unavailable'); assert.equal(agent.tasks.length, 0);
+  assert.match(agent.tracker.error, /database is unavailable/);
+});
+
+test('missing executable and malformed output are reported as dependency/data errors', async () => {
+  const missing = new BeadsTasks({ run: async () => { throw Object.assign(new Error('Missing'), { code: 'ENOENT' }); } });
+  await assert.rejects(missing.checkAvailable('/project'), error => error.code === 'BEADS_MISSING');
+  const malformed = new BeadsTasks({ run: async () => ({ stdout: 'not JSON' }) });
+  await assert.rejects(malformed.linked('/project', 'alpha'), /invalid JSON/);
+});
+
+test('poll refreshes are deduplicated, unchanged records do not rebroadcast, and branches use separate labels', async () => {
+  const f = fixture(); const { w, attach } = workspace(f.beads); attach('beta');
+  f.add('demo-a', 'Parent work', 'in_progress', [sessionLabel('alpha')]);
+  let changes = 0; w.on('change', () => changes++);
+  await Promise.all([w.refreshTasks('alpha'), w.refreshTasks('alpha')]);
+  assert.equal(f.calls.filter(call => call.args.includes('--label')).length, 1);
+  const previous = changes; await w.refreshTasks('alpha'); assert.equal(changes, previous);
+  await w.refreshTasks('beta'); assert.equal(w.snapshot().agents.find(agent => agent.id === 'beta').tasks.length, 0);
+  assert.match(f.beads.context('beta')['command-center-tasks'].value, /ccng-session:beta/);
+  assert.ok(!f.beads.context('beta')['command-center-tasks'].value.includes('ccng-session:alpha'));
+});

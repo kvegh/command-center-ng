@@ -18,7 +18,7 @@ while [ -z "$CCNG_INSTALL_DIR" ]; do
 done
 [ "$(uname -s)" = Linux ] || { echo 'Linux is required.' >&2; exit 1; }
 [ "$(id -u)" -ne 0 ] || { echo 'Run this installer as an unprivileged user, without sudo.' >&2; exit 1; }
-for CCNG_TOOL in node npm tar realpath; do
+for CCNG_TOOL in node npm tar realpath bd; do
     command -v "$CCNG_TOOL" >/dev/null 2>&1 || { echo "Install the missing prerequisite first: $CCNG_TOOL" >&2; exit 1; }
 done
 node -e 'const [major,minor]=process.versions.node.split(".").map(Number);if(major<22||(major===22&&minor<12)){console.error("Node.js 22.12 or newer is required.");process.exit(1)}'
@@ -26,6 +26,7 @@ CCNG_INSTALL_DIR=$(realpath -m "$CCNG_INSTALL_DIR")
 CCNG_USER_HOME=$(realpath "$HOME")
 case "$CCNG_INSTALL_DIR" in "$CCNG_USER_HOME"/*) ;; *) echo 'Installation must stay inside your home directory.' >&2; exit 1 ;; esac
 CCNG_SOURCE_DIR=$(dirname "$(realpath "$0")")
+node "$CCNG_SOURCE_DIR/server/beads-check.mjs"
 [ "$CCNG_SOURCE_DIR" != "$CCNG_INSTALL_DIR" ] || { echo 'Run the installer from a separate source checkout.' >&2; exit 1; }
 if [ -e "$CCNG_INSTALL_DIR" ]; then
     node -e 'const fs=require("node:fs");const p=process.argv[1]+"/package.json";if(!fs.existsSync(p)||JSON.parse(fs.readFileSync(p)).name!=="command-center-ng")process.exit(1)' "$CCNG_INSTALL_DIR" || { echo 'Refusing to replace an unrelated directory.' >&2; exit 1; }

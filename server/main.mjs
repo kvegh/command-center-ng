@@ -9,7 +9,7 @@ import { defaultAuthFile, loadPassword, Sessions } from './auth.mjs';
 import { VERSION } from './version.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.ico': 'image/x-icon' };
+const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.ico': 'image/x-icon' };
 const failure = (message, status = 400) => Object.assign(new Error(message), { status });
 async function body(request) {
   let text = '';
@@ -27,6 +27,11 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
   const sessions = new Sessions(); const clients = new Set();
   rpc ||= new CodexRpc({ socketPath: settings.socketPath });
   workspace ||= new Workspace(rpc);
+  await workspace.beads?.checkAvailable(settings.cwd);
+  const taskTimer = setInterval(() => {
+    for (const id of workspace.agents.keys()) void workspace.refreshTasks(id);
+  }, 5000);
+  taskTimer.unref();
   let vite; let broadcastTimer;
   const json = (response, value, status = 200) => { response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(value)); };
   const publish = () => {
@@ -87,6 +92,12 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
         }
         if (path === '/api/agents' && request.method === 'GET') return json(response, await workspace.list(url.searchParams.get('cursor')));
         if (path === '/api/agents' && request.method === 'POST') return json(response, { id: await workspace.create(await body(request)) }, 201);
+        const taskRoute = path.match(/^\/api\/agents\/([^/]+)\/tasks$/);
+        if (taskRoute) {
+          const id = decodeURIComponent(taskRoute[1]);
+          if (request.method === 'GET') return json(response, await workspace.taskCatalog(id));
+          if (request.method === 'POST') return json(response, await workspace.linkTasks(id, (await body(request)).ids));
+        }
         const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|interrupt|history|answer|fork|parent|summary|return)$/);
         if (match && request.method === 'POST') {
           const [, encoded, action] = match; const id = decodeURIComponent(encoded); const data = await body(request);
@@ -122,7 +133,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
     const { createServer } = await import('vite');
     vite = await createServer({ root, server: { middlewareMode: true, hmr: { server } }, appType: 'spa' });
   }
-  const close = async () => { clearTimeout(broadcastTimer); for (const client of clients) client.response.end(); clients.clear(); workspace.off('change', publish); rpc.close(); await vite?.close(); await new Promise(resolve => server.close(resolve)); };
+  const close = async () => { clearInterval(taskTimer); clearTimeout(broadcastTimer); for (const client of clients) client.response.end(); clients.clear(); workspace.off('change', publish); rpc.close(); await vite?.close(); await new Promise(resolve => server.close(resolve)); };
   return { server, workspace, rpc, close, settings };
 }
 

@@ -69,11 +69,11 @@ a route back to the original discussion. Historical review should help the user
 understand why the project reached its present state.
 
 Work needs durable task tracking. The user is open to Beads, a Git-backed
-TODO.md, or another suitable mechanism. The product integration has not been
-chosen. Existing development tracking remains in Beads, outside this public
+TODO.md, or another suitable mechanism. The user selected Beads as the runtime source. Agents update task records and
+the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current version: 0.2.2
+## Current version: 0.3.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -100,13 +100,18 @@ goal/tasks remain above the conversation. Repeated tab-status text, the large
 workspace heading, and unintended vertical tab scrolling are removed.
 Version 0.2.1 places branding at the far right of the full-width top bar.
 Version 0.2.2 excludes stale raw requests and completed work from current tasks,
-and resets previous-turn plans/reports when a new turn starts. Current plans,
-explicit reports, and active subagent tasks remain the native sources; no Beads
-integration or additional model call is introduced.
+and resets previous-turn plans/reports when a new turn starts. That patch retained native reports as the source at the time.
+
+Version 0.3.0 implements the subsequently approved Beads integration. Stored
+task state replaces chat inference, conversation labels persist the task links,
+and the app checks the bd prerequisite. Agents update records through bd; the
+backend polls them without another agent/model call. Explicit task linking does
+not mutate status or ownership. The same release focuses the chat input on tab
+selection and replaces the square brand mark with a generated control tower.
 
 ## Decisions still open
 
-Persistence beyond private authentication configuration, runtime task-tracker
-integration, other agent runtimes, and actual
+Workspace-restore persistence, assistant-team summarizer/reviewer integration,
+other agent runtimes, and actual
 deployment proxy/TLS configuration remain open. Architectural changes require
 user direction unless specifically delegated.

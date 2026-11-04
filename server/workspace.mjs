@@ -2,8 +2,9 @@ import { EventEmitter } from 'node:events';
 import { stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { VERSION } from './version.mjs';
-import { taskSummary, reportedPlan, collectRequestedTasks, reportTaskStates, setReportedPlan } from './task-summary.mjs';
-import { SUMMARY_LIMIT, SUMMARY_SCHEMA, summaryPrompt, readSummary, isBranchControlMessage } from './branch-summary.mjs';
+import { taskSummary, reportedPlan } from './task-summary.mjs';
+import { BeadsTasks, sessionLabel } from './beads.mjs';
+import { SUMMARY_LIMIT, SUMMARY_SCHEMA, summaryPrompt, readSummary } from './branch-summary.mjs';
 
 export const input = text => [{ type: 'text', text, text_elements: [] }];
 export function statusOf(thread, requests = []) {
@@ -23,10 +24,10 @@ function itemText(item) {
 }
 
 export class Workspace extends EventEmitter {
-  constructor(rpc, { summaryTimeout = 120_000 } = {}) {
+  constructor(rpc, { summaryTimeout = 120_000, beads = new BeadsTasks() } = {}) {
     super(); this.rpc = rpc; this.agents = new Map(); this.pending = new Map(); this.opening = new Set(); this.watched = new Set(); this.creating = 0; this.error = null;
     this.summaryJobs = new Map(); this.returnJobs = new Map(); this.summaryTimeout = summaryTimeout;
-    this.workerReads = new Set();
+    this.workerReads = new Set(); this.beads = beads; this.trackerReads = new Map();
     rpc.on('notification', message => this.notification(message));
     rpc.on('request', message => this.request(message));
     rpc.on('disconnected', message => { this.error = message; this.pending.clear(); this.changed(); });
@@ -51,14 +52,12 @@ export class Workspace extends EventEmitter {
       const agent = { id, name: thread.name || 'Codex agent', goal: thread.name || thread.preview?.split('\n')[0] || 'No goal recorded', cwd: thread.cwd, model: thread.model || null, thread, parentId: thread.forkedFromId || null, canSend: thread.canAcceptDirectInput !== false, messages: [], tasks: [], workers: [], questions: [], turnId: null, lastCompletedTurnId: null, olderCursor: null, activity: null, summary: null };
       agent.questions = [...this.pending.values()].filter(q => q.params.threadId === id);
       this.watched.add(id); this.agents.set(id, agent);
-      try { await this.history(id); } catch (error) { this.agents.delete(id); throw error; }
+      try { await this.history(id); await this.refreshTasks(id); } catch (error) { this.agents.delete(id); throw error; }
       this.changed(); return agent;
     } finally { this.opening.delete(id); }
   }
   addItem(agent, item, turnId, branchable = false) {
-    const plan = reportedPlan(item); if (plan) setReportedPlan(agent, plan, turnId);
-    if (item.type === 'userMessage' && !isBranchControlMessage(itemText(item))) collectRequestedTasks(agent, itemText(item));
-    if (item.type === 'agentMessage') reportTaskStates(agent, item.text, turnId);
+    const plan = reportedPlan(item); if (plan) agent.tasks = plan;
     if (item.type === 'agentMessage' && item.phase === 'commentary' && !item.text.includes('```')) agent.summary = item.text.split(/\n\s*\n/)[0];
     if (item.type === 'collabAgentToolCall') {
       for (const [id, state] of Object.entries(item.agentsStates || {})) {
@@ -84,10 +83,10 @@ export class Workspace extends EventEmitter {
   async history(id, cursor) {
     const agent = this.agent(id);
     const page = await this.rpc.call('thread/turns/list', { threadId: id, limit: 20, itemsView: 'full', ...(cursor ? { cursor } : {}) });
-    const current = { tasks: agent.tasks, taskReportTurnId: agent.taskReportTurnId, requestedTasks: agent.requestedTasks, workers: agent.workers.map(worker => ({ ...worker })), summary: agent.summary, activity: agent.activity };
+    const current = { tasks: agent.tasks, workers: agent.workers.map(worker => ({ ...worker })), summary: agent.summary, activity: agent.activity };
     const live = agent.messages; agent.messages = [];
     for (const turn of [...page.data].reverse()) {
-      agent.tasks = []; agent.summary = null; agent.taskReportTurnId = turn.id;
+      agent.tasks = []; agent.summary = null;
       if (turn.status === 'inProgress') agent.turnId = turn.id;
       const lastReply = turn.status === 'completed' ? turn.items?.findLast(item => item.type === 'agentMessage') : null;
       if (lastReply && !cursor) agent.lastCompletedTurnId = turn.id;
@@ -109,6 +108,32 @@ export class Workspace extends EventEmitter {
     } catch (error) {
       const worker = agent.workers.find(worker => worker.id === id); if (worker) worker.detailError = error.message;
     } finally { this.workerReads.delete(key); this.changed(); }
+  }
+  async refreshTasks(id) {
+    if (!this.beads) return;
+    if (this.trackerReads.has(id)) return this.trackerReads.get(id);
+    const agent = this.agents.get(id); if (!agent) return;
+    const job = (async () => {
+      const before = agent.tracker;
+      try { agent.tracker = await this.beads.linked(agent.cwd, id); }
+      catch (error) { agent.tracker = { status: 'unavailable', label: sessionLabel(id), tasks: [], error: error.message, checkedAt: new Date().toISOString() }; }
+      const content = value => JSON.stringify(value && { status: value.status, tasks: value.tasks, error: value.error });
+      if (content(before) !== content(agent.tracker)) this.changed();
+      return agent.tracker;
+    })();
+    this.trackerReads.set(id, job);
+    try { return await job; } finally { this.trackerReads.delete(id); }
+  }
+  async taskCatalog(id) {
+    const agent = this.agent(id);
+    if (!this.beads) throw Object.assign(new Error('Beads is unavailable.'), { status: 503 });
+    return this.beads.catalog(agent.cwd, id);
+  }
+  async linkTasks(id, ids) {
+    const agent = this.agent(id);
+    if (!this.beads) throw Object.assign(new Error('Beads is unavailable.'), { status: 503 });
+    try { agent.tracker = await this.beads.setLinks(agent.cwd, id, ids); this.changed(); return agent.tracker; }
+    catch (error) { await this.refreshTasks(id); throw error; }
   }
   async create({ goal, cwd }) {
     if (this.agents.size + this.opening.size + this.creating >= 4) throw Object.assign(new Error('Four tabs are already open.'), { status: 409 });
@@ -139,7 +164,7 @@ export class Workspace extends EventEmitter {
     if (agent.thread.status?.type === 'active' && agent.turnId) {
       await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: agent.turnId, input: input(text.trim()) });
     } else {
-      const { turn } = await this.rpc.call('turn/start', { threadId: id, input: input(text.trim()) }); agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed();
+      const { turn } = await this.rpc.call('turn/start', { threadId: id, input: input(text.trim()), ...(this.beads ? { additionalContext: this.beads.context(id) } : {}) }); agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed();
     }
   }
   async interrupt(id) {
@@ -187,7 +212,8 @@ export class Workspace extends EventEmitter {
     try { return await job; } finally { this.summaryJobs.delete(id); this.changed(); }
   }
   async generateSummary(branch) {
-    const { turn } = await this.rpc.call('turn/start', { threadId: branch.id, input: input(summaryPrompt(branch.goal)), outputSchema: SUMMARY_SCHEMA });
+    await this.refreshTasks(branch.id);
+    const { turn } = await this.rpc.call('turn/start', { threadId: branch.id, input: input(summaryPrompt(branch.goal, branch.tracker?.tasks)), outputSchema: SUMMARY_SCHEMA });
     if (branch.finishedTurn?.id !== turn.id) { branch.turnId = turn.id; branch.thread.status = { type: 'active', activeFlags: [] }; this.changed(); }
     await new Promise((resolve, reject) => {
       const finish = error => { clearTimeout(timer); this.off('change', check); error ? reject(error) : resolve(); };
@@ -277,7 +303,7 @@ export class Workspace extends EventEmitter {
     const id = p.threadId || p.thread?.id; const agent = this.agents.get(id); if (!agent) return;
     if (method === 'thread/status/changed') agent.thread.status = p.status;
     if (method === 'thread/name/updated') agent.name = p.threadName || p.name || agent.name;
-    if (method === 'turn/started') { agent.turnId = p.turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; agent.tasks = []; agent.taskReportTurnId = p.turn.id; agent.summary = null; if (!agent.returnSummary?.delivered) agent.returnSummary = null; }
+    if (method === 'turn/started') { agent.turnId = p.turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; agent.tasks = []; agent.summary = null; if (!agent.returnSummary?.delivered) agent.returnSummary = null; }
     if (method === 'turn/completed') {
       agent.turnId = null; agent.thread.status = { type: 'idle' };
       agent.finishedTurn = { id: p.turn.id, status: p.turn.status };
@@ -286,8 +312,9 @@ export class Workspace extends EventEmitter {
         const reply = agent.messages.findLast(message => message.type === 'assistant' && message.turnId === p.turn.id);
         if (reply) { reply.branchable = true; reply.state = 'completed'; agent.lastCompletedTurnId = p.turn.id; }
       }
+      void this.refreshTasks(id);
     }
-    if (method === 'turn/plan/updated') setReportedPlan(agent, (p.plan || []).map((t, i) => ({ id: String(i), text: t.step, state: t.status })), p.turnId || agent.turnId || agent.taskReportTurnId);
+    if (method === 'turn/plan/updated') agent.tasks = (p.plan || []).map((t, i) => ({ id: String(i), text: t.step, state: t.status }));
     if (method === 'item/started' || method === 'item/completed') this.addItem(agent, p.item, p.turnId);
     if (method === 'item/agentMessage/delta') {
       const existing = agent.messages.find(m => m.id === p.itemId);

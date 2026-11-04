@@ -10,7 +10,6 @@ import { setPassword, loadPassword } from '../server/auth.mjs';
 import { CodexRpc } from '../server/rpc.mjs';
 import { Workspace, statusOf } from '../server/workspace.mjs';
 import { createApp } from '../server/main.mjs';
-import { summaryPrompt } from '../server/branch-summary.mjs';
 
 async function waitFor(predicate) {
   const until = Date.now() + 2000;
@@ -62,7 +61,7 @@ async function fixture() {
     ws.send(JSON.stringify({ id: message.id, result }));
   }); });
   await new Promise(resolve => server.listen(socketPath, resolve));
-  const rpc = new CodexRpc({ socketPath, timeout: 2000 }); await rpc.connect(); const workspace = new Workspace(rpc);
+  const rpc = new CodexRpc({ socketPath, timeout: 2000 }); await rpc.connect(); const workspace = new Workspace(rpc, { beads: null });
   return { dir, rpc, workspace, calls, replies, threads, histories, failures, summary, notify, ask, close: async () => { rpc.close(); for (const client of wss.clients) client.terminate(); await new Promise(resolve => wss.close(resolve)); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); } };
 }
 
@@ -152,60 +151,17 @@ test('parent-send failures keep the child open; archive retries do not duplicate
   } finally { await f.close(); }
 });
 
-test('only reported numbered-task states appear as current work and restore from native history', async () => {
-  const f = await fixture();
-  try {
-    f.histories.set('existing', [{ id: 'tasks', status: 'completed', items: [
-      { id: 'requests', type: 'userMessage', content: [{ type: 'text', text: 'Task 1: Summarize branch findings\nTask 2: Reclaim screen space\nTask 3: Show multiple tasks\nTask 4: Review mobile layout' }] },
-      { id: 'report', type: 'agentMessage', text: 'Task 1: completed.\nTask 2: in progress.\nTask 3: pending.' }
-    ] }]);
-    await f.workspace.open('existing');
-    let agent = f.workspace.snapshot().agents[0];
-    assert.equal(agent.taskCount, 2); assert.equal(agent.tasks.length, 2);
-    assert.equal(agent.tasks[0].text, 'Reclaim screen space'); assert.equal(agent.tasks[0].state, 'inProgress');
-    assert.equal(f.workspace.agent('existing').requestedTasks.find(task => task.number === '1').state, 'completed');
-    f.notify('turn/plan/updated', { threadId: 'existing', plan: [{ step: 'Task 3: Show multiple tasks', status: 'inProgress' }] });
-    await waitFor(() => f.workspace.snapshot().agents[0].tasks.some(task => task.text === 'Task 3: Show multiple tasks'));
-    agent = f.workspace.snapshot().agents[0]; assert.equal(agent.taskCount, 2, 'the plan and reported request count as the same current task');
-    assert.equal(f.workspace.agent('existing').requestedTasks.find(task => task.number === '3').state, 'inProgress');
-    f.workspace.close('existing'); await f.workspace.open('existing');
-    assert.equal(f.workspace.snapshot().agents[0].taskCount, 2);
-    assert.equal(f.workspace.snapshot().agents[0].tasks[0].text, 'Reclaim screen space');
-  } finally { await f.close(); }
-});
-
 test('native subAgentActivity records populate multiple task rows and update completion without losing their goals', async () => {
   const f = await fixture();
   try {
     for (let n = 1; n <= 3; n++) f.threads.set('child-' + n, { id: 'child-' + n, name: `Review area ${n}`, status: { type: 'idle' } });
     f.histories.set('existing', [{ id: 'workers', status: 'completed', items: Array.from({ length: 3 }, (_, n) => ({ id: 'activity-' + n, type: 'subAgentActivity', kind: 'started', agentThreadId: 'child-' + (n + 1), agentPath: '/root/reviewer_' + (n + 1) })) }]);
     await f.workspace.open('existing');
-    await waitFor(() => f.workspace.snapshot().agents[0].tasks.every(task => task.text.startsWith('Review area')));
-    assert.equal(f.workspace.snapshot().agents[0].tasks.length, 3);
+    await waitFor(() => f.workspace.agent('existing').workers.every(worker => worker.task.startsWith('Review area')));
+    assert.equal(f.workspace.agent('existing').workers.length, 3);
     f.notify('item/completed', { threadId: 'existing', turnId: 'workers', item: { id: 'finished-child', type: 'subAgentActivity', kind: 'completed', agentThreadId: 'child-1', agentPath: '/root/reviewer_1' } });
     await waitFor(() => f.workspace.agent('existing').workers.find(worker => worker.id === 'child-1').status === 'completed');
     assert.equal(f.workspace.agent('existing').workers.find(worker => worker.id === 'child-1').task, 'Review area 1');
-  } finally { await f.close(); }
-});
-
-test('historical requests and previous-turn work never crowd out the current plan', async () => {
-  const f = await fixture();
-  try {
-    f.histories.set('existing', [
-      { id: 'current', status: 'inProgress', items: [] },
-      { id: 'old', status: 'completed', items: [
-        { id: 'old-requests', type: 'userMessage', content: [{ type: 'text', text: 'Task 1: Old branch changes\nTask 2: Old workspace changes\nTask 3: Old task header changes' }] },
-        { id: 'old-plan', type: 'dynamicToolCall', tool: 'update_plan', arguments: { plan: [{ step: 'Old branch changes', status: 'in_progress' }] } }
-      ] }
-    ]);
-    await f.workspace.open('existing');
-    assert.deepEqual(f.workspace.snapshot().agents[0].tasks, []);
-    f.notify('turn/plan/updated', { threadId: 'existing', turnId: 'current', plan: [{ step: 'Investigate current task freshness', status: 'inProgress' }, { step: 'Verify current-state behavior', status: 'pending' }, { step: 'Publish the correction', status: 'completed' }] });
-    await waitFor(() => f.workspace.snapshot().agents[0].taskCount === 2);
-    assert.deepEqual(f.workspace.snapshot().agents[0].tasks.map(task => task.text), ['Investigate current task freshness', 'Verify current-state behavior']);
-    f.notify('turn/started', { threadId: 'existing', turn: { id: 'next' } });
-    await waitFor(() => f.workspace.agent('existing').turnId === 'next');
-    assert.deepEqual(f.workspace.snapshot().agents[0].tasks, []);
   } finally { await f.close(); }
 });
 
@@ -232,41 +188,6 @@ test('further branch work invalidates a cached summary even when that new turn i
     await assert.rejects(f.workspace.returnToParent(f.id, 'Old summary'), /Prepare a current branch summary/);
     const refreshed = await f.workspace.summarize(f.id);
     assert.notEqual(refreshed.turnId, previous);
-  } finally { await f.close(); }
-});
-
-test('summary preparation and returned summaries do not create or overwrite numbered task requests', async () => {
-  const f = await fixture();
-  try {
-    const messages = ['Task 1: Review the design', summaryPrompt('Task 1: This is an internal summary prompt'), 'Branch summary from "Child" (child):\n\nTask 1: completed.'];
-    f.histories.set('existing', [{ id: 'control-messages', status: 'completed', items: messages.map((text, index) => ({ id: 'control-' + index, type: 'userMessage', content: [{ type: 'text', text }] })) }]);
-    await f.workspace.open('existing');
-    assert.equal(f.workspace.agent('existing').requestedTasks.length, 1);
-    assert.equal(f.workspace.agent('existing').requestedTasks[0].text, 'Review the design');
-    assert.equal(f.workspace.snapshot().agents[0].tasks.length, 0);
-  } finally { await f.close(); }
-});
-
-test('task strip prefers high-level plans and workers, shows at most three, and never falls back to executed commands', async () => {
-  const f = await fixture();
-  try {
-    await f.workspace.open('existing');
-    f.notify('item/completed', { threadId: 'existing', turnId: 'turn-existing', item: { id: 'command', type: 'commandExecution', command: 'printf private-operation', status: 'completed' } });
-    await waitFor(() => f.workspace.agent('existing').activity);
-    assert.deepEqual(f.workspace.snapshot().agents[0].tasks, []);
-    f.notify('turn/plan/updated', { threadId: 'existing', plan: [{ step: 'Understand the request', status: 'completed' }, { step: 'Review alternatives', status: 'pending' }, { step: 'Implement the chosen approach', status: 'inProgress' }, { step: 'Validate behavior', status: 'pending' }] });
-    await waitFor(() => f.workspace.agent('existing').tasks.length === 4);
-    let agent = f.workspace.snapshot().agents[0];
-    assert.equal(agent.taskCount, 3); assert.equal(agent.tasks.length, 3);
-    assert.equal(agent.tasks[0].text, 'Implement the chosen approach');
-    assert.ok(!agent.tasks.some(task => task.text === 'Understand the request'));
-    f.notify('item/completed', { threadId: 'existing', turnId: 'turn-existing', item: { id: 'plan', type: 'dynamicToolCall', tool: 'update_plan', arguments: { plan: [{ step: 'Review alternatives', status: 'completed' }] } } });
-    f.notify('item/completed', { threadId: 'existing', turnId: 'turn-existing', item: { id: 'worker', type: 'collabAgentToolCall', tool: 'spawn_agent', prompt: 'Check the design', agentsStates: { child: { status: 'running', agentNickname: 'Reviewer' } } } });
-    await waitFor(() => f.workspace.agent('existing').workers.length === 1);
-    agent = f.workspace.snapshot().agents[0];
-    assert.equal(agent.tasks[0].text, 'Check the design');
-    assert.equal(agent.tasks[0].worker, 'Reviewer');
-    assert.equal(agent.taskCount, 1);
   } finally { await f.close(); }
 });
 
@@ -319,6 +240,13 @@ test('questions change status, require explicit answers, and reject stale reques
 
 test('password stays hashed/private; HTTP login protects controls, rejects cross-origin writes, and logout revokes sessions', async () => {
   const f = await fixture(); const authFile = join(f.dir, 'auth.json'); const password = randomBytes(24).toString('base64url');
+  const linkCalls = [];
+  f.workspace.beads = {
+    checkAvailable: async () => 'bd version fixture',
+    linked: async () => ({ status: 'ready', label: 'ccng-session:existing', tasks: [], error: null }),
+    catalog: async () => ({ linkedIds: [], tasks: [], label: 'ccng-session:existing' }),
+    setLinks: async (cwd, id, ids) => { linkCalls.push({ cwd, id, ids }); return { status: 'ready', label: 'ccng-session:' + id, tasks: [], error: null }; }
+  };
   await setPassword(password, authFile);
   assert.equal((await stat(authFile)).mode & 0o777, 0o600);
   assert.ok(!(await readFile(authFile, 'utf8')).includes(password));
@@ -329,12 +257,19 @@ test('password stays hashed/private; HTTP login protects controls, rejects cross
   const request = (path, data, cookie, origin = base) => fetch(base + path, { method: data === undefined ? 'GET' : 'POST', headers: { ...(data === undefined ? {} : { 'Content-Type': 'application/json', Origin: origin }), ...(cookie ? { Cookie: cookie } : {}) }, ...(data === undefined ? {} : { body: JSON.stringify(data) }) });
   try {
     assert.equal((await request('/api/state')).status, 401);
+    assert.equal((await request('/api/agents/existing/tasks')).status, 401);
+    assert.equal((await request('/api/agents/existing/tasks', { ids: [] })).status, 401);
     for (const action of ['fork', 'parent', 'summary', 'return']) assert.equal((await request('/api/agents/existing/' + action, {})).status, 401);
     assert.equal((await request('/api/login', { password }, undefined, 'https://unrelated.example')).status, 403);
     const login = await request('/api/login', { password }); assert.equal(login.status, 200);
     const cookie = login.headers.get('set-cookie'); assert.match(cookie, /HttpOnly/); assert.match(cookie, /SameSite=Strict/);
     assert.equal((await request('/api/state', undefined, cookie)).status, 200);
     assert.equal((await request('/api/agents/existing/open', {}, cookie)).status, 200);
+    assert.equal((await request('/api/agents/existing/tasks', undefined, cookie)).status, 200);
+    assert.equal((await request('/api/agents/existing/tasks', { ids: ['demo-a'] }, cookie, 'https://unrelated.example')).status, 403);
+    assert.equal(linkCalls.length, 0);
+    assert.equal((await request('/api/agents/existing/tasks', { ids: ['demo-a'] }, cookie)).status, 200);
+    assert.deepEqual(linkCalls, [{ cwd: f.dir, id: 'existing', ids: ['demo-a'] }]);
     assert.equal((await request('/api/agents/existing/message', { text: 'Continue' }, cookie, 'https://unrelated.example')).status, 403);
     assert.equal((await request('/api/agents/existing/fork', {}, cookie, 'https://unrelated.example')).status, 403);
     assert.equal((await request('/api/logout', {}, cookie)).status, 200);

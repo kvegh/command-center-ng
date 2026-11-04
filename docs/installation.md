@@ -12,8 +12,13 @@ The interface must remain usable from a Linux desktop browser and a smartphone
 browser. Browser support does not imply a selected remote-access or hosting
 arrangement.
 
-Version 0.2.2 includes the installer. Linux, Node.js 22.12+, npm, tar, and realpath
-must already be installed. Codex must be installed and signed in to manage
+Version 0.3.0 includes the installer. Linux, Node.js 22.12+, npm, tar, realpath,
+and Beads (`bd`) must already be installed. The installer validates the bd JSON/
+read-only/brief-list interface before building; the app checks it again at startup.
+Beads 1.3.2 was verified. See the [official installation guide](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md).
+Use an embedded-capable Beads build if you do not already operate its server
+mode. The application reuses existing Beads configuration and does not install
+or manage a Dolt service. Missing tools are reported, not installed automatically. Codex must be installed and signed in to manage
 agents; version 0.166.0 was tested. No system packages or services are installed.
 
 From the cloned repository:
@@ -114,3 +119,16 @@ The launcher now lives entirely inside the selected installation. During
 migration, the installer removes a legacy `~/.local/bin/command-center-ng` only
 if it is the exact generated launcher owned by the current user for this same
 target. Other launchers and symlinks are left untouched. No PATH shortcut is created.
+
+
+## Beads project setup
+
+Ensure `bd` is on PATH for the account running both Command Center and Codex.
+Each conversation's working directory must resolve to an existing Beads tracker.
+Run `bd where` there to check it. If none exists, deliberately initialize it with
+`bd init` according to your project's workflow before using task tracking. The
+app never initializes or migrates a tracker as a side effect of viewing a tab.
+
+Use Link tasks to associate existing issues. Automatic reads are read-only and
+disable Beads auto-push. Link edits require an explicit authenticated action and
+only add/remove that conversation's label. Task states remain agent-managed.
