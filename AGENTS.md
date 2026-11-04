@@ -186,3 +186,12 @@ per-action details and visible running/failure counts. Keep questions and chat
 messages separate. Pending requests may block sending, but must allow local
 draft editing. Preserve backend send protections, IME and Shift+Enter, and newer
 drafts typed while an earlier send acknowledgment is outstanding.
+
+Coordinator recaps must explain useful outcomes, unfinished work and the concrete
+blocker/next action using task names or plain-language work descriptions. Bare
+IDs and closed-record lists are not explanations. Distinguish published code
+from deployed/live-verified behavior. Omit routine idle/no-approval bookkeeping
+unless relevant. Keep this guidance in new/restored instructions, event reminders
+and worker report requests, preserving coordinator identity, review protections
+and limits on messages/reports. Do not rewrite model output using guessed task
+semantics or start a live worker report merely to test reporting instructions.

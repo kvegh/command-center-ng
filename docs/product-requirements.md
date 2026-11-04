@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.11.0
+## Current development version: 0.11.1
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -227,3 +227,11 @@ handling. Public project owns reusable deployment logic; the private project
 companion owns whole-file Vault-encrypted AAP CaC and environment settings.
 Actual VM deployment and AAP integration require protected inputs and live
 verification. Claude monitoring remains a separately pending integration.
+
+Version 0.11.1 corrects coordinator reporting: describe actual work by name,
+lead with useful outcomes, identify unfinished work and a concrete blocker or
+next action, and distinguish published code from verified live deployment.
+Task IDs are optional supporting references rather than user-facing explanations.
+Routine idle/closed-record/no-approval bookkeeping is omitted unless relevant.
+The same guidance reaches initial/restored coordinator instructions, event
+reminders and worker report requests without replacing the coordinator.

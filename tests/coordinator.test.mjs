@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Workspace } from '../server/workspace.mjs';
 import { COORDINATOR_TOOLS } from '../server/coordinator.mjs';
+import { COORDINATOR_RECAP_GUIDANCE } from '../server/coordinator-prompt.mjs';
 
 class Rpc extends EventEmitter {
   constructor(cwd) { super(); this.ready = true; this.cwd = cwd; this.calls = []; this.replies = []; this.threads = new Map(); this.sequence = 0; this.turn = 0; this.requests = new Map(); this.replayOnResume = new Map(); }
@@ -52,6 +53,28 @@ test('coordinator starts separately with reduced capabilities and preserves four
     assert.throws(() => f.workspace.close(f.coordinator.id), /Pause the coordinator/);
     f.workspace.close('fourth'); await f.workspace.open('fifth'); assert.equal(f.workspace.agents.size, 5);
     await assert.rejects(f.workspace.fork(f.coordinator.id), /Branch a worker/);
+  } finally { await f.close(); }
+});
+
+test('recap guidance reaches new and restored coordinators and event turns without replacing the coordinator', async () => {
+  const f = await fixture();
+  try {
+    const id = f.coordinator.id;
+    const started = f.rpc.calls.find(call => call.method === 'thread/start').params;
+    assert.ok(started.developerInstructions.includes(COORDINATOR_RECAP_GUIDANCE));
+    const agent = f.workspace.agent(id);
+    agent.turnId = null; agent.thread.status = { type: 'idle' }; agent.observingOnly = true;
+    await f.coordinator.pump();
+    const resumed = f.rpc.calls.findLast(call => call.method === 'thread/resume').params;
+    assert.equal(resumed.threadId, id);
+    assert.ok(resumed.developerInstructions.includes(COORDINATOR_RECAP_GUIDANCE));
+    assert.equal(resumed.sandbox, 'read-only');
+    const event = f.rpc.calls.findLast(call => call.method === 'turn/start');
+    assert.equal(event.params.threadId, id);
+    assert.ok(event.params.input[0].text.includes(COORDINATOR_RECAP_GUIDANCE));
+    assert.equal(f.rpc.calls.filter(call => call.method === 'thread/start').length, 1);
+    assert.equal(f.rpc.replies.length, 0, 'reporting guidance does not answer a request');
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
   } finally { await f.close(); }
 });
 

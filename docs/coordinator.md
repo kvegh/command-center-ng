@@ -19,6 +19,25 @@ their linked Beads state. It publishes a concise recap, blocker and next step in
 each worker sidebar. These recaps are interpretation, distinct from the stored
 Beads task states shown below. The coordinator does not update task records.
 
+From 0.11.1, a recap names the work and explains the useful result, unfinished
+work and concrete blocker or next action. It distinguishes implementation and
+publication from deployment and live verification. If a decision is needed, it
+says exactly which input is missing and who can provide it. Sidebar `summary`,
+`blocker` and `nextStep` have these distinct purposes instead of repeating one
+status sentence. Task IDs may support an explicit lookup or internal handoff
+beside a task name; they do not replace the explanation. Routine idle state,
+closed-record lists and no-pending-approval notices are omitted unless relevant
+to the user's question or an actual problem. Unchanged work does not need a
+fresh bookkeeping recap.
+
+This is reporting guidance, not a semantic rewrite or filter of model output.
+It is included in new/restored coordinator instructions and each event reminder,
+so an existing coordinator need not acquire updated native tool descriptions to
+receive it. Worker report requests also ask for named outcomes and exact blockers.
+After updating the app, use Summarize now or allow the next automatic event for
+a refreshed recap; previously written recaps are not retroactively rewritten.
+No worker report is requested solely to apply this wording change.
+
 Worker openings, changed Beads records, completed turns and pending questions
 trigger coalesced coordinator work. Normal updates have a 30-second minimum
 interval; pending approval reviews can wake it sooner. It does not make a model

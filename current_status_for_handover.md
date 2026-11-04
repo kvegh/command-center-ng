@@ -5,10 +5,10 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.11.0** in package.json and the lockfile.
-Its implementation is `70490b8ffd8a6225ba0d3b831b5f20088b0765ce`. Check current Git history
-and remote refs for publication state; the earlier published baseline was
-0.10.0 (implementation `ec4cb6e`). The earlier 0.9.2 publication failures were cleared by the user's
+The authoritative version is **0.11.1** in package.json and the lockfile.
+It adds coordinator recap wording to the published 0.11.0 implementation
+`70490b8ffd8a6225ba0d3b831b5f20088b0765ce`. See design_decisions_history.md and
+current Git/remote refs for the latest implementation and publication state. The earlier 0.9.2 publication failures were cleared by the user's
 explicit retry. Existing SSH configuration, keys and access controls were preserved.
 The formerly local 0.6.0/0.7.0 checkpoints and the 0.7.1 spacing correction are
 included, alongside the 0.8.0 conversation safeguards. The earlier published baseline was 0.5.0 at
@@ -36,6 +36,21 @@ Inspect Git status and history before continuing. Use SSH for authorized Git
 network operations and preserve unrelated edits. Keep numeric versions and
 README changes consistent with implementation commits; record their real commit
 IDs in design_decisions_history.md.
+
+## Named outcomes in coordinator recaps: 0.11.1
+
+The user explicitly rejected recaps dominated by task IDs, idle status and closed
+record bookkeeping. Shared reporting guidance now asks for named work, useful
+outcomes, unfinished work and a specific blocker/next action, distinguishing
+published code from deployment and live verification. IDs are optional references
+beside names when asked or needed for an internal handoff, not explanations.
+New/restored native instructions, event reminders and worker report requests
+carry the guidance. This does not require replacement of an existing coordinator
+or updated native tool descriptions. After updating the app, Summarize now or
+the next automatic event can produce a new recap; old prose is not rewritten.
+No live worker report/model call was used for validation, and no approval policy,
+native daemon or user installation was changed. Model wording still requires
+real use to assess. Deployment and Claude prerequisites remain open separately.
 
 ## Delivered baseline: 0.5.0
 
@@ -307,7 +322,9 @@ but do not infer approval from a default choice or elapsed time.
 | bead-wd-1rl.36 | Closed: current-conversation Branch chat correction published in 0.10.0 |
 | bead-wd-1rl.37 | Collapsed tool activity implemented in 0.11.0 |
 | bead-wd-1rl.38 | Draft editing during questions implemented in 0.11.0 |
-| bead-wd-1rl.39 | Private companion created; payload/importer/credential setup pending |
+| bead-wd-1rl.39 | Closed: private companion scaffold published; actual setup remains in .40 |
+| bead-wd-1rl.40 | Actual AAP/VM rollout pending the user-selected Vault credential |
+| bead-wd-1rl.41 | Coordinator recap wording corrected in 0.11.1; consult Git for publication |
 | bead-wd-ywg | Existing shared Dolt restart and successful reads verified |
 | bead-wd-9so | Closed: generated Beads no-remote Git rule investigated and corrected |
 

@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.11.0 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.11.1 (in development)** includes the Codex workspace and Linux installer. It supports
 four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -87,6 +87,13 @@ recaps, requests reports, sends attributed summaries into worker conversations
 and reviews pending command/file approvals against actual user-authorized scope.
 It can approve permitted resource changes, including cleanup; uncertain authority
 returns to you. You can pause it, ask it questions and review its decisions.
+Version 0.11.1 makes recaps explain the work by name: useful outcomes, what
+remains unfinished, and the exact blocker or next action. They distinguish
+published code from a verified live deployment. Bare task IDs, closed-record
+lists and routine idle/no-approval notices are omitted unless relevant to your
+question. Sidebar fields and worker report requests use the same guidance.
+Existing coordinators receive a style reminder during their next automatic or
+Summarize now event after updating; no new coordinator conversation is needed.
 Messages wait until workers are idle. See [coordinator behavior and limits](docs/coordinator.md)
 and the [original discussion summary](docs/supervisor-design-discussion.md).
 
@@ -417,6 +424,11 @@ Deployment validation uses real Ansible against disposable localhost fixtures,
 syntax checking, production lint and offline systemd unit parsing. It never
 applies the deployment playbook to the development machine. Actual RHEL 9/AAP
 deployment and interactive desktop/mobile rendering remain unverified.
+
+Version 0.11.1 passes all 86 application tests and the production build.
+A protocol fixture verifies recap guidance reaches fresh/restored coordinator
+instructions and event turns while preserving identity and request controls.
+No live model response or existing worker report was generated for validation.
 
 ## Public source policy
 
