@@ -405,3 +405,29 @@ recap, actual summary message and worker acknowledgement. Full Linux installer
 validation passed, including fetched updates and failed-build recovery. Owned
 validation conversations were archived. No live AAP/VM changes or existing user
 approval requests were used; browser visual testing remains unperformed.
+
+## 2026-11-04 — Correct tab dragging in 0.4.1
+
+Implementation commit: `9253e93f82aa604257860b3ce04e72dafa69cc19`.
+
+The user updated to 0.4.0 and reported that dragging tabs did not work. Its native
+HTML drag handlers were attached to the wrapper around interactive tab buttons.
+The patch replaces that path with pointer capture on the tab button itself and
+viewport hit testing for destination workers. The exact browser-specific cause
+was not reproduced locally; no interactive browser is available.
+
+A short horizontal movement threshold separates dragging from normal clicks.
+Visible cyan markers show the drop position. Cancellation, vertical gestures,
+outside drops, lost capture and a worker closing during the gesture retain a
+valid order. The drag-generated click is suppressed so it cannot switch chats;
+ordinary clicks retain immediate chat focus. Edge movement scrolls the tab strip.
+Mouse, touch and pen share the same controller. Coordinator tabs remain outside
+worker reordering, and left/right controls remain available. No dependency,
+persistence, task, coordinator-authority or installer behavior changed.
+
+Validation passed: production build, all 46 reported checks including ten new
+event-controller regressions, metadata/privacy review and diff checks. The tests
+exercise pointer sequences and state changes using the production TypeScript
+controller and the existing compiler. They do not exercise browser rendering or
+prove the reported gesture in the user's browser; that installed retry remains
+pending. No browser/tool was installed or live user app restarted.
