@@ -565,3 +565,37 @@ inset. This is a layout correction within the existing responsive design.
 
 Validation: production TypeScript/Vite build and diff checks passed. No browser
 executable is installed, so the rendered desktop/mobile result remains unverified.
+
+## 2026-11-04 — Preserve conversation roles and explicit project selection in 0.8.0
+
+Implementation: `e1e9363`.
+
+The user reported workers mixing project tasks or instructions and requested
+continuation of the open work after checking tools. Read-only native history and
+saved workspace inspection confirmed former coordinators had been opened as
+workers, and RHEL workers had started with the application's project directory
+and instructions. These were verified entry points for confusion; they do not
+establish every cause of the earlier behavior.
+
+Worker selection now excludes coordinator metadata, and direct opening and
+restoration check native roles before any resume. New coordinators use the
+existing native source field to retain their identity through renaming. Earlier
+coordinators are recognized by their reserved name; renamed older coordinators
+without the marker remain a documented limitation. Invalid saved roles produce
+warnings and preserve IDs for explicit recovery, without rewriting histories or
+creating a replacement coordinator.
+
+New-worker directory input starts empty and must be supplied explicitly. This
+prevents the application startup directory from silently determining a different
+project's instructions. Existing conversations retain their native directories.
+Task context also reiterates that coordinator summaries and shared records do
+not create assignments or user authority. No separate role store, service, tool
+installation, permission override or conversation migration was introduced.
+
+Validation: three new role regressions failed before the fix. All 67 checks,
+including the additional explicit-directory regression, and the production build
+passed afterward. The installed Codex 0.166.0 generated protocol schema includes
+the native source field used here. Staged and unpublished additions passed
+privacy-pattern and diff checks. Interactive browser checks and proof of all
+earlier semantic mixing remain unperformed. Source publication does not update
+an already running installation.

@@ -5,17 +5,21 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative development version is **0.7.0** in package.json and the lockfile.
-The last verified published version is **0.5.0**, at
-`c24d84c318fe967993bd3e00552e129e7d32531e`. The 0.6.0 and 0.7.0 changes below are
-committed locally and have **not been pushed**. No user installation or running
-application was restarted to deploy these changes.
+The authoritative development and published application version is **0.8.0** in
+package.json and the lockfile. Its implementation is `e1e9363`, published over SSH.
+The formerly local 0.6.0/0.7.0 checkpoints and the 0.7.1 spacing correction are
+included. The earlier published baseline was 0.5.0 at
+`c24d84c318fe967993bd3e00552e129e7d32531e`.
+The agent did not update or restart the user's installation or native daemon;
+source publication alone does not deploy these changes.
 
 | Version | Local implementation | Decision record |
 | --- | --- | --- |
 | 0.5.0 | `38063bf322a849ff0ddce14e205bf91e73de6a74` | `c24d84c318fe967993bd3e00552e129e7d32531e` |
 | 0.6.0 | `5b63d56a9e99b46631dbeb166f1ca24ff3d6c46e` | `a00a400b17c295e33bfb5282c181c7dbd60c84db` |
-| 0.7.0 prerequisite checkpoint | `818b3cd059325456efe206ee06f61f179d3b4a7f` | Recorded in design_decisions_history.md with this handover |
+| 0.7.0 prerequisite checkpoint | `818b3cd059325456efe206ee06f61f179d3b4a7f` | `70ad201` |
+| 0.7.1 spacing correction | `101f2f6` | `7ea87d4` |
+| 0.8.0 conversation-role/project safeguards | `e1e9363` | Recorded in design_decisions_history.md |
 
 Inspect Git status and history before continuing. Use SSH for authorized Git
 network operations and preserve unrelated edits. Keep numeric versions and
@@ -36,7 +40,7 @@ wordmark, compact worker tabs with top spacing, and a right-hand Add agent plus
 violet coordinator group. Branding stays rightmost. Rendered design review still
 awaits the screenshot the user offered after updating.
 
-## Local UI changes: 0.6.0
+## Published UI changes: 0.6.0
 
 The desktop goal/task sidebar is approximately 40% wider: 364–448px instead of
 260–320px, with the existing responsive sizing. Mobile context remains stacked.
@@ -58,7 +62,7 @@ coordinator is extended for this, verify compatibility with restored native tool
 schemas instead of assuming existing coordinator threads automatically acquire
 new tools or fields. No new question store or model call has been introduced.
 
-## Local installer checkpoint: 0.7.0
+## Published installer checkpoint: 0.7.0
 
 The user requested RHEL 9 prerequisite checking, offers to install missing RPMs
 using sudo after approval, Beads installation/configuration, and complete RHEL 9
@@ -92,9 +96,40 @@ its documented multi-writer mode uses a Dolt SQL server. A private local shared
 server is proposed for four workers plus the coordinator. Do not silently select
 that approach, initialize or migrate a tracker, or start a new service.
 
+## Conversation confusion and spacing corrections: 0.7.1/0.8.0
+
+Read-only diagnosis confirmed that older coordinator conversations could be
+selected/restored as workers. It also confirmed RHEL conversations whose native
+working directory and loaded instructions belonged to the application project.
+The investigation did not establish every cause of the reported task mixing.
+
+Version 0.8.0 excludes coordinators from worker selection and checks roles before
+native resume or read-only restoration. New coordinators carry a native source
+marker; older ones are recognized by their reserved native name. A renamed old
+coordinator without the marker remains a documented limitation. Role mismatches
+warn and preserve saved IDs for explicit recovery, without history rewrites or
+replacement coordinators. New-worker creation requires an explicitly entered
+project directory. Existing chats keep their native directories and histories.
+Task context reiterates that summaries and shared records are not assignments or
+user authorization. No new database, service or permission policy was added.
+
+Version 0.7.1 removes the extra workspace top padding below the tab bar on desktop
+and mobile, preserving the tab bar's internal top inset. All 67 current regression
+checks and the production build pass. Three role regressions failed before the
+fix; they now pass, alongside an explicit-directory regression. Browser rendering
+remains unverified because no browser executable/tool is available.
+
+The existing shared Dolt server was started at the user's request with
+`bd dolt start`; independent status, task and memory reads succeeded. This restores
+an existing server and does not approve fresh-installer server provisioning.
+Some combined shell commands can still encounter sandbox socket/filesystem
+permission errors; those errors alone do not prove Dolt stopped. Tools confirmed
+working include shell/file edits, Node/npm, Git over SSH, Beads and native Codex
+conversation reads/title updates. No new dependency was installed.
+
 ## Decisions still awaiting the user
 
-Two questions were asked asynchronously and no answer has been received:
+The two architecture questions were asked again in this session and remain unanswered:
 
 1. Should Open questions include coordinator-tracked unanswered decisions from
    ordinary chat, or only structured questions and approvals? Both was proposed.
@@ -112,8 +147,11 @@ but do not infer approval from a default choice or elapsed time.
 | --- | --- |
 | bead-wd-1rl | Broader Command Center project |
 | bead-wd-1rl.23 | Rendered design review; source review done, screenshot pending |
-| bead-wd-1rl.24 | Wider sidebar/native questions/composer branch button done locally; ordinary-chat scope and publication pending |
-| bead-wd-1rl.25 | Prerequisite checkpoint done locally; fresh Beads/Dolt configuration and publication pending |
+| bead-wd-1rl.24 | Structured UI changes published; ordinary-chat scope remains pending |
+| bead-wd-1rl.25 | Prerequisite checkpoint published; fresh Beads/Dolt configuration remains pending |
+| bead-wd-1rl.26 | Role and project-directory safeguards published in 0.8.0; semantic/legacy-name limits documented |
+| bead-wd-1rl.27 | Tab/chat gap correction published in 0.7.1 and included in 0.8.0 |
+| bead-wd-ywg | Existing shared Dolt restart and successful reads verified |
 | bead-wd-9so | Closed: generated Beads no-remote Git rule investigated and corrected |
 
 Read these records before updating them. Use the next chat's own conversation
@@ -140,7 +178,7 @@ access restriction. In the next chat, inspect its actual current instructions an
 existing user authorization before publication; do not treat the historical
 generated ban as permanent policy or bypass active higher-priority instructions.
 
-Environment template/rule commits are local in Setup-Agentic-Dev-Environment:
+Historical environment template/rule commits in Setup-Agentic-Dev-Environment:
 `800efccc95c0024acf146c9703085300383e5048` and
 `4c83ae73dfd9f6390d788dd866768be109d6f235`. Keep workspace setup/rule document
 copies synchronized when recording subsequent environment changes.
@@ -162,7 +200,7 @@ local commits survived. This Codex version does not support daemon status;
 use the native socket for a read-only check rather than assuming that subcommand.
 No owned asynchronous validation process or subagent remains running.
 
-The development host has very little free storage. Check capacity before
-repeating large builds/installations. No broad cleanup or deletion of other
+The latest capacity check did not reproduce the earlier critically low storage
+condition. Recheck capacity before large builds/installations. No broad cleanup or deletion of other
 projects' files is authorized. Keep secrets, actual private addresses/paths,
 user transcripts and runtime configuration out of this public repository.
