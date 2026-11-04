@@ -13,7 +13,7 @@ The interface must remain usable from a Linux desktop browser and a smartphone
 browser. Browser support does not imply a selected remote-access or hosting
 arrangement.
 
-Version 0.9.0 is in development. The installer checks RHEL 9 prerequisites and
+Version 0.9.1 is in development. The installer checks RHEL 9 prerequisites and
 can offer missing RPMs and user-local CLI packages after confirmation. Other
 Linux distributions are not yet tested; automatic package setup is RHEL 9 only.
 Run `./install.sh --check` for a read-only inventory. Full details and package

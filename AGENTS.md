@@ -116,6 +116,10 @@ typography and state styling as worker tabs, retaining its overview icon and
 separate coordinator identity. Preserve the eight-pixel top inset and
 approximately 34-pixel worker tabs. The visible wordmark is command center NG. Preserve its running/attention indicators
 and compact mobile presentation.
+Use small folder-style tabs joined seamlessly to the pane. The selected tab
+shares its fill with the pane and uses label/shape contrast, with no bottom
+selection stripe or separating header/pane border. Keep horizontal tab scrolling
+available without a scrollbar gutter interrupting that connection.
 Favor simple navigation, readable type, consistent spacing, clear status labels,
 accessible controls, and restrained effects. Keep the project goal and current
 work easy to recover when switching contexts. Branching must remain a simple

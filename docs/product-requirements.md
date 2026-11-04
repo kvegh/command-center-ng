@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.9.0
+## Current development version: 0.9.1
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -179,6 +179,11 @@ original native IDs, permissions, coordinator restrictions and confirmation
 semantics. A waiting flag without details no longer claims another client owns
 the request. Startup restoration remains read-only, and ordinary chat cannot
 replace or steer work while a pending request is missing.
+
+Version 0.9.1 applies the verified folder-tab request: the active tab joins the
+pane without an intervening border or bottom selection stripe. Matching fill,
+clearer side edges and a stronger label indicate selection. The coordinator
+remains immediately before Add agent, and status/focus controls are preserved.
 
 ## Decisions still open
 

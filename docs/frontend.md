@@ -144,3 +144,19 @@ states as workers. The separate violet full-border pill treatment is removed.
 Startup/retry also uses the shared tab markup, and the existing compact mobile
 label remains. This supersedes the 0.5.0 visual order/treatment while preserving
 its tab top inset and the gap correction delivered in 0.7.1.
+
+## Folder tabs attached to the pane: 0.9.1
+
+The user requested small folder-like tabs seamlessly attached to their own chat
+pane, without intervening lines, and a replacement for the bottom selection
+marker. The selected tab now shares the pane's surface fill, uses a stronger
+label and clearer side edges, and has no inset bottom stripe. The header's bottom
+padding/border and the pane's top border/corners are removed at the join. The
+context panel shares the surface fill so the connection also works for the
+right-hand coordinator and stacked mobile layout.
+
+The tab bar keeps its eight-pixel top inset and roughly 34-pixel tabs. Worker
+status colors, focus controls, reordering and the coordinator-before-Add-agent
+order remain. Horizontal scrolling still works; its visible scrollbar gutter is
+hidden so it does not separate the tabs from the pane. Rendered browser review
+remains pending; build/source checks alone do not establish the visual result.

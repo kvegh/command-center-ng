@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.9.0 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.9.1 (in development)** includes the Codex workspace and Linux installer. It supports
 four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -24,6 +24,9 @@ wordmark is **command center NG**. Tabs have an eight-pixel top inset and are
 about 30% thinner, retaining their vivid status colors.
 The chat workspace begins directly below the tab bar, with the extra desktop
 and mobile top gap removed in 0.7.1.
+In 0.9.1, small folder-style tabs join the pane without a separating line.
+The selected tab shares the pane's fill and uses a stronger label and outline;
+the bottom selection stripe is removed. Status colors and keyboard focus remain.
 
 Linux is the first and primary platform for installation and operation. The
 interface must work well in a Linux desktop browser and a smartphone browser;
