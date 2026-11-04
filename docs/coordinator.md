@@ -103,7 +103,11 @@ decision.
 
 ## Reordering tabs
 
-Drag worker tabs into the desired order on desktop. The active worker also has
+Press a worker tab's title and drag it horizontally into the desired order. A
+cyan marker shows where it will drop. Version 0.4.1 uses pointer capture directly
+on the tab button for mouse, touch and pen, replacing the native HTML drag path
+reported broken in 0.4.0. Vertical gestures and canceled/outside drops do not
+reorder; a drag does not activate the tab as a click. The active worker also has
 left/right buttons for keyboard and phone use; Alt+Left/Alt+Right works when its
 tab button has focus. Selection, drafts and agent state stay attached to the
 conversation. The Coordinator group remains visually separate. Order is local

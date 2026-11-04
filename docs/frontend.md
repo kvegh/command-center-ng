@@ -18,7 +18,7 @@ interfaces. Linux is the primary platform.
 
 This selects the frontend foundation only. It does not select agent APIs, a
 server framework, a database, a state-management library, or a component suite.
-Package versions are pinned in package.json and package-lock.json for 0.4.0.
+Package versions are pinned in package.json and package-lock.json for 0.4.1.
 The approved local Node.js service uses the existing Codex daemon.
 
 ## Visual principles
@@ -32,7 +32,7 @@ The approved local Node.js service uses the existing Codex daemon.
 - Respect reduced-motion preferences and avoid animation that distracts from work.
 - Use synthetic data for public demos and interface examples.
 
-Version 0.4.0 uses dark graphite surfaces with cyan controls, green running
+Version 0.4.1 uses dark graphite surfaces with cyan controls, green running
 states, amber attention states, and violet branch navigation. Status labels and
 icons accompany color. The goal and up to three task summaries remain above
 the scrolling conversation on mobile; desktop uses a narrow right sidebar.
@@ -70,3 +70,13 @@ workers show concise coordinator recaps above their stored Beads tasks. Pause,
 resume and manual-review controls stay visible. Worker tabs support desktop drag
 reordering plus left/right buttons and Alt+Left/Right. Browser-memory ordering
 preserves conversation identity and the distinct coordinator group.
+
+Version 0.4.1 replaces native HTML tab dragging with a small pointer controller
+attached to the tab button. Capture keeps move/up events on that button while
+viewport hit testing finds the destination worker. A six-pixel horizontal
+threshold separates dragging from clicking; drop markers, cancellation and
+post-drag click suppression preserve normal selection/focus. Touch vertical
+panning remains available, and dragging near the strip edges scrolls it.
+The pointer controller is exercised with mouse/touch/pen event sequences in
+Node tests using the existing TypeScript compiler. These tests do not replace
+interactive browser validation; no browser or new dependency was installed.

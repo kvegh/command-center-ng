@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.4.0** implements the Codex workspace and Linux installer. It supports
+**Version 0.4.1** implements the Codex workspace and Linux installer. It supports
 four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -188,6 +188,12 @@ left/right controls and Alt+Left/Right support phones and keyboards. Tab order
 is local to the current browser view and resets on refresh. Persistent decision
 summaries beyond native conversation history remain future work.
 
+In 0.4.1, press a worker tab's title and drag it horizontally toward another
+worker. A cyan marker shows the drop position; release to apply the order.
+Pointer capture handles mouse, touch and pen input directly. Small movements
+remain clicks, and canceled/outside drops preserve the order. The coordinator
+group remains separate. This corrects the reported native-drag failure in 0.4.0.
+
 Command/file approvals and structured questions can be answered here. An answer
 waits for Codex's request-resolved notification before the question disappears
 and the API reports success. Duplicate submissions are blocked while waiting;
@@ -213,6 +219,11 @@ Version 0.4.0 passed 36 reported checks and the production build. A native
 coordinator check verified its read-only sandbox, dynamic tools, published recap,
 real summary delivery and worker acknowledgement. The complete Linux installer
 and automatic-update lifecycle passed. Browser visual testing is unperformed.
+
+Version 0.4.1 passed the production build and all 46 reported checks, including
+ten pointer-drag regressions for mouse/touch/pen, normal clicks, cancellation,
+coordinator exclusion and changing worker lists. These are event-controller
+tests; interactive browser verification remains unperformed.
 
 Validation includes production builds, protocol/auth/control integration tests,
 Beads task/link isolation and error-handling fixtures, installer update guards,

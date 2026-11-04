@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current version: 0.4.0
+## Current version: 0.4.1
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -124,6 +124,11 @@ Uncertain authority remains with the user. Its prompt and reduced native tool
 configuration stay separate from workers; no AAP credential or enforcement
 service is introduced. Worker tabs can be dragged or moved with accessible
 controls. See [coordinator implementation](coordinator.md).
+
+Version 0.4.1 corrects tab dragging with pointer capture on the tab button,
+visible drop markers and cancellation/click handling for mouse, touch and pen.
+The coordinator stays outside worker reordering. No task, permission or storage
+behavior changes.
 
 ## Decisions still open
 

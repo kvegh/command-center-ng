@@ -71,7 +71,11 @@ a { color: var(--accent); }
 .tab-wrap.attention .tab-text > span { color: #ffce89; }
 .tab-close { display: flex; align-self: center; color: #7185a2; background: none; border: 0; padding: 4px; margin: 0 5px 0 0; }
 .tab-close:hover { color: #ecf5ff; }
-.tab-wrap[draggable=true] { cursor: grab; }
+.tab-wrap[data-worker-tab] > .agent-tab { cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.tabs.reordering, .tabs.reordering .agent-tab { cursor: grabbing; }
+.tab-wrap.drag-source { opacity: .55; }
+.tab-wrap.drop-before { box-shadow: inset 3px 0 var(--accent); }
+.tab-wrap.drop-after { box-shadow: inset -3px 0 var(--accent); }
 .tab-order-controls { display: inline-flex; align-self: center; }
 .tab-move { width: 25px; height: 30px; padding: 0; color: #9fb2cd; background: transparent; border: 0; border-radius: 3px; font-size: 13px; }
 .tab-move:hover:not(:disabled) { color: var(--accent); background: #68d9fa10; }
