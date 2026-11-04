@@ -6,6 +6,7 @@ task source of truth; do not use this file as a second backlog.
 ## Versions and publication
 
 The authoritative version is **0.12.0** in package.json and the lockfile.
+Implementation: `2f8a45ad9846ea9799112395cb9effc4bf945a36`.
 It adds explicit multiple-request visibility and continued independent review to
 the published 0.11.1 recap wording and 0.11.0 UI/deployment artifacts. See
 current Git/remote refs and design_decisions_history.md for implementation and
@@ -33,6 +34,7 @@ installed version is 0.9.1.
 | 0.10.0 current-conversation branching | `ec4cb6e` | Recorded in design_decisions_history.md |
 | 0.11.0 compact activity, drafts and RHEL 9 playbook | `70490b8` | Recorded in design_decisions_history.md |
 | 0.11.1 named coordinator outcomes | `a75515d` | Recorded in design_decisions_history.md |
+| 0.12.0 all delivered pending requests | `2f8a45a` | Recorded in design_decisions_history.md |
 
 Inspect Git status and history before continuing. Use SSH for authorized Git
 network operations and preserve unrelated edits. Keep numeric versions and

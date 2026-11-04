@@ -824,3 +824,41 @@ worker report was generated for this check; the actual wording requires normal
 use after updating and requesting Summarize now or receiving the next event.
 Old recaps are not retroactively rewritten. Deployment and Claude prerequisites
 remain separate open work.
+
+## 2026-11-04 — Expose and continue review of every delivered request in 0.12.0
+
+Implementation: `2f8a45ad9846ea9799112395cb9effc4bf945a36`.
+
+The user reported the coordinator detecting one request when four were open.
+Source inspection found the backend already stores a full request array; native
+fixtures verify all four survive resume and duplicate delivery. The change makes
+that list explicit to the coordinator with requestSummary counts, including the
+distinction between a native request and its nested clarification questions.
+Each independent review now returns the current remaining requests and counts,
+including requests received while an earlier answer awaited confirmation.
+
+A referral to the user leaves that exact request open while other eligible
+approvals can be reviewed. Remaining unreviewed approvals stay marked in the
+existing event scheduler after a referral or native resolution. Requests already
+referred to the user or showing answer errors do not cause repeated automatic
+review. New/restored instructions and event reminders require inspection of the
+whole list and rechecking before finishing, independently of the existing
+one-message/report limit. Each approval retains its own current token, exact
+user authority and native resolution confirmation. No bulk approval, extra
+service/store, changed permission policy or automatic native rejoin was added.
+Counts cover delivered request details, not a guaranteed total of native requests
+whose details have not reached this client. Incomplete actions remain manual.
+
+At the user's separate status questions, existing Beads titles were narrowed to
+the genuinely pending ordinary-chat question-tracking and fresh Beads/Dolt setup
+choices. Published sidebar/structured-question/prerequisite features remain
+delivered. No new architecture was selected from those status questions.
+
+Validation: all 90 application tests and the production build passed. Two new
+coordinator regressions failed before the fix. Synthetic fixtures exercise four
+approvals with separate tokens, one referral plus three independent approvals,
+nested clarification questions, mixed numeric/string IDs, duplicate replay,
+new arrivals during confirmation and external native resolution. Existing
+coordinator identity, scope and request protections continue to pass. No real
+user approval, live model call, worker interruption or service restart was used
+for validation. Actual model behavior still needs normal use after updating.
