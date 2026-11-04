@@ -796,3 +796,31 @@ fixture tests, syntax checking and 14-file production lint passed. Fixtures use
 only disposable localhost files, including real password hashing and offline
 systemd parsing; the deployment playbook was never applied to this development
 machine. Interactive desktop/mobile review remains unperformed.
+
+## 2026-11-04 — Explain coordinator progress through named outcomes in 0.11.1
+
+Implementation: `a75515d093660ab6ac2aafb047b3adc80c674e8d`.
+
+The user found recaps dominated by unfamiliar task IDs, idle state and stored
+closed-record bookkeeping unhelpful. Coordinator reporting guidance now leads
+with the useful outcome, names the actual work, identifies unfinished work and
+states a specific blocker or next action. It distinguishes implementation and
+publication from deployment and live verification. IDs are supporting references
+beside names only when requested or needed in an internal handoff. Routine idle,
+closed-record and no-approval notices are omitted unless relevant to the question
+or an actual problem; unchanged evidence needs no new bookkeeping recap.
+
+The same guidance reaches initial/restored native instructions and each event
+reminder, including existing coordinators that retain earlier tool descriptions.
+Worker report requests now ask for named work and concrete results. Sidebar
+summary, blocker and nextStep fields have separate purposes. Existing identity,
+message/report limits, request controls and approval policy remain unchanged.
+No new model provider, task store, service or output-rewriting mechanism was added.
+
+Validation: all 86 application tests and the production build passed. A protocol
+fixture checks new/restored instructions and event delivery with the same
+coordinator, no interruption and no approval response. No live model reply or
+worker report was generated for this check; the actual wording requires normal
+use after updating and requesting Summarize now or receiving the next event.
+Old recaps are not retroactively rewritten. Deployment and Claude prerequisites
+remain separate open work.

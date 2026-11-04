@@ -7,8 +7,8 @@ task source of truth; do not use this file as a second backlog.
 
 The authoritative version is **0.11.1** in package.json and the lockfile.
 It adds coordinator recap wording to the published 0.11.0 implementation
-`70490b8ffd8a6225ba0d3b831b5f20088b0765ce`. See design_decisions_history.md and
-current Git/remote refs for the latest implementation and publication state. The earlier 0.9.2 publication failures were cleared by the user's
+`70490b8ffd8a6225ba0d3b831b5f20088b0765ce`. The 0.11.1 implementation is `a75515d093660ab6ac2aafb047b3adc80c674e8d`.
+Check current Git/remote refs for publication state. The earlier 0.9.2 publication failures were cleared by the user's
 explicit retry. Existing SSH configuration, keys and access controls were preserved.
 The formerly local 0.6.0/0.7.0 checkpoints and the 0.7.1 spacing correction are
 included, alongside the 0.8.0 conversation safeguards. The earlier published baseline was 0.5.0 at
@@ -31,6 +31,7 @@ installed version is 0.9.1.
 | 0.9.3 chat clipping inset and inactive tab fill | `a9f29df` | Recorded in design_decisions_history.md |
 | 0.10.0 current-conversation branching | `ec4cb6e` | Recorded in design_decisions_history.md |
 | 0.11.0 compact activity, drafts and RHEL 9 playbook | `70490b8` | Recorded in design_decisions_history.md |
+| 0.11.1 named coordinator outcomes | `a75515d` | Recorded in design_decisions_history.md |
 
 Inspect Git status and history before continuing. Use SSH for authorized Git
 network operations and preserve unrelated edits. Keep numeric versions and
