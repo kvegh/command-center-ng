@@ -1360,3 +1360,46 @@ final pass. Installed Codex schema generation confirmed image URL input shape
 without a model call. Browser paste/live model and timed recurrence checks
 remain unperformed. No running installation, systemd unit, native permission
 or live service was changed.
+
+## 2026-11-05 — Silent CCNG report timer and startup recovery in0.26.0
+
+Implementation: `09b9f37bcbc11c47a92a543713c62e03dd55da69`.
+
+The user explicitly replaced agent-owned reporting loops with a CCNG timer and
+required silent internal communication in worker/coordinator chat plus automatic
+startup use of saved intervals. The existing coordinator backend now owns one
+shared timer and per-worker deadlines using the existing private workspace
+settings. Enabled restored sessions queue one initial report after restoration,
+then continue at their selected interval. Refresh/reconciliation is idempotent,
+interval changes reset deadlines and missed slots do not cause report bursts.
+No coordinator model call is made per timer tick or scheduled-report completion.
+
+Reports reuse native queues and safe active-turn delivery. Pending requests,
+pause, ownership, availability, permissions and handoffs remain protected. One
+report is outstanding per worker; Report now coalesces with timer work and
+survives Never. Failed/in-flight requests are not silently retried/discarded.
+A new live completed four-section Standard Task Report can release report
+bookkeeping within a long-running turn, allowing later intervals without ending
+the job. This bounded recognition changes no task status or approval authority;
+stale, partial, quoted/code and unrelated-turn content cannot satisfy it. Native
+turn completion remains the fallback.
+
+Internal inputs are hidden in CCNG presentation using native client IDs/typed
+text metadata and official Claude SDK synthetic inputs. Those inputs still reach
+the model; native history is retained. Actual reports, ordinary summaries and
+identical real user text stay visible. Workers receive one-off report semantics
+and cancel older agent-owned report loops to prevent duplicate timing.
+
+The user separately rejected an additional Claude daemon/service after a
+read-only SDK/native lifecycle assessment. Current SDK queries still stop with
+CCNG; saved history is not uninterrupted execution. Native background commands
+exist, but supported local SDK detach/reattach is not established. No lifecycle
+service, detachment workaround or runtime change was implemented.
+
+All246 application tests and production build pass. Tests cover fake-clock
+cadence/coalescing/lifecycle, saved startup/restore, native/SDK hidden-history
+metadata, active-turn report completion and unchanged native request guards.
+Installed native source confirms synthetic prompts enter the normal query queue;
+SDK native-history fixtures verify hidden meta inputs while preserving outputs.
+Interactive browser/live model cadence and running-installation update remain
+unverified. No live service restart or native permission change was performed.

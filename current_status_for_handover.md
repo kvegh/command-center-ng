@@ -813,3 +813,5 @@ New checks cover saved startup intervals, no duplicate restore triggers, silent
 native/SDK history, safe deferral/coalescing/Never and reports during active turns.
 Live browser/provider cadence and actual running-installation update remain
 separate; no model run, service restart or live unit change was used for tests.
+
+0.26.0 implementation: `09b9f37bcbc11c47a92a543713c62e03dd55da69`.
