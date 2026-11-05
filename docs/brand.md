@@ -3,10 +3,15 @@
 The visible wordmark is **command center NG**. The user requested uppercase NG
 without the former dot. Branding remains the final item at the right of the header.
 
+The active header/favicon asset is now the white tower documented in
+[brand assets](brand-assets.md). The earlier detailed illustration remains
+tracked at `src/assets/airport-control-tower.png`; the cyan icon is retained in
+Git history. The following describes the earlier illustration, not the active icon.
+
 The original generated mark was insufficiently recognizable. Its replacement
 uses a complete architectural control tower with a tall straight shaft, wide
 glazed control room, projecting roof, observation ledge and antenna. The selected
-transparent PNG is `src/assets/airport-control-tower.png`, used for branding and
+transparent PNG is `src/assets/airport-control-tower.png`, formerly used for branding and
 the favicon. It was generated with the built-in image_gen tool, copied into the
 project and kept with its original alpha. No image-processing dependency or
 private reference image was used.
