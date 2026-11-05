@@ -955,3 +955,34 @@ provisioning and ordinary-chat question tracking are approved but unfinished.
 Comprehensive native user-request mirroring and model/effort controls are separate
 follow-up work. Outside-project helper inspection awaits its separate access
 approval. No remote/SSH session monitoring is authorized.
+
+## 2026-11-05 — Inspect approval helpers and queue due reports in 0.16.0
+
+Implementation: `4248900ba0629b4400dd281755f0352f63870c59`.
+
+The user approved read-only inspection of helper source tied to a specific pending
+approval, including temporary Python files outside a worker project. The existing
+coordinator now has a bounded source-only tool requiring the exact current token
+and a visible script reference or explicit Python import/search directory. It
+never imports/runs the code or reads credential/Vault data. Sensitive paths,
+symlinks, non-source/oversized files and obvious embedded credentials are refused.
+Inspected command/source hashes are checked before approval; changed evidence
+requires rereading. This detects changes until the check, not a lock against later
+changes or proof of safety. Unresolved dependencies/effects still need user review.
+The native read-only sandbox and exact authority/confirmation rules remain.
+
+The user clarified that report input can queue while a worker is busy. Due reports
+now enter the existing queue during active work or native questions, with visible
+queued/generating state. One outstanding report coalesces missed intervals. Normal
+delivery gates prevent interrupting/answering questions; Never cancels an unsent
+schedule and completion starts a fresh delay. The user also capped the task list
+at three visible rows while preserving scrolling, all records and full totals.
+
+All 113 application tests and the production build pass. Fixtures cover token,
+worker/reference/stale-source binding, no helper execution, source refusals and
+unchanged coordinator authority; report queuing, pending/missing requests, one
+outstanding report, cancellation and no interruption. Three-row sizing has source/
+build review, with interactive browser review still pending. No live approval,
+helper import, native restart or deployment was used for tests. Comprehensive
+native request controls, model/effort controls and local Claude SDK management
+remain separate unfinished work.

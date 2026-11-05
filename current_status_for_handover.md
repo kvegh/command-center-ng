@@ -493,3 +493,5 @@ refusal and unchanged approval protections. Scheduler fixtures cover active work
 pending/missing requests, one queued report, generating state, Never cancellation,
 fresh post-report delay and no interruption/answer. The three-row viewport was
 checked through CSS/build review; interactive desktop/mobile review is pending.
+
+0.16.0 implementation: `4248900ba0629b4400dd281755f0352f63870c59`. Consult current remote refs for publication.
