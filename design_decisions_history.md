@@ -1085,3 +1085,55 @@ access, multiple current bindings, no automatic answer, unchanged ordinary
 outside-read refusal and changed-source rejection before approval. No quoted
 real action was approved/executed, and no running installation was updated or
 restarted. Live use requires the normal application update.
+
+
+## 2026-11-05 — Manage local Claude and keep worker context compact in0.19.0
+
+Implementation: `d7d83b883a82dd73fae52e53d3d38b6ef82041af`.
+
+The user selected the official Claude Agent SDK for local read-write sessions.
+The existing backend now uses SDK0.3.212 and the installed native CLI to discover
+headless conversations, follow history and manage streaming/follow-ups/interrupts.
+The exact official dependency was installed from verified cached packages after
+network resolution prevented fetching a newer tarball. No remote session
+transport, auth replacement or permission-default change was introduced. Active
+external processes retain ownership; managed SDK callbacks are manual and tied
+to exact requests. Closed-tab requests offer explicit reopening. Closing a tab
+keeps its process alive; backend shutdown ends SDK-owned processes and preserves
+native history. Native idle events, serialized startup and read-only restore
+retry prevent duplicate processes and incorrect turn/connection assumptions.
+Claude branching and restart persistence of managed-process model settings
+remain unverified/unintegrated limits, documented rather than simulated.
+
+The user requires shared environment AGENTS at runtime. A small local reader
+supplies the full bounded named source through existing native context, reporting
+missing sources without fetching or inventing rules. Codex gets context on
+app-started turns and Claude at process startup. Higher-priority roles remain
+in force. Matching native source showed the coordinator's old V1-only no-subagents
+flag was insufficient, so coordinator-only canonical/V2 restrictions were added.
+
+Ordinary-chat fallback questions reuse existing worker-owned Beads input records
+and context/reply controls. Explicit labels and exact worker/task IDs avoid
+punctuation guesses, fabricated native requests, extra model classifiers and a
+new question store. Polling exposes recorded questions before a turn ends; only
+the worker resolves them after actual answers/withdrawal. Coordinator reads have
+the complete subset and separate native/nested clarification counts.
+
+The installer now offers confirmed fresh native Beads/shared-Dolt setup for an
+explicit workspace, preserving existing trackers/settings. Official Dolt2.2.0
+archives are checksum verified and installed under the selected unprivileged
+target. No custom Dolt service wrapper or development-host setup was introduced.
+
+The user restored a90ch maximum text width, removed task assignee presentation,
+requested natural task heights/first-three-row viewport and one-line Model/Effort
+controls without routine explanatory text. These preserve sidebar resizing,
+narrow-pane wrapping, actual error feedback and backend ownership metadata.
+
+All163 application tests and production build pass, including actual official-SDK
+reads of isolated synthetic history, callbacks, startup/restore/ownership races,
+closed-tab requests, shared-source loading, recorded questions and installer/UI
+fixtures. Interactive browser and live model/provider verification remain pending.
+No real approval, runtime restart, target rollout or native permission-default
+change occurred. Actual encrypted CaC/rollout needs the user's Vault source;
+its question is pending. The separately requested live eight-agent config edit
+was blocked by filesystem/approval policy; only its default template was applied.

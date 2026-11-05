@@ -581,3 +581,5 @@ complete recorded chat questions, variable task-row sizing and isolated confirme
 Dolt/Beads installer fixtures. No live model/approval, development-host database
 setup, runtime restart or deployment was used. Interactive browser/live provider
 verification remains pending.
+
+0.19.0 implementation: `d7d83b883a82dd73fae52e53d3d38b6ef82041af`. Source publication does not update a running installation.
