@@ -837,3 +837,5 @@ Never workers, progressive results, preserved deadlines, loaded-state handoff
 and coordinator sidebar publication. Running installation/model-generated
 dashboard quality and browser presentation still need live acceptance. No
 service restart, dependency installation or native permission change occurred.
+
+0.27.0 implementation: `cfb0484f8b27670fc89a232a6a0e1b4a759d3bfa`.

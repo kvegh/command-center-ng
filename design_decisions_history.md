@@ -1403,3 +1403,34 @@ Installed native source confirms synthetic prompts enter the normal query queue;
 SDK native-history fixtures verify hidden meta inputs while preserving outputs.
 Interactive browser/live model cadence and running-installation update remain
 unverified. No live service restart or native permission change was performed.
+
+## 2026-11-05 — Current startup dashboard and report intervals in0.27.0
+
+Implementation: `cfb0484f8b27670fc89a232a6a0e1b4a759d3bfa`.
+
+The user requested current worker summaries/task progress after startup and
+visibility of required report intervals. After saved-state loading, the backend
+queues one silent startup report per restored worker, including a one-off for
+Never. Existing timer or Report now requests are reused without changing saved
+intervals or deadlines. Reconciliation remains idempotent, and Never continues
+to disable periodic reports rather than this explicitly requested startup summary.
+
+The coordinator is notified to read current native history, stored tasks,
+questions, report intervals and next due times. It publishes available evidence
+to sidebar progress immediately and applies finite throttled updates as each
+fresh startup result arrives. Blocked/external workers do not gate others.
+Paused/unavailable coordination retains its intent; failed native requests stay
+visible without automatic retries. Startup status is separate from actual work
+completion and Beads task state.
+
+Git-saved prompt guidance tells new/reused coordinators to use progress tools,
+qualify missing evidence and avoid instruction echoes, duplicate requests and
+chat recap loops. Worker overview cards display saved1h/15min/5min/Never or
+Unknown. No new service/store, interval inference, worker implementation scope
+or native permission expansion was added.
+
+All251 application tests and production build pass, including57 coordinator
+and15 restoration checks. Tests cover coalescing, paused startup with one
+blocked worker, progressive refresh, preserved deadlines, restore-phase ordering
+and sidebar publication. Running-provider/model recap quality and browser/live
+startup acceptance remain unverified. No service restart was performed.
