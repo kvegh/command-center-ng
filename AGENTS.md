@@ -241,9 +241,12 @@ progress, 🟥 Blocked/needs input, and 🟦 Next. Name actual work and useful o
 IDs are optional supporting references beside names. Include the project's latest
 release version and verified publication status, separating a newer working
 version or unknown release evidence. Distinguish published code from deployed/live
-verified behavior and identify the exact user input needed. Reports alone must
-not execute extra work or start self-scheduled loops; Command Center owns the
-user-selected cadence. Existing permissions and project boundaries remain in force.
+verified behavior and identify the exact user input needed. Reports alone do not
+authorize extra project work. A radio change sends one
+Standard Task Report interval instruction; the agent owns its timing and cancels
+its previous schedule when the interval changes or Never is selected. Command
+Center has no recurring report timer and does not wake stopped sessions. Existing
+permissions and project boundaries remain in force.
 
 ## Approved worker sidebar and branch-summary refinement
 
@@ -262,10 +265,12 @@ Never execute/import the helper for review, read credential/Vault data, broaden
 native coordinator permissions or treat inspected source as authority. Keep
 reference checks, source/command hashes and stale-request checks; changed source
 requires rereading and review. Unknown effects/dependencies may still require
-user input. Due scheduled reports can enter the existing queue during active
-work/questions, with one outstanding report and visible queued/generating state.
-Delivery retains current turn/request/pause/handoff gates; do not interrupt or
-answer a question to deliver a report. Never cancels only unsent scheduled work.
+user input. One-off reports and interval/cancellation instructions use the
+existing queue
+during active work/questions. Delivery retains current turn/request/pause/handoff
+gates; do not interrupt or answer a question to deliver them. Never asks the
+agent to cancel recurring reports, preserving explicit Report now requests.
+Restoration must not replay interval instructions or create a backend schedule.
 
 ## Approved native request controls
 
@@ -279,3 +284,17 @@ IDs and native confirmation, and never broaden coordinator restrictions or give
 it MCP/permission auto-approval. Form answers are not persisted in workspace data.
 Report now after Never queues/coalesces one existing report without changing
 cadence, interrupting work or answering a pending request.
+
+
+## Approved worker controls and layout
+
+Use the native model catalog and supported efforts for worker-only model changes.
+Update only per-thread model/effort settings for subsequent turns and confirm
+native state; do not interrupt the active turn, answer requests or change global
+settings/permissions. Preserve coordinator restrictions.
+Keep the desktop sidebar resizable with bounded browser-local width, keyboard
+controls and stacked mobile layout. Align the coordinator with the chat column,
+keep it immediately before Add agent, and display the version badge at its
+existing font size in the composer footer. Chat text uses the available width.
+The named Standard Task Report format lives in server/worker-instructions.md;
+interval instructions are sent once per change, without CCNG recurring timers.

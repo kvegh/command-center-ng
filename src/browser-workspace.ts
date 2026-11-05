@@ -1,6 +1,7 @@
 export type BrowserWorkspace = {
   version: 1; selected: string; order: string[]; drafts: Record<string, string>;
   positions: Record<string, number>; bottom: Record<string, boolean>;
+  overviewWidth?: number;
 };
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
 export const BROWSER_WORKSPACE_KEY = 'ccng.workspace.v1';
@@ -15,7 +16,8 @@ export function browserWorkspace(value: unknown): BrowserWorkspace {
     order: Array.isArray(data.order) ? [...new Set(data.order.filter(validId))].slice(0, 32) : [],
     drafts: Object.fromEntries(entries(data.drafts).filter(([, text]) => typeof text === 'string' && text.length <= 32000)),
     positions: Object.fromEntries(entries(data.positions).filter(([, position]) => typeof position === 'number' && Number.isFinite(position) && position >= 0)),
-    bottom: Object.fromEntries(entries(data.bottom).filter(([, value]) => typeof value === 'boolean'))
+    bottom: Object.fromEntries(entries(data.bottom).filter(([, value]) => typeof value === 'boolean')),
+    ...(typeof data.overviewWidth === 'number' && Number.isFinite(data.overviewWidth) && data.overviewWidth >= 280 && data.overviewWidth <= 800 ? { overviewWidth: data.overviewWidth } : {})
   };
 }
 export function browserStorage(): StorageLike | null {

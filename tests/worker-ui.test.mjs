@@ -25,6 +25,8 @@ const { TaskTotals } = await component('task-totals');
 const { taskInputMessage } = await component('task-discussion');
 const { BranchSummaryReview } = await component('branch-summary-review');
 const { NativeRequestCard } = await component('native-request-card');
+const { ModelControls } = await component('worker-model-settings');
+const { SidebarDivider, sidebarLimits, sidebarSize } = await component('sidebar-divider');
 const markdown = value => renderToStaticMarkup(React.createElement(Markdown, { value }));
 
 test('Markdown renders tables, lists, headings, links, quotes and inline/fenced code', () => {
@@ -88,6 +90,10 @@ test('worker report settings expose queued and generating states without the old
   assert.doesNotMatch(queued, /Reports wait for idle/);
   const generating = renderToStaticMarkup(React.createElement(WorkerSettings, { ...props, reportState: 'generating' }));
   assert.match(generating, /Generating task report/);
+  const setting = renderToStaticMarkup(React.createElement(WorkerSettings, { ...props, minutes: 0, settingPending: true }));
+  assert.match(setting, /Reporting instruction queued/);
+  const selected = renderToStaticMarkup(React.createElement(WorkerSettings, props));
+  assert.match(selected, /agent handles this interval/); assert.match(selected, /no recurring reminders/);
 });
 
 test('native requests identify the worker and render permission, MCP form, external and unsupported controls faithfully', () => {
@@ -111,4 +117,18 @@ test('Report now follows Never and keeps the report cadence as four radio choice
   const html = renderToStaticMarkup(React.createElement(WorkerSettings, { agentId: 'manual-worker', disabled: false, paused: false, minutes: 0, save: async () => true, reportNow: async () => true }));
   assert.match(html, /Never<\/span><\/label><button[^>]+>Report now<\/button>/);
   assert.equal((html.match(/type="radio"/g) || []).length, 4);
+});
+
+test('model controls render only native catalog models and efforts for the selected model', () => {
+  const models = [{ model: 'first', displayName: 'First native model', description: '', defaultEffort: 'low', efforts: [{ value: 'low', description: 'Lower effort' }, { value: 'high', description: 'Higher effort' }] }, { model: 'second', displayName: 'Second native model', description: '', defaultEffort: 'medium', efforts: [{ value: 'medium', description: 'Middle effort' }] }];
+  const html = renderToStaticMarkup(React.createElement(ModelControls, { models, model: 'second', effort: 'medium', disabled: false, chooseModel() {}, chooseEffort() {} }));
+  assert.match(html, /First native model/); assert.match(html, /Second native model/); assert.match(html, /Worker reasoning effort/);
+  assert.match(html, /value="medium"/); assert.doesNotMatch(html, /value="low"|value="high"/);
+});
+
+test('sidebar sizing bounds retain usable chat space and expose an accessible separator', () => {
+  assert.deepEqual(sidebarLimits(1200), { min: 280, max: 800 });
+  assert.equal(sidebarSize(900, 1000), 640); assert.equal(sidebarSize(100, 1200), 280);
+  const html = renderToStaticMarkup(React.createElement(SidebarDivider, { width: 420, panelWidth: 1200, change() {} }));
+  assert.match(html, /role="separator"/); assert.match(html, /aria-orientation="vertical"/); assert.match(html, /aria-valuenow="420"/); assert.match(html, /tabindex="0"/);
 });

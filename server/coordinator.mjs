@@ -37,44 +37,28 @@ export class Coordinator {
     this.approvalSources = new Map();
   }
   workers() { return [...this.workspace.agents.values()].filter(agent => agent.role !== 'coordinator'); }
-  setReportInterval(id, minutes, now = Date.now()) {
+  setReportInterval(id, minutes, { notifyWorker = false } = {}) {
     const agent = this.worker(id);
     if (!REPORT_INTERVALS.includes(minutes)) throw fail('Choose 1h, 15min, 5min or Never.', 400);
-    agent.reportIntervalMinutes = minutes; agent.nextReportAt = minutes ? now + minutes * 60_000 : null; agent.reportError = null;
-    const rows = this.deliveries.get(id);
-    if (rows) {
-      const retained = rows.filter((row, index) => row.kind !== 'scheduled-report' || (index === 0 && agent.coordinatorSending));
-      if (retained.length !== rows.length) {
-        rows.splice(0, rows.length, ...retained);
-        if (!rows.length) this.deliveries.delete(id);
-        if (!agent.coordinatorDeliveryKind && !rows.some(row => row.kind === 'report' || row.kind === 'scheduled-report')) this.reportPending.delete(id);
-      }
+    if (agent.reportIntervalMinutes === minutes) return { reportIntervalMinutes: minutes, alreadySet: true };
+    if (notifyWorker) {
+      if (this.stopped || !this.rpc.ready || this.workspace.restoring) throw fail('Reconnect the worker before changing its report instruction.', 503);
+      if (!agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) throw fail('Finish the branch handoff before changing its report instruction, or choose a worker that accepts direct input.');
+      const rows = this.deliveries.get(id);
+      const retained = rows?.filter((row, index) => row.kind !== 'report-setting' || (index === 0 && agent.coordinatorSending));
+      if (retained?.length >= 4) throw fail('This worker already has four queued messages. Clear or deliver them before changing its report instruction.');
+      if (rows) { rows.splice(0, rows.length, ...retained); if (!rows.length) this.deliveries.delete(id); }
     }
+    agent.reportIntervalMinutes = minutes; agent.reportError = null;
+    if (notifyWorker) this.queue(agent, '[Command Center coordinator]\n' + (minutes ? `Request for Standard Task Report every ${minutes === 60 ? '1 hour' : minutes + ' minutes'}. Replace any previous reporting interval. Follow this instruction using your runtime timing capabilities; Command Center will not send recurring reminders.` : 'Cancel your recurring Standard Task Report schedule. Reporting is now Never. Keep explicit one-off Report now requests available.') + ' Use the Standard Task Report function in your base instructions. This changes reporting only; it does not authorize additional project work or request an immediate report. If your runtime cannot maintain the requested timing, explain the limitation.', 'report-setting');
     this.workspace.changed();
-    return { reportIntervalMinutes: minutes, nextReportAt: agent.nextReportAt };
-  }
-  async pollReports(now = Date.now()) {
-    if (this.pollingReports || this.stopped || this.paused || this.workspace.restoring || !this.rpc.ready) return;
-    this.pollingReports = true;
-    try {
-      for (const agent of this.workers()) {
-        if (!agent.reportIntervalMinutes || !agent.nextReportAt || agent.nextReportAt > now || agent.reportError) continue;
-        await this.workspace.refreshObserved(agent.id);
-        if (this.stopped || this.paused || this.workspace.restoring || !this.rpc.ready || this.workspace.agents.get(agent.id) !== agent) break;
-        if (!agent.reportIntervalMinutes || !agent.nextReportAt || agent.nextReportAt > now || agent.reportError || this.reportPending.has(agent.id) || this.deliveries.get(agent.id)?.length || !agent.canSend || this.workspace.summaryJobs.has(agent.id) || this.workspace.returnJobs.has(agent.id) || agent.returnSummary?.delivered) continue;
-        agent.nextReportAt = now + agent.reportIntervalMinutes * 60_000;
-        this.reportPending.add(agent.id);
-        try { this.queue(agent, '[Command Center coordinator]\nScheduled task report requested by your per-worker setting. ' + WORKER_REPORT_REQUEST, 'scheduled-report'); }
-        catch (error) { this.reportPending.delete(agent.id); agent.reportError = error.message; }
-        this.workspace.changed();
-      }
-    } finally { this.pollingReports = false; }
+    return { reportIntervalMinutes: minutes, instructionQueued: notifyWorker };
   }
 
   snapshot() { return { id: this.id, starting: !!this.starting, error: this.error, paused: this.paused, queuedMessages: [...this.deliveries.values()].reduce((n, rows) => n + rows.length, 0), audit: this.audit.slice(-20) }; }
   reportState(id) {
-    if (this.deliveries.get(id)?.some(row => ['report', 'scheduled-report'].includes(row.kind))) return 'queued';
-    return ['report', 'scheduled-report'].includes(this.workspace.agents.get(id)?.coordinatorDeliveryKind) ? 'generating' : null;
+    if (this.deliveries.get(id)?.some(row => row.kind === 'report')) return 'queued';
+    return this.workspace.agents.get(id)?.coordinatorDeliveryKind === 'report' ? 'generating' : null;
   }
   requestUserReport(id) {
     const agent = this.worker(id);
@@ -236,9 +220,9 @@ export class Coordinator {
     const message = rows[0];
     try {
       agent.coordinatorDeliveryKind = message.kind;
-      await this.workspace.send(id, message.text); rows.shift(); if (!rows.length) this.deliveries.delete(id);
-      this.record({ agentId: id, action: message.kind, outcome: 'delivered' }); if (message.kind === 'scheduled-report') agent.reportError = null;
-    } catch (error) { agent.coordinatorDeliveryKind = null; message.error = error.message; if (message.kind === 'scheduled-report') agent.reportError = error.message; this.error = 'Coordinator message delivery was not confirmed; it will not retry automatically: ' + error.message; this.record({ agentId: id, action: message.kind, outcome: 'unconfirmed', rationale: error.message }); }
+      await this.workspace.send(id, message.text, { report: message.kind === 'report', reportSetting: message.kind === 'report-setting' }); rows.shift(); if (!rows.length) this.deliveries.delete(id);
+      this.record({ agentId: id, action: message.kind, outcome: 'delivered' }); if (message.kind === 'report-setting') agent.reportError = null;
+    } catch (error) { agent.coordinatorDeliveryKind = null; message.error = error.message; if (message.kind === 'report-setting') agent.reportError = error.message; this.error = 'Coordinator message delivery was not confirmed; it will not retry automatically: ' + error.message; this.record({ agentId: id, action: message.kind, outcome: 'unconfirmed', rationale: error.message }); }
     finally { agent.coordinatorSending = false; this.workspace.changed(); }
   }
   async review(agent, args) {
@@ -305,10 +289,9 @@ export class Coordinator {
     const deliveryKind = agent.coordinatorDeliveryKind; agent.coordinatorDeliveryKind = null;
     const last = agent.messages.findLast(message => message.type === 'user');
     const requested = last && isCoordinatorMessage(last);
-    if (deliveryKind === 'report' || deliveryKind === 'scheduled-report') this.reportPending.delete(id);
-    if (deliveryKind === 'scheduled-report' && agent.reportIntervalMinutes) agent.nextReportAt = Date.now() + agent.reportIntervalMinutes * 60_000;
+    if (deliveryKind === 'report') this.reportPending.delete(id);
     void this.flush(id);
-    if (deliveryKind === 'report' || deliveryKind === 'scheduled-report') this.mark(id, 'Requested report is ready', true);
+    if (deliveryKind === 'report') this.mark(id, 'Requested report is ready', true);
     else if (!requested) this.mark(id, 'Worker turn completed');
   }
   clearMessages() { this.deliveries.clear(); this.reportPending.clear(); this.reportVersions.clear(); this.error = null; this.workspace.changed(); }

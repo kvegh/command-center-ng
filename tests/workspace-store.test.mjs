@@ -158,13 +158,14 @@ test('an unavailable saved coordinator is retried by ID without creating a repla
 });
 
 
-test('per-worker report intervals persist privately and restore with a fresh delay without starting turns', async () => {
+test('per-worker report intervals persist privately and restore the selection without replaying instructions or starting timers', async () => {
   const saved = { ...record(['one', 'two'], 'coordinator', true), workerReportIntervals: { one: 5, two: 60 } };
   const f = await restored(saved);
   try {
     assert.deepEqual(await f.store.load(), saved);
     assert.equal(f.workspace.agent('one').reportIntervalMinutes, 5); assert.equal(f.workspace.agent('two').reportIntervalMinutes, 60);
-    assert.ok(f.workspace.agent('one').nextReportAt > Date.now());
+    assert.equal('nextReportAt' in f.workspace.agent('one'), false);
+    assert.equal(f.workspace.coordinator.deliveries.size, 0);
     assert.ok(f.rpc.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)));
     f.workspace.coordinator.setReportInterval('one', 15); await f.persistence.queue;
     assert.deepEqual((await f.store.load()).workerReportIntervals, { one: 15, two: 60 });

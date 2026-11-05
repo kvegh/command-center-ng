@@ -1,9 +1,10 @@
+import { readFileSync } from 'node:fs';
+
 export const REPORT_INTERVALS = [0, 5, 15, 60];
 
-export const WORKER_REPORT_INSTRUCTIONS = `Task reports use concise, high-level bullets with vivid colored markers and explicit words: 🟩 Done, 🟨 In progress, 🟥 Blocked, and 🟦 Next. Include the project's latest release version and whether publication is verified; if the working version is newer, identify it separately. Use authoritative release/version evidence, say unknown when unverified, and never substitute Command Center's UI version for another project. Name the actual work and useful result; task IDs are supporting references beside names, never the explanation. Distinguish code implemented/published from deployed/live-verified behavior. State exactly what input or decision is needed from the user. Omit irrelevant raw commands, code dumps, idle state and closed-record bookkeeping. Do not invent progress, completion or authority. Reporting alone must not execute extra project work. Never self-schedule report loops: Command Center owns the user-selected cadence.`;
+export const WORKER_BASE_INSTRUCTIONS = readFileSync(new URL('./worker-instructions.md', import.meta.url), 'utf8');
+export const WORKER_REPORT_INSTRUCTIONS = WORKER_BASE_INSTRUCTIONS.split('## Standard Task Report\n')[1].split('## Structured questions\n')[0].trim();
 
-export const WORKER_REPORT_REQUEST = 'Please report the current work, useful outcomes, unfinished work, exact blockers or decisions needed, and next action briefly. ' + WORKER_REPORT_INSTRUCTIONS + ' This requests a status report only; stay within the existing user scope and do not perform additional work merely for the report.';
+export const WORKER_REPORT_REQUEST = 'Standard Task Report. Run the named routine in your worker base instructions. Status only; do not perform additional project work for this request.';
 
-export const WORKER_QUESTION_INSTRUCTIONS = `For a clarification or preference that needs the user's answer, use the provider's structured request-user-input/question tool with clear options when it is available in the current mode. Do not ask only in ordinary chat when the structured tool is available. If unavailable, ask the question plainly and explicitly identify the input needed. Do not disguise a clarification as an execution approval. Preserve existing pending questions and do not duplicate or silently mark them answered; continue independent authorized work while waiting.`;
-
-export const WORKER_BASE_INSTRUCTIONS = WORKER_REPORT_INSTRUCTIONS + '\n\n' + WORKER_QUESTION_INSTRUCTIONS;
+export const WORKER_QUESTION_INSTRUCTIONS = WORKER_BASE_INSTRUCTIONS.split('## Structured questions\n')[1].trim();

@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.17.0 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.18.0 (in development)** includes the Codex workspace and Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -279,16 +279,23 @@ is approved follow-up work and remains unimplemented. No new question store or m
 
 Each worker sidebar has **Worker specific settings**, with **Task report every**
 and radio choices **1h**, **15min**, **5min**, **Never**. Never is the default;
-choices persist per worker in the existing private workspace file. The current
-backend queues status-only reports when due through the existing delivery queue,
-including while work or a request is pending. The sidebar shows queued/generating
-state. Delivery waits until the worker can accept a new turn, and reports pause
-with the coordinator,
-and stop when the worker tab closes. Restoration starts a fresh interval without
-starting a turn. There are no catch-up bursts or overlapping reports; a delivery
-error requires changing the interval before another scheduled attempt.
+choices persist per worker in the existing private workspace file. Selecting an
+interval sends one instruction to the agent: “Request for Standard Task Report
+every CHOSEN_TIME UNIT.” Changes replace the previous instruction; Never tells
+the agent to cancel recurring reports. The agent owns timing. Command Center has
+no recurring report timer and sends no repeated reminder prompts.
 
-Git-saved worker instructions require vivid labelled report bullets, meaningful
+Instructions use the existing message queue when work or a native request is
+pending; the sidebar identifies a queued instruction. Coordinator pause delays
+queued delivery, but does not pause a schedule already owned by the agent.
+Restoration restores the selected radio button without replaying instructions or
+starting a turn. After upgrading from the old CCNG timer, change the interval
+once (via Never if necessary) to instruct the agent under the new behavior.
+Timing and persistence depend on the agent's runtime; Command
+Center does not wake stopped sessions or guarantee background reporting.
+
+The Git-saved `server/worker-instructions.md` defines **Standard Task Report**:
+vivid labelled report bullets, meaningful
 work names and the project's latest release version with verified publication
 status. Newer working versions and live deployment evidence are distinguished.
 They also prefer structured clarification tools whenever available in the current
@@ -610,3 +617,39 @@ URLs, legacy/unknown visibility, coordinator restrictions and manual reporting.
 No live approval, model call or service restart was used. Interactive browser
 review remains pending. Local Claude management and model/effort controls are
 still unfinished, as are the requested resizable sidebar/tab/version layout.
+
+
+## Model controls, flexible layout and agent-owned reports: 0.18.0
+
+Worker specific settings now include model and reasoning-effort selectors from
+the connected native Codex runtime's catalog. Save updates only that worker's
+native settings for subsequent turns. Current work and pending questions remain
+intact; native confirmation determines the displayed saved state. Unsupported
+choices are refused, and Refresh choices checks the current native state.
+This does not change global defaults, permissions or the coordinator's model.
+
+On desktop, drag the separator between the conversation and overview to resize
+both columns. Keyboard arrows adjust it when focused; Home/End choose the bounds.
+The browser remembers the width, within limits that preserve useful chat space.
+The coordinator tab follows the chat column's edge, immediately before Add agent.
+Chat text uses the available width, and the existing version badge now appears
+in the composer footer. Smaller screens keep the stacked layout.
+
+The user explicitly replaced the earlier CCNG report clock with one agent
+instruction per interval change. **Report now** requests the named Standard Task
+Report once, including with Never selected. Its owned control prompt stays out of
+the rendered conversation; actual reports and interval-change instructions stay
+visible. Native history is preserved, and ordinary user messages are never hidden
+because their text resembles a control prompt. No CCNG timer, progress-hash loop
+or recurring reminder delivery remains. This supersedes the scheduling behavior
+described in the historical 0.15.0–0.17.0 release notes above.
+
+Validation: all 129 application tests and the production build pass. Fixtures
+cover native model settings, preserved questions/current turns, late confirmation,
+width limits/storage, one instruction per change, cancellation/replacement,
+read-only restoration and no periodic backend prompts. Interactive browser review
+and a live provider-timing run remain unperformed. No live model call, approval,
+global permission/default change, runtime restart or deployment was used.
+Official Claude SDK management, shared environment instruction loading, fresh
+Dolt/Beads installation, ordinary-chat question tracking and live AAP rollout
+remain unfinished.

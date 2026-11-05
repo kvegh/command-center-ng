@@ -19,7 +19,7 @@ class Rpc extends EventEmitter {
     if (method === 'thread/name/set') { this.threads.get(params.threadId).name = params.name; return {}; }
     if (method === 'thread/read' || method === 'thread/resume') { if (!this.threads.has(params.threadId)) this.threads.set(params.threadId, this.thread(params.threadId)); if (method === 'thread/resume') for (const request of this.replayOnResume.get(params.threadId) || []) this.emit('request', request); return { thread: this.threads.get(params.threadId), instructionSources: [], sandbox: { type: 'readOnly' } }; }
     if (method === 'thread/turns/list') return { data: [{ id: 'base-' + params.threadId, status: 'completed', items: [{ type: 'userMessage', id: 'user-' + params.threadId, content: [{ type: 'text', text: this.thread(params.threadId).preview }] }, { type: 'agentMessage', id: 'reply-' + params.threadId, text: 'Ready.' }] }], nextCursor: null };
-    if (method === 'turn/start') { const id = 'turn-' + ++this.turn; queueMicrotask(() => { this.emit('notification', { method: 'turn/started', params: { threadId: params.threadId, turn: { id } } }); this.emit('notification', { method: 'item/completed', params: { threadId: params.threadId, turnId: id, item: { id: 'input-' + id, type: 'userMessage', content: params.input } } }); }); return { turn: { id } }; }
+    if (method === 'turn/start') { const id = 'turn-' + ++this.turn; queueMicrotask(() => { this.emit('notification', { method: 'turn/started', params: { threadId: params.threadId, turn: { id } } }); this.emit('notification', { method: 'item/completed', params: { threadId: params.threadId, turnId: id, item: { id: 'input-' + id, type: 'userMessage', clientId: params.clientUserMessageId, content: params.input } } }); }); return { turn: { id } }; }
     if (method === 'turn/interrupt') { this.complete(params.threadId, params.turnId); return {}; }
     if (method === 'thread/archive') return {};
     throw new Error('Unexpected fixture method: ' + method);
@@ -314,72 +314,68 @@ test('a requested report wakes the coordinator once, without repeated report loo
 });
 
 
-test('scheduled reports are independent per worker, wait for due time and never overlap', async () => {
+test('interval selections send one independent instruction per worker and elapsed time does not produce report prompts', async t => {
   const f = await fixture();
   try {
     await f.workspace.open('second');
-    assert.equal(f.workspace.agent('worker').reportIntervalMinutes, 0);
-    f.coordinator.setReportInterval('worker', 5, 1000); f.coordinator.setReportInterval('second', 15, 1000);
-    await f.coordinator.pollReports(300999);
-    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 0);
-    await f.coordinator.pollReports(301000); await new Promise(resolve => setImmediate(resolve));
-    let sent = f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId === 'worker');
-    assert.equal(sent.length, 1); assert.match(sent[0].params.input[0].text, /Scheduled task report/);
-    assert.match(sent[0].params.additionalContext['command-center-worker-instructions'].value, /latest release version/);
-    assert.match(sent[0].params.additionalContext['command-center-worker-instructions'].value, /structured/);
-    await f.coordinator.pollReports(999000); assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId === 'worker').length, 1);
-    f.coordinator.setReportInterval('worker', 0, 999000); f.rpc.complete('worker');
-    await f.coordinator.pollReports(9999999); assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId === 'worker').length, 1);
+    f.coordinator.setReportInterval('worker', 5, { notifyWorker: true });
+    f.coordinator.setReportInterval('second', 15, { notifyWorker: true });
+    await new Promise(resolve => setImmediate(resolve));
+    const sent = f.rpc.calls.filter(call => call.method === 'turn/start');
+    assert.equal(sent.length, 2);
+    assert.match(sent.find(call => call.params.threadId === 'worker').params.input[0].text, /every 5 minutes/);
+    assert.match(sent.find(call => call.params.threadId === 'second').params.input[0].text, /every 15 minutes/);
+    assert.match(sent[0].params.input[0].text, /Command Center will not send recurring reminders/);
+    assert.match(sent[0].params.additionalContext['command-center-worker-instructions'].value, /You own that reporting schedule/);
+    for (const id of ['worker', 'second']) f.rpc.complete(id);
+    t.mock.method(Date, 'now', () => 9999999999999);
+    for (let i = 0; i < 3; i++) for (const id of ['worker', 'second']) {
+      await f.workspace.refreshObserved(id); await f.coordinator.flush(id);
+    }
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 2, 'time and observation do not queue periodic prompts');
+    assert.equal('nextReportAt' in f.workspace.agent('worker'), false);
+    assert.equal(f.coordinator.pollReports, undefined);
     for (const value of [1, 10, '5', -1, null]) assert.throws(() => f.coordinator.setReportInterval('worker', value), /Choose/);
     assert.throws(() => f.coordinator.setReportInterval(f.coordinator.id, 5), /worker/);
-  } finally { await f.close(); }
+  } finally { t.mock.restoreAll(); await f.close(); }
 });
 
-test('due reports queue during active work and questions, coalesce missed intervals and deliver after the request resolves', async () => {
+test('interval replacements and Never wait for active work and pending requests without answering or interrupting them', async () => {
   const f = await fixture();
   try {
-    const worker = f.workspace.agent('worker'); f.coordinator.setReportInterval('worker', 5, 1000);
-    f.coordinator.paused = true; await f.coordinator.pollReports(1000000); f.coordinator.paused = false;
-    f.rpc.ready = false; await f.coordinator.pollReports(1000000); f.rpc.ready = true;
-    assert.equal(f.coordinator.deliveries.has('worker'), false);
-    worker.turnId = 'active'; worker.thread.status = { type: 'active' };
-    await f.coordinator.pollReports(1000000);
-    assert.equal(f.coordinator.deliveries.get('worker').length, 1);
-    assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'worker').reportState, 'queued');
-    await f.coordinator.pollReports(99999999);
-    assert.equal(f.coordinator.deliveries.get('worker').length, 1);
-    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+    const worker = f.workspace.agent('worker'); worker.turnId = 'active'; worker.thread.status = { type: 'active' };
+    f.coordinator.setReportInterval('worker', 5, { notifyWorker: true });
+    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
     f.rpc.ask('waiting', 'worker');
+    f.coordinator.setReportInterval('worker', 0, { notifyWorker: true });
+    assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+    assert.match(f.coordinator.deliveries.get('worker')[0].text, /Cancel your recurring Standard Task Report schedule/);
+    assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'worker').reportSettingPending, true);
     f.rpc.complete('worker', 'active'); await new Promise(resolve => setImmediate(resolve));
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
     worker.thread.status = { type: 'active', activeFlags: ['waitingOnApproval'] };
     f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: 'worker', requestId: 'waiting' } });
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal(f.coordinator.reportState('worker'), 'queued');
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
     worker.thread.status = { type: 'idle' }; await f.coordinator.flush('worker');
-    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId === 'worker').length, 1);
-    assert.equal(f.coordinator.reportState('worker'), 'generating');
-    f.rpc.complete('worker');
-    assert.equal(f.coordinator.reportState('worker'), null);
-    assert.ok(worker.nextReportAt > Date.now(), 'completion starts a fresh delay, not overdue catch-up reports');
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
+    assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'worker').reportSettingPending, false);
+    assert.equal(f.coordinator.reportState('worker'), null, 'a cadence instruction is not a report');
     assert.equal(f.rpc.replies.length, 0);
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
-    f.workspace.close('worker'); await f.coordinator.pollReports(9999999999999);
-    assert.equal(f.coordinator.reportPending.has('worker'), false);
   } finally { await f.close(); }
 });
 
-test('Never cancels a queued scheduled report and handoff preparation never queues another turn', async () => {
+test('report preferences cannot start branch handoffs or claim a queued instruction when disconnected', async () => {
   const f = await fixture();
   try {
-    const worker = f.workspace.agent('worker'); f.coordinator.setReportInterval('worker', 5, 1000);
-    f.workspace.summaryJobs.set('worker', {}); await f.coordinator.pollReports(1000000);
-    assert.equal(f.coordinator.deliveries.has('worker'), false); f.workspace.summaryJobs.delete('worker');
-    worker.turnId = 'busy'; worker.thread.status = { type: 'active' }; await f.coordinator.pollReports(1000000);
-    assert.equal(f.coordinator.reportState('worker'), 'queued');
-    f.coordinator.setReportInterval('worker', 0); f.rpc.complete('worker', 'busy');
-    await new Promise(resolve => setImmediate(resolve));
-    assert.equal(f.coordinator.deliveries.has('worker'), false); assert.equal(f.coordinator.reportPending.has('worker'), false);
+    const worker = f.workspace.agent('worker');
+    f.workspace.summaryJobs.set('worker', {});
+    assert.throws(() => f.coordinator.setReportInterval('worker', 5, { notifyWorker: true }), /branch handoff/);
+    f.workspace.summaryJobs.delete('worker'); f.rpc.ready = false;
+    assert.throws(() => f.coordinator.setReportInterval('worker', 5, { notifyWorker: true }), /Reconnect/);
+    assert.equal(worker.reportIntervalMinutes, 0);
+    assert.equal(f.coordinator.deliveries.has('worker'), false);
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
   } finally { await f.close(); }
 });
@@ -439,7 +435,7 @@ test('Report now queues immediately with Never, coalesces pending reports and le
     assert.deepEqual(f.coordinator.requestUserReport('worker'), { queued: true });
     assert.equal(f.coordinator.requestUserReport('worker').alreadyPending, true);
     assert.equal(f.coordinator.deliveries.get('worker').length, 1);
-    assert.equal(worker.reportIntervalMinutes, 0); assert.equal(worker.nextReportAt, null);
+    assert.equal(worker.reportIntervalMinutes, 0); assert.equal('nextReportAt' in worker, false);
     f.rpc.complete('worker', 'busy'); await new Promise(resolve => setImmediate(resolve));
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
     assert.equal(f.rpc.replies.length, 0);
@@ -447,8 +443,9 @@ test('Report now queues immediately with Never, coalesces pending reports and le
     await new Promise(resolve => setImmediate(resolve));
     const report = f.rpc.calls.find(call => call.method === 'turn/start');
     assert.match(report.params.input[0].text, /user selected Report now/);
-    assert.match(report.params.input[0].text, /latest release version/);
-    f.rpc.complete('worker'); assert.equal(worker.reportIntervalMinutes, 0); assert.equal(worker.nextReportAt, null);
+    assert.match(report.params.input[0].text, /Standard Task Report/);
+    assert.match(report.params.additionalContext['command-center-worker-instructions'].value, /latest release version/);
+    f.rpc.complete('worker'); assert.equal(worker.reportIntervalMinutes, 0); assert.equal('nextReportAt' in worker, false);
     assert.equal(f.coordinator.reportPending.has('worker'), false);
     assert.throws(() => f.coordinator.requestUserReport(f.coordinator.id), /open worker/);
     f.workspace.summaryJobs.set('worker', {});
@@ -468,5 +465,60 @@ test('manual request support cannot broaden coordinator filesystem, network or M
     assert.equal(f.workspace.agent(f.coordinator.id).questions.length, 2);
     await f.workspace.answer(f.coordinator.id, 'coordinator-access', { decision: 'decline' });
     assert.equal(f.rpc.replies.at(-1).result.scope, 'turn');
+  } finally { await f.close(); }
+});
+
+test('one-off report requests have persisted native identity and leave actual reports and user messages visible', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); f.coordinator.requestUserReport('worker');
+    await new Promise(resolve => setImmediate(resolve));
+    const start = f.rpc.calls.find(call => call.method === 'turn/start');
+    assert.match(start.params.clientUserMessageId, /^ccng-report-/);
+    assert.match(start.params.additionalContext['command-center-worker-instructions'].value, /## Standard Task Report/);
+    assert.equal(worker.messages.find(message => message.type === 'user' && message.internalReport).turnId, worker.turnId);
+    f.rpc.emit('notification', { method: 'item/completed', params: { threadId: 'worker', turnId: worker.turnId, item: { id: 'actual-report', type: 'agentMessage', text: 'Useful task report.' } } });
+    assert.equal(worker.messages.find(message => message.id === 'actual-report').internalReport, undefined);
+    f.rpc.complete('worker'); await f.coordinator.flush('worker');
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
+    f.workspace.addItem(worker, { id: 'real-quoted-message', type: 'userMessage', content: [{ type: 'text', text: start.params.input[0].text }] }, 'real-user-turn');
+    assert.equal(worker.messages.find(message => message.id === 'real-quoted-message').internalReport, undefined, 'text alone never hides a real user message');
+    f.workspace.addItem(worker, { id: 'restored-reminder', clientId: start.params.clientUserMessageId, type: 'userMessage', content: start.params.input }, 'restored-report');
+    assert.equal(worker.messages.find(message => message.id === 'restored-reminder').internalReport, true, 'restored native identity is enough; no extra store');
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('worker model APIs cannot change coordinator settings', async () => {
+  const f = await fixture();
+  try {
+    const before = f.rpc.calls.length;
+    await assert.rejects(f.workspace.modelSettings(f.coordinator.id), /Choose a worker/);
+    await assert.rejects(f.workspace.updateModel(f.coordinator.id, { model: 'example', effort: 'high' }), /accepts direct input/);
+    assert.equal(f.rpc.calls.length, before);
+  } finally { await f.close(); }
+});
+
+test('cadence instructions queue once per actual change, supersede unsent preferences and are not replayed by restoration', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'busy'; worker.thread.status = { type: 'active' };
+    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
+    assert.match(f.coordinator.deliveries.get('worker')[0].text, /Request for Standard Task Report every 15 minutes/);
+    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
+    assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+    f.coordinator.setReportInterval('worker', 60, { notifyWorker: true });
+    assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+    assert.match(f.coordinator.deliveries.get('worker')[0].text, /every 1 hour/);
+    assert.equal(f.coordinator.reportPending.has('worker'), false);
+    f.rpc.complete('worker', 'busy'); await new Promise(resolve => setImmediate(resolve));
+    const start = f.rpc.calls.find(call => call.method === 'turn/start');
+    assert.match(start.params.clientUserMessageId, /^ccng-report-setting-/);
+    assert.match(start.params.input[0].text, /changes reporting only/);
+    f.rpc.complete('worker');
+    f.coordinator.setReportInterval('worker', 60);
+    assert.equal(f.coordinator.deliveries.has('worker'), false, 'restore-style application queues no instruction');
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
+    assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
 });

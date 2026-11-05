@@ -20,7 +20,8 @@ async function fixture() {
   const dir = await mkdtemp(join(tmpdir(), 'ccng-protocol-'));
   const socketPath = join(dir, 'codex.sock'); const server = http.createServer(); const wss = new WebSocketServer({ server });
   const calls = []; const replies = []; const threads = new Map(); const histories = new Map(); const failures = new Map(); const resumeRequests = new Map(); const summary = { text: 'Use the smaller option. Verification passed; no open questions.', status: 'completed' }; let sequence = 0; let turnSequence = 0; let connection;
-  const thread = (id, status = 'idle') => ({ id, name: `Agent ${id}`, preview: 'Build a useful feature', cwd: dir, status: { type: status, activeFlags: [] }, canAcceptDirectInput: true, turns: [], model: 'configured-model' });
+  const models = [{ model: 'configured-model', displayName: 'Configured model', description: 'Synthetic model', supportedReasoningEfforts: [{ reasoningEffort: 'low', description: 'Low effort' }, { reasoningEffort: 'high', description: 'High effort' }], defaultReasoningEffort: 'low' }, { model: 'alternate-model', displayName: 'Alternate model', description: 'Another synthetic model', supportedReasoningEfforts: [{ reasoningEffort: 'medium', description: 'Medium effort' }], defaultReasoningEffort: 'medium' }];
+  const thread = (id, status = 'idle') => ({ id, name: `Agent ${id}`, preview: 'Build a useful feature', cwd: dir, status: { type: status, activeFlags: [] }, canAcceptDirectInput: true, turns: [], model: 'configured-model', reasoningEffort: 'low' });
   threads.set('existing', thread('existing', 'active'));
   const notify = (method, params) => connection.send(JSON.stringify({ method, params }));
   const ask = (id, threadId) => connection.send(JSON.stringify({ id, method: 'item/tool/requestUserInput', params: { threadId, turnId: 'turn-' + threadId, questions: [{ id: 'choice', header: 'Direction', question: 'Which direction?', options: [{ label: 'Small', description: 'Keep the first step small.' }] }] } }));
@@ -49,6 +50,11 @@ async function fixture() {
         threads.set(id, { ...thread(id), forkedFromId: p.threadId });
         result = { thread: threads.get(id) }; break;
       }
+      case 'model/list': result = { data: models, nextCursor: null }; break;
+      case 'thread/settings/update': {
+        const current = threads.get(p.threadId); current.model = p.model; if (p.effort) current.reasoningEffort = p.effort;
+        result = {}; setImmediate(() => notify('thread/settings/updated', { threadId: p.threadId, threadSettings: { model: current.model, effort: current.reasoningEffort } })); break;
+      }
       case 'thread/name/set': threads.get(p.threadId).name = p.name; result = {}; break;
       case 'thread/archive': threads.get(p.threadId).archived = true; result = {}; break;
       case 'turn/start': {
@@ -69,7 +75,7 @@ async function fixture() {
   }); });
   await new Promise(resolve => server.listen(socketPath, resolve));
   const rpc = new CodexRpc({ socketPath, timeout: 2000 }); await rpc.connect(); const workspace = new Workspace(rpc, { beads: null });
-  return { dir, rpc, workspace, calls, replies, threads, histories, failures, resumeRequests, summary, notify, ask, request: message => connection.send(JSON.stringify(message)), close: async () => { rpc.close(); for (const client of wss.clients) client.terminate(); await new Promise(resolve => wss.close(resolve)); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); } };
+  return { dir, rpc, workspace, calls, replies, threads, histories, failures, resumeRequests, summary, models, notify, ask, request: message => connection.send(JSON.stringify(message)), close: async () => { rpc.close(); for (const client of wss.clients) client.terminate(); await new Promise(resolve => wss.close(resolve)); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); } };
 }
 
 test('the worker picker excludes named and renamed coordinator conversations', async () => {
@@ -670,4 +676,33 @@ test('password stays hashed/private; HTTP login protects controls, rejects cross
     assert.equal((await request('/api/logout', {}, cookie)).status, 200);
     assert.equal((await request('/api/state', undefined, cookie)).status, 401);
   } finally { await app.close(); await f.close(); }
+});
+
+test('worker model controls validate the native catalog and persist only model/effort without interrupting active work or requests', async () => {
+  const f = await fixture();
+  try {
+    const worker = await f.workspace.open('existing'); const originalTurn = worker.turnId;
+    const catalog = await f.workspace.modelSettings('existing');
+    assert.deepEqual(catalog.models.map(model => model.model), ['configured-model', 'alternate-model']);
+    assert.deepEqual(catalog.models[1].efforts.map(option => option.value), ['medium']);
+    f.ask('unchanged-request', 'existing'); await waitFor(() => worker.questions.length === 1);
+    await assert.rejects(f.workspace.updateModel('existing', { model: 'invented', effort: 'high' }), /offered by the native/);
+    await assert.rejects(f.workspace.updateModel('existing', { model: 'alternate-model', effort: 'high' }), /supported reasoning/);
+    await assert.rejects(f.workspace.updateModel('existing', { model: 'alternate-model', effort: 'medium', sandboxPolicy: 'unsafe' }), /only a model/);
+    assert.equal(f.calls.some(call => call.method === 'thread/settings/update'), false);
+    const result = await f.workspace.updateModel('existing', { model: 'alternate-model', effort: 'medium' });
+    assert.equal(result.model, 'alternate-model'); assert.equal(result.effort, 'medium'); assert.equal(result.change.status, 'saved');
+    assert.equal(worker.turnId, originalTurn); assert.equal(worker.questions[0].id, 'unchanged-request'); assert.equal(f.replies.length, 0);
+    assert.deepEqual(f.calls.find(call => call.method === 'thread/settings/update').params, { threadId: 'existing', model: 'alternate-model', effort: 'medium' });
+    assert.equal(f.calls.some(call => ['turn/interrupt', 'turn/steer', 'turn/start'].includes(call.method)), false);
+    const restored = new Workspace(f.rpc, { beads: null }); await restored.open('existing', { observeOnly: true });
+    assert.equal(restored.agent('existing').model, 'alternate-model'); assert.equal(restored.agent('existing').reasoningEffort, 'medium');
+    f.failures.set('thread/settings/update', 'Unsupported runtime settings method');
+    await assert.rejects(f.workspace.updateModel('existing', { model: 'configured-model', effort: 'low' }), /Unsupported runtime/);
+    assert.equal(worker.model, 'alternate-model'); assert.equal(worker.modelChange.status, 'unconfirmed');
+    f.notify('thread/settings/updated', { threadId: 'existing', threadSettings: { model: 'configured-model', effort: 'low' } });
+    await waitFor(() => worker.modelChange.status === 'saved');
+    assert.equal(worker.model, 'configured-model'); assert.equal(worker.reasoningEffort, 'low');
+    assert.equal(worker.modelChange.error, undefined);
+  } finally { await f.close(); }
 });

@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.17.0
+## Current development version: 0.18.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -303,3 +303,13 @@ Report now beside Never queues one report without changing saved cadence.
 The user also requests model/effort selection and a resizable overview/sidebar,
 coordinator alignment with the chat column, uncapped useful chat text width and
 moving the version label into the composer footer. These remain unfinished.
+
+
+Version 0.18.0 exposes per-worker native model/effort settings for subsequent
+turns, a browser-persisted desktop overview divider, chat-width text, coordinator
+alignment and the version badge in the composer footer. Model choices and saved
+state come from the native runtime; no permission/global default changes.
+The user explicitly rejects CCNG's recurring report timer. Radio selection sends
+one Standard Task Report timing instruction; changes replace it and Never asks
+the agent to cancel its schedule. Timing belongs to the agent runtime. Report now
+remains one explicit request. Restoring tabs does not replay timing instructions.

@@ -33,7 +33,6 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
   await persistence.initialize();
   const taskTimer = setInterval(() => {
     for (const id of workspace.agents.keys()) { void workspace.refreshTasks(id); void workspace.refreshObserved(id); }
-    void workspace.coordinator?.pollReports().catch(error => { workspace.coordinator.error = error.message; workspace.changed(); });
   }, 5000);
   taskTimer.unref();
   let vite; let broadcastTimer;
@@ -113,6 +112,9 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
         }
         const detailRoute = path.match(/^\/api\/agents\/([^/]+)\/tasks\/([^/]+)$/);
         if (detailRoute && request.method === 'GET') return json(response, await workspace.taskDetail(decodeURIComponent(detailRoute[1]), decodeURIComponent(detailRoute[2])));
+        const modelRoute = path.match(/^\/api\/agents\/([^/]+)\/model-settings$/);
+        if (modelRoute && request.method === 'GET') return json(response, await workspace.modelSettings(decodeURIComponent(modelRoute[1])));
+        if (modelRoute && request.method === 'POST') return json(response, await workspace.updateModel(decodeURIComponent(modelRoute[1]), await body(request)));
         const taskRoute = path.match(/^\/api\/agents\/([^/]+)\/tasks$/);
         if (taskRoute) {
           const id = decodeURIComponent(taskRoute[1]);
@@ -128,7 +130,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           if (action === 'interrupt') await workspace.interrupt(id);
           if (action === 'history') await workspace.history(id, data.cursor);
           if (action === 'requests') return json(response, await workspace.recoverRequests(id));
-          if (action === 'report-settings') { if (!workspace.coordinator) throw failure('Reporting is unavailable.', 503); return json(response, workspace.coordinator.setReportInterval(id, data.minutes)); }
+          if (action === 'report-settings') { if (!workspace.coordinator) throw failure('Reporting is unavailable.', 503); return json(response, workspace.coordinator.setReportInterval(id, data.minutes, { notifyWorker: true })); }
           if (action === 'report') { if (!workspace.coordinator) throw failure('Reporting is unavailable.', 503); return json(response, workspace.coordinator.requestUserReport(id)); }
           if (action === 'answer') await workspace.answer(id, data.requestId, data);
           if (action === 'review') {

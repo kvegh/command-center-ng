@@ -30,3 +30,9 @@ test('malformed browser preferences are bounded and invalid scroll values are dr
   assert.equal(value.selected, ''); assert.deepEqual(value.order, ['one']); assert.equal(Object.keys(value.drafts).length, 32);
   assert.deepEqual(value.positions, { three: 42 }); assert.deepEqual(value.bottom, { one: false });
 });
+
+test('overview width persists in existing browser preferences while invalid values are dropped', () => {
+  const local = storage(); const value = { ...emptyBrowserWorkspace(), overviewWidth: 520 };
+  saveBrowserWorkspace(value, local); assert.equal(loadBrowserWorkspace(local).state.overviewWidth, 520);
+  for (const width of [0, -1, 279, 801, Infinity, '520']) assert.equal(browserWorkspace({ version: 1, overviewWidth: width }).overviewWidth, undefined);
+});

@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.17.0** in package.json and the lockfile.
+The authoritative version is **0.18.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -510,3 +510,21 @@ local official Claude SDK management are still unfinished. SDK package version
 was checked, but no package installation or actual integration has occurred.
 
 0.17.0 implementation: `63c5cf173eef5c295c8041e3151e29b933fc167c`. Check remote refs for publication.
+
+
+## Worker model settings, flexible layout and report ownership: 0.18.0
+
+Native model/effort controls, the resizable desktop sidebar, coordinator alignment,
+full-width chat text and composer-footer version badge are implemented. The user
+explicitly chose agent-owned report timing. CCNG recurring report polling/due-time
+state is removed. Radio changes send one named Standard Task Report instruction,
+coalesce unsent replacements and Never sends cancellation. Restoration preserves
+selection but starts no turn and replays no instruction. Report now remains a
+one-off request with exact native client identity and normal delivery gates.
+The named format/timing/question guidance lives in server/worker-instructions.md.
+
+All 129 tests and production build pass. No interactive browser review, live
+provider timing test, global auto-review change, runtime restart or deployment.
+Shared environment AGENTS runtime loading, official Claude SDK management,
+fresh-install Dolt/Beads, ordinary-chat unanswered questions and actual AAP-to-TRA
+CaC/live rollout remain unfinished; credential history review precedes re-asking.
