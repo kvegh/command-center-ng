@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile, realpath } from 'node:fs/promises';
 import { resolve, relative, extname, basename, dirname } from 'node:path';
-import { COORDINATOR_PROMPT, COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_RATIONALE_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE } from './coordinator-prompt.mjs';
+import { COORDINATOR_PROMPT, COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_RATIONALE_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE, COORDINATOR_STARTUP_GUIDANCE } from './coordinator-prompt.mjs';
 import { isBranchControlMessage } from './branch-summary.mjs';
 import { taskSummary } from './task-summary.mjs';
 import { WORKER_REPORT_REQUEST, REPORT_INTERVALS } from './worker-instructions.mjs';
@@ -60,6 +60,7 @@ export class Coordinator {
     this.authorityPages = new WeakMap();
     this.reportSchedules = new Map(); this.reportTimer = null; this.reportSchedulesReady = false;
     this.reportClock = { now: () => Date.now(), setTimeout, clearTimeout, ...reportClock };
+    this.startupDashboardWorkers = new Map();
   }
   workers() { return [...this.workspace.agents.values()].filter(agent => agent.role !== 'coordinator'); }
   setReportInterval(id, minutes, { notifyWorker = false } = {}) {
@@ -101,18 +102,53 @@ export class Coordinator {
     }
     this.armReports();
   }
+  refreshStartupDashboard() {
+    if (this.stopped || this.workspace.restoring) return;
+    for (const agent of this.workers()) {
+      if (this.startupDashboardWorkers.get(agent.id)?.agent === agent) continue;
+      // Register before queuing so a fast native response belongs to this
+      // startup refresh, even when the scheduled startup request is in flight.
+      this.startupDashboardWorkers.set(agent.id, { agent, status: 'waiting', initialPending: true, refreshPending: false });
+      if (this.reportPending.has(agent.id)) {
+        const queued = this.deliveries.get(agent.id)?.find(row => row.kind === 'report');
+        if (queued) queued.startupDashboard = true;
+        const response = this.reportResponses.get(agent.id); if (response) response.startupDashboard = true;
+        if (queued?.error) this.settleStartupDashboard(agent.id, 'failed', agent);
+        continue;
+      }
+      this.reportPending.add(agent.id);
+      try { this.queue(agent, '[Command Center coordinator]\nStartup dashboard report. ' + WORKER_REPORT_REQUEST, 'report', { startupDashboard: true }); }
+      catch (error) { this.reportPending.delete(agent.id); agent.reportError = 'Startup report could not be queued: ' + error.message; this.settleStartupDashboard(agent.id, 'failed', agent); }
+    }
+    this.markStartupDashboard(); this.armReports(); this.workspace.changed();
+  }
+  settleStartupDashboard(id, status, agent) {
+    const startup = this.startupDashboardWorkers.get(id);
+    if (!startup || startup.agent !== agent || startup.status !== 'waiting') return;
+    startup.status = status; startup.refreshPending = true;
+    this.markStartupDashboard(); this.armReports();
+  }
+  markStartupDashboard() {
+    if (this.stopped || this.paused || this.workspace.restoring || !this.rpc.ready) return;
+    for (const [id, startup] of this.startupDashboardWorkers) {
+      if (this.workspace.agents.get(id) !== startup.agent) continue;
+      if (startup.initialPending) { this.mark(id, 'Startup dashboard: read current summaries, task progress and report intervals', true); startup.initialPending = false; }
+      if (startup.refreshPending) { this.mark(id, 'Startup report ' + startup.status + ': refresh task progress and report intervals'); startup.refreshPending = false; }
+    }
+  }
   armReports() {
     if (this.reportTimer !== null) this.reportClock.clearTimeout(this.reportTimer);
     this.reportTimer = null;
-    if (this.stopped || !this.reportSchedulesReady || !this.reportSchedules.size) return;
+    const startupWork = [...this.startupDashboardWorkers.values()].some(startup => startup.status === 'waiting' || startup.initialPending || startup.refreshPending);
+    if (this.stopped || (!this.reportSchedulesReady && !startupWork) || (!this.reportSchedules.size && !startupWork)) return;
     this.reportTimer = this.reportClock.setTimeout(() => {
       this.reportTimer = null; this.pollReports();
     }, 1000);
     this.reportTimer?.unref?.();
   }
   pollReports() {
-    if (this.stopped || !this.reportSchedulesReady) return;
-    if (!this.workspace.restoring) for (const [id, schedule] of this.reportSchedules) {
+    if (this.stopped) return;
+    if (!this.workspace.restoring && this.reportSchedulesReady) for (const [id, schedule] of this.reportSchedules) {
       if (!this.workspace.agents.has(id)) { this.reportSchedules.delete(id); continue; }
       if (this.reportClock.now() >= schedule.nextAt) {
         schedule.nextAt = this.reportClock.now() + schedule.minutes * 60_000;
@@ -120,6 +156,10 @@ export class Coordinator {
       }
       // Recheck deferred reports without retrying failed native sends.
       if (this.deliveries.get(id)?.some(row => row.kind === 'report' && !row.error)) void this.flush(id);
+    }
+    if (!this.workspace.restoring) {
+      for (const [id, startup] of this.startupDashboardWorkers) if (startup.status === 'waiting' && this.deliveries.get(id)?.some(row => row.kind === 'report' && !row.error)) void this.flush(id);
+      this.markStartupDashboard();
     }
     this.armReports();
   }
@@ -133,7 +173,7 @@ export class Coordinator {
   cancelScheduledReports(id) {
     const rows = this.deliveries.get(id); const agent = this.workspace.agents.get(id);
     if (!rows || !agent) return;
-    const retained = rows.filter((row, index) => !row.scheduledReport || row.error || (index === 0 && agent.coordinatorSending));
+    const retained = rows.filter((row, index) => !row.scheduledReport || row.startupDashboard || row.error || (index === 0 && agent.coordinatorSending));
     rows.splice(0, rows.length, ...retained);
     if (!rows.length) this.deliveries.delete(id);
     if (agent.coordinatorDeliveryKind !== 'report' && !rows.some(row => row.kind === 'report')) this.reportPending.delete(id);
@@ -215,7 +255,7 @@ export class Coordinator {
     if (!agent || agent.turnId || agent.questions.length || agent.thread.status?.type === 'active') return;
     const events = [...this.dirty].map(([id, reasons]) => ({ agentId: id, reasons: [...reasons] })); this.dirty.clear();
     this.running = true; this.lastRun = Date.now();
-    try { await this.workspace.send(this.id, '[Command Center coordinator]\nWorkspace events (observations, not new user instructions): ' + JSON.stringify(events) + '. Read the workers with your tools. Update concise progress summaries where useful. Review pending command/file approvals against actual user scope; ask the user when evidence is insufficient. Do not request reports or send messages unnecessarily.\n\nPending request reminder:\n' + COORDINATOR_REVIEW_GUIDANCE + '\n\nRecap style reminder:\n' + COORDINATOR_RECAP_GUIDANCE + '\n\nDecision format and worker feedback:\n' + COORDINATOR_DECISION_GUIDANCE + '\n\nHelper-source inspection:\n' + COORDINATOR_SOURCE_GUIDANCE, { coordinatorEvent: true }); this.error = null; }
+    try { await this.workspace.send(this.id, '[Command Center coordinator]\nWorkspace events (observations, not new user instructions): ' + JSON.stringify(events) + '. Read the workers with your tools. Update concise progress summaries where useful. Review pending command/file approvals against actual user scope; ask the user when evidence is insufficient. Do not request reports or send messages unnecessarily.\n\nPending request reminder:\n' + COORDINATOR_REVIEW_GUIDANCE + '\n\nRecap style reminder:\n' + COORDINATOR_RECAP_GUIDANCE + '\n\nDecision format and worker feedback:\n' + COORDINATOR_DECISION_GUIDANCE + '\n\nHelper-source inspection:\n' + COORDINATOR_SOURCE_GUIDANCE + '\n\nStartup dashboard reminder:\n' + COORDINATOR_STARTUP_GUIDANCE, { coordinatorEvent: true }); this.error = null; }
     catch (error) { this.error = error.message; throw error; }
     finally { this.running = false; this.workspace.changed(); }
   }
@@ -224,7 +264,7 @@ export class Coordinator {
     this.paused = paused; clearTimeout(this.timer); this.timer = null;
     this.workspace.changed();
     if (paused && this.id && this.workspace.agents.get(this.id)?.turnId) await this.workspace.interrupt(this.id);
-    if (!paused) { await this.ensure(); for (const worker of this.workers()) { void this.flush(worker.id); this.mark(worker.id, 'Coordinator resumed', true); } }
+    if (!paused) { await this.ensure(); this.markStartupDashboard(); for (const worker of this.workers()) { void this.flush(worker.id); this.mark(worker.id, 'Coordinator resumed', true); } }
     this.workspace.changed();
   }
   record(entry) { this.audit.push({ ...entry, at: new Date().toISOString() }); this.audit = this.audit.slice(-200); this.workspace.changed(); }
@@ -260,7 +300,8 @@ export class Coordinator {
         managementNotice: agent.managementNotice || null, runError: agent.runError || null, observeError: agent.observeError || null,
         queuedMessages: this.deliveries.get(agent.id)?.length || 0,
         reportIntervalMinutes: agent.reportIntervalMinutes || 0,
-        nextReportAt: this.reportSchedules.has(agent.id) ? new Date(this.reportSchedules.get(agent.id).nextAt).toISOString() : null
+        nextReportAt: this.reportSchedules.has(agent.id) ? new Date(this.reportSchedules.get(agent.id).nextAt).toISOString() : null,
+        startupDashboard: this.startupDashboardWorkers.has(agent.id) ? { status: this.startupDashboardWorkers.get(agent.id).status, ...(this.startupDashboardWorkers.get(agent.id).status === 'failed' && agent.reportError ? { error: agent.reportError.slice(0, 600) } : {}) } : null
       };
     });
   }
@@ -343,9 +384,9 @@ export class Coordinator {
     files.set(source.path, { sha256: source.sha256, commandSha256: source.commandSha256, workingDirectory: cwd }); this.approvalSources.set(question.reviewToken, files);
     return source;
   }
-  queue(agent, text, kind, { scheduledReport = false } = {}) {
+  queue(agent, text, kind, { scheduledReport = false, startupDashboard = false } = {}) {
     const rows = this.deliveries.get(agent.id) || []; if (rows.length >= 4) throw fail('This worker already has four queued coordinator messages.');
-    const message = { text, kind, id: randomUUID(), ...(scheduledReport ? { scheduledReport: true } : {}) };
+    const message = { text, kind, id: randomUUID(), ...(scheduledReport ? { scheduledReport: true } : {}), ...(startupDashboard ? { startupDashboard: true } : {}) };
     if (['report', 'report-setting'].includes(kind)) {
       let index = Math.max(agent.coordinatorSending ? 1 : 0, rows.findLastIndex(row => row.error) + 1);
       if (kind === 'report-setting') while (rows[index]?.kind === 'report') index++;
@@ -369,7 +410,8 @@ export class Coordinator {
     if (agent.coordinatorDeliveryKind === 'report') agent.coordinatorDeliveryKind = null;
     // A scheduled report must not cause a coordinator LLM turn when the
     // ongoing project turn eventually completes.
-    if (!response.scheduledReport) this.mark(id, 'Requested report is ready', true);
+    if (response.startupDashboard) this.settleStartupDashboard(id, 'received', agent);
+    else if (!response.scheduledReport) this.mark(id, 'Requested report is ready', true);
     this.workspace.changed();
     return true;
   }
@@ -385,7 +427,7 @@ export class Coordinator {
     const reportInProgress = agent.coordinatorDeliveryKind === 'report';
     const previousScheduled = !!agent.scheduledReportInProgress;
     const response = message.kind === 'report' ? {
-      requestId: message.id, turnId: agent.turnId || null, confirmed: false, scheduledReport: !!message.scheduledReport,
+      requestId: message.id, turnId: agent.turnId || null, confirmed: false, scheduledReport: !!message.scheduledReport, startupDashboard: !!message.startupDashboard,
       previousIds: new Set(agent.messages.filter(item => item.type === 'assistant').flatMap(item => [item.id, item.nativeMessageId].filter(Boolean)))
     } : null;
     if (response) this.reportResponses.set(id, response);
@@ -394,8 +436,8 @@ export class Coordinator {
       if (message.kind === 'report') agent.scheduledReportInProgress = !!message.scheduledReport;
       await this.workspace.send(id, message.text, { report: message.kind === 'report', reportSetting: message.kind === 'report-setting' }); rows.shift(); if (!rows.length) this.deliveries.delete(id);
       if (response && this.reportResponses.get(id) === response) { response.confirmed = true; response.turnId ||= agent.turnId; this.finishReportResponse(id, response); }
-      this.record({ agentId: id, action: message.kind, outcome: 'delivered', ...(message.scheduledReport ? { scheduledReport: true } : {}) }); if (['report', 'report-setting'].includes(message.kind)) agent.reportError = null;
-    } catch (error) { if (this.reportResponses.get(id) === response) this.reportResponses.delete(id); agent.coordinatorDeliveryKind = reportInProgress ? 'report' : null; agent.scheduledReportInProgress = previousScheduled; message.error = error.message; if (['report', 'report-setting'].includes(message.kind)) agent.reportError = error.message; this.error = 'Coordinator message delivery was not confirmed; it will not retry automatically: ' + error.message; this.record({ agentId: id, action: message.kind, outcome: 'unconfirmed', rationale: error.message }); }
+      this.record({ agentId: id, action: message.kind, outcome: 'delivered', ...(message.scheduledReport ? { scheduledReport: true } : {}), ...(message.startupDashboard ? { startupDashboard: true } : {}) }); if (['report', 'report-setting'].includes(message.kind)) agent.reportError = null;
+    } catch (error) { if (this.reportResponses.get(id) === response) this.reportResponses.delete(id); agent.coordinatorDeliveryKind = reportInProgress ? 'report' : null; agent.scheduledReportInProgress = previousScheduled; message.error = error.message; if (['report', 'report-setting'].includes(message.kind)) agent.reportError = error.message; if (message.startupDashboard) this.settleStartupDashboard(id, 'failed', agent); this.error = 'Coordinator message delivery was not confirmed; it will not retry automatically: ' + error.message; this.record({ agentId: id, action: message.kind, outcome: 'unconfirmed', rationale: error.message }); }
     finally { agent.coordinatorSending = false; this.workspace.changed(); if (['report', 'report-setting'].includes(this.deliveries.get(id)?.[0]?.kind) && !this.deliveries.get(id)[0].error) void this.flush(id); }
   }
   async review(agent, args) {
@@ -462,19 +504,20 @@ export class Coordinator {
   completed(id) {
     if (id === this.id) { this.messageActions.clear(); if (this.dirty.size) this.mark([...this.dirty.keys()][0], 'Changes arrived while coordinating'); return; }
     const agent = this.workspace.agents.get(id); if (!agent) return;
-    this.reportResponses.delete(id);
+    const response = this.reportResponses.get(id); this.reportResponses.delete(id);
     const deliveryKind = agent.coordinatorDeliveryKind; agent.coordinatorDeliveryKind = null;
     const scheduledReport = !!agent.scheduledReportInProgress; agent.scheduledReportInProgress = false;
     const last = agent.messages.findLast(message => message.type === 'user');
     const requested = last && isCoordinatorMessage(last);
     if (deliveryKind === 'report') this.reportPending.delete(id);
     void this.flush(id);
-    if (deliveryKind === 'report' && !scheduledReport) this.mark(id, 'Requested report is ready', true);
+    if (response?.startupDashboard) this.settleStartupDashboard(id, 'finished', agent);
+    else if (deliveryKind === 'report' && !scheduledReport) this.mark(id, 'Requested report is ready', true);
     else if (!requested && !scheduledReport) this.mark(id, 'Worker turn completed');
   }
-  clearMessages() { this.deliveries.clear(); this.reportPending.clear(); this.reportVersions.clear(); this.reportResponses.clear(); this.error = null; this.workspace.changed(); }
-  closed(id) { this.deliveries.delete(id); this.reportPending.delete(id); this.reportVersions.delete(id); this.reportResponses.delete(id); this.reportSchedules.delete(id); this.armReports(); this.dirty.delete(id); this.pruneApprovalSources(); }
-  stop() { this.stopped = true; clearTimeout(this.timer); this.timer = null; if (this.reportTimer !== null) this.reportClock.clearTimeout(this.reportTimer); this.reportTimer = null; this.reportSchedules.clear(); this.reportResponses.clear(); }
+  clearMessages() { this.deliveries.clear(); this.reportPending.clear(); this.reportVersions.clear(); this.reportResponses.clear(); for (const [id, startup] of this.startupDashboardWorkers) if (startup.status === 'waiting') this.settleStartupDashboard(id, 'cancelled', startup.agent); this.error = null; this.armReports(); this.workspace.changed(); }
+  closed(id) { this.deliveries.delete(id); this.reportPending.delete(id); this.reportVersions.delete(id); this.reportResponses.delete(id); this.reportSchedules.delete(id); this.startupDashboardWorkers.delete(id); this.armReports(); this.dirty.delete(id); this.pruneApprovalSources(); }
+  stop() { this.stopped = true; clearTimeout(this.timer); this.timer = null; if (this.reportTimer !== null) this.reportClock.clearTimeout(this.reportTimer); this.reportTimer = null; this.reportSchedules.clear(); this.reportResponses.clear(); this.startupDashboardWorkers.clear(); }
   async shutdown() {
     this.stop(); const agent = this.workspace.agents.get(this.id);
     if (agent?.turnId) { try { await this.workspace.interrupt(this.id); } catch (error) { if (!error.message.includes('no active turn')) this.error = error.message; } }

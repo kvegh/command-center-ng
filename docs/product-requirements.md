@@ -406,3 +406,13 @@ Reuse current native input queues, coalesce outstanding reports, avoid missed
 report bursts and preserve pending native questions, pause, ownership and
 permission protections. Stop older agent-owned report loops during migration.
 This supersedes the earlier native-agent-owned timing requirement.
+
+## Coordinator startup dashboard
+
+After startup, the coordinator reaches out for current worker summaries and
+stored task progress to populate the dashboard. It also reads the saved report
+intervals and next due times. Request one silent startup report per worker,
+including a one-off summary for Never, and coalesce enabled-timer startup work.
+Publish available evidence first, update sidebar fields as fresh results arrive
+and preserve pause/native request/ownership boundaries. Refresh/reconnect must
+not duplicate requests, change intervals or cause routine chat spam.

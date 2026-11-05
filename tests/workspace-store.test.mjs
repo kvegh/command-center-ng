@@ -25,11 +25,17 @@ class Rpc extends EventEmitter {
   }
   respond() { throw new Error('Restoration must not answer approvals'); }
 }
-async function restored(saved) {
+async function restored(saved, { dashboard = false } = {}) {
   const f = await fixture(); await f.store.save(saved); const rpc = new Rpc(f.dir);
   const workspace = new Workspace(rpc, { beads: null, coordinator: { debounceMs: 1000000 } });
+  const startupSnapshots = [];
+  // State-only cases isolate orchestration; the final integration case enables it.
+  if (!dashboard) workspace.coordinator.refreshStartupDashboard = () => {
+    startupSnapshots.push({ restoring: workspace.restoring, status: workspace.restoration.status,
+      workers: workspace.coordinator.list().map(worker => ({ id: worker.id, interval: worker.reportIntervalMinutes })) });
+  };
   const persistence = new WorkspacePersistence(workspace, f.store); await persistence.initialize(); await persistence.restore(); await persistence.queue;
-  return { ...f, rpc, workspace, persistence, close: async () => { workspace.coordinator.stop(); await persistence.close(); await f.close(); } };
+  return { ...f, rpc, workspace, persistence, startupSnapshots, close: async () => { workspace.coordinator.stop(); await persistence.close(); await f.close(); } };
 }
 
 test('workspace writes are private, atomic and contain only selected metadata', async () => {
@@ -87,6 +93,7 @@ test('restoration refuses swapped worker/coordinator roles without changing nati
   await f.store.save(saved); const rpc = new Rpc(f.dir);
   rpc.threads.set('old-coordinator', { id: 'old-coordinator', name: 'Command Center coordinator', cwd: f.dir });
   const workspace = new Workspace(rpc, { beads: null, coordinator: true });
+  workspace.coordinator.refreshStartupDashboard = () => {};
   const persistence = new WorkspacePersistence(workspace, f.store);
   try {
     await persistence.initialize(); await persistence.restore(); await persistence.queue;
@@ -145,7 +152,7 @@ test('disconnected startup retains saved IDs until native connection is availabl
 
 test('an unavailable saved coordinator is retried by ID without creating a replacement', async () => {
   const f = await fixture(); await f.store.save(record(['one'], 'coordinator', true)); const rpc = new Rpc(f.dir); rpc.missing.add('coordinator');
-  const workspace = new Workspace(rpc, { beads: null, coordinator: true }); const persistence = new WorkspacePersistence(workspace, f.store);
+  const workspace = new Workspace(rpc, { beads: null, coordinator: true }); workspace.coordinator.refreshStartupDashboard = () => {}; const persistence = new WorkspacePersistence(workspace, f.store);
   try {
     await persistence.initialize(); await persistence.restore(); await persistence.queue;
     assert.equal(workspace.workerCount(), 1); assert.equal(workspace.coordinator.id, 'coordinator');
@@ -210,5 +217,33 @@ test('startup triggers one silent report for each enabled saved worker without c
     await f.persistence.restore();
     assert.equal(f.rpc.calls.length, count, 'reconciliation/reconnect does not replay the startup report');
     assert.deepEqual((await f.store.load()).workerReportIntervals, saved.workerReportIntervals);
+  } finally { await f.close(); }
+});
+
+
+test('restoration hands current task/report state to startup refresh only after saved workers and intervals are loaded', async () => {
+  const f = await restored({ ...record(['one', 'two'], 'coordinator', true), workerReportIntervals: { one: 15 } });
+  try {
+    assert.deepEqual(f.startupSnapshots, [{ restoring: false, status: 'ready', workers: [{ id: 'one', interval: 15 }, { id: 'two', interval: 0 }] }]);
+    await f.persistence.restore();
+    assert.equal(f.startupSnapshots.length, 1);
+  } finally { await f.close(); }
+});
+
+test('startup refresh combines fresh worker reports, restored intervals and coordinator sidebar publication', async () => {
+  const f = await restored({ ...record(['one', 'two'], 'coordinator'), workerReportIntervals: { one: 15 } }, { dashboard: true });
+  try {
+    const deadline = Date.now() + 2000;
+    while (f.workspace.coordinator.workers().some(agent => agent.coordinatorSending) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 5));
+    const reports = f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId !== 'coordinator');
+    assert.deepEqual(reports.map(call => call.params.threadId).sort(), ['one', 'two'], 'Never receives one startup summary and enabled timers do not duplicate it');
+    await f.workspace.coordinator.pump();
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId === 'coordinator').length, 1);
+    const metadata = f.workspace.coordinator.list();
+    assert.equal(metadata.find(row => row.id === 'one').reportIntervalMinutes, 15);
+    assert.equal(metadata.find(row => row.id === 'two').reportIntervalMinutes, 0);
+    const coordinator = f.workspace.agent('coordinator');
+    await f.workspace.coordinator.call({ threadId: 'coordinator', turnId: coordinator.turnId, tool: 'ccng_publish_progress', arguments: { agentId: 'one', summary: 'Current release is published; deployment is being checked.', blocker: '', nextStep: 'Verify the running deployment.' } });
+    assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'one').progress.summary, 'Current release is published; deployment is being checked.');
   } finally { await f.close(); }
 });

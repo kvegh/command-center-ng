@@ -405,3 +405,15 @@ Stopping/restarting that backend currently stops its SDK-owned Claude processes;
 closing a browser/tab does not. Saved history permits resume, not uninterrupted
 execution. Do not claim restart survival or introduce a separate worker service
 without a new explicit architectural decision.
+
+## Approved startup dashboard refresh
+
+After saved state is loaded, refresh the coordinator dashboard from current
+worker history, stored tasks/blockers and saved report intervals/next due times.
+Queue one silent fresh startup report for each restored worker; Never means no
+periodic reports but permits this one-off startup summary. Coalesce existing
+startup timer/Report now work and do not change user-selected intervals. Publish
+sidebar progress with available evidence immediately, then use existing
+throttling for newly arrived startup results. Do not wait for all workers or
+add repeated acknowledgements/chat prompts. Preserve paused startup intent,
+native questions, source/approval protections, ownership and failed-send guards.

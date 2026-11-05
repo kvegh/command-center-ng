@@ -99,7 +99,10 @@ export class WorkspacePersistence {
       workspace.restoration = { status: 'ready', error: null, warnings }; workspace.changed();
     })().catch(error => { this.workspace.restoration = { status: 'error', error: error.message, warnings: [] }; }).finally(() => {
       this.workspace.restoring = false; this.job = null; this.workspace.changed();
-      if (this.ready && !this.closed && this.workspace.restoration.status === 'ready') this.workspace.coordinator?.reconcileReportSchedules({ startup: true });
+      if (this.ready && !this.closed && this.workspace.restoration.status === 'ready') {
+        this.workspace.coordinator?.reconcileReportSchedules({ startup: true });
+        this.workspace.coordinator?.refreshStartupDashboard();
+      }
       const retry = this.restoreAfterConnect; this.restoreAfterConnect = false;
       if (retry && !this.closed && this.workspace.rpc.ready) { this.ready = false; queueMicrotask(() => { void this.restore(); }); }
     });

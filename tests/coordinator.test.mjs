@@ -651,6 +651,82 @@ test('startup reads saved intervals and queues one initial report without replay
   } finally { await f.close(); }
 });
 
+test('startup dashboard coalesces queued and in-flight reports without changing intervals or deadlines', async () => {
+  for (const mode of ['queued', 'in-flight']) {
+    const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
+    try {
+      f.coordinator.paused = mode === 'queued';
+      f.coordinator.setReportInterval('worker', 15);
+      f.coordinator.reconcileReportSchedules({ startup: true });
+      if (mode === 'in-flight') await delivered(f);
+      const deadline = f.coordinator.reportSchedules.get('worker').nextAt;
+      f.coordinator.refreshStartupDashboard(); f.coordinator.refreshStartupDashboard();
+      assert.equal(f.workspace.agent('worker').reportIntervalMinutes, 15);
+      assert.equal(f.coordinator.reportSchedules.get('worker').nextAt, deadline);
+      if (mode === 'queued') {
+        assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+        assert.equal(f.coordinator.deliveries.get('worker')[0].startupDashboard, true);
+        f.coordinator.setReportInterval('worker', 0, { notifyWorker: true });
+        assert.equal(f.coordinator.deliveries.get('worker').length, 1, 'Never keeps the startup request when cancelling periodic work');
+        f.coordinator.paused = false; await f.coordinator.flush('worker'); await delivered(f);
+      }
+      assert.equal(f.coordinator.reportResponses.get('worker').startupDashboard, true);
+      assert.equal(f.coordinator.requestUserReport('worker').alreadyPending, true);
+      const worker = f.workspace.agent('worker');
+      assert.equal(f.coordinator.reportMessageCompleted('worker', { id: 'startup-result', type: 'assistant', state: 'completed', turnId: worker.turnId, text: standardReport }), true);
+      assert.equal(f.coordinator.list().find(row => row.id === 'worker').startupDashboard.status, 'received');
+      f.coordinator.refreshStartupDashboard();
+      assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1, 'refresh does not ask the same worker again');
+      assert.equal(f.rpc.replies.length, 0);
+    } finally { await f.close(); }
+  }
+});
+
+test('paused startup reports defer safely and one pending worker cannot block progressive dashboard updates', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
+  try {
+    f.coordinator.paused = true; await f.workspace.open('second'); f.coordinator.dirty.clear();
+    f.rpc.ask('waiting', 'worker');
+    f.coordinator.refreshStartupDashboard(); f.coordinator.refreshStartupDashboard();
+    assert.equal(f.coordinator.deliveries.get('worker').length, 1); assert.equal(f.coordinator.deliveries.get('second').length, 1);
+    assert.equal(f.coordinator.dirty.size, 0); assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+    await f.coordinator.setPaused(false); await delivered(f);
+    assert.equal(f.rpc.calls.find(call => call.method === 'turn/start').params.threadId, 'second');
+    f.coordinator.dirty.clear();
+    const marks = []; const mark = f.coordinator.mark.bind(f.coordinator);
+    f.coordinator.mark = (...args) => { marks.push(args); return mark(...args); };
+    const second = f.workspace.agent('second');
+    const result = { id: 'second-startup-report', type: 'assistant', state: 'completed', turnId: second.turnId, text: standardReport };
+    assert.equal(f.coordinator.reportMessageCompleted('second', result), true);
+    assert.equal(f.coordinator.reportMessageCompleted('second', result), false);
+    assert.equal(f.coordinator.startupDashboardWorkers.get('worker').status, 'waiting');
+    assert.equal(f.coordinator.startupDashboardWorkers.get('second').status, 'received');
+    assert.equal(f.coordinator.dirty.has('second'), true, 'available results update without waiting for the blocked worker');
+    assert.equal(marks.filter(args => args[1].startsWith('Startup report')).length, 1);
+    assert.notEqual(marks.find(args => args[1].startsWith('Startup report'))[2], true, 'result updates use normal coordinator throttling');
+    f.rpc.complete('second'); f.workspace.removeQuestion('worker', 'waiting'); await delivered(f, 2);
+    f.rpc.complete('worker');
+    assert.equal(f.coordinator.startupDashboardWorkers.get('worker').status, 'finished', 'turn completion is qualified separately from a recognized fresh report');
+    assert.equal(f.workspace.agent('worker').reportIntervalMinutes, 0); assert.equal(second.reportIntervalMinutes, 0);
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('failed startup sends remain visible and are not retried by refresh or the report timer', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
+  try {
+    let attempts = 0;
+    f.workspace.send = async () => { attempts++; throw new Error('Synthetic startup delivery failure'); };
+    f.coordinator.refreshStartupDashboard();
+    await waitFor(() => f.coordinator.startupDashboardWorkers.get('worker')?.status === 'failed');
+    f.coordinator.refreshStartupDashboard(); clock.advance(60 * 60_000);
+    const startup = f.coordinator.list().find(row => row.id === 'worker').startupDashboard;
+    assert.equal(startup.status, 'failed'); assert.match(startup.error, /Synthetic startup delivery failure/);
+    assert.equal(attempts, 1); assert.ok(f.coordinator.deliveries.get('worker')[0].error);
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
 test('Never cancels queued scheduled reports while preserving explicit Report now and pending native requests', async () => {
   const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
   try {

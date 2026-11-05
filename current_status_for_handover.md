@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.26.0** in package.json and the lockfile.
+The authoritative version is **0.27.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -815,3 +815,25 @@ Live browser/provider cadence and actual running-installation update remain
 separate; no model run, service restart or live unit change was used for tests.
 
 0.26.0 implementation: `09b9f37bcbc11c47a92a543713c62e03dd55da69`.
+
+## 0.27.0 current startup dashboard and report intervals
+
+After saved-state loading, the coordinator requests one silent fresh startup
+report per restored worker, including a one-off for Never. Existing timer/Report
+now requests are reused; intervals/deadlines are not changed and Never still
+means no periodic reports. Startup requests follow native questions, ownership,
+pause, availability and handoff gates; errors remain visible without auto-retry.
+
+The coordinator reads available native history, stored tasks/blockers and saved
+interval/next-due metadata immediately and publishes sidebar progress. Fresh
+startup results trigger finite, throttled per-worker updates rather than waiting
+for every worker. Paused/unavailable coordination retains startup intent. Startup
+inputs/events remain hidden; no repeated acknowledgements or summary loops.
+Worker overview cards show Reports:1h/15min/5min/Never (Unknown if unavailable).
+
+All251 application tests and production build pass, including57 coordinator
+checks and15 restoration checks. Coverage includes startup coalescing, paused
+Never workers, progressive results, preserved deadlines, loaded-state handoff
+and coordinator sidebar publication. Running installation/model-generated
+dashboard quality and browser presentation still need live acceptance. No
+service restart, dependency installation or native permission change occurred.

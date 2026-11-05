@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.26.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.27.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -964,3 +964,27 @@ Closing the browser or removing a tab leaves work running while the backend
 stays up. The user rejected adding a separate Claude daemon/service, so0.26.0
 does not change this lifecycle. Native CLI background mode exists, but supported
 SDK reattachment to a local background process has not been established.
+
+## Startup dashboard refresh in0.27.0
+
+After loading the saved workspace, the coordinator refreshes current worker
+summaries, stored task progress/blockers and the selected report intervals/next
+deadlines. It reads available evidence immediately and publishes the sidebar
+progress fields, then refreshes those fields as fresh startup reports arrive.
+One unavailable or blocked worker does not prevent updates for the others.
+
+Each restored worker receives one silent one-off startup summary/report request,
+including workers set to Never. Never still disables periodic reporting. Enabled
+timers share their existing initial report with this refresh; outstanding Report
+now also coalesces, avoiding duplicate startup requests. The coordinator overview
+cards show the saved1h/15min/5min/Never interval. No interval is inferred from
+worker prose or changed by the coordinator model.
+
+Initial/result notifications are hidden internal events. The coordinator uses
+its existing progress-publication tools rather than echoing startup prompts or
+posting repeated acknowledgement recaps. Result updates use existing event
+throttling and occur once per startup request; ordinary later timer reports
+retain their silent-completion behavior. Paused coordination preserves startup
+intent for resume. Native questions, permission boundaries, worker ownership and
+failed-delivery safeguards remain intact. State restoration itself finishes
+before the authorized startup requests/coordination turns begin.

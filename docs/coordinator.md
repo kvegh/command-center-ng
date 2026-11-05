@@ -347,3 +347,19 @@ Global concurrency/default settings are separate from these role restrictions.
 Explicit report instructions and Report now can reach a ready local Claude worker
 without a Codex model run. Native automatic coordinator work still requires its
 Codex connection. Source publication does not restart either runtime.
+
+## Current dashboard after startup
+
+Version0.27.0 refreshes every restored worker after workspace loading, including
+its current native history, stored tasks, pending questions and saved reporting
+interval/next deadline. The backend queues one silent fresh startup report,
+coalescing existing enabled-timer or Report now work. Never workers receive one
+startup summary without enabling recurring reporting.
+
+The coordinator publishes useful sidebar summary/blocker/nextStep fields using
+available evidence immediately. It qualifies unavailable trackers or pending
+reports instead of showing invented completion or zero tasks. Fresh results
+request a throttled update for the relevant worker; one blocked/external session
+does not gate the rest of the dashboard. Startup inputs remain hidden in both
+CCNG chats, with no instruction echo/acknowledgement loop. Native permissions and
+real user authority remain unchanged.
