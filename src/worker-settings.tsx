@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 
-export function WorkerSettings({ agentId, minutes = 0, disabled, paused, error, save }: {
+export function WorkerSettings({ agentId, minutes = 0, disabled, paused, error, reportState, save }: {
   agentId: string; minutes?: number; disabled: boolean; paused: boolean; error?: string | null;
+  reportState?: 'queued' | 'generating' | null;
   save: (minutes: number) => Promise<boolean>;
 }) {
   const [saving, setSaving] = useState(false);
@@ -15,7 +16,7 @@ export function WorkerSettings({ agentId, minutes = 0, disabled, paused, error, 
             setSaving(true); try { await save(Number(value)); } finally { setSaving(false); }
           }} /><span>{label}</span></label>)}</div>
     </fieldset>
-    {minutes > 0 && <p className="field-note">{paused ? 'Reports are paused with the coordinator.' : 'Reports wait for idle; pending questions stay open.'}</p>}
+    {(minutes > 0 || reportState) && <p className="field-note" role="status">{reportState === 'queued' ? paused ? 'Report queued. Delivery is paused with the coordinator.' : 'Report queued. It will run after current work and questions are finished.' : reportState === 'generating' ? 'Generating task report…' : paused ? 'Reports are paused with the coordinator.' : 'Reports are queued when due. No duplicate requests are added while one is waiting.'}</p>}
     {error && <p className="error-text" role="alert">{error} Change the interval to reset reporting.</p>}
   </section>;
 }

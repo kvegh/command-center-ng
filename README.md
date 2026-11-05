@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.15.0 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.16.0 (in development)** includes the Codex workspace and Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -280,8 +280,10 @@ is approved follow-up work and remains unimplemented. No new question store or m
 Each worker sidebar has **Worker specific settings**, with **Task report every**
 and radio choices **1h**, **15min**, **5min**, **Never**. Never is the default;
 choices persist per worker in the existing private workspace file. The current
-backend schedules status-only reports through the existing safe-idle delivery.
-Reports wait for active work and pending requests, pause with the coordinator,
+backend queues status-only reports when due through the existing delivery queue,
+including while work or a request is pending. The sidebar shows queued/generating
+state. Delivery waits until the worker can accept a new turn, and reports pause
+with the coordinator,
 and stop when the worker tab closes. Restoration starts a fresh interval without
 starting a turn. There are no catch-up bursts or overlapping reports; a delivery
 error requires changing the interval before another scheduled attempt.
@@ -545,3 +547,30 @@ session; an alternate invocation encountered sandbox setup restrictions, so the
 cause of earlier cross-invocation differences is not inferred. Interactive
 browser review remains unperformed. No live approval, worker interruption,
 service restart or VM deployment was performed for validation.
+
+Version 0.16.0 lets the coordinator inspect helper source tied to an exact
+current command approval, even outside the project. The read tool requires the
+current request token and a visible file reference or explicit Python import and
+search directory. It reads bounded source pages without executing/importing code,
+refuses symlinks, configuration/data and sensitive paths, and rejects obvious
+embedded credentials. Inspected file/command hashes are checked again before
+coordinator approval; changed source must be read and reviewed again. Relevant
+unavailable dependencies or unclear effects still need your review. This does
+not authorize execution or broaden the native coordinator sandbox.
+
+Due reports now queue during active turns or pending questions, with one
+outstanding report per worker. Queued reports retain normal send gates, Never
+cancels unsent scheduled requests, and completion starts a fresh interval rather
+than catching up missed reports. No interruption or automatic request answer.
+
+The task-list viewport is capped at three visible rows on desktop and mobile;
+all remaining tasks remain available by scrolling, and header totals include
+the entire current list. This changes the viewport only, not task retrieval.
+
+Validation for 0.16.0: all 113 application tests and the production build pass.
+Synthetic helper fixtures verify request/token/worker binding, import references,
+no execution, stale/changed-source rejection, symlink/sensitive/data/oversize
+refusal and unchanged approval protections. Scheduler fixtures cover active work,
+pending/missing requests, one queued report, generating state, Never cancellation,
+fresh post-report delay and no interruption/answer. The three-row viewport was
+checked through CSS/build review; interactive desktop/mobile review is pending.

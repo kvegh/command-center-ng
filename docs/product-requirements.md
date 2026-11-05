@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.15.0
+## Current development version: 0.16.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -284,3 +284,13 @@ provisioning and local read-write Claude management with the official Claude Age
 SDK. These remain unfinished. Remote/SSH session monitoring is excluded for now.
 Per-worker model and supported reasoning-effort controls are requested follow-up
 work, using the native catalog rather than hardcoded model lists.
+
+Version 0.16.0 permits read-only helper-source inspection tied to an exact current
+command approval outside project boundaries. No execution or credential-data
+access; stale requests/changed evidence are refused. Reports queue at their due
+time even during work or questions, show queued/generating state, retain delivery
+gates and coalesce missed intervals.
+
+The task-list viewport is capped at three visible rows on desktop and mobile;
+all remaining tasks remain available by scrolling, and header totals include
+the entire current list. This changes the viewport only, not task retrieval.

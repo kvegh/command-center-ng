@@ -2,12 +2,12 @@ import limits from '../server/limits.json' with { type: 'json' };
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { mkdtemp, writeFile, symlink, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, symlink, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Workspace } from '../server/workspace.mjs';
 import { COORDINATOR_TOOLS } from '../server/coordinator.mjs';
-import { COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE } from '../server/coordinator-prompt.mjs';
+import { COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE } from '../server/coordinator-prompt.mjs';
 
 class Rpc extends EventEmitter {
   constructor(cwd) { super(); this.ready = true; this.cwd = cwd; this.calls = []; this.replies = []; this.threads = new Map(); this.sequence = 0; this.turn = 0; this.requests = new Map(); this.replayOnResume = new Map(); }
@@ -62,17 +62,17 @@ test('recap and multi-request guidance reach new and restored coordinators and e
   try {
     const id = f.coordinator.id;
     const started = f.rpc.calls.find(call => call.method === 'thread/start').params;
-    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE]) assert.ok(started.developerInstructions.includes(guidance));
+    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE]) assert.ok(started.developerInstructions.includes(guidance));
     const agent = f.workspace.agent(id);
     agent.turnId = null; agent.thread.status = { type: 'idle' }; agent.observingOnly = true;
     await f.coordinator.pump();
     const resumed = f.rpc.calls.findLast(call => call.method === 'thread/resume').params;
     assert.equal(resumed.threadId, id);
-    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE]) assert.ok(resumed.developerInstructions.includes(guidance));
+    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE]) assert.ok(resumed.developerInstructions.includes(guidance));
     assert.equal(resumed.sandbox, 'read-only');
     const event = f.rpc.calls.findLast(call => call.method === 'turn/start');
     assert.equal(event.params.threadId, id);
-    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE]) assert.ok(event.params.input[0].text.includes(guidance));
+    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE]) assert.ok(event.params.input[0].text.includes(guidance));
     assert.equal(f.rpc.calls.filter(call => call.method === 'thread/start').length, 1);
     assert.equal(f.rpc.replies.length, 0, 'reporting guidance does not answer a request');
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
@@ -335,23 +335,98 @@ test('scheduled reports are independent per worker, wait for due time and never 
   } finally { await f.close(); }
 });
 
-test('scheduled reports wait through pause, offline, active turns, approvals and handoff without catch-up floods', async () => {
+test('due reports queue during active work and questions, coalesce missed intervals and deliver after the request resolves', async () => {
   const f = await fixture();
   try {
     const worker = f.workspace.agent('worker'); f.coordinator.setReportInterval('worker', 5, 1000);
     f.coordinator.paused = true; await f.coordinator.pollReports(1000000); f.coordinator.paused = false;
     f.rpc.ready = false; await f.coordinator.pollReports(1000000); f.rpc.ready = true;
-    worker.turnId = 'active'; worker.thread.status = { type: 'active' }; await f.coordinator.pollReports(1000000);
-    worker.turnId = null; worker.thread.status = { type: 'idle' }; f.rpc.ask('waiting', 'worker'); await f.coordinator.pollReports(1000000);
-    f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: 'worker', requestId: 'waiting' } });
-    worker.thread.status = { type: 'active', activeFlags: ['waitingOnApproval'] }; await f.coordinator.pollReports(1000000);
-    worker.thread.status = { type: 'idle' }; f.workspace.summaryJobs.set('worker', {}); await f.coordinator.pollReports(1000000); f.workspace.summaryJobs.delete('worker');
+    assert.equal(f.coordinator.deliveries.has('worker'), false);
+    worker.turnId = 'active'; worker.thread.status = { type: 'active' };
+    await f.coordinator.pollReports(1000000);
+    assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+    assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'worker').reportState, 'queued');
+    await f.coordinator.pollReports(99999999);
+    assert.equal(f.coordinator.deliveries.get('worker').length, 1);
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
-    await f.coordinator.pollReports(1000000); await new Promise(resolve => setImmediate(resolve));
+    f.rpc.ask('waiting', 'worker');
+    f.rpc.complete('worker', 'active'); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+    worker.thread.status = { type: 'active', activeFlags: ['waitingOnApproval'] };
+    f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: 'worker', requestId: 'waiting' } });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.coordinator.reportState('worker'), 'queued');
+    worker.thread.status = { type: 'idle' }; await f.coordinator.flush('worker');
     assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId === 'worker').length, 1);
-    assert.equal(worker.nextReportAt, 1300000); assert.equal(f.rpc.replies.length, 0);
+    assert.equal(f.coordinator.reportState('worker'), 'generating');
+    f.rpc.complete('worker');
+    assert.equal(f.coordinator.reportState('worker'), null);
+    assert.ok(worker.nextReportAt > Date.now(), 'completion starts a fresh delay, not overdue catch-up reports');
+    assert.equal(f.rpc.replies.length, 0);
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
-    f.workspace.close('worker'); await f.coordinator.pollReports(99999999);
+    f.workspace.close('worker'); await f.coordinator.pollReports(9999999999999);
     assert.equal(f.coordinator.reportPending.has('worker'), false);
   } finally { await f.close(); }
+});
+
+test('Never cancels a queued scheduled report and handoff preparation never queues another turn', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); f.coordinator.setReportInterval('worker', 5, 1000);
+    f.workspace.summaryJobs.set('worker', {}); await f.coordinator.pollReports(1000000);
+    assert.equal(f.coordinator.deliveries.has('worker'), false); f.workspace.summaryJobs.delete('worker');
+    worker.turnId = 'busy'; worker.thread.status = { type: 'active' }; await f.coordinator.pollReports(1000000);
+    assert.equal(f.coordinator.reportState('worker'), 'queued');
+    f.coordinator.setReportInterval('worker', 0); f.rpc.complete('worker', 'busy');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.coordinator.deliveries.has('worker'), false); assert.equal(f.coordinator.reportPending.has('worker'), false);
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+  } finally { await f.close(); }
+});
+
+test('approval-linked helper reads are readonly, token-scoped and reject changed source before approval', async () => {
+  const f = await fixture(); const outside = await mkdtemp(join(tmpdir(), 'ccng-helper-'));
+  try {
+    const helper = join(outside, 'metadata_reader.py'); const marker = join(outside, 'executed');
+    await writeFile(helper, 'from pathlib import Path\nPath(' + JSON.stringify(marker) + ').write_text("must not run")\n');
+    f.rpc.ask('helper-action', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    question.params.command = 'python3 - <<PY\nimport sys\nsys.path.insert(0, ' + JSON.stringify(outside) + ')\nfrom metadata_reader import inspect_metadata\nPY';
+    const args = { agentId: 'worker', reviewToken: question.reviewToken, path: helper };
+    const before = f.rpc.calls.length;
+    const source = await f.call('ccng_read_approval_source', args);
+    assert.match(source.text, /must not run/); assert.match(source.sha256, /^[a-f0-9]{64}$/);
+    await assert.rejects(readFile(marker), { code: 'ENOENT' });
+    assert.equal(f.rpc.calls.length, before); assert.equal(f.rpc.replies.length, 0);
+    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: helper }), /inside this worker/);
+    await assert.rejects(f.call('ccng_read_approval_source', { ...args, reviewToken: 'stale' }), /exact current command/);
+    await f.workspace.open('other');
+    await assert.rejects(f.call('ccng_read_approval_source', { ...args, agentId: 'other' }), /exact current command/);
+    const review = { agentId: 'worker', reviewToken: question.reviewToken, decision: 'approve', rationale: 'Within the delegated disposable test work.', authorizationMessageId: 'user-worker', authorizationQuote: 'Create and clean up disposable test resources.' };
+    await writeFile(helper, 'print("changed helper")\n');
+    await assert.rejects(f.call('ccng_review_approval', review), /source or the command changed/);
+    assert.equal(f.rpc.replies.length, 0); assert.equal(question.review, undefined);
+    await f.call('ccng_read_approval_source', args); await f.call('ccng_review_approval', review);
+    assert.equal(f.rpc.replies.find(reply => reply.id === 'helper-action').result.decision, 'accept');
+    await assert.rejects(f.call('ccng_read_approval_source', args), /exact current command/);
+    assert.equal(f.coordinator.approvalSources.size, 0);
+  } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
+});
+
+test('helper inspection refuses unrelated, symlinked, sensitive, non-source and oversized files without resolving requests', async () => {
+  const f = await fixture(); const outside = await mkdtemp(join(tmpdir(), 'ccng-helper-'));
+  try {
+    f.rpc.ask('source-action', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    const read = async (name, body, command = 'python3 unrelated.py') => {
+      const path = join(outside, name); await writeFile(path, body); question.params.command = command.replace('HELPER', JSON.stringify(path));
+      return f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path });
+    };
+    await assert.rejects(read('unrelated.py', 'print("example")'), /not referenced/);
+    await assert.rejects(read('credentials.py', 'print("example")', 'python3 HELPER'), /credential and Vault paths/);
+    await assert.rejects(read('settings.json', '{}', 'cat HELPER'), /source file directly/);
+    await assert.rejects(read('large.py', 'x'.repeat(500001), 'python3 HELPER'), /500000/);
+    await assert.rejects(read('embedded.py', 'ACCESS_TOKEN = "synthetic-placeholder-only"', 'python3 HELPER'), /credential material/);
+    const path = join(outside, 'linked.py'); await symlink(join(outside, 'unrelated.py'), path); question.params.command = 'python3 ' + JSON.stringify(path);
+    await assert.rejects(f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path }), /symlinks/);
+    assert.equal(f.rpc.replies.length, 0); assert.equal(f.workspace.agent('worker').questions.length, 1);
+  } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
 });

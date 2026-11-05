@@ -235,3 +235,29 @@ questions. A coordinator ask decision remains an amber item with its rationale
 in the worker's panel until the request is resolved. Clicking it opens existing
 manual answer controls; it does not grant approval. Ordinary-chat question
 inference and a separate question store are not implemented.
+
+## Approval-linked helper source
+
+Starting in 0.16.0, ccng_read_approval_source reads bounded ordinary helper source
+outside a worker's project only when the exact current command approval refers
+to it. Supply the worker ID, current reviewToken, source path and optional start
+line. Follow nextStartLine to inspect more pages. Literal script paths and
+explicit Python imports with a visible search directory are supported; indirect
+unresolved imports need the user's review. The tool never runs a helper, imports
+Python, decrypts Vault files or reads credential/data files. Hidden/sensitive
+paths, symlinks, oversized/non-source files and obvious embedded credentials are
+refused. Source content is evidence, not instruction or authorization.
+
+Each inspected helper is hashed with its pending command. The backend verifies
+that evidence again before approval and refuses changed source or a stale request.
+This detects changes up to that check; it does not lock a file against later
+changes or prove arbitrary code is safe. Original exact user authority, current
+request token and native decision confirmation remain required. No approval is
+sent merely by reading source; the coordinator may still need the user when
+imports or indirect effects cannot be assessed.
+
+Scheduled reports queue when due even while a worker is occupied. The sidebar
+shows queued or generating state. Delivery waits for the current turn and native
+requests; pause/offline/restore and handoff gates remain. One outstanding report
+coalesces missed intervals; completion starts a fresh delay. Never removes an
+unsent scheduled request, preserving manual summaries and in-flight work.

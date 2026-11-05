@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.15.0** in package.json and the lockfile.
+The authoritative version is **0.16.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -468,3 +468,28 @@ session; an alternate invocation encountered sandbox setup restrictions, so the
 cause of earlier cross-invocation differences is not inferred. Interactive
 browser review remains unperformed. No live approval, worker interruption,
 service restart or VM deployment was performed for validation.
+
+## Approved helper inspection and report queuing: 0.16.0
+
+User explicitly approved read-only helper inspection for an exact pending approval,
+including temporary source outside the project. ccng_read_approval_source enforces
+current token/reference binding, bounded non-symlink source, sensitive/data-file
+exclusions and hash rechecking before approval. It does not run helpers or change
+native sandbox/approval policy. Remaining indirect-effect uncertainty stays manual.
+Reports now queue when due during active work/questions and show queued/generating
+state. Only one pending report accumulates; Never cancels unsent schedules and
+completion starts a fresh delay. Existing request and handoff protections remain.
+Comprehensive native request controls and local Claude SDK management are still
+unfinished. SDK dependency version was checked; no live provider run was started.
+
+The task-list viewport is capped at three visible rows on desktop and mobile;
+all remaining tasks remain available by scrolling, and header totals include
+the entire current list. This changes the viewport only, not task retrieval.
+
+Validation for 0.16.0: all 113 application tests and the production build pass.
+Synthetic helper fixtures verify request/token/worker binding, import references,
+no execution, stale/changed-source rejection, symlink/sensitive/data/oversize
+refusal and unchanged approval protections. Scheduler fixtures cover active work,
+pending/missing requests, one queued report, generating state, Never cancellation,
+fresh post-report delay and no interruption/answer. The three-row viewport was
+checked through CSS/build review; interactive desktop/mobile review is pending.

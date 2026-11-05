@@ -74,3 +74,12 @@ test('branch summary reviews are nonmodal, hidden outside their own tab and inde
   assert.match(other, /<section hidden=""/);
   assert.match(other, /id="branch-findings-branch-two"/);
 });
+
+test('worker report settings expose queued and generating states without the old idle wording', () => {
+  const props = { agentId: 'queued-worker', minutes: 5, disabled: false, paused: false, save: async () => true };
+  const queued = renderToStaticMarkup(React.createElement(WorkerSettings, { ...props, reportState: 'queued' }));
+  assert.match(queued, /Report queued/); assert.match(queued, /current work and questions/);
+  assert.doesNotMatch(queued, /Reports wait for idle/);
+  const generating = renderToStaticMarkup(React.createElement(WorkerSettings, { ...props, reportState: 'generating' }));
+  assert.match(generating, /Generating task report/);
+});

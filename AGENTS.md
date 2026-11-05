@@ -253,3 +253,16 @@ Markdown/GFM rendering with react-markdown and remark-gfm, raw HTML disabled.
 Keep branch summary review inside the child tab so other tabs remain accessible;
 preserve edits across selection changes and identify the parent in blocked-return
 errors. Do not answer requests, auto-send summaries or archive through navigation.
+
+## Approved approval-source inspection and report queue
+
+The user approved bounded read-only helper source inspection tied to an exact
+current pending approval/token, including source outside project boundaries.
+Never execute/import the helper for review, read credential/Vault data, broaden
+native coordinator permissions or treat inspected source as authority. Keep
+reference checks, source/command hashes and stale-request checks; changed source
+requires rereading and review. Unknown effects/dependencies may still require
+user input. Due scheduled reports can enter the existing queue during active
+work/questions, with one outstanding report and visible queued/generating state.
+Delivery retains current turn/request/pause/handoff gates; do not interrupt or
+answer a question to deliver a report. Never cancels only unsent scheduled work.
