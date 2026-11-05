@@ -134,13 +134,13 @@ test('branches use native completed-turn context and keep parent navigation sepa
     await f.workspace.send(id, 'Explore an alternative');
     assert.equal(f.workspace.agent(id).goal, 'Explore an alternative');
     assert.equal(f.calls.find(c => c.method === 'turn/start').params.threadId, id);
-    const more = await Promise.allSettled(Array.from({ length: 3 }, () => f.workspace.fork('existing')));
-    assert.equal(more.filter(r => r.status === 'fulfilled').length, 2);
-    assert.equal(f.workspace.snapshot().agents.length, 4);
+    const more = await Promise.allSettled(Array.from({ length: limits.maxWorkers - 1 }, () => f.workspace.fork('existing')));
+    assert.equal(more.filter(r => r.status === 'fulfilled').length, limits.maxWorkers - 2);
+    assert.equal(f.workspace.snapshot().agents.length, limits.maxWorkers);
     f.workspace.close('existing');
     await f.workspace.create({ goal: 'Another task', cwd: f.dir });
     assert.equal(await f.workspace.parent(id), 'existing');
-    assert.equal(f.workspace.snapshot().agents.length, 4);
+    assert.equal(f.workspace.snapshot().agents.length, limits.maxWorkers);
     assert.ok(!f.workspace.agents.has(id));
     assert.ok(f.threads.has(id), 'return navigation keeps the native branch');
     assert.equal(f.calls.filter(c => c.method === 'turn/interrupt').length, 0);
@@ -249,6 +249,47 @@ test('parent-send failures keep the child open; archive retries do not duplicate
     await f.workspace.returnToParent(f.id, f.summary.text);
     assert.equal(f.calls.filter(c => c.method === 'turn/steer').length, sends);
     assert.equal(f.workspace.agents.has(f.id), false);
+  } finally { await f.close(); }
+});
+
+test('a parent request blocks return with a named recovery message and preserves the child summary and exact request', async () => {
+  const f = await branchFixture();
+  try {
+    await f.workspace.summarize(f.id);
+    f.ask('parent-choice', 'existing');
+    await waitFor(() => f.workspace.agent('existing').questions.length === 1);
+    const child = f.workspace.agent(f.id);
+    const request = structuredClone(f.workspace.agent('existing').questions[0]);
+    const before = f.calls.length;
+    await assert.rejects(f.workspace.returnToParent(f.id, 'My edited summary.'), error => {
+      assert.equal(error.status, 409);
+      assert.match(error.message, /Parent chat "Agent existing" has a pending question or approval/);
+      assert.match(error.message, /Open parent.*retry.*summary is kept here/);
+      return true;
+    });
+    assert.equal(child.returnSummary.delivered, false);
+    assert.equal(child.returnSummary.text, f.summary.text);
+    assert.ok(f.workspace.agents.has(f.id));
+    assert.deepEqual(f.workspace.agent('existing').questions[0], request);
+    assert.equal(f.replies.length, 0);
+    assert.equal(f.calls.slice(before).some(call => ['turn/start', 'turn/steer', 'turn/interrupt', 'thread/archive'].includes(call.method)), false);
+    f.notify('serverRequest/resolved', { threadId: 'existing', requestId: 'parent-choice' });
+    await waitFor(() => !f.workspace.agent('existing').questions.length);
+    await f.workspace.returnToParent(f.id, 'My edited summary.');
+    assert.match(f.calls.findLast(call => call.method === 'turn/steer').params.input[0].text, /My edited summary/);
+  } finally { await f.close(); }
+});
+
+test('missing parent request details identify the parent without claiming another client owns the request', async () => {
+  const f = await branchFixture();
+  try {
+    await f.workspace.summarize(f.id);
+    f.workspace.agent('existing').thread.status.activeFlags = ['waitingOnApproval'];
+    const before = f.calls.length;
+    await assert.rejects(f.workspace.returnToParent(f.id, f.summary.text), /Parent chat "Agent existing".*load its pending request/);
+    assert.equal(f.calls.length, before);
+    assert.equal(f.workspace.agent(f.id).returnSummary.delivered, false);
+    assert.equal(f.replies.length, 0);
   } finally { await f.close(); }
 });
 

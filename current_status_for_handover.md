@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.14.0** in package.json and the lockfile.
+The authoritative version is **0.15.0** in package.json and the lockfile.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
 Implementation: `2f8a45ad9846ea9799112395cb9effc4bf945a36`.
@@ -336,34 +336,37 @@ The existing backend send guard stays in force. Delayed send acknowledgment does
 not erase newer typing. All 85 application tests and the production build pass.
 Interactive browser review remains unperformed. No user installation was restarted.
 
-## Requested Claude monitoring: proposal awaiting direction
+## Local Claude management and remaining setup
 
-The user wants to follow Claude when AAP launches claude -p. Source inspection
-found the existing AIOps launcher captures shell output and displays it after
-completion. Official Claude documentation describes native session transcripts
-and headless streaming output; the installed local CLI help/version was checked
-without starting a model run. The target VM/version has not been verified.
+The user explicitly selected local read-write Claude management through the
+official Claude Agent SDK. This supersedes the older read-only/SSH proposal.
+Use the existing local backend and native login/permissions; no remote monitoring,
+new daemon or permission bypass. Claude integration is not implemented in 0.15.0.
 
-Proposed, not approved: follow native Claude session files read-only, locally or
-through existing SSH access on the agent VM, showing messages and tool activity
-as saved without changing the AAP launcher. Token-by-token streaming would instead
-require an approved launcher output-capture change. The user was asked for the
-architecture choice and exact target. No transport, service, credential, launcher
-or live AAP change has been made. Continue only after the required direction.
+Ordinary-chat unanswered-question tracking and fresh local Dolt provisioning plus
+Beads initialization are approved follow-up work, not unanswered scope choices.
+The working development server/trackers stay untouched during installer tests.
+The AAP deployment target is confirmed, but actual encrypted payload/importer
+bindings and a live rollout remain unfinished. Review the earlier credential
+answer before treating the user's choice as missing; Machine and Vault credentials
+are separate concerns. Model/effort controls are requested, not implemented.
 
-## Decisions still awaiting the user
+## Worker sidebar, Markdown and branch review: 0.15.0
 
-The two architecture questions were asked again in this session and remain unanswered:
+All linked current tasks are returned in a scrollable panel with total, in-progress,
+needs-input and queued counts. Queued is based on actual unfinished prerequisites.
+Task details allow direct answers/clarification through the existing worker input,
+leaving Beads changes to the working agent. Worker-specific scheduled reports offer
+1h/15min/5min/Never, persist cadence privately, wait for safe idle, respect pause,
+and do not start turns during restoration. Instructions require vivid report
+labels, project release/publication evidence and available structured questions.
 
-1. Should Open questions include coordinator-tracked unanswered decisions from
-   ordinary chat, or only structured questions and approvals? Both was proposed.
-2. May fresh installations offer private local shared Dolt setup with explicit
-   confirmation, preserving existing setups, or should configuration remain
-   manual? Confirmed local server setup was proposed for parallel agents.
-
-The workspace's architecture-approval rule requires direction before selecting
-the new server/configuration approach. Continue independent work where possible,
-but do not infer approval from a default choice or elapsed time.
+Chat renders Markdown/GFM with raw HTML disabled and horizontally scrollable
+tables. Branch summary review is a nonmodal card in the child tab. Each review
+retains its own edits while switching tabs; blocked return errors name the parent
+and offer Open parent. No request is answered or dismissed by navigation.
+Source publication and updating the running installation are separate operations.
+Interactive desktop/mobile review remains unperformed.
 
 ## Beads references
 
@@ -372,13 +375,13 @@ but do not infer approval from a default choice or elapsed time.
 | bead-wd-1rl | Broader Command Center project |
 | bead-wd-1rl.23 | Rendered design review; source review done, screenshot pending |
 | bead-wd-1rl.24 | Scope approved: implement ordinary-chat unanswered-question tracking |
-| bead-wd-1rl.25 | Only fresh Beads/Dolt provisioning choice remains pending |
+| bead-wd-1rl.25 | Fresh local Dolt/Beads provisioning approved; implementation pending |
 | bead-wd-1rl.26 | Role and project-directory safeguards published in 0.8.0; semantic/legacy-name limits documented |
 | bead-wd-1rl.27 | Tab/chat gap correction published in 0.7.1 and included in 0.8.0 |
 | bead-wd-1rl.28 | Shared coordinator tab styling/order published in 0.8.1 |
 | bead-wd-1rl.29 | Closed: recovery published in 0.9.0 and confirmed live by the user on 0.9.1 |
 | bead-wd-1rl.30 | Connected folder-tab source published in 0.9.1; rendered review remains in .23 |
-| bead-wd-1rl.31 | Claude monitoring investigated; connection approach and target await user direction |
+| bead-wd-1rl.31 | Local read-write Claude SDK integration approved; implementation pending |
 | bead-wd-1rl.32 | Closed: visible-tab emphasis and doubled top spacing published in 0.9.2 |
 | bead-wd-1rl.34 | Closed: fixed chat clipping inset and matching inactive tab fill published in 0.9.3 |
 | bead-wd-1rl.35 | RHEL 9 playbook implemented and locally validated; live target run pending protected inputs |
@@ -386,12 +389,12 @@ but do not infer approval from a default choice or elapsed time.
 | bead-wd-1rl.37 | Collapsed tool activity implemented in 0.11.0 |
 | bead-wd-1rl.38 | Draft editing during questions implemented in 0.11.0 |
 | bead-wd-1rl.39 | Closed: private companion scaffold published; actual setup remains in .40 |
-| bead-wd-1rl.40 | Actual AAP/VM rollout pending the user-selected Vault credential |
+| bead-wd-1rl.40 | Actual AAP/VM rollout unfinished; review prior credential answer first |
 | bead-wd-1rl.41 | Closed: coordinator recap wording published in 0.11.1 |
 | bead-wd-1rl.42 | Closed: multiple-request visibility/review published in 0.12.0 |
 | bead-wd-1rl.43 | Two-bullet vivid decision instructions saved in 0.13.0; consult Git for publication |
 | bead-wd-1rl.44 | Non-approval feedback policy and safe-idle fixture in 0.13.0 |
-| bead-wd-1rl.45 | Markdown rendering requested; full renderer/library choice pending |
+| bead-wd-1rl.45 | Markdown/GFM rendering implemented in 0.15.0 |
 | bead-wd-ywg | Existing shared Dolt restart and successful reads verified |
 | bead-wd-9so | Closed: generated Beads no-remote Git rule investigated and corrected |
 
@@ -453,3 +456,14 @@ navigation and read-only restoration of sixteen workers plus the coordinator.
 The full suite was attempted; sandbox policy blocks its local Unix sockets and
 installer home-directory fixtures. Interactive browser verification remains
 unperformed. No live conversation was created or interrupted for these tests.
+
+Validation for 0.15.0: all 109 application tests and the production build pass,
+including real protocol/HTTP/installer fixtures, sixteen-worker boundaries,
+report scheduling/restoration and request gates, dependency-derived task totals,
+readonly task details, Markdown safety and named parent-handoff failures.
+One older integration assertion still assumed four workers; it now uses the
+shared capacity. Normal npm test ran these fixtures successfully in the parent
+session; an alternate invocation encountered sandbox setup restrictions, so the
+cause of earlier cross-invocation differences is not inferred. Interactive
+browser review remains unperformed. No live approval, worker interruption,
+service restart or VM deployment was performed for validation.

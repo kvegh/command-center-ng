@@ -269,6 +269,9 @@ kbd { font-family: inherit; }
 .new-agent .button { align-self: flex-end; }
 .return-dialog textarea { width: 100%; padding: 12px; min-height: 190px; max-height: 45dvh; font-size: 13px; line-height: 1.7; margin-top: 9px; }
 .return-dialog .button-row { justify-content: flex-end; }
+.branch-summary-review { padding: 20px; margin: 0 0 28px; background: var(--surface); border: 1px solid var(--accent); border-radius: 10px; }
+.branch-summary-review[hidden] { display: none; }
+.branch-summary-review .button-row { flex-wrap: wrap; }
 
 .login-page { min-height: 100dvh; display: grid; place-items: center; background: #0c121c; }
 .login-card { width: 430px; max-width: calc(100vw - 40px); padding: 38px; background: #141e2d; border: 1px solid #354967; border-top: 2px solid var(--accent); border-radius: 12px; box-shadow: 0 20px 70px #00000030; }
@@ -433,3 +436,47 @@ kbd { font-family: inherit; }
 .question-card { scroll-margin-top: 16px; }
 
 .request-recovery .button { align-self: flex-start; }
+
+/* Worker reports and a bounded complete task list share the existing context pane. */
+.task-summary > .task-scroll { max-height: min(34dvh, 360px); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 5px; }
+.task-scroll:focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
+.task-totals { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--muted); font: 10px/1.6 var(--mono); }
+.task-totals .tasks-in-progress { color: var(--green); }
+.task-totals .tasks-need-input { color: var(--amber); }
+.worker-settings { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+.worker-settings h3 { margin: 0 0 12px; }
+.worker-settings fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.worker-settings legend { color: #c1d0e3; font-size: 12px; margin-bottom: 9px; }
+.report-options { display: flex; flex-wrap: wrap; gap: 9px 12px; }
+.report-options label { display: inline-flex; align-items: center; gap: 5px; color: #b3c2d7; font-size: 12px; cursor: pointer; }
+.report-options input { margin: 0; width: 13px; height: 13px; accent-color: var(--cyan); }
+@media (max-width: 1000px) { .task-summary > .task-scroll { max-height: 180px; } }
+
+.task-totals .tasks-queued, .task-indicator.queued { color: #70baff; }
+.task-indicator.queued { border-color: #70baff; }
+.task-title-button { color: inherit; font: inherit; text-align: left; border: 0; padding: 0; background: none; cursor: pointer; }
+.task-title-button:hover { color: var(--cyan); text-decoration: underline; }
+.task-detail-body { max-height: 35dvh; overflow: auto; margin-bottom: 16px; font-size: 13px; line-height: 1.6; }
+.task-detail-body p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.task-discussion textarea { width: 100%; box-sizing: border-box; margin-top: 8px; }
+.markdown.prose { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+.markdown > :first-child { margin-top: 0; }
+.markdown > :last-child { margin-bottom: 0; }
+.markdown p { margin: 0 0 12px; }
+.markdown ul, .markdown ol { margin: 8px 0 14px; padding-left: 24px; }
+.markdown li { margin: 5px 0; }
+.markdown li > p { margin: 4px 0; }
+.markdown h1, .markdown h2, .markdown h3, .markdown h4 { line-height: 1.35; margin: 20px 0 10px; }
+.markdown h1 { font-size: 23px; }.markdown h2 { font-size: 20px; }.markdown h3 { font-size: 17px; }
+.markdown blockquote { margin: 12px 0; padding: 4px 14px; border-left: 3px solid var(--cyan); color: #b1c6de; }
+.markdown a { color: #78c9ff; text-underline-offset: 3px; }
+.markdown :not(pre) > code { font: .9em var(--mono); background: #ffffff0a; padding: 2px 5px; border-radius: 4px; }
+.markdown pre { overflow-x: auto; white-space: pre; }
+.markdown-table { width: 100%; max-width: 100%; overflow-x: auto; margin: 14px 0; border: 1px solid var(--line); border-radius: 6px; }
+.markdown table { border-collapse: collapse; min-width: 100%; font-size: 13px; }
+.markdown th, .markdown td { border-bottom: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
+.markdown th { background: #ffffff08; font-weight: 650; }
+.markdown tr:last-child td { border-bottom: 0; }
+.markdown img { max-width: 100%; height: auto; }
+.markdown input[type=checkbox] { width: auto; margin-right: 7px; accent-color: var(--green); }
+.markdown .task-list-item { list-style: none; }

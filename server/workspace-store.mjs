@@ -4,13 +4,17 @@ import { constants } from 'node:fs';
 import { mkdir, open, rename, stat, unlink, realpath } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { REPORT_INTERVALS } from './worker-instructions.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const validId = id => typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(id) && !['constructor', 'prototype'].includes(id);
 export const emptyWorkspace = () => ({ version: 1, workerIds: [], coordinatorId: null, coordinatorPaused: false });
 export function workspaceRecord(data) {
   if (!data || data.version !== 1 || !Array.isArray(data.workerIds) || data.workerIds.length > limits.maxWorkers || data.workerIds.some(id => !validId(id)) || new Set(data.workerIds).size !== data.workerIds.length || (data.coordinatorId !== null && !validId(data.coordinatorId)) || typeof data.coordinatorPaused !== 'boolean' || data.workerIds.includes(data.coordinatorId)) throw new Error('Invalid saved workspace. Move the private workspace file aside to start a fresh workspace.');
-  return { version: 1, workerIds: [...data.workerIds], coordinatorId: data.coordinatorId, coordinatorPaused: data.coordinatorPaused };
+  const intervals = data.workerReportIntervals;
+  if (intervals !== undefined && (!intervals || typeof intervals !== 'object' || Array.isArray(intervals) || Object.entries(intervals).some(([id, minutes]) => !data.workerIds.includes(id) || !REPORT_INTERVALS.includes(minutes)))) throw new Error('Invalid saved workspace report settings.');
+  const enabled = Object.fromEntries(Object.entries(intervals || {}).filter(([, minutes]) => minutes));
+  return { version: 1, workerIds: [...data.workerIds], coordinatorId: data.coordinatorId, coordinatorPaused: data.coordinatorPaused, ...(Object.keys(enabled).length ? { workerReportIntervals: enabled } : {}) };
 }
 export class WorkspaceStore {
   constructor(file) {
@@ -77,7 +81,7 @@ export class WorkspacePersistence {
       }
       for (const id of this.saved.workerIds) {
         if (this.closed || !workspace.rpc.ready) break;
-        try { await workspace.open(id, { observeOnly: true }); }
+        try { await workspace.open(id, { observeOnly: true }); const minutes = this.saved.workerReportIntervals?.[id] || 0; if (workspace.coordinator && workspace.agent(id).reportIntervalMinutes !== minutes) workspace.coordinator.setReportInterval(id, minutes); }
         catch (error) { this.failedIds.push(id); warnings.push({ id, message: error.message }); }
       }
       if (this.saved.coordinatorId && workspace.coordinator && !this.closed && workspace.rpc.ready) {
@@ -94,7 +98,9 @@ export class WorkspacePersistence {
   }
   record() {
     const workers = [...this.workspace.agents.values()].filter(agent => agent.role !== 'coordinator').map(agent => agent.id);
-    return { version: 1, workerIds: [...new Set([...workers, ...this.failedIds])].slice(0, limits.maxWorkers), coordinatorId: this.workspace.coordinator?.id || null, coordinatorPaused: this.workspace.coordinator?.paused || false };
+    const workerIds = [...new Set([...workers, ...this.failedIds])].slice(0, limits.maxWorkers);
+    const intervals = Object.fromEntries(workerIds.map(id => [id, this.workspace.agents.get(id)?.reportIntervalMinutes ?? this.saved.workerReportIntervals?.[id] ?? 0]).filter(([, minutes]) => minutes));
+    return { version: 1, workerIds, coordinatorId: this.workspace.coordinator?.id || null, coordinatorPaused: this.workspace.coordinator?.paused || false, ...(Object.keys(intervals).length ? { workerReportIntervals: intervals } : {}) };
   }
   async retry() {
     if (!this.fileError && (this.failedIds.length || (this.workspace.coordinator?.id && !this.workspace.agents.has(this.workspace.coordinator.id)))) { this.saved = this.record(); this.ready = false; }

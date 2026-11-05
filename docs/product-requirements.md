@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.14.0
+## Current development version: 0.15.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -264,3 +264,23 @@ Version 0.14.0 increases workspace capacity to sixteen workers plus the separate
 coordinator. Apply the same limit to opening, creation, branching, parent
 navigation and private workspace persistence. Preserve horizontal tab scrolling,
 coordinator restrictions and native worker settings.
+
+## Version 0.15.0 additions
+
+Render full Markdown/GFM with raw HTML disabled. Worker-specific settings offer
+Task report every once and radio choices 1h, 15min, 5min, Never, default Never,
+using existing private metadata and safe-idle report delivery. Worker base
+instructions require vivid named reports, the project's latest release/publication
+status and structured clarification tools when available in the current mode.
+Show all current Beads tasks in a scrollable panel with real state totals and
+queued derived from unfinished dependencies. Task details allow direct answers
+or requests for clarification without automatic task closure.
+Branch summary review belongs inside the child tab; switching tabs retains the
+review and edits. Parent-delivery errors identify the parent and offer navigation,
+while preserving native request identity and explicit summary delivery/archive.
+
+The user approved future ordinary-chat question tracking, fresh local Dolt/Beads
+provisioning and local read-write Claude management with the official Claude Agent
+SDK. These remain unfinished. Remote/SSH session monitoring is excluded for now.
+Per-worker model and supported reasoning-effort controls are requested follow-up
+work, using the native catalog rather than hardcoded model lists.

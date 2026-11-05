@@ -312,3 +312,46 @@ test('a requested report wakes the coordinator once, without repeated report loo
     f.coordinator.clearMessages(); assert.equal(f.coordinator.deliveries.size, 0);
   } finally { await f.close(); }
 });
+
+
+test('scheduled reports are independent per worker, wait for due time and never overlap', async () => {
+  const f = await fixture();
+  try {
+    await f.workspace.open('second');
+    assert.equal(f.workspace.agent('worker').reportIntervalMinutes, 0);
+    f.coordinator.setReportInterval('worker', 5, 1000); f.coordinator.setReportInterval('second', 15, 1000);
+    await f.coordinator.pollReports(300999);
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 0);
+    await f.coordinator.pollReports(301000); await new Promise(resolve => setImmediate(resolve));
+    let sent = f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId === 'worker');
+    assert.equal(sent.length, 1); assert.match(sent[0].params.input[0].text, /Scheduled task report/);
+    assert.match(sent[0].params.additionalContext['command-center-worker-instructions'].value, /latest release version/);
+    assert.match(sent[0].params.additionalContext['command-center-worker-instructions'].value, /structured/);
+    await f.coordinator.pollReports(999000); assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId === 'worker').length, 1);
+    f.coordinator.setReportInterval('worker', 0, 999000); f.rpc.complete('worker');
+    await f.coordinator.pollReports(9999999); assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId === 'worker').length, 1);
+    for (const value of [1, 10, '5', -1, null]) assert.throws(() => f.coordinator.setReportInterval('worker', value), /Choose/);
+    assert.throws(() => f.coordinator.setReportInterval(f.coordinator.id, 5), /worker/);
+  } finally { await f.close(); }
+});
+
+test('scheduled reports wait through pause, offline, active turns, approvals and handoff without catch-up floods', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); f.coordinator.setReportInterval('worker', 5, 1000);
+    f.coordinator.paused = true; await f.coordinator.pollReports(1000000); f.coordinator.paused = false;
+    f.rpc.ready = false; await f.coordinator.pollReports(1000000); f.rpc.ready = true;
+    worker.turnId = 'active'; worker.thread.status = { type: 'active' }; await f.coordinator.pollReports(1000000);
+    worker.turnId = null; worker.thread.status = { type: 'idle' }; f.rpc.ask('waiting', 'worker'); await f.coordinator.pollReports(1000000);
+    f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: 'worker', requestId: 'waiting' } });
+    worker.thread.status = { type: 'active', activeFlags: ['waitingOnApproval'] }; await f.coordinator.pollReports(1000000);
+    worker.thread.status = { type: 'idle' }; f.workspace.summaryJobs.set('worker', {}); await f.coordinator.pollReports(1000000); f.workspace.summaryJobs.delete('worker');
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+    await f.coordinator.pollReports(1000000); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId === 'worker').length, 1);
+    assert.equal(worker.nextReportAt, 1300000); assert.equal(f.rpc.replies.length, 0);
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
+    f.workspace.close('worker'); await f.coordinator.pollReports(99999999);
+    assert.equal(f.coordinator.reportPending.has('worker'), false);
+  } finally { await f.close(); }
+});

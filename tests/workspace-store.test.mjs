@@ -156,3 +156,26 @@ test('an unavailable saved coordinator is retried by ID without creating a repla
     assert.ok(rpc.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)));
   } finally { workspace.coordinator.stop(); await persistence.close(); await f.close(); }
 });
+
+
+test('per-worker report intervals persist privately and restore with a fresh delay without starting turns', async () => {
+  const saved = { ...record(['one', 'two'], 'coordinator', true), workerReportIntervals: { one: 5, two: 60 } };
+  const f = await restored(saved);
+  try {
+    assert.deepEqual(await f.store.load(), saved);
+    assert.equal(f.workspace.agent('one').reportIntervalMinutes, 5); assert.equal(f.workspace.agent('two').reportIntervalMinutes, 60);
+    assert.ok(f.workspace.agent('one').nextReportAt > Date.now());
+    assert.ok(f.rpc.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)));
+    f.workspace.coordinator.setReportInterval('one', 15); await f.persistence.queue;
+    assert.deepEqual((await f.store.load()).workerReportIntervals, { one: 15, two: 60 });
+    f.workspace.close('two'); await f.persistence.queue;
+    assert.deepEqual((await f.store.load()).workerReportIntervals, { one: 15 });
+  } finally { await f.close(); }
+});
+
+test('saved reporting rejects unsupported intervals, unknown workers and prototype-shaped data', async () => {
+  const f = await fixture();
+  try {
+    for (const intervals of [{ one: 1 }, { one: '5' }, { absent: 5 }, [], null, JSON.parse('{"__proto__":5}')]) assert.throws(() => f.store.save({ ...record(), workerReportIntervals: intervals }), /report settings/);
+  } finally { await f.close(); }
+});

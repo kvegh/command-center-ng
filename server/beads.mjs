@@ -51,7 +51,23 @@ export class BeadsTasks {
   async linked(cwd, threadId) {
     const label = sessionLabel(threadId);
     const tasks = await this.list(cwd, ['--label', label]);
-    return { status: 'ready', label, tasks, checkedAt: new Date().toISOString(), error: null };
+    let blocked;
+    try { blocked = JSON.parse(await this.command(cwd, ['blocked', '--json', '--label', label])); } catch (error) { throw fail('Beads dependency state could not be read. ' + error.message); }
+    if (!Array.isArray(blocked)) throw fail('Beads returned an invalid dependency list.');
+    const blockers = new Map(blocked.map(row => [row.id, Array.isArray(row.blocked_by) ? row.blocked_by.filter(id => typeof id === 'string') : []]));
+    return { status: 'ready', label, tasks: tasks.map(task => ({ ...task, blockedBy: blockers.get(task.id) || [] })), checkedAt: new Date().toISOString(), error: null };
+  }
+  async detail(cwd, threadId, id) {
+    issueIds([id]);
+    const linked = await this.linked(cwd, threadId);
+    const task = linked.tasks.find(task => task.id === id);
+    if (!task) throw fail('Choose a task linked to this worker.', 404);
+    let rows;
+    try { rows = JSON.parse(await this.command(cwd, ['show', id, '--json'])); } catch (error) { throw fail('Task details could not be read. ' + error.message); }
+    const row = Array.isArray(rows) ? rows.find(row => row.id === id) : null;
+    if (!row) throw fail('Beads did not return the selected task.', 404);
+    const blockers = task.blockedBy.length ? await this.list(cwd, ['--id', issueIds(task.blockedBy).join(',')]) : [];
+    return { ...task, description: String(row.description || '').slice(0, 12000), notes: String(row.notes || '').slice(-12000), blockers: blockers.map(item => ({ id: item.id, text: item.text, state: item.state })) };
   }
   async catalog(cwd, threadId) {
     const [linked, candidates] = await Promise.all([this.linked(cwd, threadId), this.list(cwd, ['--status', 'open,in_progress,blocked,deferred'])]);

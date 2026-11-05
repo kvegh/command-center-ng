@@ -9,7 +9,7 @@ function fixture() {
   const add = (id, title, status, labels = [], cwd = '/project') => rows.set(cwd + ':' + id, { id, title, status, priority: 2, assignee: 'agent-a', parent: 'demo-parent', labels, cwd, owner: 'private@example.invalid', notes: 'Private fixture notes must not enter dashboard task records.' });
   const run = async (binary, args, options) => {
     calls.push({ binary, args, ...options });
-    const command = args.find(arg => ['version', 'list', 'update'].includes(arg));
+    const command = args.find(arg => ['version', 'list', 'update', 'blocked', 'show'].includes(arg));
     if (faults.has(command)) throw faults.get(command);
     if (command === 'version') return { stdout: 'bd version 1.3.2\n' };
     if (args.includes('--help')) return { stdout: '--json --readonly --brief --flat' };
@@ -20,6 +20,12 @@ function fixture() {
       if (args.includes('--status')) data = data.filter(row => args[args.indexOf('--status') + 1].split(',').includes(row.status));
       return { stdout: JSON.stringify(data) };
     }
+    if (command === 'blocked') {
+      let data = [...rows.values()].filter(row => row.cwd === options.cwd && row.blocked_by?.length);
+      if (args.includes('--label')) data = data.filter(row => row.labels.includes(args[args.indexOf('--label') + 1]));
+      return { stdout: JSON.stringify(data) };
+    }
+    if (command === 'show') return { stdout: JSON.stringify([...rows.values()].filter(row => row.cwd === options.cwd && row.id === args[args.indexOf('show') + 1])) };
     if (command === 'update') {
       const mode = args.includes('--add-label') ? '--add-label' : '--remove-label';
       if (mode === '--remove-label' && faults.has('remove')) throw faults.get('remove');
@@ -56,14 +62,14 @@ test('Beads reads are scoped to the conversation/project and expose only selecte
   assert.ok(f.calls.every(call => !call.shell));
 });
 
-test('stored states drive up to three current rows; closed tasks disappear without guessing from chat', async () => {
+test('stored states drive all current rows and totals; closed tasks disappear without guessing from chat', async () => {
   const f = fixture(); const { w } = workspace(f.beads); const label = sessionLabel('alpha');
   f.add('demo-open', 'Queued work', 'open', [label]); f.add('demo-running', 'Current work', 'in_progress', [label]);
   f.add('demo-blocked', 'Blocked work', 'blocked', [label]); f.add('demo-later', 'Deferred work', 'deferred', [label]);
   f.add('demo-done', 'Closed work', 'closed', [label]);
   await w.refreshTasks('alpha');
-  let agent = w.snapshot().agents[0]; assert.equal(agent.taskCount, 4); assert.equal(agent.tasks.length, 3);
-  assert.deepEqual(agent.tasks.map(task => task.id), ['demo-running', 'demo-blocked', 'demo-open']);
+  let agent = w.snapshot().agents[0]; assert.equal(agent.taskCount, 4); assert.equal(agent.tasks.length, 4);
+  assert.deepEqual(agent.tasks.map(task => task.id), ['demo-running', 'demo-blocked', 'demo-open', 'demo-later']);
   f.rows.get('/project:demo-running').status = 'closed'; await w.refreshTasks('alpha');
   agent = w.snapshot().agents[0]; assert.equal(agent.taskCount, 3); assert.ok(!agent.tasks.some(task => task.id === 'demo-running'));
   f.rows.get('/project:demo-blocked').status = 'closed'; f.rows.get('/project:demo-open').status = 'closed'; f.rows.get('/project:demo-later').status = 'closed';
@@ -122,9 +128,34 @@ test('poll refreshes are deduplicated, unchanged records do not rebroadcast, and
   f.add('demo-a', 'Parent work', 'in_progress', [sessionLabel('alpha')]);
   let changes = 0; w.on('change', () => changes++);
   await Promise.all([w.refreshTasks('alpha'), w.refreshTasks('alpha')]);
-  assert.equal(f.calls.filter(call => call.args.includes('--label')).length, 1);
+  assert.equal(f.calls.filter(call => call.args.includes('--label') && call.args.includes('list')).length, 1);
+  assert.equal(f.calls.filter(call => call.args.includes('--label') && call.args.includes('blocked')).length, 1);
   const previous = changes; await w.refreshTasks('alpha'); assert.equal(changes, previous);
   await w.refreshTasks('beta'); assert.equal(w.snapshot().agents.find(agent => agent.id === 'beta').tasks.length, 0);
   assert.match(f.beads.context('beta')['command-center-tasks'].value, /ccng-session:beta/);
   assert.ok(!f.beads.context('beta')['command-center-tasks'].value.includes('ccng-session:alpha'));
+});
+
+
+test('unfinished dependencies become queued separately from manual input and all eight tasks are returned', async () => {
+  const f = fixture(); const { w } = workspace(f.beads); const label = sessionLabel('alpha');
+  for (let i = 0; i < 8; i++) f.add('demo-' + i, 'Work ' + i, i < 3 ? 'in_progress' : 'blocked', [label]);
+  f.rows.get('/project:demo-7').blocked_by = ['prerequisite'];
+  await w.refreshTasks('alpha'); const agent = w.snapshot().agents[0];
+  assert.equal(agent.tasks.length, 8); assert.equal(agent.taskCounts.inProgress, 3); assert.equal(agent.taskCounts.needsInput, 4); assert.equal(agent.taskCounts.queued, 1);
+  assert.equal(agent.tasks.find(task => task.id === 'demo-7').displayState, 'queued');
+  assert.equal(f.rows.get('/project:demo-7').status, 'blocked', 'display classification must not mutate the tracker');
+  f.rows.get('/project:demo-7').blocked_by = []; await w.refreshTasks('alpha'); assert.equal(w.snapshot().agents[0].taskCounts.needsInput, 5);
+});
+
+test('task detail reads only a linked task and does not change labels or state', async () => {
+  const f = fixture(); const label = sessionLabel('alpha');
+  f.add('demo-linked', 'Input needed', 'blocked', [label]); f.add('demo-other', 'Unrelated task', 'open');
+  f.rows.get('/project:demo-linked').description = 'Choose the existing test target.';
+  const detail = await f.beads.detail('/project', 'alpha', 'demo-linked');
+  assert.equal(detail.description, 'Choose the existing test target.'); assert.equal(detail.id, 'demo-linked');
+  assert.ok(!('owner' in detail)); assert.equal(detail.state, 'blocked');
+  await assert.rejects(f.beads.detail('/project', 'alpha', 'demo-other'), /linked/);
+  await assert.rejects(f.beads.detail('/project', 'alpha', '../unsafe'), /valid/);
+  assert.ok(f.calls.every(call => call.args.includes('--readonly')));
 });

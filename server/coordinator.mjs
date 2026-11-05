@@ -3,6 +3,7 @@ import { readFile, realpath } from 'node:fs/promises';
 import { resolve, relative, extname, basename, dirname } from 'node:path';
 import { COORDINATOR_PROMPT, COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE } from './coordinator-prompt.mjs';
 import { isBranchControlMessage } from './branch-summary.mjs';
+import { WORKER_REPORT_REQUEST, REPORT_INTERVALS } from './worker-instructions.mjs';
 
 const fail = (message, status = 409) => Object.assign(new Error(message), { status });
 const textInput = text => [{ type: 'text', text, text_elements: [] }];
@@ -33,6 +34,40 @@ export class Coordinator {
     this.deliveries = new Map(); this.reportPending = new Set(); this.reportVersions = new Map(); this.audit = []; this.stopped = false; this.running = false; this.messageActions = new Set();
   }
   workers() { return [...this.workspace.agents.values()].filter(agent => agent.role !== 'coordinator'); }
+  setReportInterval(id, minutes, now = Date.now()) {
+    const agent = this.worker(id);
+    if (!REPORT_INTERVALS.includes(minutes)) throw fail('Choose 1h, 15min, 5min or Never.', 400);
+    agent.reportIntervalMinutes = minutes; agent.nextReportAt = minutes ? now + minutes * 60_000 : null; agent.reportError = null;
+    const rows = this.deliveries.get(id);
+    if (rows) {
+      const retained = rows.filter((row, index) => row.kind !== 'scheduled-report' || (index === 0 && agent.coordinatorSending));
+      if (retained.length !== rows.length) {
+        rows.splice(0, rows.length, ...retained);
+        if (!rows.length) this.deliveries.delete(id);
+        if (!agent.coordinatorDeliveryKind && !rows.some(row => row.kind === 'report' || row.kind === 'scheduled-report')) this.reportPending.delete(id);
+      }
+    }
+    this.workspace.changed();
+    return { reportIntervalMinutes: minutes, nextReportAt: agent.nextReportAt };
+  }
+  async pollReports(now = Date.now()) {
+    if (this.pollingReports || this.stopped || this.paused || this.workspace.restoring || !this.rpc.ready) return;
+    this.pollingReports = true;
+    try {
+      for (const agent of this.workers()) {
+        if (!agent.reportIntervalMinutes || !agent.nextReportAt || agent.nextReportAt > now || agent.reportError) continue;
+        await this.workspace.refreshObserved(agent.id);
+        if (this.stopped || this.paused || this.workspace.restoring || !this.rpc.ready || this.workspace.agents.get(agent.id) !== agent) break;
+        if (!agent.reportIntervalMinutes || !agent.nextReportAt || agent.nextReportAt > now || agent.reportError || this.reportPending.has(agent.id) || this.deliveries.get(agent.id)?.length || !agent.canSend || agent.questions.length || agent.turnId || agent.thread.status?.type === 'active' || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag)) || this.workspace.summaryJobs.has(agent.id) || this.workspace.returnJobs.has(agent.id) || agent.returnSummary?.delivered) continue;
+        agent.nextReportAt = now + agent.reportIntervalMinutes * 60_000;
+        this.reportPending.add(agent.id);
+        try { this.queue(agent, '[Command Center coordinator]\nScheduled task report requested by your per-worker setting. ' + WORKER_REPORT_REQUEST, 'scheduled-report'); }
+        catch (error) { this.reportPending.delete(agent.id); agent.reportError = error.message; }
+        this.workspace.changed();
+      }
+    } finally { this.pollingReports = false; }
+  }
+
   snapshot() { return { id: this.id, starting: !!this.starting, error: this.error, paused: this.paused, queuedMessages: [...this.deliveries.values()].reduce((n, rows) => n + rows.length, 0), audit: this.audit.slice(-20) }; }
   worker(id) { const agent = this.workspace.agent(id); if (agent.role === 'coordinator') throw fail('Choose an open worker conversation.', 400); return agent; }
   async restrictedOptions(cwd) {
@@ -171,8 +206,8 @@ export class Coordinator {
     try {
       agent.coordinatorDeliveryKind = message.kind;
       await this.workspace.send(id, message.text); rows.shift(); if (!rows.length) this.deliveries.delete(id);
-      this.record({ agentId: id, action: message.kind, outcome: 'delivered' });
-    } catch (error) { agent.coordinatorDeliveryKind = null; message.error = error.message; this.error = 'Coordinator message delivery was not confirmed; it will not retry automatically: ' + error.message; this.record({ agentId: id, action: message.kind, outcome: 'unconfirmed', rationale: error.message }); }
+      this.record({ agentId: id, action: message.kind, outcome: 'delivered' }); if (message.kind === 'scheduled-report') agent.reportError = null;
+    } catch (error) { agent.coordinatorDeliveryKind = null; message.error = error.message; if (message.kind === 'scheduled-report') agent.reportError = error.message; this.error = 'Coordinator message delivery was not confirmed; it will not retry automatically: ' + error.message; this.record({ agentId: id, action: message.kind, outcome: 'unconfirmed', rationale: error.message }); }
     finally { agent.coordinatorSending = false; this.workspace.changed(); }
   }
   async review(agent, args) {
@@ -217,7 +252,7 @@ export class Coordinator {
       if (this.reportVersions.get(agent.id) === revision) throw fail('A report was already requested for this work. Read the reply; request another only after a user instruction or stored task change.');
       const key = params.turnId + ':' + agent.id; if (this.messageActions.has(key)) throw fail('Only one message or report per worker is allowed in a coordinator turn.'); this.messageActions.add(key);
       this.reportPending.add(agent.id); this.reportVersions.set(agent.id, revision);
-      try { return this.queue(agent, '[Command Center coordinator]\nPlease briefly describe the work by name: what is implemented or published, what was actually deployed or verified, what remains unfinished, and the specific blocker or next action. Include any decision or input needed from the user. Put task IDs only beside their task names if needed for traceability; do not substitute IDs, idle state or closed-record bookkeeping for an explanation. This requests a status report only; do not change scope or perform additional work for the report.', 'report'); }
+      try { return this.queue(agent, '[Command Center coordinator]\n' + WORKER_REPORT_REQUEST, 'report'); }
       catch (error) { this.reportPending.delete(agent.id); this.reportVersions.delete(agent.id); throw error; }
     }
     if (params.tool === 'ccng_review_approval') return this.review(agent, args);
@@ -233,9 +268,9 @@ export class Coordinator {
     const deliveryKind = agent.coordinatorDeliveryKind; agent.coordinatorDeliveryKind = null;
     const last = agent.messages.findLast(message => message.type === 'user');
     const requested = last && isCoordinatorMessage(last);
-    if (deliveryKind === 'report') this.reportPending.delete(id);
+    if (deliveryKind === 'report' || deliveryKind === 'scheduled-report') this.reportPending.delete(id);
     void this.flush(id);
-    if (deliveryKind === 'report') this.mark(id, 'Requested report is ready', true);
+    if (deliveryKind === 'report' || deliveryKind === 'scheduled-report') this.mark(id, 'Requested report is ready', true);
     else if (!requested) this.mark(id, 'Worker turn completed');
   }
   clearMessages() { this.deliveries.clear(); this.reportPending.clear(); this.reportVersions.clear(); this.error = null; this.workspace.changed(); }

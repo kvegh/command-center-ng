@@ -5,9 +5,9 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.14.0 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.15.0 (in development)** includes the Codex workspace and Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
-agents, conversation branches, up to three linked Beads tasks, chat, steering,
+agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
 green running states, and amber attention states.
 The interface uses a local Node.js service and the existing Codex daemon.
@@ -129,9 +129,8 @@ chosen target, always after terminal confirmation. See the
 [RHEL 9 prerequisite guide](docs/rhel9-prerequisites.md). Beads must be on PATH for both the app and working agents.
 The installer and app check for JSON/read-only/brief-list support; Beads 1.3.2
 was verified. See the [official Beads installation guide](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md).
-The native integration is tested with Codex 0.166.0. Fresh automatic Beads
-tracker/Dolt configuration remains pending the user's architecture choice;
-existing trackers are preserved. System packages are changed only after
+The native integration is tested with Codex 0.166.0. Fresh local Dolt provisioning and Beads initialization are approved follow-up
+work but are not implemented yet; existing trackers are preserved. System packages are changed only after
 explicit installer confirmation.
 
 Clone this repository and run the installer with a target directory:
@@ -201,12 +200,17 @@ context: findings, decisions and reasons, verification, open questions, and next
 steps. This uses one normal Codex turn with the existing model/settings. It does
 not prefill the last reply or send the conversation transcript to the parent.
 
-Review or edit the concise summary (maximum 2,000 characters), then choose
+The summary review stays inside its child tab, above the conversation. You can
+switch to other tabs and return without losing edits or generating another
+summary. Review or edit the concise summary (maximum 2,000 characters), then choose
 **Send summary & close**. The parent receives that summary as a message, starting
 a turn or steering an active one. Only after acceptance does the app archive the
 child session and remove its tab. Archived history is retained by Codex and is
 excluded from the normal active-conversation picker. Summary or delivery errors
-keep the branch open. If delivery succeeds but archiving fails, retry closes the
+keep the branch open. If a parent question blocks delivery, the error names
+that parent and **Open parent** lets you resolve its request before returning to
+the child and retrying. The summary and requests are preserved. If delivery
+succeeds but archiving fails, retry closes the
 child without resending within the current app process.
 
 Existing branches retain their original snapshot. After updating from an earlier
@@ -269,7 +273,42 @@ as the owner. The sidebar reports missing details instead of making that claim.
 
 This list follows native pending requests; unanswered questions written only in
 ordinary chat prose are not inferred. Coordinator tracking of those questions
-remains a separate scope choice. No new question store or model call is added.
+is approved follow-up work and remains unimplemented. No new question store or model call is added.
+
+## Worker settings, task answers and Markdown
+
+Each worker sidebar has **Worker specific settings**, with **Task report every**
+and radio choices **1h**, **15min**, **5min**, **Never**. Never is the default;
+choices persist per worker in the existing private workspace file. The current
+backend schedules status-only reports through the existing safe-idle delivery.
+Reports wait for active work and pending requests, pause with the coordinator,
+and stop when the worker tab closes. Restoration starts a fresh interval without
+starting a turn. There are no catch-up bursts or overlapping reports; a delivery
+error requires changing the interval before another scheduled attempt.
+
+Git-saved worker instructions require vivid labelled report bullets, meaningful
+work names and the project's latest release version with verified publication
+status. Newer working versions and live deployment evidence are distinguished.
+They also prefer structured clarification tools whenever available in the current
+provider/mode; this does not enable a disabled native feature or change permissions.
+Existing running turns receive these instructions on their next app-started turn.
+
+Click a task title to read its description, unfinished prerequisites and recorded
+notes. **Send to worker** includes your answer and task context; **Ask what is
+needed** requests an explanation. You can draft while native requests block
+sending. The worker processes the input and updates Beads; opening a task or
+sending an answer does not automatically close it or grant new execution scope.
+
+Chat renders Markdown and GitHub-flavored tables, lists, task lists, headings,
+quotes, links, strikethrough and code through react-markdown and remark-gfm.
+Tables scroll horizontally. Raw HTML is disabled, unsafe link schemes are filtered,
+and remote images appear as links rather than loading automatically. Code examples
+remain literal code. The existing authentication and content security policy apply.
+
+Session management is local to the backend host. Local read-write Claude support
+through the user-approved official Claude Agent SDK is still under development;
+this release continues to manage Codex sessions. No SSH/remote session monitoring
+is implemented or authorized. Per-worker model/effort controls are also unfinished.
 
 ## Development and current limits
 
@@ -282,8 +321,11 @@ sends; Shift+Enter inserts a newline. Drafts and reading positions survive tab
 switches and browser refreshes in the same browser. Closing a tab does not delete or interrupt its native conversation.
 
 The task panel reads Beads directly through the backend, refreshing every five
-seconds and after an agent turn. It shows up to three linked tasks, prioritizing
-in-progress and blocked work. Titles, assignees, parent IDs, and states come from
+seconds and after an agent turn. It shows all current linked tasks in an
+independently scrollable region, prioritizing in-progress and blocked work.
+The header shows total, in progress, need input, queued and other nonempty states.
+Queued means unfinished Beads prerequisites; it is distinct from a decision
+waiting for you and does not change the stored Beads status. Titles, assignees, parent IDs, and states come from
 stored records; closed tasks disappear from current work. Chat text, native
 plans, and idle state do not update Beads or substitute guessed task status.
 
@@ -492,3 +534,14 @@ navigation and read-only restoration of sixteen workers plus the coordinator.
 The full suite was attempted; sandbox policy blocks its local Unix sockets and
 installer home-directory fixtures. Interactive browser verification remains
 unperformed. No live conversation was created or interrupted for these tests.
+
+Validation for 0.15.0: all 109 application tests and the production build pass,
+including real protocol/HTTP/installer fixtures, sixteen-worker boundaries,
+report scheduling/restoration and request gates, dependency-derived task totals,
+readonly task details, Markdown safety and named parent-handoff failures.
+One older integration assertion still assumed four workers; it now uses the
+shared capacity. Normal npm test ran these fixtures successfully in the parent
+session; an alternate invocation encountered sandbox setup restrictions, so the
+cause of earlier cross-invocation differences is not inferred. Interactive
+browser review remains unperformed. No live approval, worker interruption,
+service restart or VM deployment was performed for validation.

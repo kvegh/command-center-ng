@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { VERSION } from './version.mjs';
+import { WORKER_BASE_INSTRUCTIONS } from './worker-instructions.mjs';
 import { taskSummary, reportedPlan } from './task-summary.mjs';
 import { BeadsTasks, sessionLabel } from './beads.mjs';
 import { Coordinator, COORDINATOR_NAME, isCoordinatorThread } from './coordinator.mjs';
@@ -71,7 +72,7 @@ export class Workspace extends EventEmitter {
       // Native resume may replay requests before the awaiting continuation runs.
       this.watched.add(id);
       const { thread, instructionSources } = observeOnly ? observed : await this.rpc.call('thread/resume', { threadId: id, excludeTurns: true });
-      const agent = { id, name: thread.name || 'Codex agent', goal: thread.name || thread.preview?.split('\n')[0] || 'No goal recorded', cwd: thread.cwd, model: thread.model || null, thread, parentId: thread.forkedFromId || null, canSend: thread.canAcceptDirectInput !== false, messages: [], tasks: [], workers: [], questions: [], turnId: null, lastCompletedTurnId: null, olderCursor: null, activity: null, summary: null };
+      const agent = { id, name: thread.name || 'Codex agent', goal: thread.name || thread.preview?.split('\n')[0] || 'No goal recorded', cwd: thread.cwd, model: thread.model || null, thread, parentId: thread.forkedFromId || null, canSend: thread.canAcceptDirectInput !== false, messages: [], tasks: [], workers: [], questions: [], turnId: null, lastCompletedTurnId: null, olderCursor: null, activity: null, summary: null, reportIntervalMinutes: 0, nextReportAt: null, reportError: null };
       agent.questions = [...this.pending.values()].filter(q => q.params.threadId === id);
       agent.role = role; agent.observingOnly = observeOnly; agent.instructionSources = instructionSources || [];
       this.agents.set(id, agent);
@@ -208,6 +209,11 @@ export class Workspace extends EventEmitter {
     this.trackerReads.set(id, job);
     try { return await job; } finally { this.trackerReads.delete(id); }
   }
+  async taskDetail(id, taskId) {
+    const agent = this.agent(id);
+    if (!this.beads) throw Object.assign(new Error('Beads is unavailable.'), { status: 503 });
+    return this.beads.detail(agent.cwd, id, taskId);
+  }
   async taskCatalog(id) {
     const agent = this.agent(id);
     if (!this.beads) throw Object.assign(new Error('Beads is unavailable.'), { status: 503 });
@@ -252,7 +258,7 @@ export class Workspace extends EventEmitter {
     if (agent.thread.status?.type === 'active' && agent.turnId) {
       await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: agent.turnId, input: input(text.trim()) });
     } else {
-      const { turn } = await this.rpc.call('turn/start', { threadId: id, input: input(text.trim()), ...(this.beads && agent.role !== 'coordinator' ? { additionalContext: this.beads.context(id) } : {}) }); agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed();
+      const { turn } = await this.rpc.call('turn/start', { threadId: id, input: input(text.trim()), ...(agent.role !== 'coordinator' ? { additionalContext: { ...this.beads?.context(id), 'command-center-worker-instructions': { kind: 'application', value: WORKER_BASE_INSTRUCTIONS } } } : {}) }); agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed();
     }
   }
   async interrupt(id) {
@@ -333,7 +339,15 @@ export class Workspace extends EventEmitter {
     try {
       const parentId = await this.parent(branch.id);
       if (!branch.returnSummary.delivered) {
-        await this.send(parentId, `Branch summary from "${branch.name}" (${branch.id}):\n\n${text}`);
+        try { await this.send(parentId, `Branch summary from "${branch.name}" (${branch.id}):\n\n${text}`); }
+        catch (error) {
+          const parent = this.agent(parentId);
+          const waiting = parent.questions.length || statusOf(parent.thread) === 'attention';
+          const message = waiting
+            ? `Parent chat "${parent.name}" has a pending question or approval. Open parent, answer it (or load its pending request), then return to this child and retry. Your summary is kept here.`
+            : `Could not send the summary to parent chat "${parent.name}". ${error.message} Your summary is kept in this child; open the parent to check it, then retry.`;
+          throw Object.assign(new Error(message), { status: error.status || 502 });
+        }
         branch.returnSummary.text = text; branch.returnSummary.delivered = true; this.changed();
       }
       const { thread } = await this.rpc.call('thread/read', { threadId: branch.id });

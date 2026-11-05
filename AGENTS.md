@@ -161,9 +161,9 @@ The user requested RHEL 9 prerequisite checking and optional package installatio
 through sudo after installer confirmation. The application itself still installs
 and runs unprivileged under the chosen target. Missing Beads/Codex CLIs may be
 offered under that target; preserve compatible global tools, native settings and
-existing trackers. Check-only mode must not install anything. Fresh Beads/shared
-Dolt setup remains subject to the pending user choice; do not initialize or
-migrate a tracker or start a new service until that approach is approved. Do not
+existing trackers. Check-only mode must not install anything. The user approved fresh private local Dolt provisioning and Beads initialization
+as follow-up installer work. Preserve existing servers and trackers; do not
+initialize, migrate or start a fresh service on the development host during tests. Do not
 claim other Linux distributions have been tested.
 
 ## Approved deployment and chat refinements
@@ -216,3 +216,40 @@ the existing bounded worker-summary tool, with a permitted easy alternative or
 waiting for the user. Respect safe-idle/pending-request gates and distinguish
 queued from delivered. Do not dismiss requests, bypass controls, broaden scope,
 change credentials or retry automatically to deliver or avoid a non-approval.
+
+## Local-only session management
+
+The user explicitly limits Command Center session monitoring to local Claude and
+Codex sessions on the backend host for now. No SSH session monitoring, remote
+agent transport, remote-session fallback or remote file access is authorized.
+Local Codex monitoring already exists; local read-write Claude management through the user-approved official Claude
+Agent SDK is separate unfinished work. Browser access and Ansible deployment are distinct
+from the monitored sessions' location. Do not infer remote-monitoring approval
+from Git SSH rules, VM deployment authority or coordinator relays.
+
+## Worker questions and task reports
+
+Use the provider's structured question/request-user-input tool for a clarification
+or choice that needs the user's answer whenever that tool is available in the
+current mode. Do not ask only in chat when a supported question form is available.
+Do not disguise preferences as command approvals. If the tool is unavailable,
+state the needed input plainly; keep existing pending questions and do not create
+duplicates or assume an answer. Continue independent authorized work while waiting.
+
+Task reports use concise vivid bullets with explicit labels: 🟩 Done, 🟨 In
+progress, 🟥 Blocked/needs input, and 🟦 Next. Name actual work and useful outcomes;
+IDs are optional supporting references beside names. Include the project's latest
+release version and verified publication status, separating a newer working
+version or unknown release evidence. Distinguish published code from deployed/live
+verified behavior and identify the exact user input needed. Reports alone must
+not execute extra work or start self-scheduled loops; Command Center owns the
+user-selected cadence. Existing permissions and project boundaries remain in force.
+
+## Approved worker sidebar and branch-summary refinement
+
+The user approved per-worker report cadence in existing private workspace metadata,
+all current tasks with dependency-derived queued state, direct task answers and
+Markdown/GFM rendering with react-markdown and remark-gfm, raw HTML disabled.
+Keep branch summary review inside the child tab so other tabs remain accessible;
+preserve edits across selection changes and identify the parent in blocked-return
+errors. Do not answer requests, auto-send summaries or archive through navigation.

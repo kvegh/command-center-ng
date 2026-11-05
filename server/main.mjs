@@ -33,6 +33,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
   await persistence.initialize();
   const taskTimer = setInterval(() => {
     for (const id of workspace.agents.keys()) { void workspace.refreshTasks(id); void workspace.refreshObserved(id); }
+    void workspace.coordinator?.pollReports().catch(error => { workspace.coordinator.error = error.message; workspace.changed(); });
   }, 5000);
   taskTimer.unref();
   let vite; let broadcastTimer;
@@ -110,13 +111,15 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           else { await workspace.coordinator.ensure(); if (data.action === 'refresh') { for (const worker of workspace.coordinator.workers()) workspace.coordinator.mark(worker.id, 'User requested a fresh summary', true); await workspace.coordinator.pump(); } }
           return json(response, workspace.coordinator.snapshot());
         }
+        const detailRoute = path.match(/^\/api\/agents\/([^/]+)\/tasks\/([^/]+)$/);
+        if (detailRoute && request.method === 'GET') return json(response, await workspace.taskDetail(decodeURIComponent(detailRoute[1]), decodeURIComponent(detailRoute[2])));
         const taskRoute = path.match(/^\/api\/agents\/([^/]+)\/tasks$/);
         if (taskRoute) {
           const id = decodeURIComponent(taskRoute[1]);
           if (request.method === 'GET') return json(response, await workspace.taskCatalog(id));
           if (request.method === 'POST') return json(response, await workspace.linkTasks(id, (await body(request)).ids));
         }
-        const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|interrupt|history|answer|review|requests|fork|parent|summary|return)$/);
+        const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|interrupt|history|answer|review|requests|report-settings|fork|parent|summary|return)$/);
         if (match && request.method === 'POST') {
           const [, encoded, action] = match; const id = decodeURIComponent(encoded); const data = await body(request);
           if (action === 'open') await workspace.open(id);
@@ -125,6 +128,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           if (action === 'interrupt') await workspace.interrupt(id);
           if (action === 'history') await workspace.history(id, data.cursor);
           if (action === 'requests') return json(response, await workspace.recoverRequests(id));
+          if (action === 'report-settings') { if (!workspace.coordinator) throw failure('Reporting is unavailable.', 503); return json(response, workspace.coordinator.setReportInterval(id, data.minutes)); }
           if (action === 'answer') await workspace.answer(id, data.requestId, data);
           if (action === 'review') {
             if (!workspace.coordinator || workspace.coordinator.paused) throw failure('Resume the coordinator before requesting a review.', 409);
