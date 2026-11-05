@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { formContent } from './native-requests.mjs';
 import { validateModelChoice } from './worker-models.mjs';
+import { messageTime } from './message-time.mjs';
 
 const run = promisify(execFile);
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
@@ -46,6 +47,8 @@ export async function readActiveClaudeSessions(executable) {
 
 function put(agent, record) {
   const index = agent.messages.findIndex(item => item.id === record.id);
+  const previous = agent.messages[index];
+  if (previous?.timestamp && record.timestampSource === 'received') record = { ...record, timestamp: previous.timestamp, timestampSource: previous.timestampSource };
   if (index < 0) agent.messages.push(record); else agent.messages[index] = { ...agent.messages[index], ...record };
   agent.messages = agent.messages.slice(-600);
   if (record.type === 'activity') agent.activity = { text: record.text.split('\n')[0].slice(0, 180), state: record.state };
@@ -53,10 +56,12 @@ function put(agent, record) {
 
 function blocks(message) { return typeof message?.content === 'string' ? [{ type: 'text', text: message.content }] : Array.isArray(message?.content) ? message.content : []; }
 
-export function addClaudeMessage(agent, message, turnId = message.uuid || 'history') {
+export function addClaudeMessage(agent, message, turnId = message.uuid || 'history', timing = {}) {
   const id = message.uuid || randomUUID();
+  const nativeTime = messageTime(message.timestamp);
+  const time = nativeTime ? { timestamp: nativeTime, timestampSource: 'native' } : timing;
   for (const [index, block] of blocks(message.message).entries()) {
-    if (block.type === 'text' && block.text) put(agent, { id: id + ':' + index, nativeMessageId: id, turnId, type: message.type === 'assistant' ? 'assistant' : 'user', text: bounded(block.text), state: 'completed' });
+    if (block.type === 'text' && block.text) put(agent, { id: id + ':' + index, nativeMessageId: id, turnId, type: message.type === 'assistant' ? 'assistant' : 'user', text: bounded(block.text), state: 'completed', ...time });
     if (block.type === 'tool_use') put(agent, { id: 'tool:' + block.id, turnId, type: 'activity', text: bounded(block.name + '\n' + JSON.stringify(block.input, null, 2)), state: 'inProgress' });
     if (block.type === 'tool_result') {
       const item = agent.messages.find(item => item.id === 'tool:' + block.tool_use_id);
@@ -117,7 +122,11 @@ export class ClaudeSessions extends EventEmitter {
     const historyChanged = version === null || version !== agent.historyVersion;
     if (historyChanged) {
       const messages = await this.sdk.getSessionMessages(agent.nativeSessionId, { dir: agent.cwd, includeSystemMessages: true });
+      const previous = new Map(agent.messages.map(message => [message.id, message]));
       agent.messages = []; for (const message of messages.slice(-600)) addClaudeMessage(agent, message);
+      for (const message of agent.messages) if (!message.timestamp && previous.get(message.id)?.timestamp) {
+        const before = previous.get(message.id); message.timestamp = before.timestamp; message.timestampSource = before.timestampSource;
+      }
       agent.historyVersion = version;
     }
     if (info?.customTitle) agent.name = info.customTitle;
@@ -159,8 +168,9 @@ export class ClaudeSessions extends EventEmitter {
     }
     const messageId = randomUUID(); agent.runError = null;
     if (!agent.turnId) { job.turnId = messageId; agent.turnId = messageId; agent.thread.status = { type: 'active' }; }
-    put(agent, { id: messageId + ':0', nativeMessageId: messageId, turnId: job.turnId, type: 'user', text, state: 'completed' });
-    job.inputs.push({ type: 'user', session_id: agent.nativeSessionId, uuid: messageId, parent_tool_use_id: null, ...(priority ? { priority } : {}), message: { role: 'user', content: text } });
+    const timestamp = new Date().toISOString();
+    put(agent, { id: messageId + ':0', nativeMessageId: messageId, turnId: job.turnId, type: 'user', text, state: 'completed', timestamp, timestampSource: 'received' });
+    job.inputs.push({ type: 'user', session_id: agent.nativeSessionId, uuid: messageId, timestamp, parent_tool_use_id: null, ...(priority ? { priority } : {}), message: { role: 'user', content: text } });
     this.changed(agent);
   }
   async consume(agent, job) {
@@ -169,13 +179,16 @@ export class ClaudeSessions extends EventEmitter {
       if (message.type === 'system' && message.subtype === 'init') { if (!agent.sdkModelOverride) agent.model = message.model || agent.model; agent.newSession = false; }
       if (message.type === 'stream_event') {
         const event = message.event;
-        if (event?.type === 'message_start') { if (!agent.turnId) { job.turnId = message.uuid || randomUUID(); agent.turnId = job.turnId; agent.thread.status = { type: 'active' }; } job.streamId = 'stream-' + event.message.id; job.streamText = ''; agent.model = event.message.model || agent.model; }
+        if (event?.type === 'message_start') { if (!agent.turnId) { job.turnId = message.uuid || randomUUID(); agent.turnId = job.turnId; agent.thread.status = { type: 'active' }; } job.streamId = 'stream-' + event.message.id; job.streamText = ''; job.streamTimestamp = new Date().toISOString(); agent.model = event.message.model || agent.model; }
         if (event?.type === 'content_block_start' && event.content_block?.type === 'thinking') put(agent, { id: 'thinking:' + job.turnId, turnId: job.turnId, type: 'activity', text: 'Claude is thinking…', state: 'inProgress' });
-        if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta') { job.streamText += event.delta.text; put(agent, { id: job.streamId || 'stream-' + job.turnId, turnId: job.turnId, type: 'assistant', text: bounded(job.streamText), state: 'inProgress' }); }
+        if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta') { job.streamText += event.delta.text; job.streamTimestamp ||= new Date().toISOString(); put(agent, { id: job.streamId || 'stream-' + job.turnId, turnId: job.turnId, type: 'assistant', text: bounded(job.streamText), state: 'inProgress', timestamp: job.streamTimestamp, timestampSource: 'received' }); }
       }
       if (['assistant', 'user'].includes(message.type)) {
-        if (message.type === 'assistant') { agent.messages = agent.messages.filter(item => item.id !== job.streamId); const thinking = agent.messages.find(item => item.id === 'thinking:' + job.turnId); if (thinking) thinking.state = 'completed'; }
-        addClaudeMessage(agent, message, job.turnId);
+        const streamedId = job.streamId || 'stream-' + job.turnId;
+        const stream = message.type === 'assistant' ? agent.messages.find(item => item.id === streamedId) : null;
+        const timing = { timestamp: stream?.timestamp || new Date().toISOString(), timestampSource: stream?.timestampSource || 'received' };
+        if (message.type === 'assistant') { agent.messages = agent.messages.filter(item => item.id !== streamedId); const thinking = agent.messages.find(item => item.id === 'thinking:' + job.turnId); if (thinking) thinking.state = 'completed'; job.streamId = null; job.streamTimestamp = null; job.streamText = ''; }
+        addClaudeMessage(agent, message, job.turnId, timing);
         for (const block of blocks(message.message)) if (block.type === 'tool_result') this.confirm(agent, block.tool_use_id);
       }
       if (message.type === 'tool_progress' && message.tool_use_id) this.confirm(agent, message.tool_use_id);

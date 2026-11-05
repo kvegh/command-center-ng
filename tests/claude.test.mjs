@@ -42,6 +42,66 @@ async function fixture({ active = [], history = [] } = {}) {
   return { runtime, sdk, calls, queries, controls, info, close: () => runtime.shutdown() };
 }
 
+test('Claude history uses native message timestamps and leaves missing or invalid times unknown', async () => {
+  const history = [
+    { type: 'assistant', uuid: 'timed-history', timestamp: '2026-11-05T10:20:00Z', message: { content: 'Recorded answer.' } },
+    { type: 'user', uuid: 'unknown-history', message: { content: 'An older question.' } },
+    { type: 'assistant', uuid: 'invalid-history', timestamp: 'not-a-time', message: { content: 'An untimed answer.' } }
+  ];
+  const f = await fixture({ history });
+  try {
+    const agent = await f.runtime.open(workerId);
+    assert.equal(agent.messages[0].timestamp, '2026-11-05T10:20:00.000Z'); assert.equal(agent.messages[0].timestampSource, 'native');
+    assert.equal(agent.messages[1].timestamp, undefined); assert.equal(agent.messages[2].timestamp, undefined);
+    agent.messages[1].timestamp = '2026-11-05T10:21:00.000Z'; agent.messages[1].timestampSource = 'received';
+    history.push({ type: 'user', uuid: 'another-old-message', message: { content: 'Another older question.' } });
+    await f.runtime.refresh(agent);
+    assert.equal(agent.messages[1].timestamp, '2026-11-05T10:21:00.000Z'); assert.equal(agent.messages[1].timestampSource, 'received');
+    assert.equal(agent.messages.at(-1).timestamp, undefined, 'history refresh must not stamp an old message with the current time');
+    assert.equal(f.queries.length, 0, 'reading timestamps does not start a model');
+  } finally { await f.close(); }
+});
+
+test('Claude live message times remain stable through streaming, final replacement and user echoes', async t => {
+  const initial = Date.parse('2026-11-05T10:20:00Z');
+  t.mock.timers.enable({ apis: ['Date'], now: initial });
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId); await f.runtime.send(agent, 'Review this change.');
+    const query = f.queries[0], sent = (await query.params.prompt.next()).value;
+    assert.equal(agent.messages.at(-1).timestamp, '2026-11-05T10:20:00.000Z');
+    assert.equal(sent.timestamp, '2026-11-05T10:20:00.000Z');
+    t.mock.timers.setTime(initial + 60000);
+    query.push({ type: 'user', uuid: sent.uuid, session_id: nativeId, message: { content: 'Review this change.' } });
+    query.push({ type: 'stream_event', session_id: nativeId, event: { type: 'message_start', message: { id: 'timestamp-stream', model: 'native-model' } } });
+    query.push({ type: 'stream_event', session_id: nativeId, event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'First' } } });
+    await until(() => agent.messages.some(message => message.text === 'First'));
+    assert.equal(agent.messages.find(message => message.nativeMessageId === sent.uuid).timestamp, '2026-11-05T10:20:00.000Z');
+    const streamed = agent.messages.find(message => message.type === 'assistant').timestamp;
+    t.mock.timers.setTime(initial + 180000);
+    query.push({ type: 'stream_event', session_id: nativeId, event: { type: 'content_block_delta', delta: { type: 'text_delta', text: ' answer.' } } });
+    await until(() => agent.messages.some(message => message.text === 'First answer.'));
+    assert.equal(agent.messages.find(message => message.type === 'assistant').timestamp, streamed);
+    query.push({ type: 'assistant', uuid: 'timestamp-final', session_id: nativeId, message: { content: 'First answer.' } });
+    await until(() => agent.messages.some(message => message.nativeMessageId === 'timestamp-final'));
+    const final = agent.messages.find(message => message.nativeMessageId === 'timestamp-final');
+    assert.equal(final.timestamp, streamed); assert.equal(final.timestampSource, 'received');
+    assert.equal(agent.messages.filter(message => message.type === 'assistant').length, 1);
+    query.push({ type: 'assistant', uuid: 'timestamp-final', timestamp: '2026-11-05T10:22:00Z', session_id: nativeId, message: { content: 'First answer.' } });
+    await until(() => final !== agent.messages.find(message => message.nativeMessageId === 'timestamp-final'));
+    assert.equal(agent.messages.find(message => message.nativeMessageId === 'timestamp-final').timestamp, '2026-11-05T10:22:00.000Z');
+    assert.equal(agent.messages.find(message => message.nativeMessageId === 'timestamp-final').timestampSource, 'native');
+    query.push({ type: 'stream_event', session_id: nativeId, event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Another answer.' } } });
+    await until(() => agent.messages.some(message => message.text === 'Another answer.'));
+    const withoutStart = agent.messages.find(message => message.text === 'Another answer.').timestamp;
+    t.mock.timers.setTime(initial + 240000);
+    query.push({ type: 'assistant', uuid: 'timestamp-no-start', session_id: nativeId, message: { content: 'Another answer.' } });
+    await until(() => agent.messages.some(message => message.nativeMessageId === 'timestamp-no-start'));
+    assert.equal(agent.messages.find(message => message.nativeMessageId === 'timestamp-no-start').timestamp, withoutStart);
+    assert.equal(agent.messages.filter(message => message.text === 'Another answer.').length, 1);
+  } finally { await f.close(); }
+});
+
 test('local Claude discovery and read-only restoration include headless sessions without starting a query', async () => {
   const f = await fixture({ active: [nativeId], history: [
     { type: 'user', uuid: 'first', message: { content: 'Review the project.' } },

@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.22.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.23.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -827,3 +827,18 @@ including six priority-report regressions and three user-service fixtures.
 Systemd user-unit parser verification exits0 for a synthetic unit, with sandbox
 bus/socket warnings; live manager activation is unverified. No installed copy,
 live service, native daemon or lingering setting was changed by these tests.
+
+
+Version 0.23.0 shows author/time headers such as **Codex | 14:35**, also for
+Claude, Coordinator and You. Times use the browser local timezone and24-hour
+format; hover for the full date/time and source. Native message times take
+priority. Live messages without a recorded native time keep their first-received
+time across streaming updates. Historical messages without available time show
+an unavailable marker, never the current reload time. Provider history remains
+authoritative; no separate timestamp store is added. Older Claude SDK history
+may omit timestamps even when its native transcript contains them.
+
+Validation for0.23.0: all200 application tests and production build pass. Eight
+new timestamp checks cover provider/history mapping, stable streaming/refresh,
+invalid/unknown times and local24-hour header rendering. No live model run or
+running installation restart was used; interactive browser review is pending.

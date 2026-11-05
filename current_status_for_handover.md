@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.22.0** in package.json and the lockfile.
+The authoritative version is **0.23.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -671,3 +671,17 @@ live service, native daemon or lingering setting was changed by these tests.
 
 0.21.0 report implementation: `b7856e84dc958f4e753b5d9693fca72d0c981b62`.
 0.22.0 user-service implementation: `391a1f2fa57f5e324c4f22db3ce6688a86a45111`.
+
+## Message author timestamps: 0.23.0
+
+Conversation author headers display a24-hour browser-local clock, with full
+date/source tooltip. Native timestamps are preferred; live receive time is
+explicitly identified and remains stable through streaming/completion/refresh.
+Historical untimed items stay unavailable. No separate transcript/time store
+or native permission/provider-setting change. Older Claude SDK history can
+omit native timestamps; no private transcript parser was added for this feature.
+
+Validation for0.23.0: all200 application tests and production build pass. Eight
+new timestamp checks cover provider/history mapping, stable streaming/refresh,
+invalid/unknown times and local24-hour header rendering. No live model run or
+running installation restart was used; interactive browser review is pending.

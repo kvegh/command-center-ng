@@ -14,6 +14,7 @@ import { Coordinator, COORDINATOR_NAME, isCoordinatorThread } from './coordinato
 import { SUMMARY_LIMIT, SUMMARY_SCHEMA, summaryPrompt, readSummary } from './branch-summary.mjs';
 import { ClaudeSessions, isClaudeId } from './claude.mjs';
 import { readEnvironmentInstructions, environmentInstructionContext } from './environment-instructions.mjs';
+import { messageTime } from './message-time.mjs';
 
 export const input = text => [{ type: 'text', text, text_elements: [] }];
 const requestKey = (threadId, requestId) => JSON.stringify([threadId, requestId]);
@@ -31,6 +32,15 @@ function itemText(item) {
   if (item.type === 'webSearch') return item.query || 'Web search';
   if (item.type === 'plan') return item.text;
   return null;
+}
+
+function itemTime(item, previous, live) {
+  const started = messageTime(item.startedAtMs);
+  const completed = messageTime(item.completedAtMs);
+  const prior = messageTime(previous?.timestamp);
+  const native = started || (previous?.timestampSource === 'native' && prior) || (!prior && completed);
+  const timestamp = native || prior || (live ? messageTime(Date.now()) : undefined);
+  return timestamp ? { timestamp, timestampSource: native ? 'native' : 'received' } : {};
 }
 
 export class Workspace extends EventEmitter {
@@ -171,7 +181,7 @@ export class Workspace extends EventEmitter {
     })();
     this.observedReads.set(id, job); try { await job; } finally { this.observedReads.delete(id); }
   }
-  addItem(agent, item, turnId, branchable = false) {
+  addItem(agent, item, turnId, branchable = false, { live = false, previous: prior } = {}) {
     const plan = reportedPlan(item); if (plan) agent.tasks = plan;
     if (item.type === 'agentMessage' && item.phase === 'commentary' && !item.text.includes('```')) agent.summary = item.text.split(/\n\s*\n/)[0];
     if (item.type === 'collabAgentToolCall') {
@@ -189,8 +199,8 @@ export class Workspace extends EventEmitter {
       if (!worker.detailLoaded) void this.readWorker(agent, worker.id);
     }
     const text = itemText(item); if (!text) return;
-    const record = { id: item.id, turnId, branchable, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text, state: item.status || 'completed', ...(item.type === 'userMessage' && isReportClientId(item.clientId) ? { internalReport: true } : {}), ...(item.type === 'userMessage' && isReportSettingClientId(item.clientId) ? { internalReportControl: true } : {}) };
     const previous = agent.messages.findIndex(m => m.id === item.id);
+    const record = { id: item.id, turnId, branchable, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text, state: item.status || 'completed', ...itemTime(item, agent.messages[previous] || prior, live), ...(item.type === 'userMessage' && isReportClientId(item.clientId) ? { internalReport: true } : {}), ...(item.type === 'userMessage' && isReportSettingClientId(item.clientId) ? { internalReportControl: true } : {}) };
     if (previous >= 0) agent.messages[previous] = record; else agent.messages.push(record);
     if (agent.messages.length > 600) agent.messages = agent.messages.slice(-600);
     if (record.type === 'activity') agent.activity = { text: String(text).split('\n')[0].slice(0, 180), state: record.state };
@@ -200,13 +210,13 @@ export class Workspace extends EventEmitter {
     if (agent.provider === 'claude') { if (cursor) throw Object.assign(new Error('Claude history uses its native current transcript.'), { status: 400 }); await this.claude.refresh(agent); return; }
     const page = await this.rpc.call('thread/turns/list', { threadId: id, limit: 20, itemsView: 'full', ...(cursor ? { cursor } : {}) });
     const current = { tasks: agent.tasks, workers: agent.workers.map(worker => ({ ...worker })), summary: agent.summary, activity: agent.activity };
-    const live = agent.messages; agent.messages = []; if (!cursor) agent.turnId = null;
+    const live = agent.messages; const previous = new Map(live.map(message => [message.id, message])); agent.messages = []; if (!cursor) agent.turnId = null;
     for (const turn of [...page.data].reverse()) {
       agent.tasks = []; agent.summary = null;
       if (turn.status === 'inProgress') agent.turnId = turn.id;
       const lastReply = turn.status === 'completed' ? turn.items?.findLast(item => item.type === 'agentMessage') : null;
       if (lastReply && !cursor) agent.lastCompletedTurnId = turn.id;
-      for (const item of turn.items || []) this.addItem(agent, item, turn.id, item.id === lastReply?.id);
+      for (const item of turn.items || []) this.addItem(agent, item, turn.id, item.id === lastReply?.id, { previous: previous.get(item.id) });
     }
     const history = agent.messages;
     agent.messages = [...history, ...live.filter(m => !history.some(h => h.id === m.id))].slice(-600);
@@ -527,11 +537,11 @@ export class Workspace extends EventEmitter {
       this.coordinator?.completed(id);
     }
     if (method === 'turn/plan/updated') agent.tasks = (p.plan || []).map((t, i) => ({ id: String(i), text: t.step, state: t.status }));
-    if (method === 'item/started' || method === 'item/completed') this.addItem(agent, p.item, p.turnId);
+    if (method === 'item/started' || method === 'item/completed') this.addItem(agent, p.item, p.turnId, false, { live: true });
     if (method === 'item/agentMessage/delta') {
       const existing = agent.messages.find(m => m.id === p.itemId);
-      if (existing) existing.text += p.delta;
-      else agent.messages.push({ id: p.itemId, turnId: p.turnId, type: 'assistant', text: p.delta, state: 'inProgress' });
+      if (existing) { existing.text += p.delta; Object.assign(existing, itemTime(p, existing, true)); }
+      else agent.messages.push({ id: p.itemId, turnId: p.turnId, type: 'assistant', text: p.delta, state: 'inProgress', ...itemTime(p, null, true) });
     }
     this.changed();
   }
