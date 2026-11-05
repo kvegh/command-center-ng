@@ -668,3 +668,6 @@ including six priority-report regressions and three user-service fixtures.
 Systemd user-unit parser verification exits0 for a synthetic unit, with sandbox
 bus/socket warnings; live manager activation is unverified. No installed copy,
 live service, native daemon or lingering setting was changed by these tests.
+
+0.21.0 report implementation: `b7856e84dc958f4e753b5d9693fca72d0c981b62`.
+0.22.0 user-service implementation: `391a1f2fa57f5e324c4f22db3ce6688a86a45111`.

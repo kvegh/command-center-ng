@@ -1206,3 +1206,35 @@ All183 application tests and production build pass, including adjacent sizing,
 short-pair growth, separator accessibility and browser preference validation.
 Interactive browser visual review remains unperformed. No native permission
 change, live approval, provider run or running-service restart occurred.
+
+## 2026-11-05 — Prioritize reports and add user systemd management
+
+Report-priority implementation: `b7856e84dc958f4e753b5d9693fca72d0c981b62` (0.21.0).
+User-service implementation: `391a1f2fa57f5e324c4f22db3ce6688a86a45111` (0.22.0).
+
+The user requested prompt due/one-off Standard Task Reports and a user-level
+service instead of foreground Ctrl-C. The shared report definition now requests
+known-evidence reporting at the next safe checkpoint before more project work,
+then resumes. It is loaded from the installed worker-instructions.md on backend
+startup and supplied to workers and coordinator without adding worker-write
+authority to the coordinator. Priority requests precede unsent summaries and use
+native Codex steering or owned Claude streaming next-priority input. Native
+blocking requests, pause/handoff, queue bounds/coalescing, failed/in-flight
+messages and external session ownership remain protected. No automatic tool
+interruption or recurring CCNG timer was introduced. Native checkpoint/admission
+limits still apply; live provider responsiveness is not proven by fixtures.
+
+The maintained launcher now installs and controls an owner-only systemd user
+unit with explicit install/start/stop/restart/status/logs/enable/disable/uninstall.
+It preserves supplied runtime options and non-secret profile/PATH variables;
+reinstall without options preserves an owned unit. Unrelated/symlink units are
+refused. Installation reloads the user manager; start/enable are separate,
+allowing deliberate foreground migration. Lingering and native daemons are
+unchanged. The live unit directory is outside this session writable roots, so
+normal-terminal installation remains pending rather than claimed deployed.
+
+All192 tests and production build pass, including six priority-report regressions
+and three service fixtures. Real systemd user-unit verification exited0 for a
+synthetic unit, with sandbox bus/socket warnings. It caught and corrected scalar
+WorkingDirectory quoting and executable-token dollar handling. No real unit was
+installed or started, and no live model, permission change or restart was used.
