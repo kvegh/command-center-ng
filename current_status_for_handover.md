@@ -528,3 +528,5 @@ provider timing test, global auto-review change, runtime restart or deployment.
 Shared environment AGENTS runtime loading, official Claude SDK management,
 fresh-install Dolt/Beads, ordinary-chat unanswered questions and actual AAP-to-TRA
 CaC/live rollout remain unfinished; credential history review precedes re-asking.
+
+0.18.0 implementation: `9aed87fb843463d3ec9cb23a27a21e87bef8cbce`. Consult current remote refs for publication.

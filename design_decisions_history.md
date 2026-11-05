@@ -1018,3 +1018,44 @@ external URLs, legacy/unknown visibility, coordinator restrictions and reporting
 with Never. No live approval/model call was used; browser review is unperformed.
 Model/effort selection, sidebar resizing/tab alignment/version relocation and
 local official Claude SDK management remain unfinished requests.
+
+
+## 2026-11-05 — Give workers model controls, room and report ownership in 0.18.0
+
+Implementation: `9aed87fb843463d3ec9cb23a27a21e87bef8cbce`.
+
+The user requested model/effort controls under Worker specific settings. Native
+model/list provides actual supported choices, and thread/settings/update changes
+only the selected worker's model/effort for subsequent turns. Native metadata
+and notifications confirm the saved state, including late confirmation after a
+missing acknowledgment. Current work and questions remain intact; no global
+settings, permissions, new agent loop or provider abstraction was introduced.
+Unsupported native settings operations fail visibly.
+
+The user requested a movable boundary to reclaim chat space. A bounded desktop
+divider adjusts both columns and saves the width in existing browser preferences,
+with pointer and keyboard controls. The coordinator follows the chat edge before
+Add agent; chat text no longer has its fixed character-width cap. The version
+badge moves into the composer footer at its existing font size. Mobile remains
+stacked. A consistent six-pixel task gap preserves the three-row viewport.
+
+After discussing timers and native capabilities, the user explicitly rejected
+CCNG's recurring report clock. That choice supersedes the earlier timer design:
+radio changes send one Standard Task Report interval instruction, replace an
+unsent older setting, and Never asks the worker to cancel its recurring reports.
+The worker owns timing using its runtime capabilities. CCNG recurring polling,
+due-time state and repeated report reminders were removed. Startup Markdown
+holds the named report function and format. Report now remains one explicit
+request; exact native client identity hides only its owned prompt from rendered
+chat, preserving native history and actual user/report messages. Restoration
+restores selection without replay or model turns; a stopped worker is not woken.
+Existing private cadence metadata and delivery/request gates are reused.
+
+All 129 application tests and production build pass. Fixtures cover native
+settings/choices, active turns and questions, saved/restored metadata and late
+confirmation, width bounds/browser persistence, once-per-change instructions,
+replacement/cancellation, owned message identity and no periodic report prompts.
+Interactive browser and live provider-timing verification remain unperformed.
+No live approval/model call, new dependency, global auto-review policy change,
+runtime restart or deployment was used. Local Claude SDK management and shared
+environment instruction loading remain separate unfinished requirements.
