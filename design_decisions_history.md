@@ -1188,3 +1188,21 @@ native read failures, changed evidence, asynchronous resolution/closure and
 bounded/omitted messages. No real approval, request replay, helper execution,
 permission change or service restart occurred. Source publication does not
 update the running installation or decide the reported native request.
+
+## 2026-11-05 — Resize overview sections in 0.20.0
+
+Implementation: `76350c8ca73166dc001a5ea79f93974e3302911c`.
+
+The user requested draggable horizontal boundaries between right overview
+sections. Worker and coordinator sections now have pointer and keyboard splitters
+with independent scrolling, bounded heights, cancellation and double-click reset.
+When the following section reaches its minimum, further downward dragging grows
+the upper section and moves later sections down, so a short empty section does
+not prevent Tasks from expanding. Existing browser preferences retain sizes
+across tabs/reloads without server storage. Mobile keeps natural stacked sizes;
+Tasks retain the three-row default until explicitly resized.
+
+All183 application tests and production build pass, including adjacent sizing,
+short-pair growth, separator accessibility and browser preference validation.
+Interactive browser visual review remains unperformed. No native permission
+change, live approval, provider run or running-service restart occurred.

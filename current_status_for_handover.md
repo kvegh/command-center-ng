@@ -637,3 +637,5 @@ Validation: all183 application tests and production build pass, including
 adjacent-section sizing, short-pair growth, separator semantics and browser
 preference restoration/refusal checks. Interactive browser visual review remains
 unperformed; no running installation was updated or restarted.
+
+0.20.0 implementation: `76350c8ca73166dc001a5ea79f93974e3302911c`.
