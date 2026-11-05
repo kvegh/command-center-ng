@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Workspace } from '../server/workspace.mjs';
 import { COORDINATOR_TOOLS } from '../server/coordinator.mjs';
-import { COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE } from '../server/coordinator-prompt.mjs';
+import { COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_RATIONALE_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE } from '../server/coordinator-prompt.mjs';
 
 class Rpc extends EventEmitter {
   constructor(cwd) { super(); this.ready = true; this.cwd = cwd; this.calls = []; this.replies = []; this.threads = new Map(); this.sequence = 0; this.turn = 0; this.requests = new Map(); this.replayOnResume = new Map(); this.historyPages = new Map(); }
@@ -81,13 +81,18 @@ test('recap and multi-request guidance reach new and restored coordinators and e
   try {
     const id = f.coordinator.id;
     const started = f.rpc.calls.find(call => call.method === 'thread/start').params;
-    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE]) assert.ok(started.developerInstructions.includes(guidance));
+    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_RATIONALE_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE]) assert.ok(started.developerInstructions.includes(guidance));
+    const rationale = COORDINATOR_TOOLS.find(tool => tool.name === 'ccng_review_approval').inputSchema.properties.rationale;
+    assert.equal(rationale.description, COORDINATOR_RATIONALE_GUIDANCE, 'the actual approval-card argument receives the same guidance');
+    assert.match(rationale.description, /two or three short sentences.*about 60 words/);
+    assert.match(rationale.description, /[Nn]on-approval notes do not require a fixed bullet count/);
+    assert.match(rationale.description, /each on its own line; do not use Markdown stars or bullets/);
     const agent = f.workspace.agent(id);
     agent.turnId = null; agent.thread.status = { type: 'idle' }; agent.observingOnly = true;
     await f.coordinator.pump();
     const resumed = f.rpc.calls.findLast(call => call.method === 'thread/resume').params;
     assert.equal(resumed.threadId, id);
-    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE]) assert.ok(resumed.developerInstructions.includes(guidance));
+    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_RATIONALE_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE]) assert.ok(resumed.developerInstructions.includes(guidance));
     assert.equal(resumed.sandbox, 'read-only');
     assert.equal(resumed.config['agents.enabled'], false); assert.equal(resumed.config['features.multi_agent_v2'], false);
     const event = f.rpc.calls.findLast(call => call.method === 'turn/start');
@@ -96,7 +101,7 @@ test('recap and multi-request guidance reach new and restored coordinators and e
     assert.match(reportContext, /high.priority/i); assert.match(reportContext, /next safe response checkpoint/);
     assert.doesNotMatch(reportContext, /## Structured questions|ccng-chat-question|bd create/);
     assert.equal(event.params.additionalContext['command-center-worker-instructions'], undefined, 'the coordinator receives report definitions without worker-only authority');
-    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE]) assert.ok(event.params.input[0].text.includes(guidance));
+    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_RATIONALE_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE]) assert.ok(event.params.input[0].text.includes(guidance));
     assert.equal(f.rpc.calls.filter(call => call.method === 'thread/start').length, 1);
     assert.equal(f.rpc.replies.length, 0, 'reporting guidance does not answer a request');
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
@@ -409,6 +414,22 @@ test('uncertain reviews stay with the user, pause prevents decisions, and broad 
     const broad = f.workspace.agent('worker').questions.find(q => q.id === 'permissions');
     await assert.rejects(f.call('ccng_review_approval', { ...args, reviewToken: broad.reviewToken }), /broad permission grants/);
     await f.workspace.answer('worker', 9, { decision: 'decline' }); assert.equal(f.workspace.agent('worker').questions.some(q => q.id === 9), false, 'manual user answers still work');
+  } finally { await f.close(); }
+});
+
+test('rationale style guidance preserves supplied explanations without truncation or answering an ask', async () => {
+  const f = await fixture();
+  try {
+    f.rpc.ask('long-note', 'worker');
+    const question = f.workspace.agent('worker').questions[0];
+    const rationale = 'Request: Update the encrypted deployment settings for the selected test environment.\nConcern: The inspected helper also writes a second configuration file, and the current user instruction does not identify whether that file belongs to the selected environment or a different active project.\nNext: Please confirm whether both configuration files are in scope for this change, or have the worker propose an update limited to the already authorized file. The pending request remains available for your review.';
+    assert.ok(rationale.split(/\s+/).length > 60);
+    const result = await f.call('ccng_review_approval', { agentId: 'worker', reviewToken: question.reviewToken, decision: 'ask', rationale, authorizationMessageId: null, authorizationQuote: null });
+    assert.equal(result.outcome, 'needs_user');
+    assert.equal(result.rationale, rationale);
+    assert.deepEqual(question.review, { decision: 'ask', rationale });
+    assert.equal(f.rpc.replies.length, 0);
+    assert.equal(f.workspace.agent('worker').questions[0], question);
   } finally { await f.close(); }
 });
 

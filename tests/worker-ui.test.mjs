@@ -20,6 +20,7 @@ async function componentUrl(name) {
 }
 async function component(name) { return import(await componentUrl(name)); }
 const { Markdown } = await component('markdown');
+const { copyText } = await component('copy-button');
 const { WorkerSettings } = await component('worker-settings');
 const { TaskTotals } = await component('task-totals');
 const { ChatQuestions } = await component('chat-questions');
@@ -33,6 +34,43 @@ const { ModelControls } = await component('worker-model-settings');
 const { SidebarDivider, sidebarLimits, sidebarSize } = await component('sidebar-divider');
 const markdown = value => renderToStaticMarkup(React.createElement(Markdown, { value }));
 
+test('clipboard copy preserves exact text and does not retry after native permission denial', async () => {
+  const text = '  systemctl --user status example.service\n\ntrailing spaces  \n';
+  const copied = [];
+  await copyText(text, { clipboard: { writeText: async value => { copied.push(value); } }, document: null });
+  assert.deepEqual(copied, [text]);
+  const denial = new Error('Permission denied');
+  await assert.rejects(copyText(text, { clipboard: { writeText: async () => { throw denial; } }, document: { get body() { assert.fail('Must not bypass native clipboard rejection'); } } }), error => error === denial);
+  await assert.rejects(copyText(text, { clipboard: null, document: null }), /Clipboard unavailable/);
+});
+
+test('legacy browser copying cleans up the temporary field and restores focus and selection even on failure', async () => {
+  for (const succeeds of [true, false]) {
+    const events = [];
+    const savedRange = {};
+    const field = { style: {}, setAttribute() {}, focus() { events.push('field focus'); }, select() { events.push('select'); }, remove() { events.push('remove'); } };
+    const document = {
+      body: { appendChild(node) { assert.equal(node, field); events.push('append'); } },
+      createElement(tag) { assert.equal(tag, 'textarea'); return field; },
+      activeElement: { focus() { events.push('restore focus'); } },
+      getSelection() { return { rangeCount: 1, getRangeAt() { return { cloneRange: () => savedRange }; }, removeAllRanges() { events.push('clear selection'); }, addRange(range) { assert.equal(range, savedRange); events.push('restore selection'); } }; },
+      execCommand(command) { assert.equal(command, 'copy'); assert.equal(field.value, '  exact\ntext  \n'); events.push('copy'); return succeeds; }
+    };
+    const result = copyText('  exact\ntext  \n', { clipboard: null, document });
+    if (succeeds) await result; else await assert.rejects(result, /Copy failed/);
+    assert.deepEqual(events, ['append', 'field focus', 'select', 'copy', 'remove', 'restore focus', 'clear selection', 'restore selection']);
+  }
+});
+
+test('coordinator concerns retain short labeled lines and the original pending approval controls', () => {
+  const rationale = 'Request: Check installed packages.\nConcern: I cannot read the helper functions.\nNext: Let the worker submit a readable check, or decide here.';
+  const html = renderToStaticMarkup(React.createElement(NativeRequestCard, { agentId: 'worker', workerName: 'Example project', act: async () => true, question: { id: 1, method: 'item/commandExecution/requestApproval', params: { command: 'python3 check.py' }, review: { decision: 'ask', rationale } } }));
+  assert.match(html, /class="field-note coordinator-review"/);
+  assert.ok(html.includes(rationale));
+  assert.match(html, /Needs your decision/);
+  assert.match(html, /Allow once/);
+});
+
 test('Markdown renders tables, lists, headings, links, quotes and inline/fenced code', () => {
   const html = markdown('# Status\n\n**Ready** and *checked* with `inline()`\n\n| Work | State |\n| --- | --- |\n| Build | Done |\n\n- [x] Checked\n- [ ] Pending\n\n1. First\n2. Second\n\n> A quoted note\n\n~~Old~~ [Docs](https://example.invalid/docs)\n\n```html\n<div>code only</div>\n```');
   for (const pattern of [/<h1>Status<\/h1>/, /<strong>Ready<\/strong>/, /<em>checked<\/em>/, /<code>inline\(\)<\/code>/, /<table>/, /<th>Work<\/th>/, /<td>Done<\/td>/, /<ul/, /<ol>/, /type="checkbox"/, /<blockquote>/, /<del>Old<\/del>/, /rel="noopener noreferrer"/, /&lt;div&gt;code only&lt;\/div&gt;/]) assert.match(html, pattern);
@@ -45,6 +83,37 @@ test('raw HTML and unsafe links stay inactive, remote Markdown images do not loa
   assert.match(html, /href="https:\/\/example.invalid\/image.png"/);
   assert.match(html, />Remote<\/a>/);
   for (const partial of ['| Work | State |\n| --', '**unfinished', '```json\n{"partial":', '<script>']) assert.doesNotThrow(() => markdown(partial));
+});
+
+test('each code block copies its own exact content and keeps its control outside the scrolling pre', () => {
+  const first = '  systemctl --user status example.service\n\n  printf "done"  \n';
+  const second = 'echo second\n  echo indented\n';
+  const value = `Inline \`keep_inline()\`\n\n\`\`\`bash\n${first}\`\`\`\n\n    echo second\n      echo indented\n`;
+  const rendered = Markdown({ value }).props.children;
+  const original = rendered.props.components.pre;
+  const targets = [];
+  const observed = React.cloneElement(rendered, { components: { ...rendered.props.components, pre: props => {
+    const block = original(props);
+    const [actions, pre] = block.props.children;
+    targets.push(actions.props.children.props.text);
+    assert.equal(pre.type, 'pre');
+    assert.equal(actions.props.children.props.label, 'Copy code');
+    assert.equal(actions.props.children.props.compact, true);
+    return block;
+  } } });
+  const html = renderToStaticMarkup(observed);
+  assert.deepEqual(targets, [first, second]);
+  assert.equal((html.match(/class="markdown-code-block"/g) || []).length, 2);
+  assert.equal((html.match(/class="markdown-code-actions"/g) || []).length, 2);
+  assert.match(html, /<code>keep_inline\(\)<\/code>/);
+  for (const pre of html.matchAll(/<pre\b[^>]*>([\s\S]*?)<\/pre>/g)) assert.doesNotMatch(pre[1], /<button|Copy code/);
+  assert.match(html, /<pre><code class="language-bash">  systemctl --user status example.service\n\n  printf &quot;done&quot;  \n<\/code><\/pre>/);
+});
+
+test('inline code has no block copy control', () => {
+  const html = markdown('Use `systemctl --user status example.service`.');
+  assert.match(html, /<code>systemctl --user status example.service<\/code>/);
+  assert.doesNotMatch(html, /markdown-code-block|markdown-code-actions|<button/);
 });
 
 test('worker settings say every once and use four independently named radio choices', () => {

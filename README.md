@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.23.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.24.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -20,7 +20,8 @@ clarification questions and approvals have an amber count, full question text
 and links to their answer controls, so requests remain easy to find while
 reading older messages. Selecting a tab focuses its chat
 input and places the cursor at the end of its saved draft. The generated airport
-control-tower icon now uses a clearer complete-building silhouette. The visible
+control-tower logo now uses a simple cyan icon; the header and browser favicon
+share the same asset. See [brand asset and generation prompt](docs/brand-assets.md). The visible
 wordmark is **command center NG**. Tabs have a sixteen-pixel top inset.
 Inactive tabs stay compact at about 34 pixels; the selected tab is about 40 pixels
 tall. Status dots retain their vivid colors.
@@ -56,6 +57,20 @@ The visual direction is elegant, technical, readable, and restrained. Beautiful
 typography, spacing, responsive layouts, and clear states take precedence over
 decorative effects. See [frontend direction](docs/frontend.md) for the rationale
 and tradeoffs.
+
+## Copy messages and commands
+
+**Copy this**, beside **Branch here**, copies a message's complete text to your
+browser clipboard, including its Markdown source. Copy works independently of
+branching and the provider connection. Each fenced or indented code block has
+its own copy icon for just that block's text, preserving spaces and line breaks.
+Inline code remains inline. Success and failure feedback is visible; copying
+never runs a command or sends a message.
+
+The browser clipboard API is preferred. Browsers without it can use their
+supported legacy copy action; a denied native clipboard request is not retried
+through that fallback. Clipboard availability still depends on the browser and
+page context. If copying fails, the message remains selectable for manual copy.
 
 ## Core experience
 
@@ -101,9 +116,14 @@ approvals and clarification questions. Each review returns the current remaining
 list. A request needing your decision stays visible while other eligible requests
 can be reviewed independently; remaining unreviewed approvals keep an event
 scheduled. Every approval still needs its own current token and user authority.
-Version 0.13.0 saves the user's decision-report format in coordinator
-instructions: exactly two short bullets per request, one high-level action summary
-and one decision with rationale, each one or two sentences. Vivid blue request,
+Coordinator instructions keep approved reports to two short bullets: the action
+and the approval with its reason. In 0.24.0, non-approval notes become two or
+three short plain-language lines, usually about sixty words or fewer: what the
+action does, the concrete concern, and the decision or next step needed.
+The actual rationale displayed on the worker's approval card follows this same
+guidance and preserves line breaks. Existing long notes are not rewritten or
+truncated. New, restored and existing coordinators receive the saved guidance
+through startup instructions and event reminders after updating. Vivid blue request,
 green approval, red decline, amber user-decision and purple unconfirmed markers
 make pairs easy to find. Exact actions and authority remain in the review tools.
 Non-approval feedback is requested through the existing summary tool, explaining
@@ -842,3 +862,13 @@ Validation for0.23.0: all200 application tests and production build pass. Eight
 new timestamp checks cover provider/history mapping, stable streaming/refresh,
 invalid/unknown times and local24-hour header rendering. No live model run or
 running installation restart was used; interactive browser review is pending.
+
+## Returning a restored branch in 0.24.0
+
+A completed branch restored as an unloaded native conversation can prepare and
+return its summary. Only the explicit Return summary action activates it through
+the existing native resume path; restoring tabs alone remains read-only. The
+loaded state is checked again before summary generation or delivery. Pending
+requests and active turns still block handoff, with an error naming the child
+and explaining whether to answer/load its request, wait, or reopen it. Parent
+request errors continue to identify the parent separately.

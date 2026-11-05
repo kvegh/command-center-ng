@@ -389,25 +389,33 @@ export class Workspace extends EventEmitter {
     try { await this.open(parentId); return parentId; }
     catch (error) { if (replace) this.agents.set(id, branch); this.changed(); throw error; }
   }
-  idleBranch(id) {
+  idleBranch(id, { allowUnloaded = false } = {}) {
     const branch = this.agent(id);
     if (!branch.parentId) throw Object.assign(new Error('This conversation has no parent branch.'), { status: 400 });
-    if (statusOf(branch.thread, branch.questions) !== 'idle') throw Object.assign(new Error('Wait for the branch to finish and resolve its questions before returning it.'), { status: 409 });
+    const status = statusOf(branch.thread, branch.questions);
+    if (status === 'attention') throw Object.assign(new Error(`Child chat "${branch.name}" has a pending question or approval. Answer it here (or load its pending request), then retry Return summary.`), { status: 409 });
+    if (status === 'running') throw Object.assign(new Error(`Child chat "${branch.name}" is still responding. Wait for its turn to finish, then retry Return summary.`), { status: 409 });
+    const unloaded = allowUnloaded && branch.observingOnly && branch.thread.status?.type === 'notLoaded';
+    if (status !== 'idle' && !unloaded) throw Object.assign(new Error(`Child chat "${branch.name}" is unavailable in the native runtime. Reopen this child chat, then retry Return summary.`), { status: 409 });
     return branch;
   }
   async summarize(id) {
     if (this.summaryJobs.has(id)) return this.summaryJobs.get(id);
-    const branch = this.idleBranch(id);
+    const branch = this.idleBranch(id, { allowUnloaded: true });
     if (branch.returnSummary?.delivered || branch.returnSummary?.turnId === branch.lastCompletedTurnId) return branch.returnSummary;
     if (this.returnJobs.has(id)) throw Object.assign(new Error('This branch is already being returned.'), { status: 409 });
     const job = this.generateSummary(branch); this.summaryJobs.set(id, job); this.changed();
     try { return await job; } finally { this.summaryJobs.delete(id); this.changed(); }
   }
   async generateSummary(branch) {
+    // Return summary is an explicit user action; restoring a tab stays read-only.
+    await this.activate(branch.id);
+    if (this.agents.get(branch.id) !== branch) throw Object.assign(new Error('The branch was closed before summary preparation.'), { status: 409 });
+    this.idleBranch(branch.id);
     await this.refreshTasks(branch.id);
     const context = await this.instructionContext(branch);
     if (this.agents.get(branch.id) !== branch) throw Object.assign(new Error('The branch was closed before summary preparation.'), { status: 409 });
-    if (branch.questions.length || statusOf(branch.thread, branch.questions) !== 'idle') throw Object.assign(new Error('Resolve the branch question or active turn before preparing its summary.'), { status: 409 });
+    this.idleBranch(branch.id);
     const { turn } = await this.rpc.call('turn/start', { threadId: branch.id, input: input(summaryPrompt(branch.goal, branch.tracker?.tasks)), outputSchema: SUMMARY_SCHEMA, additionalContext: context });
     if (branch.finishedTurn?.id !== turn.id) { branch.turnId = turn.id; branch.thread.status = { type: 'active', activeFlags: [] }; this.changed(); }
     await new Promise((resolve, reject) => {
@@ -427,7 +435,7 @@ export class Workspace extends EventEmitter {
   }
   async returnToParent(id, text) {
     if (this.returnJobs.has(id)) return this.returnJobs.get(id);
-    const branch = this.idleBranch(id);
+    const branch = this.idleBranch(id, { allowUnloaded: true });
     if (typeof text !== 'string' || !text.trim() || text.length > SUMMARY_LIMIT) throw Object.assign(new Error(`Enter a concise summary of up to ${SUMMARY_LIMIT} characters.`), { status: 400 });
     if (this.summaryJobs.has(id) || !branch.returnSummary || (!branch.returnSummary.delivered && branch.returnSummary.turnId !== branch.lastCompletedTurnId)) throw Object.assign(new Error('Prepare a current branch summary before returning it.'), { status: 409 });
     const job = this.finishReturn(branch, text.trim()); this.returnJobs.set(id, job); this.changed();
@@ -436,6 +444,9 @@ export class Workspace extends EventEmitter {
   async finishReturn(branch, text) {
     const parentWasOpen = this.agents.has(branch.parentId);
     try {
+      await this.activate(branch.id);
+      if (this.agents.get(branch.id) !== branch) throw Object.assign(new Error('The child chat was closed before returning its summary.'), { status: 409 });
+      this.idleBranch(branch.id);
       const parentId = await this.parent(branch.id);
       if (!branch.returnSummary.delivered) {
         try { await this.send(parentId, `Branch summary from "${branch.name}" (${branch.id}):\n\n${text}`); }
@@ -451,7 +462,7 @@ export class Workspace extends EventEmitter {
       }
       const { thread } = await this.rpc.call('thread/read', { threadId: branch.id });
       branch.thread = thread;
-      if (statusOf(thread, branch.questions) !== 'idle') throw new Error('Wait for the child session to finish before closing it.');
+      if (statusOf(thread, branch.questions) !== 'idle') throw new Error(`Child chat "${branch.name}" is no longer idle. Check its request or active turn before retrying Close branch.`);
       await this.rpc.call('thread/archive', { threadId: branch.id });
       this.agents.delete(branch.id); this.watched.delete(branch.id); this.coordinator?.closed(branch.id); this.changed();
       return parentId;

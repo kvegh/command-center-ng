@@ -211,9 +211,13 @@ questions, unchanged ask decisions and answer errors must not cause automatic
 review/retry loops. Keep the one-message/report limit distinct from independent
 reviews, and never add bulk approval or infer missing action/ownership details.
 
-Coordinator decision reports use exactly two bullets per request: a high-level
-request/action summary and the actual decision with rationale, each at most one
-or two sentences. Use vivid 🟦 request, 🟢 approved, 🔴 declined, 🟠 needs-user and
+Approved coordinator decision reports use two short bullets: the action and
+the approval with its reason. Non-approval notes, including the actual rationale
+shown in a worker's approval card, normally use two or three short lines and
+about sixty words or fewer: what the action does, the concrete concern, and the
+exact user decision or easy permitted next step. Use plain Request:/Concern:/Next:
+labels when helpful; no raw code, internal evidence dump or routine boilerplate.
+Keep line breaks in approval cards. Use vivid 🟦 request, 🟢 approved, 🔴 declined, 🟠 needs-user and
 🟣 unconfirmed markers plus clear words. Do not paste raw Python/shell code into
 the request-summary bullet or confuse ask with decline/unconfirmed with approval.
 Persist this in base instructions and event reminders. Keep exact review evidence

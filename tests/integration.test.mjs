@@ -211,6 +211,83 @@ async function branchFixture() {
   return { ...f, id };
 }
 
+test('Return summary activates an unloaded restored child only on explicit request and rechecks native state', async () => {
+  const f = await branchFixture();
+  try {
+    f.workspace.close(f.id);
+    f.threads.get(f.id).status = { type: 'notLoaded' };
+    const beforeRestore = f.calls.length;
+    const branch = await f.workspace.open(f.id, { observeOnly: true });
+    assert.equal(branch.observingOnly, true);
+    assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === f.id).status, 'idle');
+    assert.ok(f.calls.slice(beforeRestore).every(call => ['thread/read', 'thread/turns/list'].includes(call.method)));
+    // The resume response reports the native loaded state, not the cached tab state.
+    f.threads.get(f.id).status = { type: 'idle' };
+    const beforeSummary = f.calls.length;
+    const [first, second] = await Promise.all([f.workspace.summarize(f.id), f.workspace.summarize(f.id)]);
+    assert.equal(first.text, f.summary.text); assert.equal(second.text, first.text);
+    const calls = f.calls.slice(beforeSummary);
+    assert.deepEqual(calls.find(call => call.method === 'thread/resume').params, { threadId: f.id, excludeTurns: true });
+    assert.equal(calls.filter(call => call.method === 'thread/resume').length, 1);
+    assert.equal(calls.filter(call => call.method === 'turn/start').length, 1);
+    assert.equal(branch.observingOnly, false);
+    await f.workspace.returnToParent(f.id, first.text);
+    assert.equal(f.workspace.agents.has(f.id), false);
+    assert.equal(f.threads.get(f.id).archived, true);
+  } finally { await f.close(); }
+});
+
+test('restored child requests and active turns block summary generation with specific child recovery messages', async () => {
+  for (const state of ['known-request', 'replayed-request', 'native-active', 'still-unloaded']) {
+    const f = await branchFixture();
+    try {
+      f.workspace.close(f.id);
+      f.threads.get(f.id).status = { type: 'notLoaded', ...(state === 'known-request' ? { activeFlags: ['waitingOnApproval'] } : {}) };
+      const branch = await f.workspace.open(f.id, { observeOnly: true });
+      const beforeSummary = f.calls.length;
+      if (state === 'replayed-request') f.resumeRequests.set(f.id, [{ id: 'child-question', method: 'item/tool/requestUserInput', params: { threadId: f.id, turnId: 'child-turn', questions: [{ id: 'choice', question: 'Choose an option.' }] } }]);
+      if (state !== 'known-request' && state !== 'still-unloaded') f.threads.get(f.id).status = { type: state === 'native-active' ? 'active' : 'idle' };
+      await assert.rejects(f.workspace.summarize(f.id), error => {
+        assert.equal(error.status, 409);
+        assert.ok(error.message.includes(`Child chat "${branch.name}"`));
+        assert.match(error.message, state.includes('request') ? /pending question or approval.*load its pending request/ : state === 'native-active' ? /still responding.*turn to finish/ : /unavailable.*Reopen/);
+        return true;
+      });
+      const calls = f.calls.slice(beforeSummary);
+      assert.equal(calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt', 'thread/archive'].includes(call.method)), false);
+      assert.equal(calls.filter(call => call.method === 'thread/resume').length, state === 'known-request' ? 0 : 1);
+      assert.equal(f.replies.length, 0);
+      assert.equal(f.workspace.agents.has(f.id), true);
+      if (state === 'replayed-request') assert.equal(branch.questions[0].id, 'child-question');
+    } finally { await f.close(); }
+  }
+});
+
+test('return rechecks a reactivated child before sending its saved summary or closing it', async () => {
+  for (const pending of [false, true]) {
+    const f = await branchFixture();
+    try {
+      await f.workspace.summarize(f.id);
+      const branch = f.workspace.agent(f.id);
+      branch.observingOnly = true; branch.thread.status = { type: 'notLoaded' };
+      f.threads.get(f.id).status = { type: 'idle' };
+      if (pending) f.resumeRequests.set(f.id, [{ id: 'late-child-request', method: 'item/tool/requestUserInput', params: { threadId: f.id, questions: [{ id: 'choice', question: 'Choose an option.' }] } }]);
+      const beforeReturn = f.calls.length;
+      if (pending) {
+        await assert.rejects(f.workspace.returnToParent(f.id, 'My reviewed summary.'), /Child chat.*pending question or approval/);
+        assert.equal(branch.returnSummary.delivered, false);
+        assert.equal(branch.questions[0].id, 'late-child-request');
+        assert.equal(f.replies.length, 0);
+        assert.equal(f.calls.slice(beforeReturn).some(call => ['turn/start', 'turn/steer', 'thread/archive'].includes(call.method)), false);
+      } else {
+        assert.equal(await f.workspace.returnToParent(f.id, 'My reviewed summary.'), 'existing');
+        assert.equal(f.threads.get(f.id).archived, true);
+      }
+      assert.equal(f.calls.slice(beforeReturn).filter(call => call.method === 'thread/resume').length, 1);
+    } finally { await f.close(); }
+  }
+});
+
 test('return prepares a concise native-context summary, sends only the reviewed result, then archives and closes the child', async () => {
   const f = await branchFixture();
   try {

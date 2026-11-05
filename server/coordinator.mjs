@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile, realpath } from 'node:fs/promises';
 import { resolve, relative, extname, basename, dirname } from 'node:path';
-import { COORDINATOR_PROMPT, COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE } from './coordinator-prompt.mjs';
+import { COORDINATOR_PROMPT, COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_RATIONALE_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE } from './coordinator-prompt.mjs';
 import { isBranchControlMessage } from './branch-summary.mjs';
 import { taskSummary } from './task-summary.mjs';
 import { WORKER_REPORT_REQUEST, REPORT_INTERVALS } from './worker-instructions.mjs';
@@ -26,7 +26,7 @@ export const COORDINATOR_TOOLS = [
   tool('ccng_publish_progress', 'Publish a user-facing outcome, concrete blocker and next action in a worker sidebar. Name the work instead of listing task IDs; distinguish published code from verified deployment. This does not change Beads state or send a message.', object({ ...target, summary: str, nextStep: str, blocker: str })),
   tool('ccng_send_summary', 'Queue a concise, attributed summary as a real message for a selected worker. Busy workers receive it after their turn; pending approvals are never answered by messaging.', object({ ...target, summary: str })),
   tool('ccng_request_report', 'Ask a selected worker for a high-priority Standard Task Report. Safe active Codex turns receive native steering; managed Claude runs receive native next-priority streaming input. Blocking requests and other delivery guards remain. Limited to one outstanding report per worker.', object(target)),
-  tool('ccng_review_approval', 'Review one exact current command/file approval with its own token and authority evidence. Returns the full remaining request list/counts; continue reviewing the other eligible requests. An ask for one request does not block review of the others. Never grant session permissions.', object({ ...target, reviewToken: str, decision: { type: 'string', enum: ['approve', 'decline', 'ask'] }, rationale: str, authorizationMessageId: { type: ['string', 'null'] }, authorizationQuote: { type: ['string', 'null'] } }))
+  tool('ccng_review_approval', 'Review one exact current command/file approval with its own token and authority evidence. The rationale is shown to the user on the worker approval card. Returns the full remaining request list/counts; continue reviewing the other eligible requests. An ask for one request does not block review of the others. Never grant session permissions.', object({ ...target, reviewToken: str, decision: { type: 'string', enum: ['approve', 'decline', 'ask'] }, rationale: { ...str, description: COORDINATOR_RATIONALE_GUIDANCE }, authorizationMessageId: { type: ['string', 'null'] }, authorizationQuote: { type: ['string', 'null'] } }))
 ];
 export function isCoordinatorMessage(message) { return message.type === 'user' && message.text.startsWith('[Command Center coordinator]'); }
 const isUserAuthority = message => message.type === 'user' && !isCoordinatorMessage(message) && !isBranchControlMessage(message.text);

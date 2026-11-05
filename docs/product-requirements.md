@@ -39,6 +39,13 @@ does not establish that its assigned work is complete.
 
 ## Conversation branching
 
+Every chat message has a **Copy this** control with a copy icon, immediately
+left of **Branch here** where branching is available, with space between them.
+It copies that message's full text to the browser clipboard. Fenced and indented
+code blocks have their own copy icon that copies only that block's exact text.
+Copying provides visible success/failure feedback and never executes commands.
+Inline code remains unchanged.
+
 Branching is a simple action available at a point in the conversation. It opens
 a new conversation with the whole context carried over from that point. The
 user can ask a follow-up subquestion or start a subtask there, switch back to

@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.23.0** in package.json and the lockfile.
+The authoritative version is **0.24.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -20,7 +20,7 @@ included, alongside the 0.8.0 conversation safeguards. The earlier published bas
 `c24d84c318fe967993bd3e00552e129e7d32531e`.
 The agent did not update or restart the user's installation or native daemon;
 source publication alone does not deploy these changes. The user's last confirmed
-installed version is 0.9.1.
+installed version is 0.22.0; the current user service status has not been confirmed.
 
 | Version | Local implementation | Decision record |
 | --- | --- | --- |
@@ -687,3 +687,28 @@ invalid/unknown times and local24-hour header rendering. No live model run or
 running installation restart was used; interactive browser review is pending.
 
 0.23.0 implementation: `45c2ac9df9d73df5a1aa64ccf3ad44a3d33da4bf`.
+
+## 0.24.0 clipboard controls, concise concerns and branch return
+
+Copy this sits left of Branch here and copies complete message text; each
+fenced/indented Markdown block copies only its own exact code. Native clipboard
+denial is surfaced rather than retried through another method. Browsers without
+the API can use their supported legacy copy action, with focus/selection cleanup.
+The header/favicon use a new simple generated cyan tower icon; its source asset
+and reproducible prompt are documented in docs/brand-assets.md.
+
+Coordinator instructions and the review tool's rationale description now request
+short plain-language non-approval notes: the action, concern and actual user
+decision/next step, normally two or three short lines and about sixty words.
+Approval cards preserve line breaks. Existing notes, required evidence and native
+approval safeguards remain intact; live model adherence has not been verified.
+
+Restored unloaded branches now activate only on explicit summary/return actions,
+then recheck native state. Named child errors distinguish pending requests,
+active responses and an unavailable runtime. Read-only restore, exact questions,
+parent delivery and archive retry protections remain.
+
+All209 application tests and the production build pass. No browser executable
+was available for interactive clipboard/layout verification. No live summary
+turn was started, no request answered and no running installation restarted.
+Update/restart and browser review remain separate from source publication.

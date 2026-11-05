@@ -122,14 +122,35 @@ client's ownership.
 
 Version 0.13.0 saves this format in `server/coordinator-prompt.mjs` and event
 reminders, so it persists across sessions and reaches existing coordinators after
-an app update. Each request/decision uses exactly two bullets, each no longer
-than one or two sentences, with a blank line between pairs:
+an app update. Approved requests in coordinator chat use two bullets, each no
+longer than one or two sentences, with a blank line between pairs:
 
 - 🟦 **Request:** Explain the action's purpose and meaningful target/effect in plain language.
 - 🟢 **Approved:** State the result and brief rationale.
 
-The second bullet uses 🔴 **Declined**, 🟠 **Needs your decision**, or
-🟣 **Unconfirmed** when appropriate. Status words accompany color for clarity.
+Non-approval notes use 🔴 **Declined**, 🟠 **Needs your decision**, or
+🟣 **Unconfirmed**, with no fixed bullet count. Usually two or three short
+sentences on separate lines totaling about 60 words or fewer explain the action's real effect,
+the concrete concern and the exact user decision or easy permitted next step.
+Optional **Request / Concern / Next** labels can help. For example:
+
+> 🟠 **Needs your decision:** This updates the encrypted deployment settings.
+> I could not check whether the helper preserves the existing settings.
+> Please review this action, or ask the worker for a version I can inspect.
+
+The same guidance applies to the actual `ccng_review_approval` **rationale**
+argument displayed on worker approval cards, as well as coordinator chat and
+worker feedback. Describe effects instead of saying only "run Python"; omit
+raw code, internal evidence dumps, complex clauses and routine permission/legal
+boilerplate. Mention restrictions when they explain the actual blocker.
+The approval-card rationale is plain text: use `Request:`, `Concern:` and
+`Next:` labels on separate lines when helpful, without Markdown stars or bullets.
+This is common generation guidance in the startup/restored prompt, event
+reminders and rationale tool-field description, not a runtime word limit,
+truncation or rewriting of existing decision text. Model adherence still needs
+observation in normal use.
+
+Status words accompany color for clarity.
 An ask must never be described as a decline, nor an unconfirmed answer as a
 resolved approval. The concise request summary does not paste Python, shell
 commands or raw code. Exact actions, tokens and authorization quotes/references
