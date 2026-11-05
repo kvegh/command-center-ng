@@ -1260,3 +1260,35 @@ All200 application tests and production build pass, with eight new checks for
 provider mapping, streaming/refresh stability, invalid/unknown timestamps and
 24-hour/timezone rendering. Interactive browser/live provider review remains
 unperformed. No model call, host service change or running restart was used.
+
+## 2026-11-05 — Copy controls, concise coordinator concerns and branch return in 0.24.0
+
+Implementation: `39b976a3f1c11db49ce36bef78a1e9a8163f91a7`.
+
+The user requested copying complete messages beside Branch here, separate code
+block copying, and a simpler icon-style logo. Browser clipboard controls now
+copy exact message/code text with visible success/failure feedback and accessible
+labels. Supported legacy copying is used only when the browser clipboard API is
+absent; native permission rejection is not retried. The generated cyan tower
+icon replaces the header/favicon asset; the reproducible prompt is documented.
+
+The user found non-approval feedback too long and complicated. Saved coordinator
+instructions, event reminders and the actual rationale tool-field description
+now ask for the action, concrete concern and needed decision/next step in two or
+three short lines, usually about sixty words or fewer. Worker approval cards
+preserve those line breaks. Existing rationales are not truncated or rewritten;
+review evidence, permissions and outcome distinctions remain authoritative.
+
+A restored child displayed as idle could fail handoff because native notLoaded
+was rejected by the summary guard. Explicit summary/return now activates through
+the existing native resume path and rechecks the actual state before proceeding.
+Restoration alone remains read-only. Named errors distinguish child questions,
+active responses and unavailable sessions, while parent errors retain their
+separate identity. Native requests are not answered or bypassed to return a
+branch, and confirmed delivery/archive retries remain protected.
+
+All209 application tests and production build pass, including exact clipboard
+content/denial/cleanup, code blocks, rationale preservation and restored child
+activation/replayed-request regressions. No browser executable was available
+for interactive clipboard/layout checks. Live coordinator wording, live summary
+return and the running installation remain unverified; no restart occurred.

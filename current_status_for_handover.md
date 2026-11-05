@@ -712,3 +712,5 @@ All209 application tests and the production build pass. No browser executable
 was available for interactive clipboard/layout verification. No live summary
 turn was started, no request answered and no running installation restarted.
 Update/restart and browser review remain separate from source publication.
+
+0.24.0 implementation: `39b976a3f1c11db49ce36bef78a1e9a8163f91a7`.
