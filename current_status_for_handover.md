@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.12.0** in package.json and the lockfile.
+The authoritative version is **0.13.0** in package.json and the lockfile.
 Implementation: `2f8a45ad9846ea9799112395cb9effc4bf945a36`.
 It adds explicit multiple-request visibility and continued independent review to
 the published 0.11.1 recap wording and 0.11.0 UI/deployment artifacts. See
@@ -78,6 +78,31 @@ features. Existing records were narrowed to the pending ordinary-chat question
 tracking choice and fresh Beads/Dolt provisioning choice. The wider sidebar,
 structured questions and prerequisite installer remain delivered; no decision
 was inferred from this status question. Ownership/labels/dependencies were kept.
+
+## Saved decision format and worker feedback: 0.13.0
+
+The user explicitly requested Git-saved instructions plus a direct message to
+the existing coordinator. The message was sent through the native follow-up tool;
+no restart, permission change or worker approval was performed. Base instructions
+and every event now carry a shared decision-format/feedback policy: two bullets
+per request, one high-level action summary and one actual decision/rationale,
+each one or two sentences. Vivid Unicode status markers and words make them
+findable in chat without new UI/HTML rendering or a new dependency.
+
+Non-approval feedback is instructed through existing ccng_send_summary, combined
+per worker within its message limit. Offer an easy legitimate alternative or
+wait for the user; no security workaround or automatic retry is authorized.
+An ask remains pending. Feedback queues until pending requests are resolved and
+the worker is idle; do not claim earlier delivery. A fixture verifies this path
+without replying to or interrupting the blocked worker. This is model guidance
+using an existing tool, not a new guaranteed notification transport.
+
+The user answered YES to ordinary-chat unanswered-question tracking: the old
+scope-choice blocker is resolved and that task is open for implementation/design.
+The user also requested Markdown rendering; the current renderer remains partial.
+A full GFM renderer using react-markdown plus remark-gfm was recommended; library
+installation/scope approval remains pending. Neither feature is implemented by
+this instruction-format release.
 
 ## Delivered baseline: 0.5.0
 
@@ -335,7 +360,7 @@ but do not infer approval from a default choice or elapsed time.
 | --- | --- |
 | bead-wd-1rl | Broader Command Center project |
 | bead-wd-1rl.23 | Rendered design review; source review done, screenshot pending |
-| bead-wd-1rl.24 | Only ordinary-chat unanswered-question tracking choice remains pending |
+| bead-wd-1rl.24 | Scope approved: implement ordinary-chat unanswered-question tracking |
 | bead-wd-1rl.25 | Only fresh Beads/Dolt provisioning choice remains pending |
 | bead-wd-1rl.26 | Role and project-directory safeguards published in 0.8.0; semantic/legacy-name limits documented |
 | bead-wd-1rl.27 | Tab/chat gap correction published in 0.7.1 and included in 0.8.0 |
@@ -352,7 +377,10 @@ but do not infer approval from a default choice or elapsed time.
 | bead-wd-1rl.39 | Closed: private companion scaffold published; actual setup remains in .40 |
 | bead-wd-1rl.40 | Actual AAP/VM rollout pending the user-selected Vault credential |
 | bead-wd-1rl.41 | Closed: coordinator recap wording published in 0.11.1 |
-| bead-wd-1rl.42 | Multiple-request visibility and independent review in 0.12.0; consult Git for publication |
+| bead-wd-1rl.42 | Closed: multiple-request visibility/review published in 0.12.0 |
+| bead-wd-1rl.43 | Two-bullet vivid decision instructions saved in 0.13.0; consult Git for publication |
+| bead-wd-1rl.44 | Non-approval feedback policy and safe-idle fixture in 0.13.0 |
+| bead-wd-1rl.45 | Markdown rendering requested; full renderer/library choice pending |
 | bead-wd-ywg | Existing shared Dolt restart and successful reads verified |
 | bead-wd-9so | Closed: generated Beads no-remote Git rule investigated and corrected |
 

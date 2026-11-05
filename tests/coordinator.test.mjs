@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Workspace } from '../server/workspace.mjs';
 import { COORDINATOR_TOOLS } from '../server/coordinator.mjs';
-import { COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE } from '../server/coordinator-prompt.mjs';
+import { COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE } from '../server/coordinator-prompt.mjs';
 
 class Rpc extends EventEmitter {
   constructor(cwd) { super(); this.ready = true; this.cwd = cwd; this.calls = []; this.replies = []; this.threads = new Map(); this.sequence = 0; this.turn = 0; this.requests = new Map(); this.replayOnResume = new Map(); }
@@ -61,17 +61,17 @@ test('recap and multi-request guidance reach new and restored coordinators and e
   try {
     const id = f.coordinator.id;
     const started = f.rpc.calls.find(call => call.method === 'thread/start').params;
-    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE]) assert.ok(started.developerInstructions.includes(guidance));
+    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE]) assert.ok(started.developerInstructions.includes(guidance));
     const agent = f.workspace.agent(id);
     agent.turnId = null; agent.thread.status = { type: 'idle' }; agent.observingOnly = true;
     await f.coordinator.pump();
     const resumed = f.rpc.calls.findLast(call => call.method === 'thread/resume').params;
     assert.equal(resumed.threadId, id);
-    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE]) assert.ok(resumed.developerInstructions.includes(guidance));
+    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE]) assert.ok(resumed.developerInstructions.includes(guidance));
     assert.equal(resumed.sandbox, 'read-only');
     const event = f.rpc.calls.findLast(call => call.method === 'turn/start');
     assert.equal(event.params.threadId, id);
-    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE]) assert.ok(event.params.input[0].text.includes(guidance));
+    for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE]) assert.ok(event.params.input[0].text.includes(guidance));
     assert.equal(f.rpc.calls.filter(call => call.method === 'thread/start').length, 1);
     assert.equal(f.rpc.replies.length, 0, 'reporting guidance does not answer a request');
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
@@ -250,6 +250,36 @@ test('uncertain reviews stay with the user, pause prevents decisions, and broad 
     const broad = f.workspace.agent('worker').questions.find(q => q.id === 'permissions');
     await assert.rejects(f.call('ccng_review_approval', { ...args, reviewToken: broad.reviewToken }), /broad permission grants/);
     await f.workspace.answer('worker', 9, { decision: 'decline' }); assert.equal(f.workspace.agent('worker').questions.some(q => q.id === 9), false, 'manual user answers still work');
+  } finally { await f.close(); }
+});
+
+test('non-approval feedback queues without dismissing the request and reaches the worker only when safe', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker');
+    worker.turnId = 'worker-running'; worker.thread.status = { type: 'active' };
+    f.rpc.ask('needs-user', 'worker');
+    const question = worker.questions[0];
+    await f.call('ccng_review_approval', { agentId: 'worker', reviewToken: question.reviewToken, decision: 'ask', rationale: 'The target is not established by the user scope.', authorizationMessageId: null, authorizationQuote: null });
+    const summary = '- 🟦 **Request:** Change the selected test environment.\n- 🟠 **Needs your decision:** Target ownership needs confirmation. Propose an easy permitted alternative or wait for the user; do not bypass controls or retry automatically.';
+    assert.deepEqual(await f.call('ccng_send_summary', { agentId: 'worker', summary }), { queued: true });
+    assert.equal(worker.questions[0], question);
+    assert.equal(question.review.decision, 'ask');
+    assert.equal(f.rpc.replies.length, 0, 'feedback must not decline or answer the pending request');
+    assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start' && call.params.threadId === 'worker'), false);
+    await assert.rejects(f.call('ccng_send_summary', { agentId: 'worker', summary }), /Only one message/);
+    f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: 'worker', requestId: question.id } });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.coordinator.deliveries.get('worker').length, 1, 'resolving the request alone does not interrupt active work');
+    f.rpc.complete('worker', 'worker-running');
+    await new Promise(resolve => setImmediate(resolve));
+    const sent = f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId === 'worker');
+    assert.equal(sent.length, 1);
+    assert.ok(sent[0].params.input[0].text.includes(summary));
+    assert.equal(f.coordinator.deliveries.has('worker'), false);
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
+    assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
 });
 

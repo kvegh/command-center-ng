@@ -204,3 +204,15 @@ existing unreviewed approvals remain scheduled after resolution/referral. Manual
 questions, unchanged ask decisions and answer errors must not cause automatic
 review/retry loops. Keep the one-message/report limit distinct from independent
 reviews, and never add bulk approval or infer missing action/ownership details.
+
+Coordinator decision reports use exactly two bullets per request: a high-level
+request/action summary and the actual decision with rationale, each at most one
+or two sentences. Use vivid 🟦 request, 🟢 approved, 🔴 declined, 🟠 needs-user and
+🟣 unconfirmed markers plus clear words. Do not paste raw Python/shell code into
+the request-summary bullet or confuse ask with decline/unconfirmed with approval.
+Persist this in base instructions and event reminders. Keep exact review evidence
+and current tokens in the review tools. Send concise non-approval feedback through
+the existing bounded worker-summary tool, with a permitted easy alternative or
+waiting for the user. Respect safe-idle/pending-request gates and distinguish
+queued from delivered. Do not dismiss requests, bypass controls, broaden scope,
+change credentials or retry automatically to deliver or avoid a non-approval.

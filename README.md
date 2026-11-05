@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.12.0 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.13.0 (in development)** includes the Codex workspace and Linux installer. It supports
 four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -100,6 +100,15 @@ approvals and clarification questions. Each review returns the current remaining
 list. A request needing your decision stays visible while other eligible requests
 can be reviewed independently; remaining unreviewed approvals keep an event
 scheduled. Every approval still needs its own current token and user authority.
+Version 0.13.0 saves the user's decision-report format in coordinator
+instructions: exactly two short bullets per request, one high-level action summary
+and one decision with rationale, each one or two sentences. Vivid blue request,
+green approval, red decline, amber user-decision and purple unconfirmed markers
+make pairs easy to find. Exact actions and authority remain in the review tools.
+Non-approval feedback is requested through the existing summary tool, explaining
+an easy permitted alternative or waiting for the user. A queued notice cannot
+reach a worker until pending requests are resolved and the worker is safely idle;
+sending feedback never dismisses a request. Existing message limits still apply.
 Messages wait until workers are idle. See [coordinator behavior and limits](docs/coordinator.md)
 and the [original discussion summary](docs/supervisor-design-discussion.md).
 
@@ -441,6 +450,11 @@ new coordinator regressions failed before the fix. Native-protocol fixtures also
 verify four replayed requests, duplicate handling, independent tokens, mixed
 numeric/string IDs and arrivals during confirmation. These are synthetic tests;
 no real user approval, worker interruption or model call was used for validation.
+
+Version 0.13.0 passes all 91 application tests and the production build. Guidance
+propagation and safe-idle feedback use synthetic protocol fixtures; no live user
+approval or worker interruption was used for validation. Decision wording is
+model guidance and still needs normal use to assess.
 
 ## Public source policy
 

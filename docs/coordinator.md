@@ -105,6 +105,39 @@ rejoin reapplies its existing restrictions, and native read-only confirmation is
 still required. Missing request details are not treated as proof of another
 client's ownership.
 
+## Short, visible decisions and feedback
+
+Version 0.13.0 saves this format in `server/coordinator-prompt.mjs` and event
+reminders, so it persists across sessions and reaches existing coordinators after
+an app update. Each request/decision uses exactly two bullets, each no longer
+than one or two sentences, with a blank line between pairs:
+
+- 🟦 **Request:** Explain the action's purpose and meaningful target/effect in plain language.
+- 🟢 **Approved:** State the result and brief rationale.
+
+The second bullet uses 🔴 **Declined**, 🟠 **Needs your decision**, or
+🟣 **Unconfirmed** when appropriate. Status words accompany color for clarity.
+An ask must never be described as a decline, nor an unconfirmed answer as a
+resolved approval. The concise request summary does not paste Python, shell
+commands or raw code. Exact actions, tokens and authorization quotes/references
+remain in the review tools, whose safeguards are unchanged. These markers use
+existing Unicode/text rendering; no HTML styling or new dependency is required.
+
+After reviewing a worker's requests, instructions require one concise summary of
+non-approval results and reasons through `ccng_send_summary`. Multiple results
+are combined to respect the existing one-message/report limit. The worker may
+propose an easy, permitted alternative within its existing scope, or wait when
+only the user can decide. Feedback never authorizes a security workaround,
+credential change, scope expansion or automatic retry of the same action.
+
+This is an instructed use of the existing communication tool, not a new automatic
+transport or guaranteed model action. Check the queue acknowledgement and report
+failures honestly. Delivery remains queued while any native request is pending
+and until the worker is safely idle. An ask stays open for the user; it is never
+converted to decline just to deliver the notice. The worker cannot read a queued
+notice before those delivery conditions are met. Existing pause, confirmation,
+duplicate-message and failure/no-automatic-retry behavior remains.
+
 ## Multiple pending requests
 
 Version 0.12.0 makes the complete delivered request list explicit in both

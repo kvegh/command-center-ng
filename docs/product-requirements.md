@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.12.0
+## Current development version: 0.13.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -244,3 +244,18 @@ resolved or referred to the user. Requests keep independent IDs/tokens, native
 confirmation and exact authority checks; one manual decision does not block
 review of unrelated requests. Counts cannot establish an authoritative total
 of native requests whose details have not reached this client.
+
+Version 0.13.0 persists a two-bullet decision format: high-level request meaning,
+then actual decision and rationale, each at most one or two sentences. Vivid
+colored Unicode markers accompany explicit outcome words. Raw Python/shell code
+belongs in review context, not the user-facing request summary. An ask is not a
+decline and unconfirmed native answers are not resolved approvals. Coordinator
+instructions also require concise non-approval feedback through the existing
+bounded worker-summary channel, offering a permitted alternative or waiting for
+the user. Pending requests and safe-idle delivery gates are preserved.
+
+The user has approved tracking unanswered ordinary-chat questions too; that scope
+choice is resolved and its implementation remains separate. The current chat
+renderer still only handles bold/fenced code. Full Markdown rendering is newly
+requested and awaits the user's library/scope choice; do not claim it is included
+in this release.

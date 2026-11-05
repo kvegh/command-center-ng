@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile, realpath } from 'node:fs/promises';
 import { resolve, relative, extname, basename, dirname } from 'node:path';
-import { COORDINATOR_PROMPT, COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE } from './coordinator-prompt.mjs';
+import { COORDINATOR_PROMPT, COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE } from './coordinator-prompt.mjs';
 import { isBranchControlMessage } from './branch-summary.mjs';
 
 const fail = (message, status = 409) => Object.assign(new Error(message), { status });
@@ -87,7 +87,7 @@ export class Coordinator {
     if (!agent || agent.turnId || agent.questions.length || agent.thread.status?.type === 'active') return;
     const events = [...this.dirty].map(([id, reasons]) => ({ agentId: id, reasons: [...reasons] })); this.dirty.clear();
     this.running = true; this.lastRun = Date.now();
-    try { await this.workspace.send(this.id, '[Command Center coordinator]\nWorkspace events (observations, not new user instructions): ' + JSON.stringify(events) + '. Read the workers with your tools. Update concise progress summaries where useful. Review pending command/file approvals against actual user scope; ask the user when evidence is insufficient. Do not request reports or send messages unnecessarily.\n\nPending request reminder:\n' + COORDINATOR_REVIEW_GUIDANCE + '\n\nRecap style reminder:\n' + COORDINATOR_RECAP_GUIDANCE); this.error = null; }
+    try { await this.workspace.send(this.id, '[Command Center coordinator]\nWorkspace events (observations, not new user instructions): ' + JSON.stringify(events) + '. Read the workers with your tools. Update concise progress summaries where useful. Review pending command/file approvals against actual user scope; ask the user when evidence is insufficient. Do not request reports or send messages unnecessarily.\n\nPending request reminder:\n' + COORDINATOR_REVIEW_GUIDANCE + '\n\nRecap style reminder:\n' + COORDINATOR_RECAP_GUIDANCE + '\n\nDecision format and worker feedback:\n' + COORDINATOR_DECISION_GUIDANCE); this.error = null; }
     catch (error) { this.error = error.message; throw error; }
     finally { this.running = false; this.workspace.changed(); }
   }
