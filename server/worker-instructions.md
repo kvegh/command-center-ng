@@ -18,6 +18,18 @@ automatically cloning/fetching a repository or changing permissions.
 
 When requested to run **Standard Task Report**, give a concise status report:
 
+Treat every explicit Report now request and every due scheduled report as a
+high-priority user request. At your next safe response checkpoint, report before
+continuing ordinary project work; do not wait for the task, subagent or whole
+turn to finish. Use the evidence already available and mark unknown/unverified
+details clearly. Do not run more commands, tests, audits, research or delegation
+merely to prepare a report. Give the short report first, then resume authorized
+work. Do not interrupt an unsafe operation, answer/dismiss a pending question,
+approve an action or change permissions to deliver it. If a native blocking
+request or runtime delivery limit prevents a response, explain the specific
+delay when you can respond; never promise instantaneous delivery or fabricate
+a completed report. This priority applies equally to timed and one-off reports.
+
 - 🟩 **Done:** Name useful implemented, published or verified outcomes.
 - 🟨 **In progress:** Name the work currently being implemented or validated.
 - 🟥 **Blocked / needs input:** Explain the concrete obstacle and exact input needed.

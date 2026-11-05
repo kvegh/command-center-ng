@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.20.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.21.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -794,3 +794,18 @@ Validation: all183 application tests and production build pass, including
 adjacent-section sizing, short-pair growth, separator semantics and browser
 preference restoration/refusal checks. Interactive browser visual review remains
 unperformed; no running installation was updated or restarted.
+
+
+Version 0.21.0 prioritizes Standard Task Reports. Scheduled and explicit reports
+use available evidence at the next safe response checkpoint before ordinary
+project work, then resume. No extra commands or waiting for task completion
+merely to prepare a report. The Git-saved definition is
+`server/worker-instructions.md`, loaded at backend startup and supplied through
+worker/coordinator runtime context. Update the installed copy before restarting.
+Report now moves ahead of unsent summaries and reaches active Codex turns through
+existing native steering with native message identity. Owned active Claude runs
+receive SDK streaming input with next-checkpoint priority; external sessions
+retain ownership and wait. Pending requests, pause,
+handoff, failed/in-flight messages, queue bounds and coalescing remain protected.
+No recurring CCNG timer, automatic interruption or permission grant is added.
+Native delivery and safe checkpoints still limit response time.

@@ -24,6 +24,7 @@ class Rpc extends EventEmitter {
       return { data: [{ id: 'base-' + params.threadId, status: 'completed', items: [{ type: 'userMessage', id: 'user-' + params.threadId, content: [{ type: 'text', text: this.thread(params.threadId).preview }] }, { type: 'agentMessage', id: 'reply-' + params.threadId, text: 'Ready.' }] }], nextCursor: null };
     }
     if (method === 'turn/start') { const id = 'turn-' + ++this.turn; queueMicrotask(() => { this.emit('notification', { method: 'turn/started', params: { threadId: params.threadId, turn: { id } } }); this.emit('notification', { method: 'item/completed', params: { threadId: params.threadId, turnId: id, item: { id: 'input-' + id, type: 'userMessage', clientId: params.clientUserMessageId, content: params.input } } }); }); return { turn: { id } }; }
+    if (method === 'turn/steer') { queueMicrotask(() => this.emit('notification', { method: 'item/completed', params: { threadId: params.threadId, turnId: params.expectedTurnId, item: { id: 'steered-' + ++this.sequence, type: 'userMessage', clientId: params.clientUserMessageId, content: params.input } } })); return { turnId: params.expectedTurnId }; }
     if (method === 'turn/interrupt') { this.complete(params.threadId, params.turnId); return {}; }
     if (method === 'thread/archive') return {};
     throw new Error('Unexpected fixture method: ' + method);
@@ -91,6 +92,10 @@ test('recap and multi-request guidance reach new and restored coordinators and e
     assert.equal(resumed.config['agents.enabled'], false); assert.equal(resumed.config['features.multi_agent_v2'], false);
     const event = f.rpc.calls.findLast(call => call.method === 'turn/start');
     assert.equal(event.params.threadId, id);
+    const reportContext = event.params.additionalContext['command-center-report-instructions'].value;
+    assert.match(reportContext, /high.priority/i); assert.match(reportContext, /next safe response checkpoint/);
+    assert.doesNotMatch(reportContext, /## Structured questions|ccng-chat-question|bd create/);
+    assert.equal(event.params.additionalContext['command-center-worker-instructions'], undefined, 'the coordinator receives report definitions without worker-only authority');
     for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE]) assert.ok(event.params.input[0].text.includes(guidance));
     assert.equal(f.rpc.calls.filter(call => call.method === 'thread/start').length, 1);
     assert.equal(f.rpc.replies.length, 0, 'reporting guidance does not answer a request');
@@ -455,14 +460,109 @@ test('a requested report wakes the coordinator once, without repeated report loo
   try {
     const worker = f.workspace.agent('worker'); worker.turnId = 'original'; worker.thread.status = { type: 'active' };
     await f.call('ccng_request_report', { agentId: 'worker' });
-    f.rpc.complete('worker', 'original'); await delivered(f);
-    assert.equal(f.coordinator.reportPending.has('worker'), true, 'original work finishing does not finish the queued report');
-    f.coordinator.dirty.clear(); f.rpc.complete('worker');
+    await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer') && !worker.coordinatorSending);
+    assert.equal(f.coordinator.reportPending.has('worker'), true, 'steered report stays outstanding until the active turn completes');
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+    f.coordinator.dirty.clear(); f.rpc.complete('worker', 'original');
     assert.equal(f.coordinator.reportPending.has('worker'), false);
     assert.ok(f.coordinator.dirty.get('worker')?.has('Requested report is ready'));
     f.coordinator.messageActions.clear();
     await assert.rejects(f.call('ccng_request_report', { agentId: 'worker' }), /already requested for this work/);
     f.coordinator.clearMessages(); assert.equal(f.coordinator.deliveries.size, 0);
+  } finally { await f.close(); }
+});
+
+test('Report now takes queue priority and steers active Codex work once with native report identity', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'busy-original'; worker.thread.status = { type: 'active' };
+    f.coordinator.queue(worker, 'Earlier summary.', 'summary'); f.coordinator.queue(worker, 'Another summary.', 'summary');
+    f.coordinator.requestUserReport('worker');
+    assert.equal(f.coordinator.requestUserReport('worker').alreadyPending, true);
+    await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer') && !worker.coordinatorSending);
+    const steer = f.rpc.calls.find(call => call.method === 'turn/steer');
+    assert.equal(steer.params.expectedTurnId, 'busy-original'); assert.match(steer.params.clientUserMessageId, /^ccng-report-/);
+    assert.match(steer.params.input[0].text, /high.priority/i);
+    assert.equal(worker.turnId, 'busy-original'); assert.equal(worker.messages.find(message => message.internalReport)?.turnId, 'busy-original');
+    assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.text), ['Earlier summary.', 'Another summary.']);
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/steer').length, 1);
+    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/interrupt'].includes(call.method)), false); assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('priority reports preserve pause and missing-native-request gates without guessing or answering', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'busy'; worker.thread.status = { type: 'active', activeFlags: ['waitingOnApproval'] };
+    f.coordinator.paused = true; f.coordinator.requestUserReport('worker');
+    await f.coordinator.flush('worker'); assert.equal(f.rpc.calls.some(call => call.method === 'turn/steer'), false);
+    f.coordinator.paused = false; await f.coordinator.flush('worker'); assert.equal(f.rpc.calls.some(call => call.method === 'turn/steer'), false);
+    worker.thread.status.activeFlags = []; await f.coordinator.flush('worker');
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/steer').length, 1); assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('unowned active Claude reports remain queued without taking over the session', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.provider = 'claude'; worker.turnId = 'claude-busy'; worker.thread.status = { type: 'active' };
+    f.coordinator.queue(worker, 'Standard Task Report.', 'report'); await f.coordinator.flush('worker');
+    assert.equal(f.coordinator.deliveries.get('worker')[0].kind, 'report');
+    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false); assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('managed active Claude reports use existing next-priority streaming delivery and preserve request gates', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.provider = 'claude'; worker.turnId = 'claude-owned-turn'; worker.thread.status = { type: 'active' }; worker.externalSession = false;
+    const sent = [];
+    f.workspace.claude = { available: true, runs: new Map([['worker', {}]]), send: async (agent, text, options) => { sent.push({ agent, text, options }); } };
+    f.rpc.ask('claude-pending-choice', 'worker', 'claude/tool/requestUserInput');
+    f.coordinator.requestUserReport('worker'); await f.coordinator.flush('worker');
+    assert.equal(sent.length, 0, 'a blocking native request still prevents report delivery');
+    f.workspace.removeQuestion('worker', 'claude-pending-choice');
+    await waitFor(() => sent.length === 1 && !worker.coordinatorSending);
+    assert.equal(sent[0].agent, worker); assert.match(sent[0].text, /Standard Task Report/);
+    assert.equal(sent[0].options.priority, 'next'); assert.equal(worker.turnId, 'claude-owned-turn');
+    assert.equal(f.coordinator.reportState('worker'), 'generating');
+    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false); assert.equal(f.rpc.replies.length, 0);
+    f.coordinator.completed('worker');
+    worker.externalSession = true;
+    f.coordinator.requestUserReport('worker'); await f.coordinator.flush('worker');
+    assert.equal(sent.length, 1, 'an externally owned session is not taken over even if a stale managed-run entry exists');
+    assert.equal(f.coordinator.reportState('worker'), 'queued');
+  } finally { await f.close(); }
+});
+
+test('priority insertion preserves an in-flight message and follows it without waiting another turn', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); const originalSend = f.workspace.send.bind(f.workspace);
+    let release; const gate = new Promise(resolve => { release = resolve; });
+    f.workspace.send = async (...args) => { await originalSend(...args); if (args[1] === 'In-flight summary.') await gate; };
+    f.coordinator.queue(worker, 'In-flight summary.', 'summary');
+    await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/start'));
+    f.coordinator.queue(worker, 'Later summary.', 'summary'); f.coordinator.requestUserReport('worker');
+    assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.kind), ['summary', 'report', 'summary']);
+    release(); await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer') && !worker.coordinatorSending);
+    assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.text), ['Later summary.']);
+    assert.equal(f.coordinator.audit.filter(row => row.outcome === 'delivered').length, 2);
+  } finally { await f.close(); }
+});
+
+test('priority reports cannot bypass a failed queued message or the queue bound', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); f.coordinator.paused = true;
+    f.coordinator.queue(worker, 'Failed summary.', 'summary'); f.coordinator.deliveries.get('worker')[0].error = 'Synthetic unconfirmed send.';
+    f.coordinator.queue(worker, 'Unsent summary.', 'summary'); f.coordinator.requestUserReport('worker');
+    assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.kind), ['summary', 'report', 'summary']);
+    f.coordinator.paused = false; await f.coordinator.flush('worker');
+    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer'].includes(call.method)), false);
+    f.coordinator.queue(worker, 'Fourth message.', 'summary');
+    assert.throws(() => f.coordinator.queue(worker, 'Fifth message.', 'summary'), /four queued/);
+    assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
 });
 

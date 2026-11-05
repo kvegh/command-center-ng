@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.20.0
+## Current development version: 0.21.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -352,3 +352,9 @@ Version 0.20.0 adds horizontal overview dividers that resize adjacent section
 heights with pointer and keyboard controls, independent scrolling and a reset.
 Use existing browser-local preferences; preserve mobile natural stacking and
 the default natural-height three-task viewport until explicitly resized.
+
+Version 0.21.0 prioritizes due and one-off Standard Task Reports at the next safe
+checkpoint, using current evidence before further project work. Report now uses
+existing native Codex steering during safe active turns and precedes unsent
+summaries. Preserve blocking-request, pause, handoff, queue and native identity
+protections; do not add automatic interrupts or a recurring CCNG timer.

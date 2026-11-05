@@ -353,3 +353,13 @@ The user approved draggable horizontal overview boundaries. Resize adjacent
 section heights with usable minimums and independent scrolling, using existing
 browser-local layout preferences. Preserve keyboard controls, natural/reset
 heights, mobile stacking and three-task default until explicitly resized.
+
+## Priority task reports
+
+Prioritize due and one-off Standard Task Reports before ordinary work at the
+next safe response checkpoint, using known evidence without extra project work
+or waiting for task completion. Then resume authorized work. Explicit reports
+can use existing safe active Codex steering; ordinary summaries/settings retain
+idle gates. Keep native message identity, pending-request/pause/handoff gates,
+failed/in-flight messages, bounds and coalescing. Never interrupt an unsafe
+operation or answer questions/change permissions to force report delivery.

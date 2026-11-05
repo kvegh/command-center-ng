@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.20.0** in package.json and the lockfile.
+The authoritative version is **0.21.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -639,3 +639,15 @@ preference restoration/refusal checks. Interactive browser visual review remains
 unperformed; no running installation was updated or restarted.
 
 0.20.0 implementation: `76350c8ca73166dc001a5ea79f93974e3302911c`.
+
+## Priority Standard Task Reports: 0.21.0
+
+The shared report definition prioritizes due/explicit reports at the next safe
+checkpoint using known evidence, then resumes work. Backend startup reloads
+the installed MD; worker and coordinator runtime context carry the definition.
+Report now precedes unsent summaries and reaches active Codex through native
+steering/native message identity, or owned active Claude through SDK next
+priority. Blocking requests, pause, handoff, failed/in-flight queue messages,
+bounds, coalescing and external Claude ownership stay protected. No interrupts
+or recurring CCNG timer. Focused coordinator checks and production build pass;
+full combined validation follows the user-service implementation.

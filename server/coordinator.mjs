@@ -25,7 +25,7 @@ export const COORDINATOR_TOOLS = [
   tool('ccng_read_approval_source', 'Inspect bounded helper source referenced by one exact pending command approval, including helpers outside the project. Requires its current reviewToken; paths use native approval cwd, or worker cwd only when absent/null. No execution or credential/data-file access. Inspect direct helper startup/called functions without routine recursive imports. Changed source, command or cwd invalidates evidence.', object({ ...target, reviewToken: str, path: str, startLine: { type: 'integer', minimum: 1 } }, ['agentId', 'reviewToken', 'path'])),
   tool('ccng_publish_progress', 'Publish a user-facing outcome, concrete blocker and next action in a worker sidebar. Name the work instead of listing task IDs; distinguish published code from verified deployment. This does not change Beads state or send a message.', object({ ...target, summary: str, nextStep: str, blocker: str })),
   tool('ccng_send_summary', 'Queue a concise, attributed summary as a real message for a selected worker. Busy workers receive it after their turn; pending approvals are never answered by messaging.', object({ ...target, summary: str })),
-  tool('ccng_request_report', 'Ask a selected worker for named work, useful outcomes, remaining work and the exact blocker or next action. Delivery waits for a safe idle point and is limited to one outstanding report per worker.', object(target)),
+  tool('ccng_request_report', 'Ask a selected worker for a high-priority Standard Task Report. Safe active Codex turns receive native steering; managed Claude runs receive native next-priority streaming input. Blocking requests and other delivery guards remain. Limited to one outstanding report per worker.', object(target)),
   tool('ccng_review_approval', 'Review one exact current command/file approval with its own token and authority evidence. Returns the full remaining request list/counts; continue reviewing the other eligible requests. An ask for one request does not block review of the others. Never grant session permissions.', object({ ...target, reviewToken: str, decision: { type: 'string', enum: ['approve', 'decline', 'ask'] }, rationale: str, authorizationMessageId: { type: ['string', 'null'] }, authorizationQuote: { type: ['string', 'null'] } }))
 ];
 export function isCoordinatorMessage(message) { return message.type === 'user' && message.text.startsWith('[Command Center coordinator]'); }
@@ -254,11 +254,18 @@ export class Coordinator {
   }
   queue(agent, text, kind) {
     const rows = this.deliveries.get(agent.id) || []; if (rows.length >= 4) throw fail('This worker already has four queued coordinator messages.');
-    rows.push({ text, kind, id: randomUUID() }); this.deliveries.set(agent.id, rows); this.workspace.changed(); void this.flush(agent.id); return { queued: true };
+    const message = { text, kind, id: randomUUID() };
+    if (kind === 'report') rows.splice(Math.max(agent.coordinatorSending ? 1 : 0, rows.findLastIndex(row => row.error) + 1), 0, message);
+    else rows.push(message);
+    this.deliveries.set(agent.id, rows); this.workspace.changed(); void this.flush(agent.id); return { queued: true };
   }
   async flush(id) {
     const rows = this.deliveries.get(id); const agent = this.workspace.agents.get(id);
-    if (this.stopped || this.paused || !rows?.length || rows[0].error || !agent || agent.questions.length || agent.turnId || agent.thread.status?.type === 'active' || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag)) || !agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id)) return;
+    if (this.stopped || this.paused || !rows?.length || rows[0].error || !agent || agent.questions.length || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag)) || !agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) return;
+    const busy = !!agent.turnId || agent.thread.status?.type === 'active';
+    const managedClaude = agent.provider === 'claude' && !agent.externalSession && this.workspace.claude?.runs?.has(id);
+    const activeReport = rows[0].kind === 'report' && (agent.provider !== 'claude' || managedClaude) && agent.thread.status?.type === 'active' && !!agent.turnId;
+    if (busy && !activeReport) return;
     if (agent.coordinatorSending) return; agent.coordinatorSending = true;
     const message = rows[0];
     try {
@@ -266,7 +273,7 @@ export class Coordinator {
       await this.workspace.send(id, message.text, { report: message.kind === 'report', reportSetting: message.kind === 'report-setting' }); rows.shift(); if (!rows.length) this.deliveries.delete(id);
       this.record({ agentId: id, action: message.kind, outcome: 'delivered' }); if (message.kind === 'report-setting') agent.reportError = null;
     } catch (error) { agent.coordinatorDeliveryKind = null; message.error = error.message; if (message.kind === 'report-setting') agent.reportError = error.message; this.error = 'Coordinator message delivery was not confirmed; it will not retry automatically: ' + error.message; this.record({ agentId: id, action: message.kind, outcome: 'unconfirmed', rationale: error.message }); }
-    finally { agent.coordinatorSending = false; this.workspace.changed(); }
+    finally { agent.coordinatorSending = false; this.workspace.changed(); if (this.deliveries.get(id)?.[0]?.kind === 'report' && !this.deliveries.get(id)[0].error) void this.flush(id); }
   }
   async review(agent, args) {
     const question = agent.questions.find(q => q.reviewToken === args.reviewToken);

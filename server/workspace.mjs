@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { VERSION } from './version.mjs';
-import { WORKER_BASE_INSTRUCTIONS } from './worker-instructions.mjs';
+import { WORKER_BASE_INSTRUCTIONS, WORKER_REPORT_INSTRUCTIONS } from './worker-instructions.mjs';
 import { isHumanRequest, manualRequestAnswer } from './native-requests.mjs';
 import { readModelCatalog, validateModelChoice } from './worker-models.mjs';
 import { isReportClientId, isReportSettingClientId } from './report-messages.mjs';
@@ -335,7 +335,7 @@ export class Workspace extends EventEmitter {
     if (this.agents.get(id) !== agent) throw Object.assign(new Error('The worker was closed before message delivery.'), { status: 409 });
     if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
     if (agent.thread.status?.type === 'active' && agent.turnId) {
-      await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: agent.turnId, input: input(text.trim()) });
+      await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: agent.turnId, input: input(text.trim()), ...(report || reportSetting ? { clientUserMessageId: (report ? 'ccng-report-' : 'ccng-report-setting-') + randomUUID() } : {}) });
     } else {
       const { turn } = await this.rpc.call('turn/start', { threadId: id, input: input(text.trim()), ...(report || reportSetting ? { clientUserMessageId: (report ? 'ccng-report-' : 'ccng-report-setting-') + randomUUID() } : {}), additionalContext: context }); agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed();
     }
@@ -343,7 +343,7 @@ export class Workspace extends EventEmitter {
   async instructionContext(agent) {
     const source = await readEnvironmentInstructions(agent.cwd);
     const { text, ...state } = source; agent.environmentInstructions = state;
-    return { ...environmentInstructionContext(source), ...(agent.role !== 'coordinator' ? { ...this.beads?.context(agent.id), 'command-center-worker-instructions': { kind: 'application', value: WORKER_BASE_INSTRUCTIONS } } : {}) };
+    return { ...environmentInstructionContext(source), ...(agent.role !== 'coordinator' ? { ...this.beads?.context(agent.id), 'command-center-worker-instructions': { kind: 'application', value: WORKER_BASE_INSTRUCTIONS } } : { 'command-center-report-instructions': { kind: 'application', value: WORKER_REPORT_INSTRUCTIONS } }) };
   }
   async interrupt(id) {
     const agent = this.agent(id);
