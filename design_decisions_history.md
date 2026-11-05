@@ -862,3 +862,34 @@ new arrivals during confirmation and external native resolution. Existing
 coordinator identity, scope and request protections continue to pass. No real
 user approval, live model call, worker interruption or service restart was used
 for validation. Actual model behavior still needs normal use after updating.
+
+## 2026-11-05 — Save two-bullet decisions and non-approval feedback in 0.13.0
+
+Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
+
+The user explicitly requested Git-saved instructions and a direct message to the
+existing coordinator. A shared decision policy now requires exactly two bullets
+per request: a high-level action/target/effect summary, then the real outcome and
+rationale, each at most one or two sentences. Vivid Unicode markers distinguish
+request, approved, declined, needs-user and unconfirmed states alongside explicit
+words. Raw code is excluded from the user-facing request summary; exact native
+actions, current tokens and authorization evidence remain in the review tools.
+The same policy is present in new/restored instructions and each event reminder.
+
+The user also requested feedback to workers after non-approval. Instructions use
+the existing bounded summary channel, combining results per worker and explaining
+an easy permitted alternative or waiting for the user. This is model guidance
+using an existing tool, not a new guaranteed notification transport. Pending
+requests remain open; feedback waits for native resolution and safe idle. It
+never authorizes bypassing controls, changing credentials, expanding scope or
+automatically retrying a refused action. Delivery acknowledgement/errors must be
+reported honestly. No tool schema, service/store or approval authority changed.
+
+Validation: all 91 application tests and production build passed. Fixtures verify
+policy delivery to new/restored coordinators/events and safe-idle feedback that
+neither answers nor interrupts a pending request, including duplicate-message
+limits. The direct native message tool accepted the instruction; no acknowledgement
+of reading it is inferred. No live worker approval or service restart was used
+for validation. Ordinary-chat tracking is newly approved in scope but not yet
+implemented; Markdown rendering is separately requested and its library choice
+is pending, so neither is claimed delivered by this release.
