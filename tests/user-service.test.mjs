@@ -52,6 +52,29 @@ test('owned service lifecycle forwards only fixed user-level commands and exit s
   } finally { await f.close(); }
 });
 
+test('user service preserves explicit Beads routing without copying credentials or choosing a tracker', async () => {
+  const f = await fixture();
+  try {
+    f.env.BEADS_DIR = join(f.root, 'existing tracker % $ directory', '.beads');
+    f.env.BEADS_DOLT_SHARED_SERVER = '1';
+    f.env.BEADS_DOLT_PASSWORD = 'synthetic-secret-not-for-unit';
+    f.env.DOLT_PASSWORD = 'another-synthetic-secret';
+    await userService(['install', '--', '--cwd', f.root], f.options);
+    const unit = await readFile(f.path, 'utf8');
+    assert.ok(unit.includes('Environment="BEADS_DIR=' + f.env.BEADS_DIR.replaceAll('%', '%%') + '"'));
+    assert.ok(unit.includes('Environment="BEADS_DOLT_SHARED_SERVER=1"'));
+    assert.doesNotMatch(unit, /BEADS_DOLT_PASSWORD|DOLT_PASSWORD|synthetic-secret|another-synthetic/);
+    assert.deepEqual(f.calls, [{ command: 'systemctl', args: ['--user', 'daemon-reload'] }]);
+    f.env.BEADS_DIR = join(f.root, 'different tracker', '.beads');
+    await userService(['install'], f.options);
+    assert.equal(await readFile(f.path, 'utf8'), unit, 'no-option install must not silently change the saved tracker');
+    await userService(['install', '--', '--cwd', f.root], f.options);
+    assert.ok((await readFile(f.path, 'utf8')).includes('BEADS_DIR=' + f.env.BEADS_DIR));
+    const { BEADS_DIR, BEADS_DOLT_SHARED_SERVER, ...withoutRoute } = f.env;
+    assert.doesNotMatch(serviceUnit(f.appDir, [], withoutRoute), /BEADS_DIR|BEADS_DOLT_SHARED_SERVER/);
+  } finally { await f.close(); }
+});
+
 test('service management refuses unrelated or linked units and unsafe/unsupported options', async () => {
   const f = await fixture();
   try {

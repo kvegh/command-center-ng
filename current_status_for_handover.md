@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.24.0** in package.json and the lockfile.
+The authoritative version is **0.24.1** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -714,3 +714,19 @@ turn was started, no request answered and no running installation restarted.
 Update/restart and browser review remain separate from source publication.
 
 0.24.0 implementation: `39b976a3f1c11db49ce36bef78a1e9a8163f91a7`.
+
+## 0.24.1 service Beads routing correction
+
+The existing user unit omitted explicit Beads tracker routing while worker CLI
+commands used an existing shared tracker. Service generation now preserves
+BEADS_DIR and BEADS_DOLT_SHARED_SERVER if supplied, alongside its existing
+non-secret allowlist. It does not discover/select an alternate database, copy
+credentials, initialize a tracker or start/migrate Dolt. Repeating install with
+no runtime options still preserves the old unit; explicit options refresh it.
+
+Failed task reads no longer display authoritative zero totals or a no-matches
+suggestion in Link tasks. Exact errors and save protections remain. All210
+application tests and production build pass. The live owner-only unit was read
+but not changed; installation directories remain outside session writable roots.
+Existing-unit registration with its original runtime options and the confirmed
+tracker setting, restart, and actual task readback still need host verification.

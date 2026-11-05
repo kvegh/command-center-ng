@@ -118,7 +118,27 @@ port, public origin and socket options. Registration writes an owner-only
 `${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/command-center-ng.service`
 and reloads the user manager. It does not start, restart or enable the app.
 It preserves the current PATH and explicitly configured Codex/Claude/CCNG profile
-locations in the generated private unit; do not put secrets in CLI arguments.
+locations in the generated private unit. Version0.24.1 also preserves explicit
+`BEADS_DIR` and `BEADS_DOLT_SHARED_SERVER` values. Database passwords and other
+credential variables are not copied; do not put secrets in CLI arguments.
+
+If agents resolve an existing tracker through `BEADS_DIR`, register the service
+from a terminal with that same setting. Use `bd where` there to confirm the
+existing tracker before registration. Do not run `bd init` to repair a service
+that lost its tracker setting. For example, replace this generic path with your
+existing tracker, retain your current runtime options, and then restart when safe:
+
+```sh
+BEADS_DIR="$HOME/EXISTING_WORKSPACE/.beads" BEADS_DOLT_SHARED_SERVER=1 \
+  "$HOME/apps/command-center-ng/command-center-ng" service install -- \
+  --host 127.0.0.1 --port 4242 --cwd "$HOME/projects/WORKSPACE"
+```
+
+The shared-server value above applies only when already used by that tracker;
+omit it for a setup that does not use it. Registration alone never starts a Dolt
+server, initializes Beads, migrates data or changes the running CCNG process.
+Existing units need this explicit registration step; application update plus
+restart alone leaves their old saved environment intact.
 Unrelated, linked or differently owned units are refused.
 
 After current managed Claude work has finished, stop the foreground CCNG copy

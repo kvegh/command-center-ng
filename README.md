@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.24.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.24.1 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -379,7 +379,9 @@ relevant task IDs in its summary and does not automatically close/reassign tasks
 Each working directory needs an existing Beads tracker (including a configured
 parent/shared tracker). Initialize it deliberately with `bd init` if required;
 the app does not create or migrate trackers automatically. If the database is
-unavailable, the panel reports the error and clears stale rows. It distinguishes
+unavailable, the panel reports the error and clears stale rows. It shows task
+counts only after a successful read; the task picker reports a loading failure
+instead of claiming there are no matches. It distinguishes
 no linked tasks from all linked tasks being closed. Existing Beads storage mode
 and access configuration are preserved; the app does not manage a Dolt service.
 
@@ -872,3 +874,18 @@ loaded state is checked again before summary generation or delivery. Pending
 requests and active turns still block handoff, with an error naming the child
 and explaining whether to answer/load its request, wait, or reopen it. Parent
 request errors continue to identify the parent separately.
+
+## Beads routing in user services
+
+Version0.24.1 preserves explicitly supplied `BEADS_DIR` and
+`BEADS_DOLT_SHARED_SERVER` when generating a user unit, alongside the existing
+PATH/profile allowlist. A terminal or agent can resolve a shared tracker while a
+service without these settings fails with “no beads database found.” This means
+tracking is unavailable, not that tasks were deleted or completed. CCNG does not
+choose another tracker, initialize one or copy database credentials.
+
+For an existing service, updating the application alone does not rewrite its
+unit. From a terminal configured for the existing tracker, register again with
+your saved explicit runtime options, then restart when ready. A no-option
+registration deliberately preserves the old unit. See
+[service configuration](docs/installation.md#user-level-systemd-service).
