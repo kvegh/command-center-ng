@@ -1434,3 +1434,24 @@ and15 restoration checks. Tests cover coalescing, paused startup with one
 blocked worker, progressive refresh, preserved deadlines, restore-phase ordering
 and sidebar publication. Running-provider/model recap quality and browser/live
 startup acceptance remain unverified. No service restart was performed.
+
+## 2026-11-05 — White airport control tower in 0.27.1
+
+Implementation: `8b9e520996af082c27379d72ad803d144289c236`.
+
+The user rejected the cyan icon and requested white artwork with a recognizable
+airport tower. The shared header/favicon PNG now depicts a wide three-window
+cabin, projecting roof, tapered shaft and base on the existing graphite
+background. Transparent generation attempts had rough edges and window artifacts;
+the clean opaque result was selected. The final prompt and built-in generator
+provenance are documented in docs/brand-assets.md. Previous integrated icons
+remain tracked or recoverable in Git history. No runtime logic, dependency or
+service ownership changed.
+
+Visual inspection, production build, version consistency and the built asset
+checks passed: header and favicon reference the same unchanged PNG bytes. PNG
+content-provenance metadata was retained; no private source paths or conversation
+identifiers were found. An initial overly restrictive metadata check rejected
+the provenance chunk; inspection established its purpose and the focused check
+then passed. No new tests or full-suite rerun were needed for this asset-only
+correction. Browser appearance and installed-app update remain unverified.
