@@ -1,11 +1,12 @@
 import { constants } from 'node:fs';
 import { open, realpath } from 'node:fs/promises';
-import { resolve, dirname, basename, extname } from 'node:path';
+import { resolve, relative, isAbsolute, dirname, basename, extname } from 'node:path';
 import { createHash } from 'node:crypto';
 
 const fail = message => Object.assign(new Error(message), { status: 400 });
 const extensions = new Set(['.py', '.js', '.mjs', '.cjs', '.ts', '.tsx', '.sh']);
 const digest = value => createHash('sha256').update(value).digest('hex');
+const sensitivePath = path => path.split(/[\\/]/).some(part => part.startsWith('.') || /secret|credential|password|token|vault|auth/i.test(part));
 const escaped = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const mentions = (text, value) => new RegExp(`(?:^|[\\s"'\x60(=])${escaped(value)}(?=$|[\\s"'\x60),;])`, 'm').test(text);
 
@@ -14,18 +15,27 @@ export function approvalCommand(question) {
   return typeof command === 'string' ? command : Array.isArray(command) && command.every(part => typeof part === 'string') ? command.join(' ') : '';
 }
 
+export function approvalWorkingDirectory(question, fallbackCwd) {
+  const cwd = question.params.cwd ?? fallbackCwd;
+  if (typeof cwd !== 'string' || !cwd || cwd.length > 10000 || /[\x00-\x1f]/.test(cwd) || !isAbsolute(cwd)) throw fail('The approval working directory must be an absolute path. Reload the current request instead of guessing its directory.');
+  return resolve(cwd);
+}
+
 export function referencesApprovalSource(cwd, command, path) {
   const requested = resolve(cwd, path);
+  if (!extensions.has(extname(requested))) return false;
+  const relativePath = relative(cwd, requested);
   const module = basename(requested, '.py');
   const pythonImport = extname(requested) === '.py' && /^[A-Za-z_]\w*$/.test(module) && new RegExp(`\\b(?:from\\s+${escaped(module)}\\s+import\\b|import\\s+${escaped(module)}\\b)`).test(command);
   const importDirectory = dirname(requested) === resolve(cwd) || (dirname(requested) !== '/' && mentions(command, dirname(requested)));
-  return mentions(command, requested) || mentions(command, path) || (pythonImport && importDirectory);
+  return mentions(command, requested) || mentions(command, path) || mentions(command, relativePath) || mentions(command, './' + relativePath) || (pythonImport && importDirectory);
 }
 
 export async function inspectApprovalSource(cwd, command, path, startLine = 1) {
-  if (typeof path !== 'string' || !path || path.length > 1000 || /[\x00-\x1f]/.test(path) || path.split(/[\\/]/).some(part => part.startsWith('.') || /secret|credential|password|token|vault|auth/i.test(part))) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
+  if (typeof path !== 'string' || !path || path.length > 1000 || /[\x00-\x1f]/.test(path) || sensitivePath(path)) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
   if (!Number.isInteger(startLine) || startLine < 1) throw fail('Choose a valid starting line.');
   const requested = resolve(cwd, path);
+  if (sensitivePath(requested)) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
   const file = await realpath(requested);
   if (file !== requested || !extensions.has(extname(file))) throw fail('Read a regular helper source file directly; symlinks and configuration/data files are not allowed.');
   if (!referencesApprovalSource(cwd, command, path)) throw fail('This helper source is not referenced by the exact pending approval.');
@@ -45,6 +55,6 @@ export async function inspectApprovalSource(cwd, command, path, startLine = 1) {
       page.push(line); size += line.length + 1;
     }
     const next = startLine - 1 + page.length;
-    return { path: file, sha256: digest(bytes), commandSha256: digest(command), startLine, totalLines: lines.length, nextStartLine: next < lines.length ? next + 1 : null, text: page.join('\n') };
+    return { path: file, workingDirectory: resolve(cwd), sha256: digest(bytes), commandSha256: digest(command), startLine, totalLines: lines.length, nextStartLine: next < lines.length ? next + 1 : null, text: page.join('\n') };
   } finally { await handle.close(); }
 }

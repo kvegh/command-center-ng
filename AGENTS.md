@@ -315,6 +315,12 @@ The existing source-reader tool can use the same helper checks and return exact
 current approval bindings, preserving older coordinator conversations. Reading
 source does not approve a command or expand native permissions.
 
+Resolve approval-linked helper paths under the exact native approval cwd, using
+worker cwd only when native cwd is absent/null. Return and recheck the directory
+alongside command/source hashes. The older reader checks approval references
+before the worker project and refuses ambiguous directories. Keep resolved
+hidden/sensitive paths excluded even when the caller supplies a relative name.
+
 
 ## Shared runtime rules, ordinary-chat inputs and local Claude
 

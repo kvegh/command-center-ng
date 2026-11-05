@@ -2,7 +2,7 @@ import limits from '../server/limits.json' with { type: 'json' };
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { mkdtemp, writeFile, readFile, symlink, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile, readFile, symlink, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Workspace } from '../server/workspace.mjs';
@@ -438,6 +438,108 @@ test('helper inspection refuses unrelated, symlinked, sensitive, non-source and 
     const path = join(outside, 'linked.py'); await symlink(join(outside, 'unrelated.py'), path); question.params.command = 'python3 ' + JSON.stringify(path);
     await assert.rejects(f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path }), /symlinks/);
     assert.equal(f.rpc.replies.length, 0); assert.equal(f.workspace.agent('worker').questions.length, 1);
+  } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
+});
+
+test('both helper readers resolve subprocess source against the approval directory before the worker directory', async () => {
+  const f = await fixture(); const approvalCwd = await mkdtemp(join(tmpdir(), 'ccng-approval-project-'));
+  try {
+    await mkdir(join(f.cwd, 'src')); await mkdir(join(approvalCwd, 'src')); await mkdir(join(approvalCwd, 'scripts'));
+    await writeFile(join(f.cwd, 'src/bump-version.py'), 'print("worker directory decoy")\n');
+    const helpers = [['src/bump-version.py', 'print("approval version helper")\n'], ['scripts/sync_todo.py', 'print("approval task helper")\n']];
+    for (const [path, text] of helpers) await writeFile(join(approvalCwd, path), text);
+    f.rpc.ask('relative-helper-action', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    question.params.cwd = approvalCwd;
+    question.params.command = 'python3 - <<\'PY\'\nimport subprocess\nsubprocess.run(["python3", "src/bump-version.py"], check=True)\nsubprocess.run([\'python3\', \'scripts/sync_todo.py\', \'--check\'], check=True)\nPY';
+    const before = f.rpc.calls.length;
+    for (const [relativePath, text] of helpers) {
+      const absolutePath = join(approvalCwd, relativePath);
+      for (const path of [relativePath, absolutePath]) {
+        const source = await f.call('ccng_read_project_file', { agentId: 'worker', path });
+        assert.equal(source.text, text); assert.equal(source.path, absolutePath); assert.equal(source.workingDirectory, approvalCwd);
+        assert.deepEqual(source.approvalBindings, [{ requestId: question.id, reviewToken: question.reviewToken }]);
+        const exact = await f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path });
+        assert.equal(exact.text, text); assert.equal(exact.sha256, source.sha256); assert.equal(exact.workingDirectory, approvalCwd);
+        const saved = f.coordinator.approvalSources.get(question.reviewToken).get(absolutePath);
+        assert.equal(saved.workingDirectory, approvalCwd); assert.equal(saved.sha256, source.sha256);
+      }
+    }
+    const unrelated = join(approvalCwd, 'unrelated.py'); await writeFile(unrelated, 'print("unrelated source")\n');
+    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: unrelated }), /inside this worker directory or a helper/);
+    await assert.rejects(f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path: unrelated }), /not referenced/);
+    assert.equal(f.rpc.calls.length, before); assert.equal(f.rpc.replies.length, 0); assert.equal(question.review, undefined);
+  } finally { await f.close(); await rm(approvalCwd, { recursive: true, force: true }); }
+});
+
+test('a changed approval directory invalidates inspected evidence even when an absolute helper and command are unchanged', async () => {
+  const f = await fixture(); const outside = await mkdtemp(join(tmpdir(), 'ccng-cwd-change-'));
+  try {
+    const first = join(outside, 'first'); const second = join(outside, 'second'); const path = join(outside, 'check_metadata.py');
+    await mkdir(first); await mkdir(second); await writeFile(path, 'print("unchanged synthetic source")\n');
+    f.rpc.ask('directory-change-action', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    question.params.cwd = first; question.params.command = 'python3 ' + JSON.stringify(path);
+    const args = { agentId: 'worker', path };
+    const source = await f.call('ccng_read_project_file', args);
+    assert.equal(source.workingDirectory, first);
+    question.params.cwd = second;
+    await assert.rejects(f.call('ccng_review_approval', { agentId: 'worker', reviewToken: question.reviewToken, decision: 'approve', rationale: 'Within the delegated disposable test work.', authorizationMessageId: 'user-worker', authorizationQuote: 'Create and clean up disposable test resources.' }), /directory|source or the command changed/);
+    assert.equal(f.rpc.replies.length, 0); assert.equal(question.review, undefined);
+    const reread = await f.call('ccng_read_project_file', args);
+    assert.equal(reread.workingDirectory, second); assert.equal(reread.sha256, source.sha256);
+    assert.equal(f.coordinator.approvalSources.get(question.reviewToken).get(path).workingDirectory, second);
+  } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
+});
+
+test('omitted and null approval directories retain worker-directory helper inspection without resolving requests', async () => {
+  const f = await fixture();
+  try {
+    const path = join(f.cwd, 'check_metadata.py'); await writeFile(path, 'print("worker-local helper")\n');
+    f.rpc.ask('omitted-directory-action', 'worker'); f.rpc.ask('null-directory-action', 'worker');
+    const questions = f.workspace.agent('worker').questions; questions[1].params.cwd = null;
+    for (const question of questions) {
+      question.params.command = 'python3 check_metadata.py';
+      const source = await f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path: 'check_metadata.py' });
+      assert.equal(source.path, path); assert.equal(source.workingDirectory, f.cwd); assert.match(source.text, /worker-local helper/);
+    }
+    assert.equal(f.rpc.replies.length, 0); assert.equal(questions.length, 2);
+  } finally { await f.close(); }
+});
+
+test('a malformed supplied approval directory cannot fall back to a same-named worker helper', async () => {
+  const f = await fixture();
+  try {
+    await writeFile(join(f.cwd, 'check_metadata.py'), 'print("worker-local decoy")\n');
+    f.rpc.ask('invalid-directory-action', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    question.params.command = 'python3 check_metadata.py';
+    for (const cwd of ['', 'relative/project', 42]) {
+      question.params.cwd = cwd;
+      await assert.rejects(f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path: 'check_metadata.py' }), /directory|cwd/i);
+      await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: 'check_metadata.py' }), /directory|cwd/i);
+    }
+    assert.equal(f.coordinator.approvalSources.size, 0); assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('relative helper reads refuse different approval directories with identical source while exact-token reads and project reads still work', async () => {
+  const f = await fixture(); const outside = await mkdtemp(join(tmpdir(), 'ccng-ambiguous-helper-'));
+  try {
+    const directories = [join(outside, 'first'), join(outside, 'second')];
+    for (const directory of directories) {
+      await mkdir(directory); await writeFile(join(directory, 'check_metadata.py'), 'print("identical helper bytes")\n');
+    }
+    f.rpc.ask('first-directory-action', 'worker'); f.rpc.ask('second-directory-action', 'worker');
+    const questions = f.workspace.agent('worker').questions;
+    questions.forEach((question, index) => { question.params.cwd = directories[index]; question.params.command = 'python3 check_metadata.py'; });
+    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: 'check_metadata.py' }), /director|ambiguous|different|helper.*changed|exact.*approval/i);
+    for (const [index, question] of questions.entries()) {
+      const source = await f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path: 'check_metadata.py' });
+      assert.equal(source.path, join(directories[index], 'check_metadata.py')); assert.equal(source.workingDirectory, directories[index]);
+      assert.equal(source.text, 'print("identical helper bytes")\n');
+    }
+    await writeFile(join(f.cwd, 'README.md'), '# Ordinary worker project\n');
+    const ordinary = await f.call('ccng_read_project_file', { agentId: 'worker', path: 'README.md' });
+    assert.equal(ordinary.text, '# Ordinary worker project\n'); assert.equal(ordinary.approvalBindings, undefined);
+    assert.equal(f.rpc.replies.length, 0); assert.equal(questions.length, 2);
   } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
 });
 

@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.19.0** in package.json and the lockfile.
+The authoritative version is **0.19.1** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -583,3 +583,22 @@ setup, runtime restart or deployment was used. Interactive browser/live provider
 verification remains pending.
 
 0.19.0 implementation: `d7d83b883a82dd73fae52e53d3d38b6ef82041af`. Source publication does not update a running installation.
+
+## Approval helper directory correction: 0.19.1
+
+Both coordinator readers use the pending command's native cwd for directly
+referenced helpers, with worker cwd only for absent/null native cwd. Relative
+source names in quoted subprocess argv lists match their equivalent absolute
+paths. The older reader checks current approvals before worker-root realpath;
+cross-directory ambiguity requires an exact token. Evidence includes cwd and
+rejects directory changes before approval. Resolved hidden/sensitive paths remain
+refused, including through relative names. Validation uses synthetic repositories
+and never approves or executes the reported live action. Updating source does
+not restart the user's running backend.
+
+All172 application tests and the production build pass. Nine new synthetic
+cases cover cwd/path matching, bindings, decoys, ambiguity, stale directory
+evidence and resolved hidden/sensitive paths. A redirected test invocation
+reported installer/integration file-wrapper failures without inner details;
+the ordinary npm test invocation then passed all172. The separately tracked
+test-environment discrepancy is not established as fixed by this reader patch.

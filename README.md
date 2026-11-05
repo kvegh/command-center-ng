@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.19.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.19.1 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -745,3 +745,20 @@ complete recorded chat questions, variable task-row sizing and isolated confirme
 Dolt/Beads installer fixtures. No live model/approval, development-host database
 setup, runtime restart or deployment was used. Interactive browser/live provider
 verification remains pending.
+
+Version 0.19.1 resolves approval-linked helper paths against the pending command's
+native working directory, using the worker directory only when native cwd is
+absent or null. Both coordinator readers recognize equivalent absolute/relative
+literal source paths, including quoted Python subprocess arguments. The existing
+reader checks approval references before looking in the worker project, avoiding
+missing files or same-named files from the wrong repository. Returned evidence
+includes the working directory, and a directory change requires fresh inspection
+before approval. Ambiguous matches across directories require an exact request
+token. Source-only checks and native permissions remain in force. Tests use
+synthetic repositories; publication does not update a running installation or
+resolve a live approval.
+
+Validation for 0.19.1: all **172 application tests** and the production build pass.
+Nine new synthetic cases cover native cwd, subprocess paths, exact bindings,
+same-named files in another repository, changed/invalid directories, ambiguous
+requests and resolved hidden/sensitive path refusal.
