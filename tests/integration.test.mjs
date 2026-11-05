@@ -78,6 +78,22 @@ async function fixture() {
   return { dir, rpc, workspace, calls, replies, threads, histories, failures, resumeRequests, summary, models, notify, ask, request: message => connection.send(JSON.stringify(message)), close: async () => { rpc.close(); for (const client of wss.clients) client.terminate(); await new Promise(resolve => wss.close(resolve)); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); } };
 }
 
+test('native history can load several screenshots beyond the former16MiB frame cap without broadcasting their bytes', async () => {
+  const f = await fixture();
+  try {
+    const bytes = Buffer.alloc(2 * 1024 * 1024); Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(bytes);
+    const url = 'data:image/png;base64,' + bytes.toString('base64');
+    f.histories.set('existing', Array.from({ length: 3 }, (_, index) => ({ id: 'image-turn-' + index, status: 'completed', items: [{ id: 'image-post-' + index, type: 'userMessage', content: [{ type: 'image', url }, { type: 'image', url }] }] })));
+    const agent = await f.workspace.open('existing', { observeOnly: true });
+    assert.equal(agent.messages.length, 3);
+    assert.ok(agent.messages.every(message => message.images.length === 2));
+    const snapshot = JSON.stringify(f.workspace.snapshot());
+    assert.ok(snapshot.length < 10000); assert.ok(!snapshot.includes('base64'));
+    assert.equal(f.workspace.messageImage('existing', agent.messages[0].id, 0).bytes.length, bytes.length);
+    assert.equal(f.calls.some(call => ['thread/resume', 'turn/start'].includes(call.method)), false);
+  } finally { await f.close(); }
+});
+
 test('the worker picker excludes named and renamed coordinator conversations', async () => {
   const f = await fixture();
   try {
@@ -711,6 +727,7 @@ test('password stays hashed/private; HTTP login protects controls, rejects cross
   const linkCalls = [];
   f.workspace.beads = {
     checkAvailable: async () => 'bd version fixture',
+    context: () => ({}),
     linked: async () => ({ status: 'ready', label: 'ccng-session:existing', tasks: [], error: null }),
     catalog: async () => ({ linkedIds: [], tasks: [], label: 'ccng-session:existing' }),
     setLinks: async (cwd, id, ids) => { linkCalls.push({ cwd, id, ids }); return { status: 'ready', label: 'ccng-session:' + id, tasks: [], error: null }; }
@@ -725,6 +742,7 @@ test('password stays hashed/private; HTTP login protects controls, rejects cross
   const request = (path, data, cookie, origin = base) => fetch(base + path, { method: data === undefined ? 'GET' : 'POST', headers: { ...(data === undefined ? {} : { 'Content-Type': 'application/json', Origin: origin }), ...(cookie ? { Cookie: cookie } : {}) }, ...(data === undefined ? {} : { body: JSON.stringify(data) }) });
   try {
     assert.equal((await request('/api/state')).status, 401);
+    assert.equal((await request('/api/agents/existing/messages/image-post/images/0')).status, 401);
     assert.equal((await request('/api/coordinator', {})).status, 401);
     assert.equal((await request('/api/agents/existing/tasks')).status, 401);
     assert.equal((await request('/api/agents/existing/tasks', { ids: [] })).status, 401);
@@ -739,6 +757,23 @@ test('password stays hashed/private; HTTP login protects controls, rejects cross
     assert.equal(linkCalls.length, 0);
     assert.equal((await request('/api/agents/existing/tasks', { ids: ['demo-a'] }, cookie)).status, 200);
     assert.deepEqual(linkCalls, [{ cwd: f.dir, id: 'existing', ids: ['demo-a'] }]);
+    const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j7hkAAAAASUVORK5CYII=';
+    const imagePost = { text: '圖'.repeat(30000), images: [{ dataUrl: png }] };
+    const beforeImage = f.calls.length;
+    assert.equal((await request('/api/agents/existing/message', imagePost, cookie, 'https://unrelated.example')).status, 403);
+    assert.equal(f.calls.length, beforeImage);
+    const imageWorker = f.workspace.agent('existing'); imageWorker.thread.status = { type: 'idle' }; imageWorker.turnId = null;
+    const imageDelivery = await request('/api/agents/existing/message', imagePost, cookie);
+    assert.equal(imageDelivery.status, 200, 'image delivery: ' + JSON.stringify(await imageDelivery.json()));
+    assert.deepEqual(f.calls.findLast(call => call.method === 'turn/start').params.input.at(-1), { type: 'image', url: png });
+    f.workspace.addItem(imageWorker, { id: 'image-post', type: 'userMessage', content: [{ type: 'image', url: png }] }, 'image-turn');
+    const imageResponse = await request('/api/agents/existing/messages/image-post/images/0', undefined, cookie);
+    assert.equal(imageResponse.status, 200); assert.equal(imageResponse.headers.get('content-type'), 'image/png');
+    assert.equal(imageResponse.headers.get('cache-control'), 'no-store');
+    assert.equal(Buffer.from(await imageResponse.arrayBuffer()).toString('base64'), png.split(',')[1]);
+    assert.equal((await request('/api/agents/existing/messages/image-post/images/1', undefined, cookie)).status, 404);
+    assert.equal((await request('/api/agents/missing/messages/image-post/images/0', undefined, cookie)).status, 404);
+    assert.equal((await request('/api/agents/existing/message', { text: '', images: [{ dataUrl: 'https://example.invalid/image.png' }] }, cookie)).status, 400);
     assert.equal((await request('/api/agents/existing/message', { text: 'Continue' }, cookie, 'https://unrelated.example')).status, 403);
     assert.equal((await request('/api/agents/existing/fork', {}, cookie, 'https://unrelated.example')).status, 403);
     assert.equal((await request('/api/coordinator', { paused: false }, cookie, 'https://unrelated.example')).status, 403);

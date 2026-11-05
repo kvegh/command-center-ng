@@ -8,14 +8,15 @@ import { Workspace } from './workspace.mjs';
 import { defaultAuthFile, loadPassword, Sessions } from './auth.mjs';
 import { VERSION } from './version.mjs';
 import { WorkspaceStore, WorkspacePersistence } from './workspace-store.mjs';
+import imageLimits from './image-limits.json' with { type: 'json' };
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.ico': 'image/x-icon' };
 const failure = (message, status = 400) => Object.assign(new Error(message), { status });
-async function body(request) {
-  let text = '';
-  for await (const chunk of request) { text += chunk; if (text.length > 65_536) throw failure('Request is too large.', 413); }
-  try { return JSON.parse(text || '{}'); } catch { throw failure('Invalid JSON.'); }
+async function body(request, limit = 65_536) {
+  const chunks = []; let length = 0;
+  for await (const chunk of request) { length += chunk.length; if (length > limit) throw failure('Request is too large.', 413); chunks.push(chunk); }
+  try { return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch { throw failure('Invalid JSON.'); }
 }
 
 export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), workspaceFile, config = {} } = {}) {
@@ -80,6 +81,12 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
       }
       if (path.startsWith('/api/')) {
         if (!sessions.valid(request)) throw failure('Sign in to continue.', 401);
+        const image = path.match(/^\/api\/agents\/([^/]+)\/messages\/([^/]+)\/images\/(\d+)$/);
+        if (image && request.method === 'GET') {
+          const result = workspace.messageImage(decodeURIComponent(image[1]), decodeURIComponent(image[2]), Number(image[3]));
+          response.writeHead(200, { 'Content-Type': result.mimeType, 'Content-Length': result.bytes.length, 'Cache-Control': 'no-store' });
+          response.end(result.bytes); return;
+        }
         if (path === '/api/logout' && request.method === 'POST') { sessions.revoke(request); response.setHeader('Set-Cookie', sessions.cookie('', secure)); publish(); return json(response, { authenticated: false }); }
         if (path === '/api/state' && request.method === 'GET') return json(response, { ...workspace.snapshot(), defaultCwd: settings.cwd });
         if (path === '/api/events' && request.method === 'GET') {
@@ -125,10 +132,10 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
         }
         const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|interrupt|history|answer|review|requests|report-settings|report|fork|parent|summary|return)$/);
         if (match && request.method === 'POST') {
-          const [, encoded, action] = match; const id = decodeURIComponent(encoded); const data = await body(request);
+          const [, encoded, action] = match; const id = decodeURIComponent(encoded); const data = await body(request, action === 'message' ? imageLimits.maxRequestBytes : 65_536);
           if (action === 'open') await workspace.open(id);
           if (action === 'close') workspace.close(id);
-          if (action === 'message') await workspace.send(id, data.text);
+          if (action === 'message') await workspace.send(id, data.text, { images: data.images });
           if (action === 'interrupt') await workspace.interrupt(id);
           if (action === 'history') await workspace.history(id, data.cursor);
           if (action === 'requests') return json(response, await workspace.recoverRequests(id));

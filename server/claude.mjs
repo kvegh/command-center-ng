@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import { formContent } from './native-requests.mjs';
 import { validateModelChoice } from './worker-models.mjs';
 import { messageTime } from './message-time.mjs';
+import { readInlineImage, validateImages } from './image-input.mjs';
 
 const run = promisify(execFile);
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
@@ -60,8 +61,13 @@ export function addClaudeMessage(agent, message, turnId = message.uuid || 'histo
   const id = message.uuid || randomUUID();
   const nativeTime = messageTime(message.timestamp);
   const time = nativeTime ? { timestamp: nativeTime, timestampSource: 'native' } : timing;
-  for (const [index, block] of blocks(message.message).entries()) {
-    if (block.type === 'text' && block.text) put(agent, { id: id + ':' + index, nativeMessageId: id, turnId, type: message.type === 'assistant' ? 'assistant' : 'user', text: bounded(block.text), state: 'completed', ...time });
+  const content = blocks(message.message); let images = [];
+  if (message.type === 'user') for (const block of content) if (block.type === 'image' && block.source?.type === 'base64') {
+    try { images = validateImages([...images, readInlineImage('data:' + block.source.media_type + ';base64,' + block.source.data)]); } catch { /* Unsupported or oversized native images stay unavailable; never fetch alternatives. */ }
+  }
+  if (images.length) put(agent, { id: id + ':0', nativeMessageId: id, turnId, type: 'user', text: bounded(content.filter(block => block.type === 'text').map(block => block.text || '').join('\n')), images, state: 'completed', ...time });
+  for (const [index, block] of content.entries()) {
+    if (block.type === 'text' && block.text && !images.length) put(agent, { id: id + ':' + index, nativeMessageId: id, turnId, type: message.type === 'assistant' ? 'assistant' : 'user', text: bounded(block.text), state: 'completed', ...time });
     if (block.type === 'tool_use') put(agent, { id: 'tool:' + block.id, turnId, type: 'activity', text: bounded(block.name + '\n' + JSON.stringify(block.input, null, 2)), state: 'inProgress' });
     if (block.type === 'tool_result') {
       const item = agent.messages.find(item => item.id === 'tool:' + block.tool_use_id);
@@ -158,8 +164,8 @@ export class ClaudeSessions extends EventEmitter {
       } catch (error) { this.runs.delete(agent.id); throw error; }
       return job;
   }
-  async send(agent, text, { instructions = '', stillOpen = () => true, priority } = {}) {
-    this.ready(); let job = this.runs.get(agent.id);
+  async send(agent, text, { instructions = '', stillOpen = () => true, priority, images = [] } = {}) {
+    this.ready(); images = validateImages(images); let job = this.runs.get(agent.id);
     if (!job || this.starts.has(agent.id)) {
       let start = this.starts.get(agent.id);
       if (!start) { start = this.startRun(agent, instructions, stillOpen); this.starts.set(agent.id, start); }
@@ -169,8 +175,9 @@ export class ClaudeSessions extends EventEmitter {
     const messageId = randomUUID(); agent.runError = null;
     if (!agent.turnId) { job.turnId = messageId; agent.turnId = messageId; agent.thread.status = { type: 'active' }; }
     const timestamp = new Date().toISOString();
-    put(agent, { id: messageId + ':0', nativeMessageId: messageId, turnId: job.turnId, type: 'user', text, state: 'completed', timestamp, timestampSource: 'received' });
-    job.inputs.push({ type: 'user', session_id: agent.nativeSessionId, uuid: messageId, timestamp, parent_tool_use_id: null, ...(priority ? { priority } : {}), message: { role: 'user', content: text } });
+    put(agent, { id: messageId + ':0', nativeMessageId: messageId, turnId: job.turnId, type: 'user', text, ...(images.length ? { images } : {}), state: 'completed', timestamp, timestampSource: 'received' });
+    const content = images.length ? [...images.map(image => ({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.dataUrl.slice(image.dataUrl.indexOf(',') + 1) } })), ...(text ? [{ type: 'text', text }] : [])] : text;
+    job.inputs.push({ type: 'user', session_id: agent.nativeSessionId, uuid: messageId, timestamp, parent_tool_use_id: null, ...(priority ? { priority } : {}), message: { role: 'user', content } });
     this.changed(agent);
   }
   async consume(agent, job) {

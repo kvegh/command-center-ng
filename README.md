@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.24.1 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.25.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -889,3 +889,49 @@ unit. From a terminal configured for the existing tracker, register again with
 your saved explicit runtime options, then restart when ready. A no-option
 registration deliberately preserves the old unit. See
 [service configuration](docs/installation.md#user-level-systemd-service).
+
+## Paste images into chat in 0.25.0
+
+Copy an image or screenshot, focus the chat input and press **Ctrl+V** (or the
+browser/platform paste shortcut). A removable preview appears before sending.
+Send images alone or with a text caption to local Codex or managed Claude.
+Ordinary text paste, IME and Shift+Enter remain unchanged. Native pending
+questions still block sending while allowing draft editing.
+
+Image drafts live only in the current browser page's memory, independently per
+chat. They survive tab switches; browser refresh or closing the page discards
+them. Text drafts keep their existing persistence. New typing/images added
+during a send acknowledgement are preserved, and failed sends retain the draft.
+There is no attachment database, upload directory or image-draft localStorage.
+Sent image content remains in the providers' native history; CCNG reads supported
+inline history images and serves them through authenticated conversation/message
+URLs. Workspace events carry those URLs, not repeated full image payloads.
+Remote image URLs and local paths in older native history are not fetched/read.
+
+PNG, JPEG, GIF and WebP are supported: up to **four images**, **4 MiB per image**
+and **8 MiB total per message**. Unsupported, malformed or oversized inputs show
+an error. The authenticated message endpoint has a12MiB request bound; other
+JSON controls keep their existing64KiB bound. Native Codex receive frames are
+bounded at64MiB to allow image-bearing history pages. Provider/model limits can
+still reject an image. Native permissions, authentication and request guards
+remain unchanged.
+
+## Report interval delivery in 0.25.0
+
+Interval changes now use the same safe active-turn delivery as Report now, so
+they do not wait behind ordinary summaries or a busy turn. An explicitly retried
+failed interval delivery can replace its failed queued instruction. Confirmed
+settings remain deduplicated; pending requests, pause and handoff guards remain.
+
+This fixes instruction delivery, not a reliable recurring scheduler. A browser
+refresh preserves the existing backend setting/queue; a backend restart restores
+the selected interval but not a verified native schedule. The current saved
+interval is included in worker runtime instructions on a new native turn/process,
+so workers can reconcile their existing cadence without toggling the radio or
+posting another setting message. Restoring tabs alone still starts no agent turn.
+Command Center still has no recurring report timer. Codex can follow periodic instructions while it stays active and has timing tools;
+its [app-server interface](https://learn.chatgpt.com/docs/app-server) does not expose a documented idle scheduler.
+Claude has [native session scheduling](https://code.claude.com/docs/en/scheduled-tasks), which this integration has not yet
+verified or managed. Do not infer a working schedule from a selected radio,
+an accepted instruction or an undocumented native capability. Real timed
+recurrence and recovery after runtime shutdown remain unverified.

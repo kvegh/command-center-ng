@@ -82,6 +82,7 @@ location / {
     auth_basic "Command Center";
     auth_basic_user_file /PRIVATE_CONFIG_PATH/command-center.htpasswd;
     proxy_pass http://VM_INTERNAL_IP:4242;
+    client_max_body_size 12m;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto $scheme;

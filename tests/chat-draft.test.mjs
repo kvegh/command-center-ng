@@ -50,3 +50,18 @@ test('a delayed send acknowledgement preserves newer typing and another conversa
   assert.equal(clearSubmittedDraft(newer, 'worker', 'Already sent'), newer);
   assert.equal(drafts.worker, 'Already sent');
 });
+
+test('pasted image files are routed to their originating editable conversation while ordinary text paste stays native', () => {
+  const image = { type: 'image/png', size: 100 };
+  const delivered = [];
+  let prevented = 0;
+  const element = ChatDraft({ ...props, agentId: 'original-chat', onPasteImages: (files, agentId) => delivered.push({ files, agentId }) });
+  const event = items => ({ clipboardData: { items }, preventDefault: () => { prevented++; } });
+  element.props.onPaste(event([{ kind: 'string', type: 'text/html', getAsFile: () => { throw new Error('Rich-text images must not be fetched.'); } }, { kind: 'string', type: 'text/plain' }]));
+  assert.deepEqual(delivered, []);
+  element.props.onPaste(event([{ kind: 'file', type: 'image/png', getAsFile: () => image }, { kind: 'string', type: 'text/plain' }, { kind: 'file', type: 'application/pdf', getAsFile: () => ({}) }, { kind: 'file', type: 'image/png', getAsFile: () => null }]));
+  assert.deepEqual(delivered, [{ agentId: 'original-chat', files: [image] }]);
+  assert.equal(prevented, 0, 'mixed clipboard text is still inserted by the browser');
+  const locked = ChatDraft({ ...props, disabled: true, onPasteImages: () => { throw new Error('A locked handoff draft cannot receive images.'); } });
+  locked.props.onPaste(event([{ kind: 'file', type: 'image/png', getAsFile: () => image }]));
+});

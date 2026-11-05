@@ -54,6 +54,16 @@ while active. Command Center sends no recurring timer prompts and does not wake
 stopped sessions. If you cannot maintain the requested timing, explain that limit.
 Never cancels your recurring reports; remove any report schedule you created.
 
+The runtime context also supplies the current saved interval on native startup
+or a new turn. Reconcile it with your existing schedule without duplicating it.
+Establish real timing with the tools available to you; accepting the instruction
+alone does not prove that a reporting loop or native schedule is active. A
+browser refresh or switching/closing a CCNG tab does not cancel this instruction.
+Keep the cadence while the native runtime can maintain it. If ending a turn or
+process would end your timing mechanism, explain that actual limit rather than
+claiming reports will keep arriving. Do not add system cron jobs or background
+scripts to work around unavailable native timing.
+
 A cadence-setting message changes reporting, not the authorized project scope.
 Do not generate an immediate report merely to acknowledge an interval change.
 Keep actual reports concise, avoid unchanged idle recaps, and do not repeat the

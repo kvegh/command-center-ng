@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.24.1** in package.json and the lockfile.
+The authoritative version is **0.25.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -732,3 +732,38 @@ Existing-unit registration with its original runtime options and the confirmed
 tracker setting, restart, and actual task readback still need host verification.
 
 0.24.1 implementation: `a7670529bc996896ecead487fb0a00679b6cbdbc`.
+
+## 0.25.0 clipboard image input and report instruction recovery
+
+Ctrl+V in the chat input adds removable image previews; image-only or captioned
+messages use native Codex image inputs and official Claude SDK base64 blocks.
+Draft images stay in per-chat browser memory across tab switches only; refresh
+discards them. Newer text/images survive delayed send acknowledgements and
+failed sends keep drafts. Pending questions still allow drafting but block send.
+Supported types are PNG/JPEG/GIF/WebP, four images,4MiB each/8MiB total.
+
+Authenticated message input has a12MiB request cap, other JSON routes retain
+64KiB. Image signatures/base64/size/count are checked. Native history preserves
+supported inline images; exact authenticated message/index URLs serve bytes,
+while workspace snapshots omit image payloads. No remote URL fetch, arbitrary
+local file read, upload directory, new attachment store or draft localStorage.
+The native Codex receive cap is64MiB to accommodate image-bearing history pages;
+a real native-protocol fixture exceeds the old16MiB cap without bloating SSE.
+The nginx documentation example allows12m uploads; no live proxy was changed.
+
+Report-setting delivery now shares safe active-turn priority with Report now,
+follows queued reports and precedes ordinary summaries without bypassing failed
+or in-flight messages. Failed settings allow explicit same-value retry. Saved
+intervals are included in runtime instructions at native startup/new turns so
+workers can reconcile without toggling the radio or replaying chat instructions.
+Restoration alone remains read-only. Agent-managed timing remains selected,
+with no CCNG recurring timer. Codex can follow timed instructions while active;
+no documented app-server idle scheduler is established. Real native recurrence
+and recovery after process termination are still unverified, not claimed fixed.
+
+All231 tests and the production build pass. Installed Codex schema generation
+confirmed image URL input shape without a daemon/model call; Claude native SDK
+history fixtures preserve inline image content. No interactive browser paste
+or live model image/schedule run was performed. The first expanded HTTP test
+exposed a fixture missing Beads.context, which was corrected before final pass.
+Running installation/systemd environment refresh remains a separate host step.

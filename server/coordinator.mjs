@@ -44,7 +44,8 @@ export class Coordinator {
   setReportInterval(id, minutes, { notifyWorker = false } = {}) {
     const agent = this.worker(id);
     if (!REPORT_INTERVALS.includes(minutes)) throw fail('Choose 1h, 15min, 5min or Never.', 400);
-    if (agent.reportIntervalMinutes === minutes) return { reportIntervalMinutes: minutes, alreadySet: true };
+    const retryFailed = notifyWorker && this.deliveries.get(id)?.some(row => row.kind === 'report-setting' && row.error);
+    if (agent.reportIntervalMinutes === minutes && !retryFailed) return { reportIntervalMinutes: minutes, alreadySet: true };
     if (notifyWorker) {
       if (this.stopped || !this.workspace.readyFor(agent) || this.workspace.restoring) throw fail('Reconnect the worker before changing its report instruction.', 503);
       if (!agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) throw fail('Finish the branch handoff before changing its report instruction, or choose a worker that accepts direct input.');
@@ -255,7 +256,11 @@ export class Coordinator {
   queue(agent, text, kind) {
     const rows = this.deliveries.get(agent.id) || []; if (rows.length >= 4) throw fail('This worker already has four queued coordinator messages.');
     const message = { text, kind, id: randomUUID() };
-    if (kind === 'report') rows.splice(Math.max(agent.coordinatorSending ? 1 : 0, rows.findLastIndex(row => row.error) + 1), 0, message);
+    if (['report', 'report-setting'].includes(kind)) {
+      let index = Math.max(agent.coordinatorSending ? 1 : 0, rows.findLastIndex(row => row.error) + 1);
+      if (kind === 'report-setting') while (rows[index]?.kind === 'report') index++;
+      rows.splice(index, 0, message);
+    }
     else rows.push(message);
     this.deliveries.set(agent.id, rows); this.workspace.changed(); void this.flush(agent.id); return { queued: true };
   }
@@ -264,16 +269,17 @@ export class Coordinator {
     if (this.stopped || this.paused || !rows?.length || rows[0].error || !agent || agent.questions.length || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag)) || !agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) return;
     const busy = !!agent.turnId || agent.thread.status?.type === 'active';
     const managedClaude = agent.provider === 'claude' && !agent.externalSession && this.workspace.claude?.runs?.has(id);
-    const activeReport = rows[0].kind === 'report' && (agent.provider !== 'claude' || managedClaude) && agent.thread.status?.type === 'active' && !!agent.turnId;
-    if (busy && !activeReport) return;
+    const activeReporting = ['report', 'report-setting'].includes(rows[0].kind) && (agent.provider !== 'claude' || managedClaude) && agent.thread.status?.type === 'active' && !!agent.turnId;
+    if (busy && !activeReporting) return;
     if (agent.coordinatorSending) return; agent.coordinatorSending = true;
     const message = rows[0];
+    const reportInProgress = agent.coordinatorDeliveryKind === 'report';
     try {
-      agent.coordinatorDeliveryKind = message.kind;
+      if (!reportInProgress) agent.coordinatorDeliveryKind = message.kind;
       await this.workspace.send(id, message.text, { report: message.kind === 'report', reportSetting: message.kind === 'report-setting' }); rows.shift(); if (!rows.length) this.deliveries.delete(id);
       this.record({ agentId: id, action: message.kind, outcome: 'delivered' }); if (message.kind === 'report-setting') agent.reportError = null;
-    } catch (error) { agent.coordinatorDeliveryKind = null; message.error = error.message; if (message.kind === 'report-setting') agent.reportError = error.message; this.error = 'Coordinator message delivery was not confirmed; it will not retry automatically: ' + error.message; this.record({ agentId: id, action: message.kind, outcome: 'unconfirmed', rationale: error.message }); }
-    finally { agent.coordinatorSending = false; this.workspace.changed(); if (this.deliveries.get(id)?.[0]?.kind === 'report' && !this.deliveries.get(id)[0].error) void this.flush(id); }
+    } catch (error) { agent.coordinatorDeliveryKind = reportInProgress ? 'report' : null; message.error = error.message; if (message.kind === 'report-setting') agent.reportError = error.message; this.error = 'Coordinator message delivery was not confirmed; it will not retry automatically: ' + error.message; this.record({ agentId: id, action: message.kind, outcome: 'unconfirmed', rationale: error.message }); }
+    finally { agent.coordinatorSending = false; this.workspace.changed(); if (['report', 'report-setting'].includes(this.deliveries.get(id)?.[0]?.kind) && !this.deliveries.get(id)[0].error) void this.flush(id); }
   }
   async review(agent, args) {
     const question = agent.questions.find(q => q.reviewToken === args.reviewToken);

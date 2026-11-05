@@ -376,3 +376,20 @@ Version 0.23.0 adds author | hh:mm headers using browser-local24-hour time for
 user, worker and coordinator chat messages. Preserve native message times and
 first live receipt across updates; leave historical time unavailable when the
 provider does not expose it. No timestamp inference from history loading.
+
+## Clipboard image input
+
+Users can copy an image/screenshot and paste it directly into the chat input.
+Show removable previews before sending, support image-only or captioned sends
+through native Codex and the official Claude Agent SDK, and retain exact
+conversation/request ownership and send protections. Pending questions allow
+draft editing but still block sending. Unsent image drafts survive chat-tab
+switches in memory only; refreshing/closing the page discards them. Sent images
+remain in native provider history. Do not add image draft persistence, remote
+image fetching or a separate attachment database.
+
+A saved report interval remains the selected cadence after browser refresh and
+is supplied in runtime instructions when a worker starts/resumes its next turn.
+The agent reconciles its timing without duplicate schedules or chat reminders.
+Native timing and live recurrence must be verified separately from saving or
+delivering an instruction; no CCNG recurring timer is selected by this change.

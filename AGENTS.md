@@ -376,3 +376,19 @@ private unit ownership and unrelated units. Unit installation reloads the user
 manager but start/enable remain explicit. Do not change lingering or native
 daemons automatically, interrupt running work for tests, or claim live service
 activation from synthetic fixtures. Respect protected host filesystem boundaries.
+
+## Approved clipboard images and saved report cadence
+
+Clipboard image paste uses per-chat browser memory for unsent drafts, removable
+previews and native provider image inputs. Refresh discards unsent images; text
+drafts retain existing persistence. Sent images remain in native history. Serve
+supported inline image content through authenticated exact message references
+without repeating image bytes in workspace events. No upload directory, image
+draft storage, remote image fetch or new attachment database is approved.
+
+Keep the saved report interval in worker runtime instructions for native
+startup/new turns, reconcile without duplicates, and deliver interval changes
+through existing safe active-turn queues. Browser refresh does not cancel an
+agent's existing timing. Do not claim live recurrence from saved settings or
+queue delivery alone. Keep agent-managed timing and existing native request/
+pause/ownership guards; no CCNG recurring timer has been authorized.

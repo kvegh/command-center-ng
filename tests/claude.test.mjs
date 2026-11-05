@@ -10,6 +10,8 @@ import { join } from 'node:path';
 
 const nativeId = '11111111-2222-4333-8444-555555555555';
 const workerId = 'claude-' + nativeId;
+const imageData = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jWmQAAAAASUVORK5CYII=';
+const imageUrl = 'data:image/png;base64,' + imageData;
 const tick = () => new Promise(resolve => setImmediate(resolve));
 async function until(check) { for (let n = 0; n < 30; n++) { if (check()) return; await tick(); } assert.ok(check(), 'Expected SDK event was not handled.'); }
 
@@ -60,6 +62,64 @@ test('Claude history uses native message timestamps and leaves missing or invali
     assert.equal(agent.messages.at(-1).timestamp, undefined, 'history refresh must not stamp an old message with the current time');
     assert.equal(f.queries.length, 0, 'reading timestamps does not start a model');
   } finally { await f.close(); }
+});
+
+test('Claude sends image-only and text-plus-image prompts through native SDK content without duplicating echoes', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId);
+    await f.runtime.send(agent, '', { images: [{ dataUrl: imageUrl }] });
+    const query = f.queries[0], first = (await query.params.prompt.next()).value;
+    assert.deepEqual(first.message.content, [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: imageData } }]);
+    assert.equal(agent.messages.at(-1).text, ''); assert.equal(agent.messages.at(-1).images[0].dataUrl, imageUrl);
+    const sentTime = agent.messages.at(-1).timestamp;
+    query.push({ ...first, type: 'user', message: { role: 'user', content: [...first.message.content, { type: 'text', text: '' }] } });
+    await tick();
+    assert.equal(agent.messages.filter(message => message.nativeMessageId === first.uuid).length, 1);
+    assert.equal(agent.messages.at(-1).timestamp, sentTime);
+    await f.runtime.send(agent, 'Explain the screenshot.', { images: [{ dataUrl: imageUrl }], priority: 'next' });
+    const second = (await query.params.prompt.next()).value;
+    assert.equal(second.priority, 'next'); assert.equal(second.message.content[0].type, 'image');
+    assert.deepEqual(second.message.content[1], { type: 'text', text: 'Explain the screenshot.' });
+    query.push(second); await tick();
+    const messages = agent.messages.filter(message => message.nativeMessageId === second.uuid);
+    assert.equal(messages.length, 1); assert.equal(messages[0].text, 'Explain the screenshot.'); assert.equal(messages[0].images.length, 1);
+    await f.runtime.send(agent, 'Plain follow-up.');
+    assert.equal((await query.params.prompt.next()).value.message.content, 'Plain follow-up.', 'text-only reports/controls keep their native string input');
+    assert.equal(f.queries.length, 1); assert.equal(f.controls.length, 0, 'image input does not interrupt or change native controls');
+  } finally { await f.close(); }
+});
+
+test('Claude native history retains bounded inline user images with their caption and ignores remote or unsupported sources', async () => {
+  const history = [{ type: 'user', uuid: 'native-image-history', timestamp: '2026-11-05T10:20:00Z', message: { content: [
+    { type: 'text', text: 'What is shown?' },
+    { type: 'image', source: { type: 'base64', media_type: 'image/png', data: imageData } },
+    { type: 'image', source: { type: 'url', url: 'https://untrusted.example/image.png' } },
+    { type: 'image', source: { type: 'base64', media_type: 'image/svg+xml', data: 'PHN2Zy8+' } }
+  ] } }];
+  const f = await fixture({ history });
+  try {
+    const agent = await f.runtime.open(workerId);
+    assert.equal(agent.messages.length, 1); assert.equal(agent.messages[0].id, 'native-image-history:0');
+    assert.equal(agent.messages[0].text, 'What is shown?'); assert.equal(agent.messages[0].images.length, 1);
+    assert.equal(agent.messages[0].images[0].dataUrl, imageUrl); assert.equal(agent.messages[0].images[0].mimeType, 'image/png');
+    assert.equal(agent.messages[0].timestampSource, 'native');
+    await f.runtime.refresh(agent);
+    assert.equal(agent.messages[0].images[0].dataUrl, imageUrl); assert.equal(f.queries.length, 0);
+  } finally { await f.close(); }
+});
+
+test('Claude image inputs are rejected before a model starts when invalid and cannot take over an external session', async () => {
+  const f = await fixture(); const external = await fixture({ active: [nativeId] });
+  try {
+    const agent = await f.runtime.open(workerId);
+    await assert.rejects(f.runtime.send(agent, '', { images: [{ dataUrl: 'https://untrusted.example/image.png' }] }));
+    await assert.rejects(f.runtime.send(agent, '', { images: [{ dataUrl: 'data:image/svg+xml;base64,PHN2Zy8+' }] }));
+    assert.equal(f.queries.length, 0); assert.equal(agent.messages.length, 0);
+    const other = await external.runtime.open(workerId);
+    await assert.rejects(external.runtime.send(other, '', { images: [{ dataUrl: imageUrl }] }), /another local process/);
+    assert.equal(external.queries.length, 0); assert.equal(external.controls.length, 0);
+  } finally { await f.close(); await external.close(); }
 });
 
 test('Claude live message times remain stable through streaming, final replacement and user echoes', async t => {
@@ -290,7 +350,7 @@ test('the installed official SDK reads isolated native headless history without 
   const previous = process.env.CLAUDE_CONFIG_DIR; process.env.CLAUDE_CONFIG_DIR = config;
   try {
     await mkdir(cwd); const folder = join(config, 'projects', cwd.replace(/[^a-zA-Z0-9]/g, '-')); await mkdir(folder, { recursive: true });
-    const first = { type: 'user', uuid: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', parentUuid: null, sessionId: nativeId, isSidechain: false, cwd, timestamp: new Date().toISOString(), message: { role: 'user', content: 'Review synthetic project.' } };
+    const first = { type: 'user', uuid: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', parentUuid: null, sessionId: nativeId, isSidechain: false, cwd, timestamp: new Date().toISOString(), message: { role: 'user', content: [{ type: 'text', text: 'Review synthetic project.' }, { type: 'image', source: { type: 'base64', media_type: 'image/png', data: imageData } }] } };
     const second = { type: 'assistant', uuid: 'ffffffff-aaaa-4bbb-8ccc-dddddddddddd', parentUuid: first.uuid, sessionId: nativeId, isSidechain: false, cwd, timestamp: new Date().toISOString(), message: { role: 'assistant', model: 'synthetic-model', content: [{ type: 'text', text: 'Synthetic source reviewed.' }] } };
     await writeFile(join(folder, nativeId + '.jsonl'), [first, second].map(row => JSON.stringify(row)).join('\n') + '\n');
     const sdk = await import('@anthropic-ai/claude-agent-sdk');
@@ -298,6 +358,8 @@ test('the installed official SDK reads isolated native headless history without 
     assert.equal((await sdk.getSessionInfo(nativeId, { dir: cwd })).sessionId, nativeId);
     const history = await sdk.getSessionMessages(nativeId, { dir: cwd }); assert.equal(history.length, 2);
     assert.equal(history.at(-1).message.content[0].text, 'Synthetic source reviewed.');
+    const agent = { messages: [] }; for (const message of history) addClaudeMessage(agent, message);
+    assert.equal(agent.messages[0].text, 'Review synthetic project.'); assert.equal(agent.messages[0].images[0].dataUrl, imageUrl);
   } finally { if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = previous; await rm(directory, { recursive: true, force: true }); }
 });
 

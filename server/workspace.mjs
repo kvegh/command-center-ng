@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { VERSION } from './version.mjs';
-import { WORKER_BASE_INSTRUCTIONS, WORKER_REPORT_INSTRUCTIONS } from './worker-instructions.mjs';
+import { WORKER_BASE_INSTRUCTIONS, WORKER_REPORT_INSTRUCTIONS, reportTimingContext } from './worker-instructions.mjs';
 import { isHumanRequest, manualRequestAnswer } from './native-requests.mjs';
 import { readModelCatalog, validateModelChoice } from './worker-models.mjs';
 import { isReportClientId, isReportSettingClientId } from './report-messages.mjs';
@@ -15,8 +15,9 @@ import { SUMMARY_LIMIT, SUMMARY_SCHEMA, summaryPrompt, readSummary } from './bra
 import { ClaudeSessions, isClaudeId } from './claude.mjs';
 import { readEnvironmentInstructions, environmentInstructionContext } from './environment-instructions.mjs';
 import { messageTime } from './message-time.mjs';
+import { validateImages, codexImages, imageReferences, readInlineImage } from './image-input.mjs';
 
-export const input = text => [{ type: 'text', text, text_elements: [] }];
+export const input = (text, images = []) => [...(text ? [{ type: 'text', text, text_elements: [] }] : []), ...images.map(image => ({ type: 'image', url: image.dataUrl }))];
 const requestKey = (threadId, requestId) => JSON.stringify([threadId, requestId]);
 export function statusOf(thread, requests = []) {
   if (requests.length || thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag))) return 'attention';
@@ -80,9 +81,17 @@ export class Workspace extends EventEmitter {
     return { backgroundQuestions: [...workers.values()].reduce((total, worker) => total + worker.questionCount, 0), backgroundWorkers: [...workers.values()] };
   }
   snapshot() {
-    return { connected: this.available(), codexConnected: this.rpc.ready, claudeAvailable: !!this.claude?.available, claudeError: this.claude?.error || null, error: this.error, version: VERSION, restoration: this.restoration, coordinator: this.coordinator?.snapshot() || null, ...this.backgroundRequests(), agents: [...this.agents.values()].map(agent => ({ ...agent, ...taskSummary(agent), reportState: this.coordinator?.reportState(agent.id) || null, reportSettingPending: !!this.coordinator?.deliveries.get(agent.id)?.some(row => row.kind === 'report-setting'), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), recoveringRequests: this.requestJobs.has(agent.id), status: this.readyFor(agent) ? (agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline', thread: undefined })) };
+    return { connected: this.available(), codexConnected: this.rpc.ready, claudeAvailable: !!this.claude?.available, claudeError: this.claude?.error || null, error: this.error, version: VERSION, restoration: this.restoration, coordinator: this.coordinator?.snapshot() || null, ...this.backgroundRequests(), agents: [...this.agents.values()].map(agent => ({ ...agent, messages: agent.messages.map(message => imageReferences(agent.id, message)), ...taskSummary(agent), reportState: this.coordinator?.reportState(agent.id) || null, reportSettingPending: !!this.coordinator?.deliveries.get(agent.id)?.some(row => row.kind === 'report-setting'), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), recoveringRequests: this.requestJobs.has(agent.id), status: this.readyFor(agent) ? (agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline', thread: undefined })) };
   }
   agent(id) { const agent = this.agents.get(id); if (!agent) throw Object.assign(new Error('Open this agent first.'), { status: 404 }); return agent; }
+  messageImage(id, messageId, index) {
+    const agent = this.agent(id);
+    if (!Number.isInteger(index) || index < 0) throw Object.assign(new Error('Image not found.'), { status: 404 });
+    const image = agent.messages.find(message => message.id === messageId)?.images?.[index];
+    if (!image) throw Object.assign(new Error('Image not found in this conversation.'), { status: 404 });
+    const checked = readInlineImage(image.dataUrl);
+    return { mimeType: checked.mimeType, bytes: Buffer.from(checked.dataUrl.slice(checked.dataUrl.indexOf(',') + 1), 'base64') };
+  }
   async list(cursor, provider = 'codex') {
     if (provider === 'claude') { if (!this.claude) throw Object.assign(new Error('Local Claude support is unavailable.'), { status: 503 }); return this.claude.list(cursor); }
     if (provider !== 'codex') throw Object.assign(new Error('Choose Codex or Claude.'), { status: 400 });
@@ -198,9 +207,10 @@ export class Workspace extends EventEmitter {
       agent.workers = [...agent.workers.filter(worker => worker.id !== item.agentThreadId), worker];
       if (!worker.detailLoaded) void this.readWorker(agent, worker.id);
     }
-    const text = itemText(item); if (!text) return;
+    const images = item.type === 'userMessage' ? codexImages(item.content) : [];
+    const text = itemText(item); if (!text && !images.length) return;
     const previous = agent.messages.findIndex(m => m.id === item.id);
-    const record = { id: item.id, turnId, branchable, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text, state: item.status || 'completed', ...itemTime(item, agent.messages[previous] || prior, live), ...(item.type === 'userMessage' && isReportClientId(item.clientId) ? { internalReport: true } : {}), ...(item.type === 'userMessage' && isReportSettingClientId(item.clientId) ? { internalReportControl: true } : {}) };
+    const record = { id: item.id, turnId, branchable, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text: text || '', ...(images.length ? { images } : {}), state: item.status || 'completed', ...itemTime(item, agent.messages[previous] || prior, live), ...(item.type === 'userMessage' && isReportClientId(item.clientId) ? { internalReport: true } : {}), ...(item.type === 'userMessage' && isReportSettingClientId(item.clientId) ? { internalReportControl: true } : {}) };
     if (previous >= 0) agent.messages[previous] = record; else agent.messages.push(record);
     if (agent.messages.length > 600) agent.messages = agent.messages.slice(-600);
     if (record.type === 'activity') agent.activity = { text: String(text).split('\n')[0].slice(0, 180), state: record.state };
@@ -322,11 +332,12 @@ export class Workspace extends EventEmitter {
       await this.send(thread.id, goal.trim()); return thread.id;
     } finally { if (reserved) this.creating--; }
   }
-  async send(id, text, { report = false, reportSetting = false } = {}) {
+  async send(id, text, { report = false, reportSetting = false, images: suppliedImages } = {}) {
     const agent = this.agent(id);
     if (this.summaryJobs.has(id) || this.returnJobs.has(id) || agent.returnSummary?.delivered) throw Object.assign(new Error('Finish the branch handoff before sending another message.'), { status: 409 });
     if (!agent.canSend) throw Object.assign(new Error(agent.managementNotice || 'The native agent does not allow direct input to this session.'), { status: 409 });
-    if (typeof text !== 'string' || !text.trim() || text.length > 32_000) throw Object.assign(new Error('Enter a message of 1–32000 characters.'), { status: 400 });
+    const images = validateImages(suppliedImages);
+    if (typeof text !== 'string' || (!text.trim() && !images.length) || text.length > 32_000) throw Object.assign(new Error('Enter a message of up to 32000 characters or paste an image.'), { status: 400 });
     if (agent.questions.length) throw Object.assign(new Error('Answer the pending question before sending another message.'), { status: 409 });
     if (statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Load the pending request before sending another message.'), { status: 409 });
     await this.activate(id);
@@ -335,25 +346,25 @@ export class Workspace extends EventEmitter {
     if (!this.readyFor(agent)) throw Object.assign(new Error('Reconnect the native runtime before sending this message.'), { status: 503 });
     if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
     if (agent.provider === 'claude') {
-      await this.claude.send(agent, text.trim(), { instructions: Object.values(context).map(part => part.value).join('\n\n'), stillOpen: () => this.agents.get(id) === agent, ...(report || reportSetting ? { priority: 'next' } : {}) }); return;
+      await this.claude.send(agent, text.trim(), { images, instructions: Object.values(context).map(part => part.value).join('\n\n'), stillOpen: () => this.agents.get(id) === agent, ...(report || reportSetting ? { priority: 'next' } : {}) }); return;
     }
     if (agent.freshBranch && !report && !reportSetting) {
-      const title = text.trim().split('\n')[0].slice(0, 120);
+      const title = text.trim().split('\n')[0].slice(0, 120) || 'Image message';
       await this.rpc.call('thread/name/set', { threadId: id, name: title });
       agent.name = title; agent.goal = title; agent.freshBranch = false;
     }
     if (this.agents.get(id) !== agent) throw Object.assign(new Error('The worker was closed before message delivery.'), { status: 409 });
     if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
     if (agent.thread.status?.type === 'active' && agent.turnId) {
-      await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: agent.turnId, input: input(text.trim()), ...(report || reportSetting ? { clientUserMessageId: (report ? 'ccng-report-' : 'ccng-report-setting-') + randomUUID() } : {}) });
+      await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: agent.turnId, input: input(text.trim(), images), ...(report || reportSetting ? { clientUserMessageId: (report ? 'ccng-report-' : 'ccng-report-setting-') + randomUUID() } : {}) });
     } else {
-      const { turn } = await this.rpc.call('turn/start', { threadId: id, input: input(text.trim()), ...(report || reportSetting ? { clientUserMessageId: (report ? 'ccng-report-' : 'ccng-report-setting-') + randomUUID() } : {}), additionalContext: context }); agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed();
+      const { turn } = await this.rpc.call('turn/start', { threadId: id, input: input(text.trim(), images), ...(report || reportSetting ? { clientUserMessageId: (report ? 'ccng-report-' : 'ccng-report-setting-') + randomUUID() } : {}), additionalContext: context }); agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed();
     }
   }
   async instructionContext(agent) {
     const source = await readEnvironmentInstructions(agent.cwd);
     const { text, ...state } = source; agent.environmentInstructions = state;
-    return { ...environmentInstructionContext(source), ...(agent.role !== 'coordinator' ? { ...this.beads?.context(agent.id), 'command-center-worker-instructions': { kind: 'application', value: WORKER_BASE_INSTRUCTIONS } } : { 'command-center-report-instructions': { kind: 'application', value: WORKER_REPORT_INSTRUCTIONS } }) };
+    return { ...environmentInstructionContext(source), ...(agent.role !== 'coordinator' ? { ...this.beads?.context(agent.id), 'command-center-worker-instructions': { kind: 'application', value: WORKER_BASE_INSTRUCTIONS + '\n\n' + reportTimingContext(agent.reportIntervalMinutes) } } : { 'command-center-report-instructions': { kind: 'application', value: WORKER_REPORT_INSTRUCTIONS } }) };
   }
   async interrupt(id) {
     const agent = this.agent(id);

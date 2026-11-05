@@ -167,8 +167,17 @@ test('per-worker report intervals persist privately and restore the selection wi
     assert.equal('nextReportAt' in f.workspace.agent('one'), false);
     assert.equal(f.workspace.coordinator.deliveries.size, 0);
     assert.ok(f.rpc.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)));
+    const restoredInstructions = (await f.workspace.instructionContext(f.workspace.agent('one')))['command-center-worker-instructions'].value;
+    assert.match(restoredInstructions, /Current saved Standard Task Report interval: 5 minutes/);
+    assert.match(restoredInstructions, /Browser refresh or tab switching does not cancel it/);
     f.workspace.coordinator.setReportInterval('one', 15); await f.persistence.queue;
     assert.deepEqual((await f.store.load()).workerReportIntervals, { one: 15, two: 60 });
+    assert.match((await f.workspace.instructionContext(f.workspace.agent('one')))['command-center-worker-instructions'].value, /Current saved Standard Task Report interval: 15 minutes/);
+    f.workspace.coordinator.setReportInterval('one', 0);
+    assert.match((await f.workspace.instructionContext(f.workspace.agent('one')))['command-center-worker-instructions'].value, /Current saved Standard Task Report interval: Never/);
+    assert.equal(f.workspace.coordinator.deliveries.size, 0, 'recovering cadence in instruction context must not replay chat messages');
+    assert.ok(f.rpc.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)), 'reading restored timing does not wake the native session');
+    f.workspace.coordinator.setReportInterval('one', 15);
     f.workspace.close('two'); await f.persistence.queue;
     assert.deepEqual((await f.store.load()).workerReportIntervals, { one: 15 });
   } finally { await f.close(); }

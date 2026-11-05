@@ -1,0 +1,8 @@
+{
+  "maxImages": 4,
+  "maxImageBytes": 4194304,
+  "maxTotalImageBytes": 8388608,
+  "maxRequestBytes": 12582912,
+  "maxNativeMessageBytes": 67108864,
+  "mimeTypes": ["image/png", "image/jpeg", "image/gif", "image/webp"]
+}

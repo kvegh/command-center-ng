@@ -572,7 +572,7 @@ test('priority insertion preserves an in-flight message and follows it without w
   } finally { await f.close(); }
 });
 
-test('priority reports cannot bypass a failed queued message or the queue bound', async () => {
+test('priority reports and cadence changes cannot bypass a failed queued message or the queue bound', async () => {
   const f = await fixture();
   try {
     const worker = f.workspace.agent('worker'); f.coordinator.paused = true;
@@ -581,7 +581,9 @@ test('priority reports cannot bypass a failed queued message or the queue bound'
     assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.kind), ['summary', 'report', 'summary']);
     f.coordinator.paused = false; await f.coordinator.flush('worker');
     assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer'].includes(call.method)), false);
-    f.coordinator.queue(worker, 'Fourth message.', 'summary');
+    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
+    assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.kind), ['summary', 'report', 'report-setting', 'summary']);
+    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer'].includes(call.method)), false);
     assert.throws(() => f.coordinator.queue(worker, 'Fifth message.', 'summary'), /four queued/);
     assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
@@ -614,13 +616,13 @@ test('interval selections send one independent instruction per worker and elapse
   } finally { t.mock.restoreAll(); await f.close(); }
 });
 
-test('interval replacements and Never wait for active work and pending requests without answering or interrupting them', async () => {
+test('interval replacements and Never wait for pending requests without answering or interrupting them', async () => {
   const f = await fixture();
   try {
     const worker = f.workspace.agent('worker'); worker.turnId = 'active'; worker.thread.status = { type: 'active' };
+    f.rpc.ask('waiting', 'worker');
     f.coordinator.setReportInterval('worker', 5, { notifyWorker: true });
     f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
-    f.rpc.ask('waiting', 'worker');
     f.coordinator.setReportInterval('worker', 0, { notifyWorker: true });
     assert.equal(f.coordinator.deliveries.get('worker').length, 1);
     assert.match(f.coordinator.deliveries.get('worker')[0].text, /Cancel your recurring Standard Task Report schedule/);
@@ -651,6 +653,121 @@ test('report preferences cannot start branch handoffs or claim a queued instruct
     assert.equal(worker.reportIntervalMinutes, 0);
     assert.equal(f.coordinator.deliveries.has('worker'), false);
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+  } finally { await f.close(); }
+});
+
+test('cadence changes reach a busy Codex turn once and do not become recurring prompts', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'active-work'; worker.thread.status = { type: 'active' };
+    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
+    await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer') && !worker.coordinatorSending);
+    const steers = f.rpc.calls.filter(call => call.method === 'turn/steer');
+    assert.equal(steers.length, 1);
+    assert.equal(steers[0].params.expectedTurnId, 'active-work');
+    assert.match(steers[0].params.clientUserMessageId, /^ccng-report-setting-/);
+    assert.match(steers[0].params.input[0].text, /every 15 minutes/);
+    assert.equal(f.coordinator.deliveries.has('worker'), false);
+    assert.equal(f.coordinator.setReportInterval('worker', 15, { notifyWorker: true }).alreadySet, true);
+    f.rpc.complete('worker', 'active-work'); await f.coordinator.flush('worker');
+    assert.equal(f.rpc.calls.filter(call => ['turn/start', 'turn/steer'].includes(call.method)).length, 1);
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
+    assert.equal(f.rpc.replies.length, 0);
+    assert.equal('nextReportAt' in worker, false);
+  } finally { await f.close(); }
+});
+
+test('an explicit same-value cadence retry replaces a failed instruction without automatic retries', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); const send = f.workspace.send.bind(f.workspace);
+    let failures = 1;
+    f.workspace.send = async (...args) => { if (failures > 0) { failures--; throw new Error('Synthetic delivery failure'); } return send(...args); };
+    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
+    await waitFor(() => !!worker.reportError && !worker.coordinatorSending);
+    const failed = f.coordinator.deliveries.get('worker')[0];
+    assert.match(failed.error, /Synthetic delivery failure/);
+    await f.coordinator.flush('worker');
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false, 'failed delivery must not retry automatically');
+    const retried = f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
+    assert.equal(retried.instructionQueued, true);
+    await delivered(f);
+    assert.equal(worker.reportError, null);
+    assert.equal(f.coordinator.deliveries.has('worker'), false);
+    assert.equal(f.coordinator.setReportInterval('worker', 15, { notifyWorker: true }).alreadySet, true);
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('cadence changes use owned Claude priority input and retain pause, question and ownership guards', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.provider = 'claude'; worker.turnId = 'owned-turn'; worker.thread.status = { type: 'active' }; worker.externalSession = false;
+    const sent = [];
+    f.workspace.claude = { available: true, runs: new Map([['worker', {}]]), send: async (agent, text, options) => sent.push({ agent, text, options }) };
+    f.coordinator.paused = true;
+    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
+    await f.coordinator.flush('worker'); assert.equal(sent.length, 0);
+    f.rpc.ask('native-question', 'worker', 'claude/tool/requestUserInput');
+    f.coordinator.paused = false;
+    await f.coordinator.flush('worker'); assert.equal(sent.length, 0);
+    worker.thread.status.activeFlags = ['waitingOnApproval'];
+    f.workspace.removeQuestion('worker', 'native-question');
+    await f.coordinator.flush('worker'); assert.equal(sent.length, 0);
+    worker.thread.status.activeFlags = [];
+    await f.coordinator.flush('worker');
+    assert.equal(sent.length, 1); assert.equal(sent[0].options.priority, 'next');
+    assert.match(sent[0].text, /every 15 minutes/); assert.equal(worker.turnId, 'owned-turn');
+    worker.externalSession = true;
+    f.coordinator.setReportInterval('worker', 60, { notifyWorker: true });
+    await f.coordinator.flush('worker'); assert.equal(sent.length, 1, 'external ownership still blocks delivery');
+    assert.equal(f.coordinator.deliveries.get('worker')[0].kind, 'report-setting');
+    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false);
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('a cadence instruction follows Report now ahead of ordinary summaries without losing report completion', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'busy'; worker.thread.status = { type: 'active' };
+    f.coordinator.paused = true;
+    f.coordinator.queue(worker, 'Ordinary summary.', 'summary');
+    f.coordinator.requestUserReport('worker');
+    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
+    assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.kind), ['report', 'report-setting', 'summary']);
+    f.coordinator.paused = false; await f.coordinator.flush('worker');
+    await waitFor(() => f.rpc.calls.filter(call => call.method === 'turn/steer').length === 2 && !worker.coordinatorSending);
+    const steers = f.rpc.calls.filter(call => call.method === 'turn/steer');
+    assert.match(steers[0].params.input[0].text, /The user selected Report now/);
+    assert.match(steers[1].params.input[0].text, /every 15 minutes/);
+    assert.equal(f.coordinator.reportState('worker'), 'generating');
+    assert.equal(f.coordinator.reportPending.has('worker'), true);
+    assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.kind), ['summary']);
+    f.rpc.complete('worker', 'busy');
+    assert.equal(f.coordinator.reportPending.has('worker'), false);
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('a cadence instruction waits for an in-flight send but then reaches the active turn before idle summaries', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); const send = f.workspace.send.bind(f.workspace);
+    let release; const gate = new Promise(resolve => { release = resolve; });
+    f.workspace.send = async (...args) => { await send(...args); if (args[1] === 'In-flight summary.') await gate; };
+    f.coordinator.queue(worker, 'In-flight summary.', 'summary');
+    await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/start'));
+    f.coordinator.queue(worker, 'Later summary.', 'summary');
+    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
+    assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.kind), ['summary', 'report-setting', 'summary']);
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/steer'), false);
+    release();
+    await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer') && !worker.coordinatorSending);
+    assert.match(f.rpc.calls.find(call => call.method === 'turn/steer').params.input[0].text, /every 15 minutes/);
+    assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.text), ['Later summary.']);
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
   } finally { await f.close(); }
 });
 
@@ -882,6 +999,7 @@ test('cadence instructions queue once per actual change, supersede unsent prefer
   const f = await fixture();
   try {
     const worker = f.workspace.agent('worker'); worker.turnId = 'busy'; worker.thread.status = { type: 'active' };
+    f.coordinator.paused = true;
     f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
     assert.match(f.coordinator.deliveries.get('worker')[0].text, /Request for Standard Task Report every 15 minutes/);
     f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
@@ -890,14 +1008,15 @@ test('cadence instructions queue once per actual change, supersede unsent prefer
     assert.equal(f.coordinator.deliveries.get('worker').length, 1);
     assert.match(f.coordinator.deliveries.get('worker')[0].text, /every 1 hour/);
     assert.equal(f.coordinator.reportPending.has('worker'), false);
-    f.rpc.complete('worker', 'busy'); await delivered(f);
-    const start = f.rpc.calls.find(call => call.method === 'turn/start');
+    f.coordinator.paused = false; await f.coordinator.flush('worker');
+    const start = f.rpc.calls.find(call => call.method === 'turn/steer');
+    assert.ok(start, 'a changed interval reaches an active turn through native steering');
     assert.match(start.params.clientUserMessageId, /^ccng-report-setting-/);
     assert.match(start.params.input[0].text, /changes reporting only/);
     f.rpc.complete('worker');
     f.coordinator.setReportInterval('worker', 60);
     assert.equal(f.coordinator.deliveries.has('worker'), false, 'restore-style application queues no instruction');
-    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
+    assert.equal(f.rpc.calls.filter(call => ['turn/start', 'turn/steer'].includes(call.method)).length, 1);
     assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
 });

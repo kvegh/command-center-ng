@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import WebSocket from 'ws';
+import imageLimits from './image-limits.json' with { type: 'json' };
 import { VERSION } from './version.mjs';
 
 const exec = promisify(execFile);
@@ -24,7 +25,7 @@ export class CodexRpc extends EventEmitter {
       if (info.status !== 'running' || !info.socketPath) throw new Error('Start the Codex daemon first: codex app-server daemon start');
       path = info.socketPath; this.version = info.appServerVersion;
     }
-    const socket = new WebSocket(`ws+unix://${path}:/`, { handshakeTimeout: this.timeout, maxPayload: 16 * 1024 * 1024 });
+    const socket = new WebSocket(`ws+unix://${path}:/`, { handshakeTimeout: this.timeout, maxPayload: imageLimits.maxNativeMessageBytes });
     this.socket = socket;
     socket.on('message', data => { try { this.receive(JSON.parse(data.toString())); } catch (error) { this.emit('protocolError', error.message); } });
     socket.on('close', () => this.disconnected('Codex connection closed. Reconnect to continue.'));
