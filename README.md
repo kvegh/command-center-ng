@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.18.0 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.18.1 (in development)** includes the Codex workspace and Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -653,3 +653,15 @@ global permission/default change, runtime restart or deployment was used.
 Official Claude SDK management, shared environment instruction loading, fresh
 Dolt/Beads installation, ordinary-chat question tracking and live AAP rollout
 remain unfinished.
+
+
+Version 0.18.1 makes coordinator helper reviews proportionate: inspect the directly
+referenced helper's startup statements and called functions when needed, without
+routinely walking its imports or library internals. Escalation needs a concrete
+unresolved concern in the visible action/source, not merely an unread dependency.
+The existing source reader also applies the approved exact-current-command
+helper checks to directly referenced outside-project source and returns every
+matching approval binding. Older coordinators can use their existing reader;
+there is no need to replace their conversation or rewrite native state. General
+outside-project reads and secret/data reads remain refused. Source publication
+does not update the running installation or approve the quoted action.

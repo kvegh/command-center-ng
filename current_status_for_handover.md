@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.18.0** in package.json and the lockfile.
+The authoritative version is **0.18.1** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -530,3 +530,17 @@ fresh-install Dolt/Beads, ordinary-chat unanswered questions and actual AAP-to-T
 CaC/live rollout remain unfinished; credential history review precedes re-asking.
 
 0.18.0 implementation: `9aed87fb843463d3ec9cb23a27a21e87bef8cbce`. Consult current remote refs for publication.
+
+
+## Proportionate coordinator helper review: 0.18.1
+
+The user wants direct helper Python source read when necessary, without routinely
+inspecting deeper dependencies. Base/restored/event guidance and the helper tool
+description now state that boundary; project-reader rejection points to the
+approval-source tool. Concrete unresolved concerns still require user review.
+This is not permission to execute helpers, read credential/Vault data or approve
+the quoted real action. The saved coordinator was found to retain its older tool
+catalog without the helper reader. The existing reader now applies the same approval-scoped helper checks and
+returns exact current bindings for directly referenced outside helpers. This
+preserves that coordinator/history and native registration. Source publication
+still requires an installation update before live behavior changes.

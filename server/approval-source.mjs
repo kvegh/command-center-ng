@@ -14,16 +14,21 @@ export function approvalCommand(question) {
   return typeof command === 'string' ? command : Array.isArray(command) && command.every(part => typeof part === 'string') ? command.join(' ') : '';
 }
 
+export function referencesApprovalSource(cwd, command, path) {
+  const requested = resolve(cwd, path);
+  const module = basename(requested, '.py');
+  const pythonImport = extname(requested) === '.py' && /^[A-Za-z_]\w*$/.test(module) && new RegExp(`\\b(?:from\\s+${escaped(module)}\\s+import\\b|import\\s+${escaped(module)}\\b)`).test(command);
+  const importDirectory = dirname(requested) === resolve(cwd) || (dirname(requested) !== '/' && mentions(command, dirname(requested)));
+  return mentions(command, requested) || mentions(command, path) || (pythonImport && importDirectory);
+}
+
 export async function inspectApprovalSource(cwd, command, path, startLine = 1) {
   if (typeof path !== 'string' || !path || path.length > 1000 || /[\x00-\x1f]/.test(path) || path.split(/[\\/]/).some(part => part.startsWith('.') || /secret|credential|password|token|vault|auth/i.test(part))) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
   if (!Number.isInteger(startLine) || startLine < 1) throw fail('Choose a valid starting line.');
   const requested = resolve(cwd, path);
   const file = await realpath(requested);
   if (file !== requested || !extensions.has(extname(file))) throw fail('Read a regular helper source file directly; symlinks and configuration/data files are not allowed.');
-  const module = basename(file, '.py');
-  const pythonImport = extname(file) === '.py' && /^[A-Za-z_]\w*$/.test(module) && new RegExp(`\\b(?:from\\s+${escaped(module)}\\s+import\\b|import\\s+${escaped(module)}\\b)`).test(command);
-  const importDirectory = dirname(file) === resolve(cwd) || (dirname(file) !== '/' && mentions(command, dirname(file)));
-  if (!mentions(command, requested) && !mentions(command, path) && !(pythonImport && importDirectory)) throw fail('This helper source is not referenced by the exact pending approval.');
+  if (!referencesApprovalSource(cwd, command, path)) throw fail('This helper source is not referenced by the exact pending approval.');
   const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const info = await handle.stat();

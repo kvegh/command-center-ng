@@ -393,7 +393,10 @@ test('approval-linked helper reads are readonly, token-scoped and reject changed
     assert.match(source.text, /must not run/); assert.match(source.sha256, /^[a-f0-9]{64}$/);
     await assert.rejects(readFile(marker), { code: 'ENOENT' });
     assert.equal(f.rpc.calls.length, before); assert.equal(f.rpc.replies.length, 0);
-    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: helper }), /inside this worker/);
+    const existingReader = await f.call('ccng_read_project_file', { agentId: 'worker', path: helper });
+    assert.equal(existingReader.sha256, source.sha256);
+    assert.deepEqual(existingReader.approvalBindings, [{ requestId: question.id, reviewToken: question.reviewToken }]);
+    assert.equal(f.rpc.replies.length, 0);
     await assert.rejects(f.call('ccng_read_approval_source', { ...args, reviewToken: 'stale' }), /exact current command/);
     await f.workspace.open('other');
     await assert.rejects(f.call('ccng_read_approval_source', { ...args, agentId: 'other' }), /exact current command/);
@@ -521,4 +524,26 @@ test('cadence instructions queue once per actual change, supersede unsent prefer
     assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
     assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
+});
+
+
+test('the existing project reader binds helper evidence to every matching current command without granting general outside access', async () => {
+  const f = await fixture(); const outside = await mkdtemp(join(tmpdir(), 'ccng-direct-helper-'));
+  try {
+    const path = join(outside, 'check_metadata.py'); await writeFile(path, 'def check():\n    return "synthetic metadata"\n');
+    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path }), /inside this worker directory or a helper/);
+    const worker = f.workspace.agent('worker');
+    f.rpc.ask('first-helper-action', 'worker'); f.rpc.ask('second-helper-action', 'worker');
+    for (const question of worker.questions) question.params.command = 'python3 ' + path;
+    const result = await f.call('ccng_read_project_file', { agentId: 'worker', path });
+    assert.equal(result.approvalBindings.length, 2);
+    for (const question of worker.questions) assert.equal(f.coordinator.approvalSources.get(question.reviewToken).get(path).sha256, result.sha256);
+    assert.equal(worker.questions.length, 2); assert.equal(f.rpc.replies.length, 0);
+    await writeFile(path, 'raise RuntimeError("changed source")\n');
+    const question = worker.questions[0];
+    await assert.rejects(f.call('ccng_review_approval', { agentId: 'worker', reviewToken: question.reviewToken, decision: 'approve', rationale: 'Within the existing disposable test scope.', authorizationMessageId: 'user-worker', authorizationQuote: 'Create and clean up disposable test resources.' }), /source or the command changed/);
+    assert.equal(f.rpc.replies.length, 0);
+    worker.questions = [];
+    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path }), /inside this worker directory or a helper/);
+  } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
 });

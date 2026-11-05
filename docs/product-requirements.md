@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.18.0
+## Current development version: 0.18.1
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -313,3 +313,11 @@ The user explicitly rejects CCNG's recurring report timer. Radio selection sends
 one Standard Task Report timing instruction; changes replace it and Never asks
 the agent to cancel its schedule. Timing belongs to the agent runtime. Report now
 remains one explicit request. Restoring tabs does not replay timing instructions.
+
+
+Version 0.18.1 saves the user's proportionate helper-review rule: inspect directly
+referenced helper source when necessary, including startup behavior and called
+functions, without a routine recursive dependency audit. Referrals require a
+concrete unresolved concern; absent source-reader tooling is reported separately.
+The existing reader applies the same exact-current-approval helper checks for
+older coordinators, preserving their conversation and native tool registration.

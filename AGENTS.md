@@ -298,3 +298,18 @@ keep it immediately before Add agent, and display the version badge at its
 existing font size in the composer footer. Chat text uses the available width.
 The named Standard Task Report format lives in server/worker-instructions.md;
 interval instructions are sent once per change, without CCNG recurring timers.
+
+
+## Proportionate coordinator helper review
+
+When needed for an exact pending action, read the directly referenced helper's
+source, including startup statements and called functions. Do not routinely
+recurse into imports or library implementations. An unread dependency alone is
+not a reason to refer an otherwise understood, authorized action to the user.
+Escalate concrete unresolved effects, targets or authority concerns revealed by
+the action/helper. Keep source reads bounded, read-only and tied to current
+command approvals, with changed-source checks; never execute the helper or read
+credential/Vault data. Existing approved credential sources need no new choice.
+The existing source-reader tool can use the same helper checks and return exact
+current approval bindings, preserving older coordinator conversations. Reading
+source does not approve a command or expand native permissions.
