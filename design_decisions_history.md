@@ -1137,3 +1137,28 @@ No real approval, runtime restart, target rollout or native permission-default
 change occurred. Actual encrypted CaC/rollout needs the user's Vault source;
 its question is pending. The separately requested live eight-agent config edit
 was blocked by filesystem/approval policy; only its default template was applied.
+
+## 2026-11-05 — Resolve approval helpers from native command cwd in 0.19.1
+
+Implementation: `16006bccd4d7c17498ba26efed32d7b01ef46e51`.
+
+The existing reader looked under the worker directory before checking pending
+approvals. A command running in another repository could therefore produce
+ENOENT or inspect a same-named worker file instead of its own helper. Both
+readers now use the exact native approval cwd, falling back only when omitted
+or null. Literal relative source references, including quoted subprocess argv
+entries, match equivalent absolute paths without executing or evaluating code.
+
+Working directory is returned and saved with command/source hashes; changed
+cwd requires fresh inspection before approval. The older reader checks approval
+references first and refuses ambiguous cross-directory matches. Resolved
+hidden/sensitive paths remain excluded even through relative input. Ordinary
+project reads, native permissions and exact per-request review remain intact.
+
+All172 tests and production build pass, including nine new synthetic cases for
+directory precedence, decoys, subprocess paths, bindings, stale/invalid cwd,
+ambiguity and resolved sensitive-path refusal. A redirected test run reported
+two file-wrapper failures without details; the ordinary npm test run passed
+all172. This does not resolve the separately tracked test-context discrepancy.
+No real approval, helper execution, native-state rewrite, service restart or
+deployment was used. Publication alone does not update a running backend.

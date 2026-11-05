@@ -602,3 +602,5 @@ evidence and resolved hidden/sensitive paths. A redirected test invocation
 reported installer/integration file-wrapper failures without inner details;
 the ordinary npm test invocation then passed all172. The separately tracked
 test-environment discrepancy is not established as fixed by this reader patch.
+
+0.19.1 implementation: `16006bccd4d7c17498ba26efed32d7b01ef46e51`.
