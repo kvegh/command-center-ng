@@ -1162,3 +1162,29 @@ two file-wrapper failures without details; the ordinary npm test run passed
 all172. This does not resolve the separately tracked test-context discrepancy.
 No real approval, helper execution, native-state rewrite, service restart or
 deployment was used. Publication alone does not update a running backend.
+
+## 2026-11-05 — Validate approval citations from older native history in 0.19.2
+
+Implementation: `3b3c868bc722c6abf7cb31b2abc2394e05fd8a0c`.
+
+The coordinator could read a genuine user instruction on an older native worker
+page, but approval validation searched only recent worker/coordinator messages.
+It therefore rejected an exact native ID/quote even while the reader exposed
+the instruction and current request together. Older reads now retain at most
+128 native ID/cursor references per open worker instance, without transcript
+text, browser metadata or additional persistence. A recent read does not clear
+them. Closing/reopening the worker or restarting requires a fresh older read.
+
+For a cited message absent from recent context, review re-reads that exact page
+in the same native worker and applies existing real-user/exact-quote checks.
+It rechecks worker/request/token after the asynchronous read. Assistant text,
+coordinator relays and branch summaries remain excluded; stale/missing native
+evidence and closed/resolved requests are refused. Existing review authority,
+source safeguards, manual controls and native restrictions remain in force.
+
+All180 application tests and the production build pass, including eight new
+synthetic regressions for history references, provenance, worker/reopen isolation,
+native read failures, changed evidence, asynchronous resolution/closure and
+bounded/omitted messages. No real approval, request replay, helper execution,
+permission change or service restart occurred. Source publication does not
+update the running installation or decide the reported native request.

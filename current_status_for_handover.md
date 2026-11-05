@@ -621,3 +621,5 @@ All **180 application tests** and the production build pass. Eight new synthetic
 cases cover older citations and intervening reads, wrong quotes/provenance,
 worker/reopen boundaries, unavailable/changed pages, resolved/closed-worker races,
 bounded references and messages omitted by the response budget.
+
+0.19.2 implementation: `3b3c868bc722c6abf7cb31b2abc2394e05fd8a0c`.
