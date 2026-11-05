@@ -916,3 +916,42 @@ installer home-directory writes, and broader test permissions were automatically
 rejected. Interactive browser verification remains unperformed. No live worker
 was created or interrupted and no running application was updated or restarted.
 Earlier unfinished changes remain outside this focused implementation commit.
+
+## 2026-11-05 — Make worker reports, tasks and branch reviews usable in 0.15.0
+
+Implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
+
+The user requested per-worker report timing, meaningful state totals, all tasks
+instead of a three-row preview, and answering task questions without copying
+text into chat. The existing private workspace metadata now holds only report
+cadence; existing safe-idle delivery schedules bounded status requests. Never
+is the default, restoration starts a fresh delay, pause/native questions/work
+prevent delivery and failures require an explicit settings change. Instructions
+require vivid named outcomes, project release/publication evidence and structured
+clarification tools when available, without changing native feature flags.
+All active linked tasks are visible with dependency-derived queued state, and
+task-detail input uses the normal worker send protections. Beads remains the
+single task store and the working agent owns status updates.
+
+The user approved full Markdown/GFM through react-markdown and remark-gfm with
+raw HTML disabled. Tables scroll, links retain safe scheme filtering, code stays
+literal and remote images do not fetch automatically. The parser packages were
+installed from verified existing public cache content. Existing auth and CSP
+remain intact. The user also requested branch summary review inside the child
+tab so it does not block navigation. Reviews stay mounted while switching tabs,
+retain edits and remain explicit send/archive actions. Failed parent delivery
+names the parent and explains how to resolve its request, without answering it.
+
+All 109 application tests and the production build pass, including real local
+protocol/HTTP/installer fixtures, scheduling/restoration/request gates, full task
+lists/dependencies, Markdown safety and handoff errors. A stale four-worker
+integration assertion was updated to the shared sixteen-worker capacity. Normal
+npm test ran these fixtures in this session; earlier alternate invocations had
+sandbox setup restrictions, and no permission change/bypass was used. Interactive
+browser review remains unperformed. No live approval or service restart was used.
+
+Local read-write Claude management with the official SDK, fresh Dolt/Beads
+provisioning and ordinary-chat question tracking are approved but unfinished.
+Comprehensive native user-request mirroring and model/effort controls are separate
+follow-up work. Outside-project helper inspection awaits its separate access
+approval. No remote/SSH session monitoring is authorized.

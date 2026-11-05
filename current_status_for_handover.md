@@ -6,6 +6,7 @@ task source of truth; do not use this file as a second backlog.
 ## Versions and publication
 
 The authoritative version is **0.15.0** in package.json and the lockfile.
+0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
 Implementation: `2f8a45ad9846ea9799112395cb9effc4bf945a36`.
