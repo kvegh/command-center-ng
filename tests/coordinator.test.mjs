@@ -1,3 +1,4 @@
+import limits from '../server/limits.json' with { type: 'json' };
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -37,13 +38,13 @@ async function fixture() {
   return { cwd, rpc, workspace, coordinator, call, close: async () => { coordinator.stop(); await rm(cwd, { recursive: true, force: true }); } };
 }
 
-test('coordinator starts separately with reduced capabilities and preserves four worker slots', async () => {
+test('coordinator starts separately with reduced capabilities and preserves sixteen worker slots', async () => {
   const f = await fixture();
   try {
-    for (const id of ['second', 'third', 'fourth']) await f.workspace.open(id);
-    assert.equal(f.workspace.workerCount(), 4); assert.equal(f.workspace.agents.size, 5);
+    for (let i = 1; i < limits.maxWorkers; i++) await f.workspace.open('worker-' + i);
+    assert.equal(f.workspace.workerCount(), limits.maxWorkers); assert.equal(f.workspace.agents.size, limits.maxWorkers + 1);
     assert.equal(f.rpc.calls.filter(call => call.method === 'thread/start').length, 1);
-    await assert.rejects(f.workspace.open('fifth'), /Four agent tabs/);
+    await assert.rejects(f.workspace.open('overflow'), /16 worker tabs/);
     const start = f.rpc.calls.find(call => call.method === 'thread/start').params;
     assert.equal(start.threadSource, 'command-center-coordinator');
     assert.equal(start.sandbox, 'read-only'); assert.equal(start.config['features.shell_tool'], false);
@@ -51,7 +52,7 @@ test('coordinator starts separately with reduced capabilities and preserves four
     assert.equal(start.config['mcp_servers.fixture.enabled'], false);
     assert.deepEqual(start.dynamicTools, COORDINATOR_TOOLS); assert.equal(start.model, undefined); assert.equal(start.approvalPolicy, undefined);
     assert.throws(() => f.workspace.close(f.coordinator.id), /Pause the coordinator/);
-    f.workspace.close('fourth'); await f.workspace.open('fifth'); assert.equal(f.workspace.agents.size, 5);
+    f.workspace.close('worker-1'); await f.workspace.open('replacement'); assert.equal(f.workspace.agents.size, limits.maxWorkers + 1);
     await assert.rejects(f.workspace.fork(f.coordinator.id), /Branch a worker/);
   } finally { await f.close(); }
 });

@@ -51,7 +51,7 @@ coordinator ID and pause state on the server. Keep runtime files outside the
 checkout. Restore views using native reads; do not resume unloaded workers or
 start worker/model turns merely to restore tabs. Reuse the same coordinator;
 reapply its restrictions before activation. Do not replay approvals or queued
-messages. No separate storage service or database is approved. The user authorized a native Codex coordinator alongside four workers,
+messages. No separate storage service or database is approved. The user authorized a native Codex coordinator alongside up to sixteen workers,
 with its own visually separated chat tab, progress recaps, report requests,
 summary messages and scope-based approval review. Authorized work can include
 resource creation/deletion and disposable test-VM lifecycle. Use the explicit

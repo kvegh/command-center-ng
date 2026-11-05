@@ -1,11 +1,11 @@
 # Current status for handover
 
-Updated: 2026-11-04. This is a development handover snapshot. Beads remains the
+Updated: 2026-11-05. This is a development handover snapshot. Beads remains the
 task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.13.0** in package.json and the lockfile.
+The authoritative version is **0.14.0** in package.json and the lockfile.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
 Implementation: `2f8a45ad9846ea9799112395cb9effc4bf945a36`.
 It adds explicit multiple-request visibility and continued independent review to
@@ -42,6 +42,14 @@ Inspect Git status and history before continuing. Use SSH for authorized Git
 network operations and preserve unrelated edits. Keep numeric versions and
 README changes consistent with implementation commits; record their real commit
 IDs in design_decisions_history.md.
+
+## Worker capacity: 0.14.0
+
+The workspace accepts sixteen workers plus the separate coordinator. UI, backend,
+branching, parent navigation and workspace save/restore use the same limit from
+server/limits.json. Existing four-worker saved files need no migration. Native
+Codex subagent concurrency and permissions are unchanged. Source publication
+does not upgrade or restart an existing installation.
 
 ## Named outcomes in coordinator recaps: 0.11.1
 
@@ -436,3 +444,11 @@ The latest capacity check did not reproduce the earlier critically low storage
 condition. Recheck capacity before large builds/installations. No broad cleanup or deletion of other
 projects' files is authorized. Keep secrets, actual private addresses/paths,
 user transcripts and runtime configuration out of this public repository.
+
+Validation for 0.14.0: the production build and all 61 tests that do not require
+local sockets or installer writes under the home directory pass. Fixtures cover
+concurrent opens/creates at the sixteen-worker boundary, branching, parent
+navigation and read-only restoration of sixteen workers plus the coordinator.
+The full suite was attempted; sandbox policy blocks its local Unix sockets and
+installer home-directory fixtures. Interactive browser verification remains
+unperformed. No live conversation was created or interrupted for these tests.

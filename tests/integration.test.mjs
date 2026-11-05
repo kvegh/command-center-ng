@@ -1,3 +1,4 @@
+import limits from '../server/limits.json' with { type: 'json' };
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -231,15 +232,14 @@ test('parent-send failures keep the child open; archive retries do not duplicate
   const f = await branchFixture();
   try {
     await f.workspace.summarize(f.id);
-    await f.workspace.create({ goal: 'Other work one', cwd: f.dir });
-    await f.workspace.create({ goal: 'Other work two', cwd: f.dir });
+    for (let i = f.workspace.workerCount(); i < limits.maxWorkers; i++) await f.workspace.create({ goal: 'Other work ' + i, cwd: f.dir });
     f.workspace.close('existing');
     await f.workspace.create({ goal: 'Other work three', cwd: f.dir });
-    assert.equal(f.workspace.agents.size, 4);
+    assert.equal(f.workspace.agents.size, limits.maxWorkers);
     f.failures.set('turn/steer', 'Parent temporarily unavailable');
     await assert.rejects(f.workspace.returnToParent(f.id, f.summary.text), /Parent temporarily unavailable/);
     assert.ok(f.workspace.agents.has(f.id)); assert.ok(!f.threads.get(f.id).archived);
-    assert.equal(f.workspace.agents.size, 4); assert.ok(!f.workspace.agents.has('existing'), 'failed handoff restores the child tab at capacity');
+    assert.equal(f.workspace.agents.size, limits.maxWorkers); assert.ok(!f.workspace.agents.has('existing'), 'failed handoff restores the child tab at capacity');
     assert.equal(f.workspace.agent(f.id).returnSummary.delivered, false);
     f.failures.delete('turn/steer'); f.failures.set('thread/archive', 'Archive temporarily unavailable');
     await assert.rejects(f.workspace.returnToParent(f.id, f.summary.text), /summary was delivered.*closing the branch failed/);
@@ -310,17 +310,37 @@ test('native protocol opens an active existing agent, streams plans/messages, st
   } finally { await f.close(); }
 });
 
-test('five simultaneous creates start only four agents; closing a tab never interrupts its agent', async () => {
+test('seventeen simultaneous creates start only sixteen agents; closing a tab never interrupts its agent', async () => {
   const f = await fixture();
   try {
-    const results = await Promise.allSettled(Array.from({ length: 5 }, (_, i) => f.workspace.create({ goal: 'Independent task ' + i, cwd: f.dir })));
-    assert.equal(results.filter(r => r.status === 'fulfilled').length, 4);
-    assert.equal(f.calls.filter(c => c.method === 'thread/start').length, 4);
+    const results = await Promise.allSettled(Array.from({ length: limits.maxWorkers + 1 }, (_, i) => f.workspace.create({ goal: 'Independent task ' + i, cwd: f.dir })));
+    assert.equal(results.filter(r => r.status === 'fulfilled').length, limits.maxWorkers);
+    assert.equal(f.calls.filter(c => c.method === 'thread/start').length, limits.maxWorkers);
     for (const c of f.calls.filter(c => c.method === 'thread/start')) assert.deepEqual(Object.keys(c.params), ['cwd']);
     const first = f.workspace.snapshot().agents[0]; f.workspace.close(first.id);
     assert.equal(f.calls.filter(c => c.method === 'turn/interrupt').length, 0);
     f.ask('background', first.id); await waitFor(() => f.workspace.snapshot().backgroundQuestions === 1);
     await f.workspace.open(first.id); assert.equal(f.workspace.agent(first.id).questions.length, 1);
+  } finally { await f.close(); }
+});
+
+test('the sixteenth worker can be a branch and every entry point rejects a seventeenth before native work', async () => {
+  const f = await fixture();
+  try {
+    await f.workspace.open('existing');
+    for (let i = 1; i < limits.maxWorkers - 1; i++) await f.workspace.create({ goal: 'Independent task ' + i, cwd: f.dir });
+    const branchId = await f.workspace.fork('existing');
+    assert.equal(f.workspace.workerCount(), 16);
+    assert.equal(f.workspace.agent(branchId).parentId, 'existing');
+    const before = f.calls.length;
+    await assert.rejects(f.workspace.open('overflow'), /16 worker tabs/);
+    await assert.rejects(f.workspace.create({ goal: 'Overflow', cwd: f.dir }), /16 worker tabs/);
+    await assert.rejects(f.workspace.fork('existing'), /Close an agent tab/);
+    assert.equal(f.calls.length, before, 'rejected actions must not create, resume or fork native conversations');
+    f.workspace.close(branchId);
+    await f.workspace.open(branchId);
+    assert.equal(f.workspace.workerCount(), 16);
+    assert.equal(f.calls.filter(call => call.method === 'turn/interrupt').length, 0);
   } finally { await f.close(); }
 });
 

@@ -5,8 +5,8 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.13.0 (in development)** includes the Codex workspace and Linux installer. It supports
-four worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
+**Version 0.14.0 (in development)** includes the Codex workspace and Linux installer. It supports
+up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, up to three linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
 green running states, and amber attention states.
@@ -112,6 +112,12 @@ sending feedback never dismisses a request. Existing message limits still apply.
 Messages wait until workers are idle. See [coordinator behavior and limits](docs/coordinator.md)
 and the [original discussion summary](docs/supervisor-design-discussion.md).
 
+Version 0.14.0 raises the workspace capacity to **16 workers plus the coordinator**.
+Existing conversations, new agents and branches share the same worker capacity.
+All sixteen tabs can be saved and restored; the worker strip scrolls horizontally
+on smaller screens. Closing a tab keeps its native agent running. The limit does
+not change native Codex subagent concurrency or worker permissions.
+
 ## Installation and startup
 
 Prerequisites: Linux, Node.js 22.12+, npm, core shell utilities, Git, tar/gzip,
@@ -187,7 +193,7 @@ silently leave out a newer exchange. A completed reply is no longer required.
 If work is ongoing, Codex marks the copied partial turn interrupted in the child;
 the parent keeps running. Later parent messages are outside that snapshot.
 The branch waits for your follow-up question or subtask. Its first message becomes
-its goal. A branch uses one of the four tabs; close a tab first if all are occupied.
+its goal. A branch uses one of the sixteen worker tabs; close a tab first if all are occupied.
 
 Use **Back to parent** to navigate without sending anything or closing the branch.
 When the branch is idle, **Return summary** asks Codex to summarize its existing
@@ -478,3 +484,11 @@ Development work is currently tracked in the surrounding workspace's Beads
 tracker. The runtime integration now also uses Beads, scoped by conversation labels.
 
 No license has been selected; public visibility alone does not grant a license.
+
+Validation for 0.14.0: the production build and all 61 tests that do not require
+local sockets or installer writes under the home directory pass. Fixtures cover
+concurrent opens/creates at the sixteen-worker boundary, branching, parent
+navigation and read-only restoration of sixteen workers plus the coordinator.
+The full suite was attempted; sandbox policy blocks its local Unix sockets and
+installer home-directory fixtures. Interactive browser verification remains
+unperformed. No live conversation was created or interrupted for these tests.

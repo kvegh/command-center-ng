@@ -7,7 +7,7 @@ required. Codex retains conversation histories and Beads retains task records.
 
 | Location | Saved state |
 | --- | --- |
-| `workspace.json` beside the password configuration | Up to four open worker IDs, the coordinator ID and coordinator pause state |
+| `workspace.json` beside the password configuration | Up to sixteen open worker IDs, the coordinator ID and coordinator pause state |
 | Browser local storage, key `ccng.workspace.v1` | Selected tab, worker order, unsent drafts, reading positions and whether a chat was at the bottom |
 | Native Codex storage | Existing conversation context, messages, branch relationships and coordinator tool history |
 | Existing Beads tracker | Durable tasks, states and conversation labels |
@@ -75,7 +75,7 @@ workspace. Moving it aside loses the saved open-tab list, not native histories
 or Beads tasks. Keep private files and browser exports out of Git and screenshots.
 
 Regression checks cover bounded metadata, private atomic writes, corrupt and
-linked files, four-worker restoration, coordinator reuse/pause, unavailable-ID
+linked files, sixteen-worker restoration, coordinator reuse/pause, unavailable-ID
 retry, disconnected startup, explicit activation and browser-state round trips.
 A disposable native restart check confirmed the same worker/coordinator and
 history, private file mode, unchanged password and required login, with no

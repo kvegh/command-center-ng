@@ -1,3 +1,4 @@
+import limits from './limits.json' with { type: 'json' };
 import { randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
 import { mkdir, open, rename, stat, unlink, realpath } from 'node:fs/promises';
@@ -8,7 +9,7 @@ const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const validId = id => typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(id) && !['constructor', 'prototype'].includes(id);
 export const emptyWorkspace = () => ({ version: 1, workerIds: [], coordinatorId: null, coordinatorPaused: false });
 export function workspaceRecord(data) {
-  if (!data || data.version !== 1 || !Array.isArray(data.workerIds) || data.workerIds.length > 4 || data.workerIds.some(id => !validId(id)) || new Set(data.workerIds).size !== data.workerIds.length || (data.coordinatorId !== null && !validId(data.coordinatorId)) || typeof data.coordinatorPaused !== 'boolean' || data.workerIds.includes(data.coordinatorId)) throw new Error('Invalid saved workspace. Move the private workspace file aside to start a fresh workspace.');
+  if (!data || data.version !== 1 || !Array.isArray(data.workerIds) || data.workerIds.length > limits.maxWorkers || data.workerIds.some(id => !validId(id)) || new Set(data.workerIds).size !== data.workerIds.length || (data.coordinatorId !== null && !validId(data.coordinatorId)) || typeof data.coordinatorPaused !== 'boolean' || data.workerIds.includes(data.coordinatorId)) throw new Error('Invalid saved workspace. Move the private workspace file aside to start a fresh workspace.');
   return { version: 1, workerIds: [...data.workerIds], coordinatorId: data.coordinatorId, coordinatorPaused: data.coordinatorPaused };
 }
 export class WorkspaceStore {
@@ -93,7 +94,7 @@ export class WorkspacePersistence {
   }
   record() {
     const workers = [...this.workspace.agents.values()].filter(agent => agent.role !== 'coordinator').map(agent => agent.id);
-    return { version: 1, workerIds: [...new Set([...workers, ...this.failedIds])].slice(0, 4), coordinatorId: this.workspace.coordinator?.id || null, coordinatorPaused: this.workspace.coordinator?.paused || false };
+    return { version: 1, workerIds: [...new Set([...workers, ...this.failedIds])].slice(0, limits.maxWorkers), coordinatorId: this.workspace.coordinator?.id || null, coordinatorPaused: this.workspace.coordinator?.paused || false };
   }
   async retry() {
     if (!this.fileError && (this.failedIds.length || (this.workspace.coordinator?.id && !this.workspace.agents.has(this.workspace.coordinator.id)))) { this.saved = this.record(); this.ready = false; }

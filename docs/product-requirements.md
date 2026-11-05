@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.13.0
+## Current development version: 0.14.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -259,3 +259,8 @@ choice is resolved and its implementation remains separate. The current chat
 renderer still only handles bold/fenced code. Full Markdown rendering is newly
 requested and awaits the user's library/scope choice; do not claim it is included
 in this release.
+
+Version 0.14.0 increases workspace capacity to sixteen workers plus the separate
+coordinator. Apply the same limit to opening, creation, branching, parent
+navigation and private workspace persistence. Preserve horizontal tab scrolling,
+coordinator restrictions and native worker settings.

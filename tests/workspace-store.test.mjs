@@ -1,3 +1,4 @@
+import limits from '../server/limits.json' with { type: 'json' };
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -59,24 +60,25 @@ test('invalid, unsafe and linked workspace files are rejected without overwrite'
   } finally { await f.close(); }
 });
 
-test('workspace metadata rejects invalid IDs and more than four workers', async () => {
+test('workspace metadata rejects invalid IDs and more than sixteen workers', async () => {
   const f = await fixture();
   try {
-    for (const value of [record(['../invalid']), record(['one', 'one']), record(['one', 'two', 'three', 'four', 'five']), record(['one'], 'one'), { ...record(), coordinatorPaused: 'yes' }]) {
+    for (const value of [record(['../invalid']), record(['one', 'one']), record(Array.from({ length: limits.maxWorkers + 1 }, (_, i) => 'worker-' + i)), record(['one'], 'one'), { ...record(), coordinatorPaused: 'yes' }]) {
       assert.throws(() => f.store.save(value), /Invalid saved workspace/);
     }
   } finally { await f.close(); }
 });
 
-test('startup restores four workers and the same paused coordinator with read-only native calls', async () => {
-  const f = await restored(record(['one', 'two', 'three', 'four'], 'coordinator', true));
+test('startup restores sixteen workers and the same paused coordinator with read-only native calls', async () => {
+  const ids = Array.from({ length: limits.maxWorkers }, (_, i) => 'worker-' + i);
+  const f = await restored(record(ids, 'coordinator', true));
   try {
-    assert.equal(f.workspace.workerCount(), 4); assert.equal(f.workspace.agents.size, 5);
+    assert.equal(f.workspace.workerCount(), limits.maxWorkers); assert.equal(f.workspace.agents.size, limits.maxWorkers + 1);
     assert.equal(f.workspace.coordinator.id, 'coordinator'); assert.equal(f.workspace.coordinator.paused, true);
     assert.equal(f.workspace.restoration.status, 'ready');
     assert.ok(f.rpc.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)));
     assert.ok(f.workspace.snapshot().agents.every(agent => agent.observingOnly && agent.status === 'idle'));
-    assert.deepEqual(await f.store.load(), record(['one', 'two', 'three', 'four'], 'coordinator', true));
+    assert.deepEqual(await f.store.load(), record(ids, 'coordinator', true));
   } finally { await f.close(); }
 });
 

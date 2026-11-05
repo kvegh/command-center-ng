@@ -1,3 +1,4 @@
+import limits from './limits.json' with { type: 'json' };
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
@@ -59,7 +60,7 @@ export class Workspace extends EventEmitter {
   async open(id, { observeOnly = false } = {}) {
     if (this.agents.has(id)) return this.agent(id);
     const role = id === this.coordinator?.id ? 'coordinator' : 'worker';
-    if (role === 'worker' && this.workerSlots() >= 4) throw Object.assign(new Error('Four agent tabs are open. Close a tab to open another; its agent keeps running.'), { status: 409 });
+    if (role === 'worker' && this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error(`All ${limits.maxWorkers} worker tabs are open. Close a tab to open another; its agent keeps running.`), { status: 409 });
     if (this.opening.has(id)) throw Object.assign(new Error('This agent is already opening.'), { status: 409 });
     this.opening.add(id);
     try {
@@ -219,11 +220,11 @@ export class Workspace extends EventEmitter {
     catch (error) { await this.refreshTasks(id); throw error; }
   }
   async create({ goal, cwd }) {
-    if (this.workerSlots() >= 4) throw Object.assign(new Error('Four tabs are already open.'), { status: 409 });
+    if (this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error(`All ${limits.maxWorkers} worker tabs are already open.`), { status: 409 });
     if (typeof goal !== 'string' || !goal.trim() || goal.length > 2000) throw Object.assign(new Error('Enter a goal of 1–2000 characters.'), { status: 400 });
     if (goal.trim().split('\n')[0].slice(0, 120) === COORDINATOR_NAME) throw Object.assign(new Error('This name is reserved for the coordinator. Enter a worker goal.'), { status: 400 });
     if (typeof cwd !== 'string' || !isAbsolute(cwd) || !(await stat(cwd)).isDirectory()) throw Object.assign(new Error('Choose an existing absolute working-directory path.'), { status: 400 });
-    if (this.workerSlots() >= 4) throw Object.assign(new Error('Four tabs are already open.'), { status: 409 });
+    if (this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error(`All ${limits.maxWorkers} worker tabs are already open.`), { status: 409 });
     this.creating++; let reserved = true;
     try {
       // Do not override native model, permissions, instructions, or approval policy.
@@ -264,7 +265,7 @@ export class Workspace extends EventEmitter {
     if (source.role === 'coordinator') throw Object.assign(new Error('Branch a worker conversation instead.'), { status: 400 });
     const atReply = lastTurnId !== undefined && lastTurnId !== null;
     if (atReply && (typeof lastTurnId !== 'string' || !source.messages.some(message => message.turnId === lastTurnId && message.branchable))) throw Object.assign(new Error('Choose a completed reply to branch from.'), { status: 400 });
-    if (this.workerSlots() >= 4) throw Object.assign(new Error('Close an agent tab before opening a branch. Conversations are kept.'), { status: 409 });
+    if (this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error('Close an agent tab before opening a branch. Conversations are kept.'), { status: 409 });
     this.creating++; let reserved = true;
     try {
       // Omit the cutoff for Branch chat; only Branch here selects a historical reply.
@@ -281,7 +282,7 @@ export class Workspace extends EventEmitter {
     const branch = this.agent(id); const parentId = branch.parentId;
     if (!parentId) throw Object.assign(new Error('This conversation has no parent branch.'), { status: 400 });
     if (this.agents.has(parentId)) return parentId;
-    const replace = this.workerSlots() >= 4;
+    const replace = this.workerSlots() >= limits.maxWorkers;
     if (replace) this.agents.delete(id);
     try { await this.open(parentId); return parentId; }
     catch (error) { if (replace) this.agents.set(id, branch); this.changed(); throw error; }

@@ -1,12 +1,13 @@
 # Workspace coordinator
 
-Version 0.4.0 adds one native Codex coordinator alongside up to four worker tabs.
+One native Codex coordinator runs alongside up to sixteen worker tabs in 0.14.0.
+The coordinator was introduced in 0.4.0.
 It starts automatically when the first worker is opened. In 0.8.1, its
 Coordinator tab sits in the right-hand controls outside the worker scrolling
 strip, immediately before the prominent Add agent button; workers stay left.
 It uses the same tab shape, height, typography and state styling as worker tabs.
 Its overview icon and separate coordinator identity remain. Mobile uses a compact presentation.
-The tab gives it its own chat, state and controls. All four
+The tab gives it its own chat, state and controls. All sixteen
 worker slots remain available. It uses the existing Codex account and configured
 model; no assistant-team service, extra provider, npm dependency or new task store
 is required.
