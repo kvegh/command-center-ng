@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.19.1** in package.json and the lockfile.
+The authoritative version is **0.19.2** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -604,3 +604,20 @@ the ordinary npm test invocation then passed all172. The separately tracked
 test-environment discrepancy is not established as fixed by this reader patch.
 
 0.19.1 implementation: `16006bccd4d7c17498ba26efed32d7b01ef46e51`.
+
+## Older-history approval citation correction: 0.19.2
+
+The coordinator reader exposed older user instructions while review searched
+only recent messages. Bounded native page references now let review re-read the
+exact page in the same worker and validate the actual user ID/quote. References
+are tied to the open worker object, capped at 128 and contain no transcript text.
+Other recent reads do not discard them; close/reopen or restart requires fresh
+history inspection. Generated relays, branch summaries and assistant messages
+cannot authorize actions. Recheck worker/request/token after asynchronous native
+reads. No live approval, request replay, native permission change or service
+restart is used for validation. Running installation update remains separate.
+
+All **180 application tests** and the production build pass. Eight new synthetic
+cases cover older citations and intervening reads, wrong quotes/provenance,
+worker/reopen boundaries, unavailable/changed pages, resolved/closed-worker races,
+bounded references and messages omitted by the response budget.

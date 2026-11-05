@@ -86,6 +86,18 @@ for the exact pending command/file request and waits for native resolution.
 Stale, already-resolving and unsupported requests fail. Broad filesystem/network
 permission grants, connector forms and user preference questions remain manual.
 
+Since 0.19.2, a citation returned by an older ccng_read_worker page can also be
+validated. For each open worker instance, the backend remembers at most 128
+native message-ID/cursor pairs for actual user messages exposed in bounded older
+reads. No transcript text is copied into this index. When a citation is absent
+from recent messages, review re-reads its exact native worker page and checks the
+native user item, exact quote and current request again. Another worker cannot
+reuse the reference. Missing/stale pages, generated relays, branch summaries,
+assistant messages and resolved requests are refused. Recent reads preserve the
+references; old entries are evicted when the bound is reached. Close/reopen or
+backend restart requires reading the original page again. References remain
+private process memory, outside browser/workspace persistence.
+
 The coordinator tab shows recent decisions/deliveries and their reasons. Native
 Codex history also retains coordinator tool calls and results. The bounded live
 decision list is process memory, not a new audit database. Supplied worker context

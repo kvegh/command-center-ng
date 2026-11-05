@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.19.1 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.19.2 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -762,3 +762,21 @@ Validation for 0.19.1: all **172 application tests** and the production build pa
 Nine new synthetic cases cover native cwd, subprocess paths, exact bindings,
 same-named files in another repository, changed/invalid directories, ambiguous
 requests and resolved hidden/sensitive path refusal.
+
+Version 0.19.2 fixes approval citations from older native worker history. The
+coordinator could read the original user instruction on an older page, yet its
+reviewer only searched recent messages and rejected that valid citation. The
+reader now retains bounded native page references for genuine user messages it
+exposes. Review re-reads the exact page in the same worker and checks the actual
+user message, exact quote and still-current request before approving. No full
+history scan, extra tool, copied transcript store or permission change is added.
+Recent reads do not discard earlier page references; closing/reopening the worker
+requires a fresh read. Generated relays and branch summaries remain excluded.
+Updating source alone does not update a running installation or decide a live
+request.
+
+Validation for 0.19.2: all **180 application tests** and the production build
+pass, including eight new older-history authority regressions. Tests use
+synthetic native pages and approvals; the reported live request remains
+independently reviewable after normal installation update/restart and a fresh
+read of its original user-history page.

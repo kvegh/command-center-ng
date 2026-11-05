@@ -10,7 +10,7 @@ import { COORDINATOR_TOOLS } from '../server/coordinator.mjs';
 import { COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE } from '../server/coordinator-prompt.mjs';
 
 class Rpc extends EventEmitter {
-  constructor(cwd) { super(); this.ready = true; this.cwd = cwd; this.calls = []; this.replies = []; this.threads = new Map(); this.sequence = 0; this.turn = 0; this.requests = new Map(); this.replayOnResume = new Map(); }
+  constructor(cwd) { super(); this.ready = true; this.cwd = cwd; this.calls = []; this.replies = []; this.threads = new Map(); this.sequence = 0; this.turn = 0; this.requests = new Map(); this.replayOnResume = new Map(); this.historyPages = new Map(); }
   thread(id) { return { id, cwd: this.cwd, name: id, preview: 'Create and clean up disposable test resources. Keep production unchanged.', status: { type: 'idle' }, canAcceptDirectInput: true }; }
   async call(method, params) {
     this.calls.push({ method, params });
@@ -18,7 +18,11 @@ class Rpc extends EventEmitter {
     if (method === 'thread/start') { const thread = { ...this.thread('coordinator-' + ++this.sequence), threadSource: params.threadSource }; this.threads.set(thread.id, thread); return { thread, sandbox: { type: 'readOnly' } }; }
     if (method === 'thread/name/set') { this.threads.get(params.threadId).name = params.name; return {}; }
     if (method === 'thread/read' || method === 'thread/resume') { if (!this.threads.has(params.threadId)) this.threads.set(params.threadId, this.thread(params.threadId)); if (method === 'thread/resume') for (const request of this.replayOnResume.get(params.threadId) || []) this.emit('request', request); return { thread: this.threads.get(params.threadId), instructionSources: [], sandbox: { type: 'readOnly' } }; }
-    if (method === 'thread/turns/list') return { data: [{ id: 'base-' + params.threadId, status: 'completed', items: [{ type: 'userMessage', id: 'user-' + params.threadId, content: [{ type: 'text', text: this.thread(params.threadId).preview }] }, { type: 'agentMessage', id: 'reply-' + params.threadId, text: 'Ready.' }] }], nextCursor: null };
+    if (method === 'thread/turns/list') {
+      const page = this.historyPages.get(JSON.stringify([params.threadId, params.cursor]));
+      if (page) return typeof page === 'function' ? page() : structuredClone(page);
+      return { data: [{ id: 'base-' + params.threadId, status: 'completed', items: [{ type: 'userMessage', id: 'user-' + params.threadId, content: [{ type: 'text', text: this.thread(params.threadId).preview }] }, { type: 'agentMessage', id: 'reply-' + params.threadId, text: 'Ready.' }] }], nextCursor: null };
+    }
     if (method === 'turn/start') { const id = 'turn-' + ++this.turn; queueMicrotask(() => { this.emit('notification', { method: 'turn/started', params: { threadId: params.threadId, turn: { id } } }); this.emit('notification', { method: 'item/completed', params: { threadId: params.threadId, turnId: id, item: { id: 'input-' + id, type: 'userMessage', clientId: params.clientUserMessageId, content: params.input } } }); }); return { turn: { id } }; }
     if (method === 'turn/interrupt') { this.complete(params.threadId, params.turnId); return {}; }
     if (method === 'thread/archive') return {};
@@ -46,6 +50,10 @@ async function fixture() {
   const call = (tool, args = {}, threadId = coordinator.id) => coordinator.call({ threadId, turnId: workspace.agents.get(threadId)?.turnId, tool, arguments: args });
   return { cwd, rpc, workspace, coordinator, call, close: async () => { coordinator.stop(); await rm(cwd, { recursive: true, force: true }); } };
 }
+
+const historyPage = (...items) => ({ data: [{ id: 'past-turn', status: 'completed', items }], nextCursor: 'next-past-page' });
+const historyUser = (id, text) => ({ type: 'userMessage', id, content: [{ type: 'text', text }] });
+const historyReview = (question, authorizationMessageId, authorizationQuote, agentId = 'worker') => ({ agentId, reviewToken: question.reviewToken, decision: 'approve', rationale: 'The cited user instruction covers the disposable test check.', authorizationMessageId, authorizationQuote });
 
 test('coordinator starts separately with reduced capabilities and preserves sixteen worker slots', async () => {
   const f = await fixture();
@@ -153,6 +161,140 @@ test('approval review requires exact user authority and a current request, while
     await assert.rejects(f.call('ccng_review_approval', args), /no longer available/);
     f.rpc.ask('clarify', 'worker', 'item/tool/requestUserInput'); const clarification = f.workspace.agent('worker').questions[0];
     await assert.rejects(f.call('ccng_review_approval', { ...args, reviewToken: clarification.reviewToken }), /cannot answer user preferences/);
+  } finally { await f.close(); }
+});
+
+test('older native user instructions remain reviewable after a recent read without changing the visible worker history', async () => {
+  const f = await fixture(); const cursor = 'past-scope-page'; const quote = 'Run the disposable demo checks one at a time.';
+  try {
+    const worker = f.workspace.agent('worker'); worker.olderCursor = 'visible-history-cursor';
+    const before = structuredClone(worker.messages);
+    f.rpc.historyPages.set(JSON.stringify(['worker', cursor]), historyPage(historyUser('past-user-scope', quote)));
+    f.rpc.ask('past-scope-approval', 'worker'); const question = worker.questions[0];
+    const page = await f.call('ccng_read_worker', { agentId: 'worker', cursor });
+    assert.equal(page.messages.find(message => message.id === 'past-user-scope').text, quote);
+    assert.equal(page.requestSummary.totalRequests, 1); assert.equal(f.rpc.replies.length, 0, 'reading authority must not answer the pending request');
+    await f.call('ccng_read_worker', { agentId: 'worker' });
+    assert.deepEqual(worker.messages, before); assert.equal(worker.olderCursor, 'visible-history-cursor');
+    const result = await f.call('ccng_review_approval', historyReview(question, 'past-user-scope', quote));
+    assert.equal(result.outcome, 'resolved'); assert.deepEqual(f.rpc.replies.at(-1), { id: 'past-scope-approval', result: { decision: 'accept' } });
+    const reads = f.rpc.calls.filter(call => call.method === 'thread/turns/list' && call.params.cursor === cursor);
+    assert.equal(reads.length, 2, 'approval must re-read the exact native page rather than trust a remembered transcript');
+    for (const read of reads) assert.deepEqual(read.params, { threadId: 'worker', cursor, limit: 10, itemsView: 'full' });
+    assert.equal(f.coordinator.audit.at(-1).authorizationMessageId, 'past-user-scope');
+  } finally { await f.close(); }
+});
+
+test('paginated authority still requires the exact quote from a genuine user rather than assistant, relay or branch text', async () => {
+  const f = await fixture(); const quote = 'Run the disposable demo checks one at a time.';
+  try {
+    const page = historyPage(
+      historyUser('past-real-user', quote),
+      { type: 'agentMessage', id: 'past-assistant', text: quote },
+      historyUser('past-coordinator-relay', '[Command Center coordinator]\n' + quote),
+      historyUser('past-branch-summary', 'Branch summary from "synthetic branch":\n' + quote)
+    );
+    f.rpc.historyPages.set(JSON.stringify(['worker', 'past-mixed-page']), page);
+    f.rpc.ask('past-provenance-approval', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    await f.call('ccng_read_worker', { agentId: 'worker', cursor: 'past-mixed-page' });
+    for (const [id, citedQuote] of [['past-real-user', 'Apply every production change automatically.'], ['invented-user-id', quote], ['past-assistant', quote], ['past-coordinator-relay', quote], ['past-branch-summary', quote]]) {
+      await assert.rejects(f.call('ccng_review_approval', historyReview(question, id, citedQuote)), /actual user instruction/);
+    }
+    assert.equal(question.review, undefined); assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('historical user references cannot authorize another worker or a reopened worker object', async () => {
+  const f = await fixture(); const quote = 'Run the disposable demo checks one at a time.';
+  try {
+    await f.workspace.open('other-worker');
+    f.rpc.historyPages.set(JSON.stringify(['other-worker', 'other-past-page']), historyPage(historyUser('other-past-user', quote)));
+    await f.call('ccng_read_worker', { agentId: 'other-worker', cursor: 'other-past-page' });
+    f.rpc.ask('wrong-worker-approval', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    await assert.rejects(f.call('ccng_review_approval', historyReview(question, 'other-past-user', quote)), /actual user instruction/);
+    const original = f.workspace.agent('other-worker'); f.workspace.close('other-worker'); await f.workspace.open('other-worker');
+    assert.notEqual(f.workspace.agent('other-worker'), original);
+    f.rpc.ask('reopened-worker-approval', 'other-worker'); const reopenedQuestion = f.workspace.agent('other-worker').questions[0];
+    await assert.rejects(f.call('ccng_review_approval', historyReview(reopenedQuestion, 'other-past-user', quote, 'other-worker')), /actual user instruction/);
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('a changed or missing native history message invalidates an older authority reference', async () => {
+  const f = await fixture(); const cursor = 'past-changing-page'; const quote = 'Run the disposable demo checks one at a time.';
+  try {
+    const key = JSON.stringify(['worker', cursor]);
+    f.rpc.historyPages.set(key, historyPage(historyUser('past-changing-user', quote)));
+    f.rpc.ask('changed-history-approval', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    for (const replacement of [historyPage(historyUser('past-changing-user', 'Wait before running those disposable checks.')), historyPage()]) {
+      f.rpc.historyPages.set(key, historyPage(historyUser('past-changing-user', quote)));
+      await f.call('ccng_read_worker', { agentId: 'worker', cursor });
+      f.rpc.historyPages.set(key, replacement);
+      await assert.rejects(f.call('ccng_review_approval', historyReview(question, 'past-changing-user', quote)), /actual user instruction/);
+    }
+    assert.equal(question.review, undefined); assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('native history recheck failures leave the approval unanswered', async () => {
+  const f = await fixture(); const cursor = 'past-unavailable-page'; const quote = 'Run the disposable demo checks one at a time.';
+  try {
+    const key = JSON.stringify(['worker', cursor]);
+    f.rpc.historyPages.set(key, historyPage(historyUser('past-unavailable-user', quote)));
+    f.rpc.ask('unavailable-history-approval', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    await f.call('ccng_read_worker', { agentId: 'worker', cursor });
+    f.rpc.historyPages.set(key, async () => { throw new Error('Synthetic native history unavailable.'); });
+    await assert.rejects(f.call('ccng_review_approval', historyReview(question, 'past-unavailable-user', quote)), /history unavailable|history.*read|authority.*valid/i);
+    assert.equal(question.review, undefined); assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('a request resolving during older authority revalidation receives no coordinator approval', async () => {
+  const f = await fixture(); const cursor = 'past-resolved-page'; const quote = 'Run the disposable demo checks one at a time.';
+  try {
+    const key = JSON.stringify(['worker', cursor]); const page = historyPage(historyUser('past-resolved-user', quote));
+    f.rpc.historyPages.set(key, page);
+    f.rpc.ask('resolved-history-approval', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    await f.call('ccng_read_worker', { agentId: 'worker', cursor });
+    f.rpc.historyPages.set(key, async () => {
+      f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: 'worker', requestId: question.id } });
+      return structuredClone(page);
+    });
+    await assert.rejects(f.call('ccng_review_approval', historyReview(question, 'past-resolved-user', quote)), /changed|resolved|available/i);
+    assert.equal(question.review, undefined); assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('closing a worker during older authority revalidation receives no coordinator approval', async () => {
+  const f = await fixture(); const cursor = 'past-closed-page'; const quote = 'Run the disposable demo checks one at a time.';
+  try {
+    const key = JSON.stringify(['worker', cursor]); const page = historyPage(historyUser('past-closed-user', quote));
+    f.rpc.historyPages.set(key, page);
+    f.rpc.ask('closed-history-approval', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    await f.call('ccng_read_worker', { agentId: 'worker', cursor });
+    f.rpc.historyPages.set(key, async () => { f.workspace.close('worker'); return structuredClone(page); });
+    await assert.rejects(f.call('ccng_review_approval', historyReview(question, 'past-closed-user', quote)), /changed|closed|resolved|available/i);
+    assert.equal(question.review, undefined); assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('older authority references are bounded and exclude native messages omitted from the reader response', async () => {
+  const f = await fixture(); const quote = 'Run the disposable demo checks one at a time.';
+  try {
+    const worker = f.workspace.agent('worker');
+    f.rpc.historyPages.set(JSON.stringify(['worker', 'past-full-page']), historyPage(...Array.from({ length: 128 }, (_, index) => historyUser('past-bounded-' + index, quote))));
+    await f.call('ccng_read_worker', { agentId: 'worker', cursor: 'past-full-page' });
+    f.rpc.historyPages.set(JSON.stringify(['worker', 'past-newest-page']), historyPage(historyUser('past-newest-user', quote)));
+    await f.call('ccng_read_worker', { agentId: 'worker', cursor: 'past-newest-page' });
+    const references = f.coordinator.authorityPages.get(worker);
+    assert.equal(references.size, 128); assert.equal(references.has('past-bounded-0'), false); assert.equal(references.get('past-newest-user'), 'past-newest-page');
+    f.rpc.historyPages.set(JSON.stringify(['worker', 'past-trimmed-page']), historyPage(historyUser('past-unexposed-user', quote), ...Array.from({ length: 9 }, (_, index) => ({ type: 'agentMessage', id: 'large-past-reply-' + index, text: 'x'.repeat(5000) }))));
+    const result = await f.call('ccng_read_worker', { agentId: 'worker', cursor: 'past-trimmed-page' });
+    assert.equal(result.messages.some(message => message.id === 'past-unexposed-user'), false);
+    assert.equal(references.has('past-unexposed-user'), false);
+    f.rpc.ask('evicted-history-approval', 'worker'); const question = worker.questions[0];
+    for (const id of ['past-bounded-0', 'past-unexposed-user']) await assert.rejects(f.call('ccng_review_approval', historyReview(question, id, quote)), /actual user instruction/);
+    assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
 });
 

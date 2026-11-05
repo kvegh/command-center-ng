@@ -30,6 +30,7 @@ export const COORDINATOR_TOOLS = [
 ];
 export function isCoordinatorMessage(message) { return message.type === 'user' && message.text.startsWith('[Command Center coordinator]'); }
 const isUserAuthority = message => message.type === 'user' && !isCoordinatorMessage(message) && !isBranchControlMessage(message.text);
+const pageMessages = page => [...page.data].reverse().flatMap(turn => (turn.items || []).filter(item => ['userMessage', 'agentMessage'].includes(item.type)).map(item => ({ id: item.id, type: item.type === 'userMessage' ? 'user' : 'assistant', text: item.text || item.content?.filter(part => part.type === 'text').map(part => part.text).join('\n') || '' })));
 
 export class Coordinator {
   constructor(workspace, { debounceMs = 1500, intervalMs = 30000 } = {}) {
@@ -37,6 +38,7 @@ export class Coordinator {
     this.dirty = new Map(); this.timer = null; this.lastRun = 0; this.debounceMs = debounceMs; this.intervalMs = intervalMs;
     this.deliveries = new Map(); this.reportPending = new Set(); this.reportVersions = new Map(); this.audit = []; this.stopped = false; this.running = false; this.messageActions = new Set();
     this.approvalSources = new Map();
+    this.authorityPages = new WeakMap();
   }
   workers() { return [...this.workspace.agents.values()].filter(agent => agent.role !== 'coordinator'); }
   setReportInterval(id, minutes, { notifyWorker = false } = {}) {
@@ -187,11 +189,32 @@ export class Coordinator {
     let messages = agent.messages.slice(-60); let nextCursor = agent.olderCursor;
     if (cursor) {
       const page = await this.rpc.call('thread/turns/list', { threadId: agent.id, cursor, limit: 10, itemsView: 'full' }); nextCursor = page.nextCursor || null;
-      messages = [...page.data].reverse().flatMap(turn => (turn.items || []).filter(item => ['userMessage', 'agentMessage'].includes(item.type)).map(item => ({ id: item.id, type: item.type === 'userMessage' ? 'user' : 'assistant', text: item.text || item.content?.filter(part => part.type === 'text').map(part => part.text).join('\n') || '' })));
+      messages = pageMessages(page);
     }
+    if (this.workspace.agents.get(agent.id) !== agent) throw fail('This worker closed while its history was read.');
     let budget = 40000;
     const bounded = [...messages].reverse().map(message => { const text = message.text.slice(0, Math.max(0, Math.min(5000, budget))); budget -= text.length; return { id: message.id, role: isCoordinatorMessage(message) ? 'coordinator' : message.type, text, truncated: text.length < message.text.length }; }).filter(message => message.text).reverse();
+    if (cursor) {
+      const pages = this.authorityPages.get(agent) || new Map();
+      for (const message of bounded) if (typeof message.id === 'string' && message.id && isUserAuthority({ type: message.role, text: message.text })) {
+        pages.delete(message.id); pages.set(message.id, cursor);
+        while (pages.size > 128) pages.delete(pages.keys().next().value);
+      }
+      this.authorityPages.set(agent, pages);
+    }
     return { ...this.list().find(row => row.id === agent.id), messages: bounded, olderCursor: nextCursor, instructions: await this.instructions(agent) };
+  }
+  async authorizationMessage(agent, id) {
+    const recent = [...agent.messages, ...(this.workspace.agents.get(this.id)?.messages || [])].find(message => message.id === id && isUserAuthority(message));
+    if (recent) return recent;
+    const pages = this.authorityPages.get(agent); const cursor = pages?.get(id);
+    if (!cursor || agent.provider === 'claude') return;
+    let page;
+    try { page = await this.rpc.call('thread/turns/list', { threadId: agent.id, cursor, limit: 10, itemsView: 'full' }); }
+    catch { pages.delete(id); throw fail('The native history page could not be rechecked. Read the original user instruction again before reviewing this action.'); }
+    const message = pageMessages(page).find(message => message.id === id && isUserAuthority(message));
+    if (!message) pages.delete(id);
+    return message;
   }
   async readFile(agent, path, startLine = 1) {
     if (typeof path !== 'string' || path.length > 1000 || path.split(/[\\/]/).some(part => part.startsWith('.') || /secret|credential|password|token|vault|auth/i.test(part))) throw fail('Read only ordinary project source files; hidden and sensitive paths need user review.', 400);
@@ -253,7 +276,8 @@ export class Coordinator {
     if (!['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method)) throw fail('The coordinator cannot answer user preferences or broad permission grants.', 400);
     let evidence;
     if (args.decision === 'approve') {
-      evidence = [...agent.messages, ...(this.workspace.agents.get(this.id)?.messages || [])].find(message => message.id === args.authorizationMessageId && isUserAuthority(message));
+      evidence = await this.authorizationMessage(agent, args.authorizationMessageId);
+      if (this.workspace.agents.get(agent.id) !== agent || !agent.questions.includes(question) || question.responding || question.reviewToken !== args.reviewToken) throw fail('This approval changed or resolved while its user instruction was checked.');
       if (!evidence || typeof args.authorizationQuote !== 'string' || args.authorizationQuote.trim().length < 8 || args.authorizationQuote.length > 500 || !evidence.text.includes(args.authorizationQuote)) throw fail('Approval requires an exact reference to an actual user instruction in this worker conversation.', 400);
       if (Array.isArray(question.params.availableDecisions) && !question.params.availableDecisions.includes('accept')) throw fail('This request does not offer an approve-once decision.', 400);
       const cwd = question.method === 'item/commandExecution/requestApproval' ? approvalWorkingDirectory(question, agent.cwd) : null; const command = approvalCommand(question);
@@ -262,7 +286,7 @@ export class Coordinator {
         const current = await inspectApprovalSource(cwd, command, path);
         if (current.sha256 !== previous.sha256 || current.commandSha256 !== previous.commandSha256) throw fail('Inspected helper source or the command changed. Read the current helper and review the exact action again.');
       }
-      if (this.workspace.agents.get(agent.id) !== agent || !agent.questions.includes(question) || question.responding || (cwd && approvalWorkingDirectory(question, agent.cwd) !== cwd) || approvalCommand(question) !== command) throw fail('This approval changed or resolved while its source was checked.');
+      if (this.workspace.agents.get(agent.id) !== agent || !agent.questions.includes(question) || question.responding || question.reviewToken !== args.reviewToken || (cwd && approvalWorkingDirectory(question, agent.cwd) !== cwd) || approvalCommand(question) !== command) throw fail('This approval changed or resolved while its source was checked.');
     }
     const entry = { agentId: agent.id, requestId: question.id, decision: args.decision, rationale: reason, authorizationMessageId: evidence?.id || null };
     question.review = { decision: args.decision, rationale: reason }; this.workspace.changed();

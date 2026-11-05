@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.19.1
+## Current development version: 0.19.2
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -340,3 +340,10 @@ cwd. Exact literal relative/absolute paths share the same checks and evidence;
 directory changes invalidate inspection. The older reader refuses ambiguous
 cross-directory matches and preserves ordinary project reads. No helper
 execution, dependency recursion or permission expansion is added.
+
+Version 0.19.2 lets the existing reviewer validate an actual user instruction
+returned by an older native worker-history page. Keep a bounded process-local
+page reference and re-read that exact native worker page for the cited ID;
+preserve exact quote, provenance, worker/request/token checks and generated-
+message exclusions. Do not infer authorization from assistant statements or
+coordinator relays, scan unrelated history or persist another transcript store.

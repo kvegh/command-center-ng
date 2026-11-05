@@ -65,6 +65,12 @@ restrictions cannot be applied. Never approve its own requests, broaden native
 permissions or claim model judgment provides hard containment. Approval requires
 an exact real-user-message reference, never a generated summary or event message.
 Keep manual controls, request identity, confirmation, pause and decision rationale.
+An actual user instruction returned through older native history can be cited.
+Use bounded per-worker native page references and re-read the exact page when
+the instruction is absent from recent messages. Preserve exact quote, native
+user provenance and current worker/request/token checks; generated relays and
+branch summaries remain excluded. Do not add a persistent authority store or
+broaden native permissions.
 Keep transcripts in native conversation history, live reviews/queues in process
 memory and only the approved workspace metadata in the private workspace file.
 Worker settings stay unchanged. The user also requested draggable tab order with
