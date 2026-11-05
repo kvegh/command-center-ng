@@ -685,3 +685,5 @@ Validation for0.23.0: all200 application tests and production build pass. Eight
 new timestamp checks cover provider/history mapping, stable streaming/refresh,
 invalid/unknown times and local24-hour header rendering. No live model run or
 running installation restart was used; interactive browser review is pending.
+
+0.23.0 implementation: `45c2ac9df9d73df5a1aa64ccf3ad44a3d33da4bf`.

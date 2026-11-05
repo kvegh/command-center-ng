@@ -1238,3 +1238,25 @@ and three service fixtures. Real systemd user-unit verification exited0 for a
 synthetic unit, with sandbox bus/socket warnings. It caught and corrected scalar
 WorkingDirectory quoting and executable-token dollar handling. No real unit was
 installed or started, and no live model, permission change or restart was used.
+
+## 2026-11-05 — Show message times beside authors in 0.23.0
+
+Implementation: `45c2ac9df9d73df5a1aa64ccf3ad44a3d33da4bf`.
+
+The user requested author/time headers such as Codex | hh:mm. Conversation
+headers now show a browser-local24-hour clock for user, Codex, Claude and
+Coordinator messages, with full date/source tooltip. Native Codex item start
+times and available Claude native message times are preserved. Completion-only
+times are a fallback for untimed history, not a reason to move an existing live
+receipt time. Live received/sent times remain stable through streaming, final
+replacement and same-ID history refresh; native start time can supersede them.
+
+Historical items without an available timestamp show an unavailable marker.
+The official Claude SDK history interface can omit timestamps even when native
+JSONL has them; no direct transcript parser, inference from reload time or new
+timestamp store was added. Existing native history/permissions remain intact.
+
+All200 application tests and production build pass, with eight new checks for
+provider mapping, streaming/refresh stability, invalid/unknown timestamps and
+24-hour/timezone rendering. Interactive browser/live provider review remains
+unperformed. No model call, host service change or running restart was used.
