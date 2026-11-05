@@ -97,6 +97,10 @@ cat > "$CCNG_STAGE/app/command-center-ng" <<'SH'
 CCNG_APP_DIR=$(dirname "$(realpath "$0")")
 PATH="$CCNG_APP_DIR/tools/bin:$CCNG_APP_DIR/tools/node_modules/.bin:$PATH"
 export PATH
+if [ "${1:-}" = service ]; then
+    shift
+    exec node "$CCNG_APP_DIR/server/user-service.mjs" "$@"
+fi
 exec node "$CCNG_APP_DIR/server/main.mjs" "$@"
 SH
 chmod 755 "$CCNG_STAGE/app/command-center-ng"
@@ -130,6 +134,7 @@ echo "Launcher: $CCNG_INSTALL_DIR/command-center-ng"
 echo 'If not set during installation, set your password with:'
 echo "  node '$CCNG_INSTALL_DIR/server/password.mjs'"
 echo "Start: '$CCNG_INSTALL_DIR/command-center-ng' --host 127.0.0.1 --port 4242"
+echo "Optional user service: '$CCNG_INSTALL_DIR/command-center-ng' service install -- [your existing runtime options]"
 echo 'For updates, run ./install.sh --update TARGET_DIR from the source checkout, then restart the app.'
 if [ "${CCNG_LOGIN_PENDING:-0}" -eq 1 ]; then echo 'Setup pending: run codex login --device-auth using the tool PATH shown above.'; fi
 echo 'Start the native daemon from a terminal with that tool PATH: codex app-server daemon start'

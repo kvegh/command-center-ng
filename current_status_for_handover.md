@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.21.0** in package.json and the lockfile.
+The authoritative version is **0.22.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -650,4 +650,21 @@ steering/native message identity, or owned active Claude through SDK next
 priority. Blocking requests, pause, handoff, failed/in-flight queue messages,
 bounds, coalescing and external Claude ownership stay protected. No interrupts
 or recurring CCNG timer. Focused coordinator checks and production build pass;
-full combined validation follows the user-service implementation.
+combined validation is recorded below.
+
+## User-level systemd management: 0.22.0
+
+The installed launcher supports service install/start/stop/restart/status/logs/
+enable/disable/uninstall. The owner-only unit preserves supplied runtime options
+and known non-secret native profile/config paths. Reinstall without options keeps
+the existing owned unit, and unrelated/symlink units are refused. Installation
+only reloads systemd; foreground migration and service start/enable are explicit.
+No lingering/native daemon change or host activation was performed. The live
+unit directory is outside the executing session writable roots; normal-terminal
+installation remains necessary. See installation guide for exact commands.
+
+Combined validation for0.22.0: all192 application tests and production build pass,
+including six priority-report regressions and three user-service fixtures.
+Systemd user-unit parser verification exits0 for a synthetic unit, with sandbox
+bus/socket warnings; live manager activation is unverified. No installed copy,
+live service, native daemon or lingering setting was changed by these tests.

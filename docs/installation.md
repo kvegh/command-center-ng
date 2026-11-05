@@ -102,6 +102,56 @@ conversation preserves that conversation's saved native directory.
 `CCNG_HOST`, `CCNG_PORT`, and `CCNG_PUBLIC_ORIGIN` provide environment equivalents
 for the listening options. Stop the foreground app with Ctrl+C.
 
+## User-level systemd service
+
+The installed launcher can manage Command Center as a user service. No sudo is
+needed. Update the installation first so its launcher includes the service
+commands, then register it with the same runtime options as your foreground app:
+
+```sh
+"$HOME/apps/command-center-ng/command-center-ng" service install -- \
+  --host 127.0.0.1 --port 4242 --cwd "$HOME/projects/WORKSPACE"
+```
+
+Replace the installation/workspace placeholders and retain your existing host,
+port, public origin and socket options. Registration writes an owner-only
+`${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/command-center-ng.service`
+and reloads the user manager. It does not start, restart or enable the app.
+It preserves the current PATH and explicitly configured Codex/Claude/CCNG profile
+locations in the generated private unit; do not put secrets in CLI arguments.
+Unrelated, linked or differently owned units are refused.
+
+After current managed Claude work has finished, stop the foreground CCNG copy
+once with Ctrl+C, then use:
+
+```sh
+"$HOME/apps/command-center-ng/command-center-ng" service start
+"$HOME/apps/command-center-ng/command-center-ng" service status
+"$HOME/apps/command-center-ng/command-center-ng" service restart
+"$HOME/apps/command-center-ng/command-center-ng" service stop
+"$HOME/apps/command-center-ng/command-center-ng" service logs
+```
+
+The equivalents are `systemctl --user start|status|restart|stop
+command-center-ng.service` and `journalctl --user -u command-center-ng.service`.
+The launcher logs command shows the latest100 lines; add `-f` to the direct
+journalctl command to follow output. Inactive status retains systemctl's nonzero
+exit status. The service restarts after unexpected failure and stops gracefully
+on request; stopping CCNG ends its SDK-owned Claude runs while native history
+survives. The separately running Codex daemon is not started, stopped or changed.
+
+Use `service enable` for startup when your user manager starts (normally login),
+or `service disable` to remove that startup choice. These commands do not
+start/stop the current app. Boot-before-login operation requires separately
+configured user lingering; registration does not change loginctl or permissions.
+`service uninstall` explicitly disables/stops only this owned user unit, removes
+it and reloads the manager; it leaves the installation and private app data intact.
+
+After normal application updates, use `service restart` when ready. Register
+again with explicit runtime options to replace saved options/profile/PATH values.
+Repeating `service install` without options preserves an existing owned unit.
+Running the launcher without `service` still starts it in the foreground.
+
 ## Updates
 
 From the source checkout, run:

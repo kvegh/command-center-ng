@@ -363,3 +363,12 @@ can use existing safe active Codex steering; ordinary summaries/settings retain
 idle gates. Keep native message identity, pending-request/pause/handoff gates,
 failed/in-flight messages, bounds and coalescing. Never interrupt an unsafe
 operation or answer questions/change permissions to force report delivery.
+
+## User-level service management
+
+The user approved a user-level systemd service with lifecycle/status/log controls
+through the installed launcher. Preserve runtime options and native profiles,
+private unit ownership and unrelated units. Unit installation reloads the user
+manager but start/enable remain explicit. Do not change lingering or native
+daemons automatically, interrupt running work for tests, or claim live service
+activation from synthetic fixtures. Respect protected host filesystem boundaries.

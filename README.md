@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.21.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.22.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -809,3 +809,21 @@ retain ownership and wait. Pending requests, pause,
 handoff, failed/in-flight messages, queue bounds and coalescing remain protected.
 No recurring CCNG timer, automatic interruption or permission grant is added.
 Native delivery and safe checkpoints still limit response time.
+
+
+Version 0.22.0 adds an optional user-level systemd service through the installed
+launcher. Run `TARGET_DIR/command-center-ng service install -- YOUR_RUNTIME_OPTIONS`
+with your existing bind/origin/directory options. Installation writes the owned
+user unit and reloads systemd; start and enable remain explicit. Stop a foreground
+copy before starting the service. Repeating installation without options preserves
+the saved unit. Use `service start`, `stop`, `restart`, `status`, `logs`, `enable`,
+`disable` or `uninstall`, or normal `systemctl --user` controls. Enable starts it
+at user login; lingering is a separate administrator/user choice. Native daemons,
+auth files and workspace state remain in their existing locations. See
+[service setup](docs/installation.md#user-level-systemd-service).
+
+Combined validation for0.22.0: all192 application tests and production build pass,
+including six priority-report regressions and three user-service fixtures.
+Systemd user-unit parser verification exits0 for a synthetic unit, with sandbox
+bus/socket warnings; live manager activation is unverified. No installed copy,
+live service, native daemon or lingering setting was changed by these tests.

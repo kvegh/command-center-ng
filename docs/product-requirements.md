@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.21.0
+## Current development version: 0.22.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -358,3 +358,9 @@ checkpoint, using current evidence before further project work. Report now uses
 existing native Codex steering during safe active turns and precedes unsent
 summaries. Preserve blocking-request, pause, handoff, queue and native identity
 protections; do not add automatic interrupts or a recurring CCNG timer.
+
+Version 0.22.0 adds explicit user-level systemd install/start/stop/restart/status/
+logs/enable/disable/uninstall through the maintained launcher. Preserve explicit
+runtime options, native profile paths, auth/workspace data and unrelated units.
+No root service, automatic live interruption, native daemon change or lingering
+change is introduced. Real host activation remains distinct from code publication.
