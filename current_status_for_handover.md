@@ -730,3 +730,5 @@ application tests and production build pass. The live owner-only unit was read
 but not changed; installation directories remain outside session writable roots.
 Existing-unit registration with its original runtime options and the confirmed
 tracker setting, restart, and actual task readback still need host verification.
+
+0.24.1 implementation: `a7670529bc996896ecead487fb0a00679b6cbdbc`.

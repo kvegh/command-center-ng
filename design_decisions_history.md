@@ -1292,3 +1292,27 @@ content/denial/cleanup, code blocks, rationale preservation and restored child
 activation/replayed-request regressions. No browser executable was available
 for interactive clipboard/layout checks. Live coordinator wording, live summary
 return and the running installation remain unverified; no restart occurred.
+
+## 2026-11-05 — Retain Beads tracker routing in user services in 0.24.1
+
+Implementation: `a7670529bc996896ecead487fb0a00679b6cbdbc`.
+
+Installed-app task reads failed with no Beads database while worker CLI commands
+could resolve the existing shared tracker. Read-only inspection found that the
+user unit retained PATH but omitted the terminal/agent tracker routing. Service
+generation now explicitly preserves supplied BEADS_DIR and
+BEADS_DOLT_SHARED_SERVER, without choosing another database, copying credentials
+or initializing/migrating a tracker. Reinstallation without runtime options
+continues to preserve the old unit; explicit registration refreshes it.
+
+The Tasks header now withholds totals until the tracker is ready. A failed
+Link tasks lookup says loading failed instead of suggesting there are no
+matches or work should be created. Existing error detail, input/save guards and
+conversation associations remain unchanged.
+
+All210 application tests and production build pass. The new fixture verifies
+explicit routing, excluded passwords, no automatic start, preserved old units,
+explicit replacement and omission of unset routing. The live unit was read only;
+refreshing its saved environment and verifying real task reads remain pending
+because the installed home directories are outside this session writable roots.
+No service restart, database initialization or data migration was performed.
