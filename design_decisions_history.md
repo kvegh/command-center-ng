@@ -893,3 +893,26 @@ of reading it is inferred. No live worker approval or service restart was used
 for validation. Ordinary-chat tracking is newly approved in scope but not yet
 implemented; Markdown rendering is separately requested and its library choice
 is pending, so neither is claimed delivered by this release.
+
+
+## 2026-11-05 — Raise worker capacity to sixteen in 0.14.0
+
+Implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
+
+The user requested a sensible increase from the four-worker limit. Sixteen
+worker tabs give room for several projects and branches while retaining a
+bounded workspace. The coordinator remains separate. One shared limit now
+controls the browser, native open/create/fork guards, parent navigation,
+coordinator instructions and private workspace save/restore. Existing saved
+records need no migration. Native subagent concurrency, worker permissions,
+coordinator restrictions and the scrolling tab layout are unchanged.
+
+Validation: production build and 61 tests passed without local sockets or
+installer home writes. Fixtures cover seventeen concurrent opens/creates
+admitting only sixteen workers, branching into the final slot, parent navigation
+at capacity and read-only restoration of sixteen workers plus the coordinator.
+The full suite was attempted; sandbox policy denied its local Unix sockets and
+installer home-directory writes, and broader test permissions were automatically
+rejected. Interactive browser verification remains unperformed. No live worker
+was created or interrupted and no running application was updated or restarted.
+Earlier unfinished changes remain outside this focused implementation commit.

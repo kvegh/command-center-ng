@@ -6,6 +6,7 @@ task source of truth; do not use this file as a second backlog.
 ## Versions and publication
 
 The authoritative version is **0.14.0** in package.json and the lockfile.
+Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
 Implementation: `2f8a45ad9846ea9799112395cb9effc4bf945a36`.
 It adds explicit multiple-request visibility and continued independent review to
