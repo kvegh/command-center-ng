@@ -767,3 +767,5 @@ history fixtures preserve inline image content. No interactive browser paste
 or live model image/schedule run was performed. The first expanded HTTP test
 exposed a fixture missing Beads.context, which was corrected before final pass.
 Running installation/systemd environment refresh remains a separate host step.
+
+0.25.0 implementation: `a4c30659cf7150d777e9f767738721bb6b2e7196`.

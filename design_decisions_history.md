@@ -1316,3 +1316,47 @@ explicit replacement and omission of unset routing. The live unit was read only;
 refreshing its saved environment and verifying real task reads remain pending
 because the installed home directories are outside this session writable roots.
 No service restart, database initialization or data migration was performed.
+
+## 2026-11-05 — Clipboard images and saved report instructions in 0.25.0
+
+Implementation: `a4c30659cf7150d777e9f767738721bb6b2e7196`.
+
+The user approved Ctrl+V image input and memory-only unsent drafts. The composer
+now shows removable previews and supports image-only or captioned messages for
+local Codex and managed Claude. Per-chat draft IDs bind asynchronous reads and
+send acknowledgements to the original chat; newer typing/images are retained.
+Tab switches preserve drafts, refresh discards images, and text keeps its
+existing browser persistence. No attachment database or upload directory was
+introduced. Native provider history owns sent image content.
+
+A shared limit definition bounds images to four,4MiB each/8MiB total, with
+supported image signatures and canonical base64 checked before dispatch. Only
+the authenticated message endpoint accepts12MiB JSON; other controls retain
+64KiB. Native image history is mapped to existing message records. Authenticated
+message/index URLs serve bytes while snapshots carry references, avoiding
+repeated full image payloads in live events. Remote URLs/local paths are not
+fetched/read. Native Codex receive capacity is bounded at64MiB for image-bearing
+history; a protocol fixture exceeds the old16MiB cap. The generic nginx example
+permits12m request bodies; no live proxy or host configuration was changed.
+
+The user also reported missing periodic reports. Interval instructions previously
+waited for idle and could sit behind ordinary summaries. They now share safe
+active-turn priority with Report now and support explicit retry of failed
+settings without automatic retries or crossing failed/in-flight barriers. Saved
+intervals are supplied in native startup/new-turn instructions, so a resumed
+worker can reconcile its cadence without another radio change or chat replay.
+Read-only restoration, native questions, pause, permissions and ownership remain
+protected. Agent-managed timing stays selected; no CCNG report timer was added.
+A one-time prompt/saved radio does not prove real recurrence. Codex can use
+available timing while active; a documented app-server idle scheduler has not
+been established. Native timed-report and runtime-shutdown recovery verification
+remain unfinished, rather than claimed fixed by delivery changes.
+
+All231 application tests and production build pass, including clipboard/draft
+behavior, provider image forms/SDK history, authenticated HTTP image access,
+large native image history, queue priority/retry and restored cadence context.
+An expanded HTTP fixture lacked Beads.context and was corrected before the
+final pass. Installed Codex schema generation confirmed image URL input shape
+without a model call. Browser paste/live model and timed recurrence checks
+remain unperformed. No running installation, systemd unit, native permission
+or live service was changed.
