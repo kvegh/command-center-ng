@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.25.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.26.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -302,20 +302,30 @@ question store or automatic transcript classifier.
 
 Each worker sidebar has **Worker specific settings**, with **Task report every**
 and radio choices **1h**, **15min**, **5min**, **Never**. Never is the default;
-choices persist per worker in the existing private workspace file. Selecting an
-interval sends one instruction to the agent: “Request for Standard Task Report
-every CHOSEN_TIME UNIT.” Changes replace the previous instruction; Never tells
-the agent to cancel recurring reports. The agent owns timing. Command Center has
-no recurring report timer and sends no repeated reminder prompts.
+choices persist per worker in the existing private workspace file. In0.26.0,
+Command Center's coordinator backend owns the timer. Changing a radio sets the
+next report deadline; it sends no interval-setting chat message. A browser
+refresh does not reset deadlines or require toggling a radio.
 
-Instructions use the existing message queue when work or a native request is
-pending; the sidebar identifies a queued instruction. Coordinator pause delays
-queued delivery, but does not pause a schedule already owned by the agent.
-Restoration restores the selected radio button without replaying instructions or
-starting a turn. After upgrading from the old CCNG timer, change the interval
-once (via Never if necessary) to instruct the agent under the new behavior.
-Timing and persistence depend on the agent's runtime; Command
-Center does not wake stopped sessions or guarantee background reporting.
+At backend startup, each restored enabled interval queues **one initial report**
+after state restoration, then continues at its interval. No missed-report burst
+is replayed. The scheduler reads all open/restored workers directly; it does
+not ask the coordinator model to wake on every tick. Closing a tab removes its
+CCNG schedule; the native agent's current work continues under existing rules.
+
+Internal report triggers and coordinator workspace-event inputs are hidden from
+CCNG worker/coordinator chat histories. The actual assistant reports remain
+visible. Native Codex client IDs/typed text metadata and Claude SDK synthetic
+inputs identify internal messages; normal summaries and user-written matching
+text remain visible. Native history is not deleted or rewritten.
+
+Reports reuse the bounded delivery queue and safe active-turn input paths.
+Pending native questions, permissions, pause, ownership, unavailable runtimes
+and branch handoffs still gate delivery. At most one report is outstanding per
+worker; Report now coalesces with a due report. Never cancels unsent scheduled
+requests while preserving explicit Report now and uncertain in-flight/failed
+actions. Failed native sends are not retried automatically. Workers stop their
+older self-scheduled report loops; CCNG's timer supplies one-off requests.
 
 The Git-saved `server/worker-instructions.md` defines **Standard Task Report**:
 vivid labelled report bullets, meaningful
@@ -829,7 +839,7 @@ existing native steering with native message identity. Owned active Claude runs
 receive SDK streaming input with next-checkpoint priority; external sessions
 retain ownership and wait. Pending requests, pause,
 handoff, failed/in-flight messages, queue bounds and coalescing remain protected.
-No recurring CCNG timer, automatic interruption or permission grant is added.
+That0.21.0 change added no recurring timer, automatic interruption or permission grant;0.26.0 subsequently adds the user-authorized backend report timer.
 Native delivery and safe checkpoints still limit response time.
 
 
@@ -916,7 +926,7 @@ bounded at64MiB to allow image-bearing history pages. Provider/model limits can
 still reject an image. Native permissions, authentication and request guards
 remain unchanged.
 
-## Report interval delivery in 0.25.0
+## Report interval delivery in 0.25.0 (superseded by0.26.0 timing)
 
 Interval changes now use the same safe active-turn delivery as Report now, so
 they do not wait behind ordinary summaries or a busy turn. An explicitly retried
@@ -935,3 +945,22 @@ Claude has [native session scheduling](https://code.claude.com/docs/en/scheduled
 verified or managed. Do not infer a working schedule from a selected radio,
 an accepted instruction or an undocumented native capability. Real timed
 recurrence and recovery after runtime shutdown remain unverified.
+
+## Report timer in0.26.0
+
+The user subsequently selected CCNG-managed timing and silent control traffic.
+The worker settings section above describes the current behavior. Earlier
+agent-managed timing instructions are superseded; no native clock loop is
+required to keep reports arriving. The scheduler lives in the existing backend,
+uses saved per-worker intervals and adds no service or persistent queue.
+Stopping CCNG stops its timer; restarting loads enabled intervals and queues one
+fresh report. Provider work and native permissions retain their existing lifecycle.
+
+## Claude work during backend restarts
+
+CCNG currently owns the official Claude SDK processes. Stopping or restarting
+the backend stops those managed runs; saved native history permits later resume.
+Closing the browser or removing a tab leaves work running while the backend
+stays up. The user rejected adding a separate Claude daemon/service, so0.26.0
+does not change this lifecycle. Native CLI background mode exists, but supported
+SDK reattachment to a local background process has not been established.

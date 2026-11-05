@@ -158,24 +158,26 @@ test('an unavailable saved coordinator is retried by ID without creating a repla
 });
 
 
-test('per-worker report intervals persist privately and restore the selection without replaying instructions or starting timers', async () => {
+test('saved report intervals arm silently after restoration and stay queued while the coordinator is paused', async () => {
   const saved = { ...record(['one', 'two'], 'coordinator', true), workerReportIntervals: { one: 5, two: 60 } };
   const f = await restored(saved);
   try {
     assert.deepEqual(await f.store.load(), saved);
     assert.equal(f.workspace.agent('one').reportIntervalMinutes, 5); assert.equal(f.workspace.agent('two').reportIntervalMinutes, 60);
     assert.equal('nextReportAt' in f.workspace.agent('one'), false);
-    assert.equal(f.workspace.coordinator.deliveries.size, 0);
+    assert.equal(f.workspace.coordinator.deliveries.size, 2);
+    assert.ok([...f.workspace.coordinator.deliveries.values()].every(rows => rows.length === 1 && rows[0].scheduledReport));
+    assert.equal(f.workspace.coordinator.reportSchedules.size, 2);
     assert.ok(f.rpc.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)));
     const restoredInstructions = (await f.workspace.instructionContext(f.workspace.agent('one')))['command-center-worker-instructions'].value;
     assert.match(restoredInstructions, /Current saved Standard Task Report interval: 5 minutes/);
-    assert.match(restoredInstructions, /Browser refresh or tab switching does not cancel it/);
+    assert.match(restoredInstructions, /Command Center owns this timer/);
     f.workspace.coordinator.setReportInterval('one', 15); await f.persistence.queue;
     assert.deepEqual((await f.store.load()).workerReportIntervals, { one: 15, two: 60 });
     assert.match((await f.workspace.instructionContext(f.workspace.agent('one')))['command-center-worker-instructions'].value, /Current saved Standard Task Report interval: 15 minutes/);
     f.workspace.coordinator.setReportInterval('one', 0);
     assert.match((await f.workspace.instructionContext(f.workspace.agent('one')))['command-center-worker-instructions'].value, /Current saved Standard Task Report interval: Never/);
-    assert.equal(f.workspace.coordinator.deliveries.size, 0, 'recovering cadence in instruction context must not replay chat messages');
+    assert.deepEqual([...f.workspace.coordinator.deliveries.keys()], ['two'], 'changing/canceling one schedule leaves the other startup report queued');
     assert.ok(f.rpc.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)), 'reading restored timing does not wake the native session');
     f.workspace.coordinator.setReportInterval('one', 15);
     f.workspace.close('two'); await f.persistence.queue;
@@ -187,5 +189,26 @@ test('saved reporting rejects unsupported intervals, unknown workers and prototy
   const f = await fixture();
   try {
     for (const intervals of [{ one: 1 }, { one: '5' }, { absent: 5 }, [], null, JSON.parse('{"__proto__":5}')]) assert.throws(() => f.store.save({ ...record(), workerReportIntervals: intervals }), /report settings/);
+  } finally { await f.close(); }
+});
+
+
+test('startup triggers one silent report for each enabled saved worker without coordinator LLM turns or restore duplicates', async () => {
+  const saved = { ...record(['one', 'two', 'never']), workerReportIntervals: { one: 5, two: 15 } };
+  const f = await restored(saved);
+  try {
+    const waitUntil = Date.now() + 2000;
+    while (f.workspace.coordinator.workers().some(agent => agent.coordinatorSending) && Date.now() < waitUntil) await new Promise(resolve => setTimeout(resolve, 5));
+    const reports = f.rpc.calls.filter(call => call.method === 'turn/start');
+    assert.deepEqual(reports.map(call => call.params.threadId).sort(), ['one', 'two']);
+    assert.ok(reports.every(call => /^ccng-report-/.test(call.params.clientUserMessageId)));
+    assert.ok(reports.every(call => /Standard Task Report, once/.test(call.params.input[0].text)));
+    assert.equal(f.rpc.calls.some(call => call.method === 'thread/start'), false);
+    assert.equal(f.workspace.agent('never').observingOnly, true);
+    const count = f.rpc.calls.length;
+    f.workspace.coordinator.reconcileReportSchedules({ startup: true });
+    await f.persistence.restore();
+    assert.equal(f.rpc.calls.length, count, 'reconciliation/reconnect does not replay the startup report');
+    assert.deepEqual((await f.store.load()).workerReportIntervals, saved.workerReportIntervals);
   } finally { await f.close(); }
 });

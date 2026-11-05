@@ -314,11 +314,19 @@ for each request. Ordinary project reads still use the worker's directory.
 If available tools still reject a read, explain the concrete refusal rather than
 claiming arbitrary access or silently bypassing it.
 
-Radio interval changes send one Standard Task Report timing instruction to the
-worker, which owns reporting cadence. CCNG sends no recurring report prompts.
-Never asks the worker to cancel its schedule; Report now remains a one-off request.
-Existing work/question/pause/handoff gates govern queued instruction delivery.
-Restoration restores selection without replaying instructions or starting turns.
+Version0.26.0 replaces agent-owned timing with a coordinator-backend timer.
+Saved enabled intervals queue one initial report after restoration, then repeat
+at their interval. Radio changes reset the deadline silently; browser refresh
+and idempotent reconciliation do not. Never cancels unsent scheduled reports;
+Report now remains one-off and coalesces with outstanding work. Existing native
+request/pause/handoff/ownership/availability gates still apply. No coordinator
+model turn is needed per timer tick or scheduled-report completion.
+
+Internal report/control/event inputs are hidden in CCNG presentation using
+native typed markers and official SDK synthetic metadata. Actual reports,
+ordinary summaries and identical user-written text remain visible; native
+history is retained. Stopping the backend clears timers; restart loads intervals
+rather than replaying old native approvals or missed-report bursts.
 
 
 ## Local providers and recorded chat questions in0.19.0

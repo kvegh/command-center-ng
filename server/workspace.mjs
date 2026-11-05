@@ -7,7 +7,7 @@ import { VERSION } from './version.mjs';
 import { WORKER_BASE_INSTRUCTIONS, WORKER_REPORT_INSTRUCTIONS, reportTimingContext } from './worker-instructions.mjs';
 import { isHumanRequest, manualRequestAnswer } from './native-requests.mjs';
 import { readModelCatalog, validateModelChoice } from './worker-models.mjs';
-import { isReportClientId, isReportSettingClientId } from './report-messages.mjs';
+import { markInternalInput, reportMessageFlags } from './report-messages.mjs';
 import { taskSummary, reportedPlan } from './task-summary.mjs';
 import { BeadsTasks, sessionLabel } from './beads.mjs';
 import { Coordinator, COORDINATOR_NAME, isCoordinatorThread } from './coordinator.mjs';
@@ -56,6 +56,7 @@ export class Workspace extends EventEmitter {
     this.claude = claude === true ? new ClaudeSessions() : claude;
     this.claude?.on('change', id => { this.changed(); if (this.agents.has(id)) void this.coordinator?.flush(id); });
     this.claude?.on('completed', id => { if (this.agents.has(id)) { this.coordinator?.completed(id); void this.refreshTasks(id); } });
+    this.claude?.on('assistantMessageCompleted', (id, message) => { if (this.agents.has(id)) this.coordinator?.reportMessageCompleted(id, message); });
     rpc.on('notification', message => this.notification(message));
     rpc.on('request', message => this.request(message));
     rpc.on('disconnected', message => {
@@ -190,7 +191,7 @@ export class Workspace extends EventEmitter {
     })();
     this.observedReads.set(id, job); try { await job; } finally { this.observedReads.delete(id); }
   }
-  addItem(agent, item, turnId, branchable = false, { live = false, previous: prior } = {}) {
+  addItem(agent, item, turnId, branchable = false, { live = false, completed = false, previous: prior } = {}) {
     const plan = reportedPlan(item); if (plan) agent.tasks = plan;
     if (item.type === 'agentMessage' && item.phase === 'commentary' && !item.text.includes('```')) agent.summary = item.text.split(/\n\s*\n/)[0];
     if (item.type === 'collabAgentToolCall') {
@@ -210,8 +211,10 @@ export class Workspace extends EventEmitter {
     const images = item.type === 'userMessage' ? codexImages(item.content) : [];
     const text = itemText(item); if (!text && !images.length) return;
     const previous = agent.messages.findIndex(m => m.id === item.id);
-    const record = { id: item.id, turnId, branchable, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text: text || '', ...(images.length ? { images } : {}), state: item.status || 'completed', ...itemTime(item, agent.messages[previous] || prior, live), ...(item.type === 'userMessage' && isReportClientId(item.clientId) ? { internalReport: true } : {}), ...(item.type === 'userMessage' && isReportSettingClientId(item.clientId) ? { internalReportControl: true } : {}) };
+    const previousRecord = agent.messages[previous] || prior;
+    const record = { id: item.id, turnId, branchable, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text: text || '', ...(images.length ? { images } : {}), state: item.status || 'completed', ...itemTime(item, previousRecord, live), ...reportMessageFlags(item, previousRecord) };
     if (previous >= 0) agent.messages[previous] = record; else agent.messages.push(record);
+    if (live && completed && record.type === 'assistant') this.coordinator?.reportMessageCompleted(agent.id, record);
     if (agent.messages.length > 600) agent.messages = agent.messages.slice(-600);
     if (record.type === 'activity') agent.activity = { text: String(text).split('\n')[0].slice(0, 180), state: record.state };
   }
@@ -332,7 +335,7 @@ export class Workspace extends EventEmitter {
       await this.send(thread.id, goal.trim()); return thread.id;
     } finally { if (reserved) this.creating--; }
   }
-  async send(id, text, { report = false, reportSetting = false, images: suppliedImages } = {}) {
+  async send(id, text, { report = false, reportSetting = false, coordinatorEvent = false, images: suppliedImages } = {}) {
     const agent = this.agent(id);
     if (this.summaryJobs.has(id) || this.returnJobs.has(id) || agent.returnSummary?.delivered) throw Object.assign(new Error('Finish the branch handoff before sending another message.'), { status: 409 });
     if (!agent.canSend) throw Object.assign(new Error(agent.managementNotice || 'The native agent does not allow direct input to this session.'), { status: 409 });
@@ -346,7 +349,7 @@ export class Workspace extends EventEmitter {
     if (!this.readyFor(agent)) throw Object.assign(new Error('Reconnect the native runtime before sending this message.'), { status: 503 });
     if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
     if (agent.provider === 'claude') {
-      await this.claude.send(agent, text.trim(), { images, instructions: Object.values(context).map(part => part.value).join('\n\n'), stillOpen: () => this.agents.get(id) === agent, ...(report || reportSetting ? { priority: 'next' } : {}) }); return;
+      await this.claude.send(agent, text.trim(), { images, report, reportSetting, instructions: Object.values(context).map(part => part.value).join('\n\n'), stillOpen: () => this.agents.get(id) === agent, ...(report || reportSetting ? { priority: 'next' } : {}) }); return;
     }
     if (agent.freshBranch && !report && !reportSetting) {
       const title = text.trim().split('\n')[0].slice(0, 120) || 'Image message';
@@ -355,10 +358,13 @@ export class Workspace extends EventEmitter {
     }
     if (this.agents.get(id) !== agent) throw Object.assign(new Error('The worker was closed before message delivery.'), { status: 409 });
     if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
+    const clientUserMessageId = report || reportSetting || coordinatorEvent ? (report ? 'ccng-report-' : reportSetting ? 'ccng-report-setting-' : 'ccng-event-') + randomUUID() : null;
+    const messageInput = markInternalInput(input(text.trim(), images), clientUserMessageId);
+    const identity = clientUserMessageId ? { clientUserMessageId } : {};
     if (agent.thread.status?.type === 'active' && agent.turnId) {
-      await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: agent.turnId, input: input(text.trim(), images), ...(report || reportSetting ? { clientUserMessageId: (report ? 'ccng-report-' : 'ccng-report-setting-') + randomUUID() } : {}) });
+      await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: agent.turnId, input: messageInput, ...identity });
     } else {
-      const { turn } = await this.rpc.call('turn/start', { threadId: id, input: input(text.trim(), images), ...(report || reportSetting ? { clientUserMessageId: (report ? 'ccng-report-' : 'ccng-report-setting-') + randomUUID() } : {}), additionalContext: context }); agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed();
+      const { turn } = await this.rpc.call('turn/start', { threadId: id, input: messageInput, ...identity, additionalContext: context }); agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed();
     }
   }
   async instructionContext(agent) {
@@ -559,7 +565,7 @@ export class Workspace extends EventEmitter {
       this.coordinator?.completed(id);
     }
     if (method === 'turn/plan/updated') agent.tasks = (p.plan || []).map((t, i) => ({ id: String(i), text: t.step, state: t.status }));
-    if (method === 'item/started' || method === 'item/completed') this.addItem(agent, p.item, p.turnId, false, { live: true });
+    if (method === 'item/started' || method === 'item/completed') this.addItem(agent, p.item, p.turnId, false, { live: true, completed: method === 'item/completed' });
     if (method === 'item/agentMessage/delta') {
       const existing = agent.messages.find(m => m.id === p.itemId);
       if (existing) { existing.text += p.delta; Object.assign(existing, itemTime(p, existing, true)); }

@@ -43,9 +43,21 @@ async function waitFor(predicate) {
 }
 const delivered = (f, count = 1) => waitFor(() => f.rpc.calls.filter(call => call.method === 'turn/start').length === count && f.coordinator.workers().every(agent => !agent.coordinatorSending));
 
-async function fixture() {
+function fakeReportClock() {
+  let now = 0, sequence = 0;
+  const timers = new Map();
+  return {
+    now: () => now,
+    setTimeout: (run, delay) => { const id = ++sequence; timers.set(id, { run, at: now + delay }); return id; },
+    clearTimeout: id => timers.delete(id), timers,
+    advance(ms) { now += ms; for (const [id, timer] of [...timers]) if (timer.at <= now) { timers.delete(id); timer.run(); } }
+  };
+}
+const standardReport = '- 🟩 **Done:** Published version 0.26.0.\n- 🟨 **In progress:** Continue the authorized build.\n- 🟥 **Blocked / needs input:** None.\n- 🟦 **Next:** Finish verification.';
+
+async function fixture(coordinatorOptions = {}) {
   const cwd = await mkdtemp(join(tmpdir(), 'ccng-coordinator-')); const rpc = new Rpc(cwd);
-  const workspace = new Workspace(rpc, { beads: null, coordinator: { debounceMs: 1000000, intervalMs: 1000000 } }); rpc.workspace = workspace;
+  const workspace = new Workspace(rpc, { beads: null, coordinator: { debounceMs: 1000000, intervalMs: 1000000, ...coordinatorOptions } }); rpc.workspace = workspace;
   await workspace.open('worker'); await workspace.coordinator.ensure();
   const coordinator = workspace.coordinator; workspace.agent(coordinator.id).turnId = 'coord-turn'; workspace.agent(coordinator.id).thread.status = { type: 'active' };
   const call = (tool, args = {}, threadId = coordinator.id) => coordinator.call({ threadId, turnId: workspace.agents.get(threadId)?.turnId, tool, arguments: args });
@@ -572,7 +584,7 @@ test('priority insertion preserves an in-flight message and follows it without w
   } finally { await f.close(); }
 });
 
-test('priority reports and cadence changes cannot bypass a failed queued message or the queue bound', async () => {
+test('priority reports cannot bypass a failed queued message or the queue bound', async () => {
   const f = await fixture();
   try {
     const worker = f.workspace.agent('worker'); f.coordinator.paused = true;
@@ -581,193 +593,238 @@ test('priority reports and cadence changes cannot bypass a failed queued message
     assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.kind), ['summary', 'report', 'summary']);
     f.coordinator.paused = false; await f.coordinator.flush('worker');
     assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer'].includes(call.method)), false);
-    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
-    assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.kind), ['summary', 'report', 'report-setting', 'summary']);
-    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer'].includes(call.method)), false);
+    f.coordinator.queue(worker, 'Fourth message.', 'summary');
     assert.throws(() => f.coordinator.queue(worker, 'Fifth message.', 'summary'), /four queued/);
     assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
 });
 
 
-test('interval selections send one independent instruction per worker and elapsed time does not produce report prompts', async t => {
-  const f = await fixture();
+test('per-worker timers start after selection, keep deadlines across reads and do not catch up missed periods', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
   try {
     await f.workspace.open('second');
     f.coordinator.setReportInterval('worker', 5, { notifyWorker: true });
     f.coordinator.setReportInterval('second', 15, { notifyWorker: true });
-    await delivered(f, 2);
-    const sent = f.rpc.calls.filter(call => call.method === 'turn/start');
-    assert.equal(sent.length, 2);
-    assert.match(sent.find(call => call.params.threadId === 'worker').params.input[0].text, /every 5 minutes/);
-    assert.match(sent.find(call => call.params.threadId === 'second').params.input[0].text, /every 15 minutes/);
-    assert.match(sent[0].params.input[0].text, /Command Center will not send recurring reminders/);
-    assert.match(sent[0].params.additionalContext['command-center-worker-instructions'].value, /You own that reporting schedule/);
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false, 'selecting an interval sends no cadence prompt');
+    assert.equal(clock.timers.size, 1, 'all workers share one timer');
+    const deadline = f.coordinator.reportSchedules.get('worker').nextAt;
+    f.workspace.snapshot(); f.coordinator.reconcileReportSchedules({ startup: true });
+    assert.equal(f.coordinator.reportSchedules.get('worker').nextAt, deadline, 'reads/reconciliation do not restart a selected interval');
+    clock.advance(5 * 60_000); await delivered(f);
+    assert.equal(f.rpc.calls.find(call => call.method === 'turn/start').params.threadId, 'worker');
+    f.coordinator.dirty.clear(); f.rpc.complete('worker');
+    assert.equal(f.coordinator.dirty.size, 0, 'scheduled report completion does not wake the coordinator LLM');
+    clock.advance(10 * 60_000); await delivered(f, 3);
+    assert.deepEqual(f.rpc.calls.filter(call => call.method === 'turn/start').map(call => call.params.threadId), ['worker', 'worker', 'second']);
     for (const id of ['worker', 'second']) f.rpc.complete(id);
-    t.mock.method(Date, 'now', () => 9999999999999);
-    for (let i = 0; i < 3; i++) for (const id of ['worker', 'second']) {
-      await f.workspace.refreshObserved(id); await f.coordinator.flush(id);
-    }
-    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 2, 'time and observation do not queue periodic prompts');
-    assert.equal('nextReportAt' in f.workspace.agent('worker'), false);
-    assert.equal(f.coordinator.pollReports, undefined);
+    clock.advance(60 * 60_000); await delivered(f, 5);
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 5, 'a long pause creates at most one current report per worker');
+    assert.equal(f.coordinator.reportSchedules.get('worker').nextAt, clock.now() + 5 * 60_000);
     for (const value of [1, 10, '5', -1, null]) assert.throws(() => f.coordinator.setReportInterval('worker', value), /Choose/);
     assert.throws(() => f.coordinator.setReportInterval(f.coordinator.id, 5), /worker/);
-  } finally { t.mock.restoreAll(); await f.close(); }
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
 });
 
-test('interval replacements and Never wait for pending requests without answering or interrupting them', async () => {
-  const f = await fixture();
+test('startup reads saved intervals and queues one initial report without replaying cadence instructions', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
   try {
-    const worker = f.workspace.agent('worker'); worker.turnId = 'active'; worker.thread.status = { type: 'active' };
+    const worker = f.workspace.agent('worker');
+    await f.workspace.open('second');
+    f.workspace.restoring = true; f.coordinator.setReportInterval('worker', 15); f.coordinator.setReportInterval('second', 60);
+    f.coordinator.reconcileReportSchedules({ startup: true });
+    assert.equal(clock.timers.size, 0); assert.equal(f.coordinator.deliveries.size, 0);
+    f.workspace.restoring = false;
+    f.coordinator.reconcileReportSchedules({ startup: true });
+    f.coordinator.reconcileReportSchedules({ startup: true });
+    await delivered(f, 2);
+    assert.deepEqual(f.rpc.calls.filter(call => call.method === 'turn/start').map(call => call.params.threadId), ['worker', 'second']);
+    const request = f.rpc.calls.find(call => call.method === 'turn/start' && call.params.threadId === 'worker');
+    assert.match(request.params.input[0].text, /Scheduled task report/);
+    assert.match(request.params.clientUserMessageId, /^ccng-report-/);
+    assert.equal(worker.reportIntervalMinutes, 15);
+    assert.equal(f.coordinator.list().find(row => row.id === 'worker').nextReportAt, new Date(15 * 60_000).toISOString());
+    f.coordinator.dirty.clear(); f.rpc.complete('worker'); f.rpc.complete('second');
+    assert.equal(f.coordinator.dirty.size, 0);
+    clock.advance(15 * 60_000); await delivered(f, 3);
+  } finally { await f.close(); }
+});
+
+test('Never cancels queued scheduled reports while preserving explicit Report now and pending native requests', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
+  try {
+    const worker = f.workspace.agent('worker');
     f.rpc.ask('waiting', 'worker');
     f.coordinator.setReportInterval('worker', 5, { notifyWorker: true });
-    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
+    clock.advance(5 * 60_000);
+    assert.equal(f.coordinator.deliveries.get('worker')[0].scheduledReport, true);
     f.coordinator.setReportInterval('worker', 0, { notifyWorker: true });
-    assert.equal(f.coordinator.deliveries.get('worker').length, 1);
-    assert.match(f.coordinator.deliveries.get('worker')[0].text, /Cancel your recurring Standard Task Report schedule/);
-    assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'worker').reportSettingPending, true);
-    f.rpc.complete('worker', 'active'); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.coordinator.deliveries.has('worker'), false); assert.equal(f.coordinator.reportPending.has('worker'), false);
+    assert.equal(clock.timers.size, 0);
+    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
+    f.coordinator.requestUserReport('worker'); clock.advance(15 * 60_000);
+    assert.equal(f.coordinator.deliveries.get('worker').length, 1, 'scheduled and explicit reports coalesce');
+    f.coordinator.setReportInterval('worker', 0, { notifyWorker: true });
+    assert.match(f.coordinator.deliveries.get('worker')[0].text, /user selected Report now/);
+    f.rpc.complete('worker'); await new Promise(resolve => setImmediate(resolve));
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
     worker.thread.status = { type: 'active', activeFlags: ['waitingOnApproval'] };
-    f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: 'worker', requestId: 'waiting' } });
-    await new Promise(resolve => setImmediate(resolve));
+    f.workspace.removeQuestion('worker', 'waiting'); await f.coordinator.flush('worker');
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
     worker.thread.status = { type: 'idle' }; await f.coordinator.flush('worker');
     assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
-    assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'worker').reportSettingPending, false);
-    assert.equal(f.coordinator.reportState('worker'), null, 'a cadence instruction is not a report');
-    assert.equal(f.rpc.replies.length, 0);
-    assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
+    assert.equal(f.rpc.replies.length, 0); assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
   } finally { await f.close(); }
 });
 
-test('report preferences cannot start branch handoffs or claim a queued instruction when disconnected', async () => {
-  const f = await fixture();
+test('Report now promotes an outstanding scheduled request so Never cannot remove the explicit request', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
   try {
-    const worker = f.workspace.agent('worker');
-    f.workspace.summaryJobs.set('worker', {});
-    assert.throws(() => f.coordinator.setReportInterval('worker', 5, { notifyWorker: true }), /branch handoff/);
-    f.workspace.summaryJobs.delete('worker'); f.rpc.ready = false;
-    assert.throws(() => f.coordinator.setReportInterval('worker', 5, { notifyWorker: true }), /Reconnect/);
-    assert.equal(worker.reportIntervalMinutes, 0);
-    assert.equal(f.coordinator.deliveries.has('worker'), false);
-    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+    f.coordinator.paused = true;
+    f.coordinator.setReportInterval('worker', 5, { notifyWorker: true }); clock.advance(5 * 60_000);
+    assert.equal(f.coordinator.requestUserReport('worker').alreadyPending, true);
+    assert.equal(f.coordinator.deliveries.get('worker')[0].scheduledReport, false);
+    f.coordinator.setReportInterval('worker', 0, { notifyWorker: true });
+    assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+    f.coordinator.paused = false; await f.coordinator.flush('worker'); await delivered(f);
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
   } finally { await f.close(); }
 });
 
-test('cadence changes reach a busy Codex turn once and do not become recurring prompts', async () => {
-  const f = await fixture();
+test('scheduled reports remain deferred across handoff, pause and disconnection and never retry failed native sends', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
+  try {
+    f.coordinator.setReportInterval('worker', 5, { notifyWorker: true });
+    f.coordinator.paused = true; clock.advance(5 * 60_000);
+    assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+    f.coordinator.paused = false; f.workspace.summaryJobs.set('worker', {}); clock.advance(1000);
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+    f.workspace.summaryJobs.delete('worker'); f.rpc.ready = false; clock.advance(1000);
+    assert.equal(f.coordinator.deliveries.get('worker')[0].error, undefined);
+    const send = f.workspace.send.bind(f.workspace); let attempts = 0;
+    f.workspace.send = async (...args) => { attempts++; throw new Error('Synthetic native send failure'); };
+    f.rpc.ready = true; clock.advance(1000);
+    await waitFor(() => !!f.coordinator.deliveries.get('worker')[0].error);
+    assert.equal(attempts, 1); assert.match(f.workspace.agent('worker').reportError, /Synthetic native send failure/);
+    clock.advance(60 * 60_000); await f.coordinator.flush('worker');
+    assert.equal(attempts, 1, 'failed native send remains for manual review rather than automatic retry');
+    f.coordinator.setReportInterval('worker', 0, { notifyWorker: true });
+    assert.ok(f.coordinator.deliveries.get('worker')[0].error, 'Never preserves uncertain failed delivery evidence');
+    f.workspace.send = send;
+  } finally { await f.close(); }
+});
+
+test('due reports use native active input for Codex and owned Claude without taking over external sessions', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
   try {
     const worker = f.workspace.agent('worker'); worker.turnId = 'active-work'; worker.thread.status = { type: 'active' };
-    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
+    f.coordinator.setReportInterval('worker', 5, { notifyWorker: true }); clock.advance(5 * 60_000);
     await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer') && !worker.coordinatorSending);
-    const steers = f.rpc.calls.filter(call => call.method === 'turn/steer');
-    assert.equal(steers.length, 1);
-    assert.equal(steers[0].params.expectedTurnId, 'active-work');
-    assert.match(steers[0].params.clientUserMessageId, /^ccng-report-setting-/);
-    assert.match(steers[0].params.input[0].text, /every 15 minutes/);
-    assert.equal(f.coordinator.deliveries.has('worker'), false);
-    assert.equal(f.coordinator.setReportInterval('worker', 15, { notifyWorker: true }).alreadySet, true);
-    f.rpc.complete('worker', 'active-work'); await f.coordinator.flush('worker');
-    assert.equal(f.rpc.calls.filter(call => ['turn/start', 'turn/steer'].includes(call.method)).length, 1);
-    assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
-    assert.equal(f.rpc.replies.length, 0);
-    assert.equal('nextReportAt' in worker, false);
-  } finally { await f.close(); }
-});
-
-test('an explicit same-value cadence retry replaces a failed instruction without automatic retries', async () => {
-  const f = await fixture();
-  try {
-    const worker = f.workspace.agent('worker'); const send = f.workspace.send.bind(f.workspace);
-    let failures = 1;
-    f.workspace.send = async (...args) => { if (failures > 0) { failures--; throw new Error('Synthetic delivery failure'); } return send(...args); };
-    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
-    await waitFor(() => !!worker.reportError && !worker.coordinatorSending);
-    const failed = f.coordinator.deliveries.get('worker')[0];
-    assert.match(failed.error, /Synthetic delivery failure/);
-    await f.coordinator.flush('worker');
-    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false, 'failed delivery must not retry automatically');
-    const retried = f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
-    assert.equal(retried.instructionQueued, true);
-    await delivered(f);
-    assert.equal(worker.reportError, null);
-    assert.equal(f.coordinator.deliveries.has('worker'), false);
-    assert.equal(f.coordinator.setReportInterval('worker', 15, { notifyWorker: true }).alreadySet, true);
-    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
-    assert.equal(f.rpc.replies.length, 0);
-  } finally { await f.close(); }
-});
-
-test('cadence changes use owned Claude priority input and retain pause, question and ownership guards', async () => {
-  const f = await fixture();
-  try {
-    const worker = f.workspace.agent('worker'); worker.provider = 'claude'; worker.turnId = 'owned-turn'; worker.thread.status = { type: 'active' }; worker.externalSession = false;
+    assert.equal(f.rpc.calls.find(call => call.method === 'turn/steer').params.expectedTurnId, 'active-work');
+    f.rpc.complete('worker');
+    worker.provider = 'claude'; worker.turnId = 'owned-turn'; worker.thread.status = { type: 'active' }; worker.externalSession = true;
     const sent = [];
     f.workspace.claude = { available: true, runs: new Map([['worker', {}]]), send: async (agent, text, options) => sent.push({ agent, text, options }) };
-    f.coordinator.paused = true;
-    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
-    await f.coordinator.flush('worker'); assert.equal(sent.length, 0);
-    f.rpc.ask('native-question', 'worker', 'claude/tool/requestUserInput');
-    f.coordinator.paused = false;
-    await f.coordinator.flush('worker'); assert.equal(sent.length, 0);
-    worker.thread.status.activeFlags = ['waitingOnApproval'];
-    f.workspace.removeQuestion('worker', 'native-question');
-    await f.coordinator.flush('worker'); assert.equal(sent.length, 0);
-    worker.thread.status.activeFlags = [];
-    await f.coordinator.flush('worker');
-    assert.equal(sent.length, 1); assert.equal(sent[0].options.priority, 'next');
-    assert.match(sent[0].text, /every 15 minutes/); assert.equal(worker.turnId, 'owned-turn');
-    worker.externalSession = true;
-    f.coordinator.setReportInterval('worker', 60, { notifyWorker: true });
-    await f.coordinator.flush('worker'); assert.equal(sent.length, 1, 'external ownership still blocks delivery');
-    assert.equal(f.coordinator.deliveries.get('worker')[0].kind, 'report-setting');
-    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false);
-    assert.equal(f.rpc.replies.length, 0);
+    clock.advance(5 * 60_000); assert.equal(sent.length, 0);
+    worker.externalSession = false; clock.advance(1000);
+    await waitFor(() => sent.length === 1 && !worker.coordinatorSending);
+    assert.equal(sent[0].options.priority, 'next'); assert.match(sent[0].text, /Scheduled task report/);
+    assert.equal(worker.turnId, 'owned-turn'); assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
 });
 
-test('a cadence instruction follows Report now ahead of ordinary summaries without losing report completion', async () => {
-  const f = await fixture();
+test('a completed live Standard Task Report permits the next interval while the same project turn continues', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
   try {
-    const worker = f.workspace.agent('worker'); worker.turnId = 'busy'; worker.thread.status = { type: 'active' };
-    f.coordinator.paused = true;
-    f.coordinator.queue(worker, 'Ordinary summary.', 'summary');
-    f.coordinator.requestUserReport('worker');
-    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
-    assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.kind), ['report', 'report-setting', 'summary']);
-    f.coordinator.paused = false; await f.coordinator.flush('worker');
-    await waitFor(() => f.rpc.calls.filter(call => call.method === 'turn/steer').length === 2 && !worker.coordinatorSending);
-    const steers = f.rpc.calls.filter(call => call.method === 'turn/steer');
-    assert.match(steers[0].params.input[0].text, /The user selected Report now/);
-    assert.match(steers[1].params.input[0].text, /every 15 minutes/);
-    assert.equal(f.coordinator.reportState('worker'), 'generating');
-    assert.equal(f.coordinator.reportPending.has('worker'), true);
-    assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.kind), ['summary']);
-    f.rpc.complete('worker', 'busy');
+    const worker = f.workspace.agent('worker'); worker.turnId = 'long-work'; worker.thread.status = { type: 'active' };
+    f.coordinator.setReportInterval('worker', 5, { notifyWorker: true }); clock.advance(5 * 60_000);
+    await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer') && !worker.coordinatorSending);
+    f.coordinator.dirty.clear();
+    const completed = text => f.rpc.emit('notification', { method: 'item/completed', params: { threadId: 'worker', turnId: 'long-work', item: { id: 'report-one', type: 'agentMessage', phase: 'commentary', text } } });
+    completed('Ordinary project progress.'); assert.equal(f.coordinator.reportPending.has('worker'), true);
+    // The actual report is a new assistant item after dispatch, not another delta.
+    f.rpc.emit('notification', { method: 'item/completed', params: { threadId: 'worker', turnId: 'long-work', item: { id: 'actual-report', type: 'agentMessage', phase: 'commentary', text: standardReport } } });
     assert.equal(f.coordinator.reportPending.has('worker'), false);
-    assert.equal(f.rpc.replies.length, 0);
+    assert.equal(worker.turnId, 'long-work'); assert.equal(worker.thread.status.type, 'active');
+    assert.equal(f.coordinator.reportState('worker'), null); assert.equal(f.coordinator.dirty.size, 0);
+    clock.advance(5 * 60_000);
+    await waitFor(() => f.rpc.calls.filter(call => call.method === 'turn/steer').length === 2 && !worker.coordinatorSending);
+    assert.equal(f.coordinator.reportPending.has('worker'), true);
+    assert.equal(f.coordinator.reportMessageCompleted('worker', { id: 'actual-report', type: 'assistant', state: 'completed', turnId: 'long-work', text: standardReport }), false, 'a repeated old completion cannot acknowledge the next request');
+    assert.equal(worker.turnId, 'long-work'); assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
   } finally { await f.close(); }
 });
 
-test('a cadence instruction waits for an in-flight send but then reaches the active turn before idle summaries', async () => {
-  const f = await fixture();
+test('report completion ignores partial, quoted, stale, other-turn and historical assistant text', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'active-work'; worker.thread.status = { type: 'active' };
+    worker.messages.push({ id: 'already-streaming', type: 'assistant', state: 'inProgress', turnId: 'active-work', text: '' });
+    f.coordinator.setReportInterval('worker', 5, { notifyWorker: true }); clock.advance(5 * 60_000);
+    await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer') && !worker.coordinatorSending);
+    const message = { id: 'new-report', type: 'assistant', state: 'completed', turnId: 'active-work', text: standardReport };
+    const invalid = [
+      { type: 'user' }, { type: 'activity' }, { state: 'inProgress' }, { id: 'already-streaming' }, { turnId: 'older-turn' },
+      { text: standardReport.split('\n').slice(0, 3).join('\n') },
+      { text: standardReport.split('\n').map(line => '> ' + line).join('\n') },
+      { text: '```markdown\n' + standardReport + '\n```' },
+      { text: standardReport.split('\n').map(line => '    ' + line).join('\n') },
+      { text: standardReport.split('\n').reverse().join('\n') }
+    ];
+    for (const change of invalid) assert.equal(f.coordinator.reportMessageCompleted('worker', { ...message, ...change }), false);
+    f.rpc.historyPages.set(JSON.stringify(['worker', 'older-report']), historyPage({ id: 'historical-report', type: 'agentMessage', text: standardReport }));
+    await f.workspace.history('worker', 'older-report');
+    assert.equal(f.coordinator.reportPending.has('worker'), true);
+    const plain = standardReport.replaceAll('**', '').replace('Blocked / needs input', 'Needs input');
+    assert.equal(f.coordinator.reportMessageCompleted('worker', { ...message, text: plain }), true);
+    assert.equal(f.coordinator.reportPending.has('worker'), false);
+    assert.equal(worker.turnId, 'active-work'); assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('a report observed before send acknowledgement stays pending until native delivery is confirmed', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'active-work'; worker.thread.status = { type: 'active' };
+    const send = f.workspace.send.bind(f.workspace); let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    f.workspace.send = async (...args) => { await send(...args); await gate; };
+    f.coordinator.setReportInterval('worker', 5, { notifyWorker: true }); clock.advance(5 * 60_000);
+    await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer'));
+    assert.equal(f.coordinator.reportMessageCompleted('worker', { id: 'fast-report', type: 'assistant', state: 'completed', turnId: 'active-work', text: standardReport }), false);
+    assert.equal(f.coordinator.reportPending.has('worker'), true);
+    release(); await waitFor(() => !worker.coordinatorSending);
+    assert.equal(f.coordinator.reportPending.has('worker'), false);
+    assert.equal(worker.turnId, 'active-work'); assert.equal(f.coordinator.reportResponses.size, 0);
+  } finally { await f.close(); }
+});
+
+test('an in-flight summary stays first and a due report then steers the active turn ahead of ordinary summaries', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
   try {
     const worker = f.workspace.agent('worker'); const send = f.workspace.send.bind(f.workspace);
     let release; const gate = new Promise(resolve => { release = resolve; });
     f.workspace.send = async (...args) => { await send(...args); if (args[1] === 'In-flight summary.') await gate; };
+    f.coordinator.setReportInterval('worker', 5, { notifyWorker: true });
     f.coordinator.queue(worker, 'In-flight summary.', 'summary');
     await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/start'));
-    f.coordinator.queue(worker, 'Later summary.', 'summary');
-    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
-    assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.kind), ['summary', 'report-setting', 'summary']);
-    assert.equal(f.rpc.calls.some(call => call.method === 'turn/steer'), false);
-    release();
-    await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer') && !worker.coordinatorSending);
-    assert.match(f.rpc.calls.find(call => call.method === 'turn/steer').params.input[0].text, /every 15 minutes/);
+    f.coordinator.queue(worker, 'Later summary.', 'summary'); clock.advance(5 * 60_000);
+    assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.kind), ['summary', 'report', 'summary']);
+    release(); await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer') && !worker.coordinatorSending);
     assert.deepEqual(f.coordinator.deliveries.get('worker').map(row => row.text), ['Later summary.']);
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
+  } finally { await f.close(); }
+});
+
+test('report setting validation never starts handoffs or changes settings when disconnected', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); f.workspace.summaryJobs.set('worker', {});
+    assert.throws(() => f.coordinator.setReportInterval('worker', 5, { notifyWorker: true }), /branch handoff/);
+    f.workspace.summaryJobs.delete('worker'); f.rpc.ready = false;
+    assert.throws(() => f.coordinator.setReportInterval('worker', 5, { notifyWorker: true }), /Reconnect/);
+    assert.equal(worker.reportIntervalMinutes, 0); assert.equal(f.coordinator.deliveries.size, 0);
   } finally { await f.close(); }
 });
 
@@ -995,32 +1052,20 @@ test('worker model APIs cannot change coordinator settings', async () => {
   } finally { await f.close(); }
 });
 
-test('cadence instructions queue once per actual change, supersede unsent preferences and are not replayed by restoration', async () => {
-  const f = await fixture();
+test('changing a deadline replaces it, Never cancels timers, and closing or stopping removes scheduler state', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
   try {
-    const worker = f.workspace.agent('worker'); worker.turnId = 'busy'; worker.thread.status = { type: 'active' };
-    f.coordinator.paused = true;
-    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
-    assert.match(f.coordinator.deliveries.get('worker')[0].text, /Request for Standard Task Report every 15 minutes/);
-    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
-    assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true }); clock.advance(5 * 60_000);
     f.coordinator.setReportInterval('worker', 60, { notifyWorker: true });
-    assert.equal(f.coordinator.deliveries.get('worker').length, 1);
-    assert.match(f.coordinator.deliveries.get('worker')[0].text, /every 1 hour/);
-    assert.equal(f.coordinator.reportPending.has('worker'), false);
-    f.coordinator.paused = false; await f.coordinator.flush('worker');
-    const start = f.rpc.calls.find(call => call.method === 'turn/steer');
-    assert.ok(start, 'a changed interval reaches an active turn through native steering');
-    assert.match(start.params.clientUserMessageId, /^ccng-report-setting-/);
-    assert.match(start.params.input[0].text, /changes reporting only/);
-    f.rpc.complete('worker');
-    f.coordinator.setReportInterval('worker', 60);
-    assert.equal(f.coordinator.deliveries.has('worker'), false, 'restore-style application queues no instruction');
-    assert.equal(f.rpc.calls.filter(call => ['turn/start', 'turn/steer'].includes(call.method)).length, 1);
-    assert.equal(f.rpc.replies.length, 0);
+    assert.equal(f.coordinator.reportSchedules.get('worker').nextAt, clock.now() + 60 * 60_000);
+    f.coordinator.setReportInterval('worker', 60, { notifyWorker: true });
+    assert.equal(clock.timers.size, 1);
+    f.workspace.close('worker'); assert.equal(clock.timers.size, 0); assert.equal(f.coordinator.reportSchedules.size, 0);
+    await f.workspace.open('second'); f.coordinator.setReportInterval('second', 5, { notifyWorker: true });
+    f.coordinator.stop(); assert.equal(clock.timers.size, 0); assert.equal(f.coordinator.reportSchedules.size, 0);
+    clock.advance(60 * 60_000); assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
   } finally { await f.close(); }
 });
-
 
 test('the existing project reader binds helper evidence to every matching current command without granting general outside access', async () => {
   const f = await fixture(); const outside = await mkdtemp(join(tmpdir(), 'ccng-direct-helper-'));

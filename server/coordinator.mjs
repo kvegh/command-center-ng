@@ -15,6 +15,25 @@ const tool = (name, description, inputSchema) => ({ type: 'function', name, desc
 const isClarification = question => ['item/tool/requestUserInput', 'claude/tool/requestUserInput'].includes(question.method);
 const isApproval = question => ['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method);
 const isUnreviewedApproval = question => isApproval(question) && !question.review && !question.responding && !question.error;
+const reportSections = [
+  /^(?:[-*+]\s+)?(?:\*\*)?🟩\s*(?:\*\*)?Done\b/i,
+  /^(?:[-*+]\s+)?(?:\*\*)?🟨\s*(?:\*\*)?In\s+progress\b/i,
+  /^(?:[-*+]\s+)?(?:\*\*)?🟥\s*(?:\*\*)?(?:Blocked(?:\s*\/\s*needs\s*input)?|Needs\s*input)\b/i,
+  /^(?:[-*+]\s+)?(?:\*\*)?🟦\s*(?:\*\*)?Next\b/i
+];
+function isStandardReport(text) {
+  if (typeof text !== 'string' || text.length > 32_000) return false;
+  let section = 0, fence = null;
+  for (const raw of text.split('\n')) {
+    const line = raw.trimStart();
+    if (line.startsWith('>')) continue;
+    const marker = line.match(/^(`{3,}|~{3,})/);
+    if (marker) { if (!fence) fence = marker[1]; else if (marker[1][0] === fence[0] && marker[1].length >= fence.length) fence = null; continue; }
+    if (fence || /^(?: {4}|\t)/.test(raw)) continue;
+    if (reportSections[section].test(line) && ++section === reportSections.length) return true;
+  }
+  return false;
+}
 export const COORDINATOR_NAME = 'Command Center coordinator';
 export const COORDINATOR_THREAD_SOURCE = 'command-center-coordinator';
 export const isCoordinatorThread = thread => thread?.threadSource === COORDINATOR_THREAD_SOURCE || thread?.name === COORDINATOR_NAME;
@@ -33,31 +52,91 @@ const isUserAuthority = message => message.type === 'user' && !isCoordinatorMess
 const pageMessages = page => [...page.data].reverse().flatMap(turn => (turn.items || []).filter(item => ['userMessage', 'agentMessage'].includes(item.type)).map(item => ({ id: item.id, type: item.type === 'userMessage' ? 'user' : 'assistant', text: item.text || item.content?.filter(part => part.type === 'text').map(part => part.text).join('\n') || '' })));
 
 export class Coordinator {
-  constructor(workspace, { debounceMs = 1500, intervalMs = 30000 } = {}) {
+  constructor(workspace, { debounceMs = 1500, intervalMs = 30000, reportClock = {} } = {}) {
     this.workspace = workspace; this.rpc = workspace.rpc; this.id = null; this.starting = null; this.error = null; this.paused = false;
     this.dirty = new Map(); this.timer = null; this.lastRun = 0; this.debounceMs = debounceMs; this.intervalMs = intervalMs;
-    this.deliveries = new Map(); this.reportPending = new Set(); this.reportVersions = new Map(); this.audit = []; this.stopped = false; this.running = false; this.messageActions = new Set();
+    this.deliveries = new Map(); this.reportPending = new Set(); this.reportVersions = new Map(); this.reportResponses = new Map(); this.audit = []; this.stopped = false; this.running = false; this.messageActions = new Set();
     this.approvalSources = new Map();
     this.authorityPages = new WeakMap();
+    this.reportSchedules = new Map(); this.reportTimer = null; this.reportSchedulesReady = false;
+    this.reportClock = { now: () => Date.now(), setTimeout, clearTimeout, ...reportClock };
   }
   workers() { return [...this.workspace.agents.values()].filter(agent => agent.role !== 'coordinator'); }
   setReportInterval(id, minutes, { notifyWorker = false } = {}) {
     const agent = this.worker(id);
     if (!REPORT_INTERVALS.includes(minutes)) throw fail('Choose 1h, 15min, 5min or Never.', 400);
-    const retryFailed = notifyWorker && this.deliveries.get(id)?.some(row => row.kind === 'report-setting' && row.error);
-    if (agent.reportIntervalMinutes === minutes && !retryFailed) return { reportIntervalMinutes: minutes, alreadySet: true };
+    if (agent.reportIntervalMinutes === minutes) return { reportIntervalMinutes: minutes, alreadySet: true };
     if (notifyWorker) {
-      if (this.stopped || !this.workspace.readyFor(agent) || this.workspace.restoring) throw fail('Reconnect the worker before changing its report instruction.', 503);
-      if (!agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) throw fail('Finish the branch handoff before changing its report instruction, or choose a worker that accepts direct input.');
-      const rows = this.deliveries.get(id);
-      const retained = rows?.filter((row, index) => row.kind !== 'report-setting' || (index === 0 && agent.coordinatorSending));
-      if (retained?.length >= 4) throw fail('This worker already has four queued messages. Clear or deliver them before changing its report instruction.');
-      if (rows) { rows.splice(0, rows.length, ...retained); if (!rows.length) this.deliveries.delete(id); }
+      if (this.stopped || !this.workspace.readyFor(agent) || this.workspace.restoring) throw fail('Reconnect the worker before changing its report setting.', 503);
+      if (!agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) throw fail('Finish the branch handoff before changing its report setting, or choose a worker that accepts direct input.');
+      this.reportSchedulesReady = true;
     }
+    this.cancelScheduledReports(id);
     agent.reportIntervalMinutes = minutes; agent.reportError = null;
-    if (notifyWorker) this.queue(agent, '[Command Center coordinator]\n' + (minutes ? `Request for Standard Task Report every ${minutes === 60 ? '1 hour' : minutes + ' minutes'}. Replace any previous reporting interval. Follow this instruction using your runtime timing capabilities; Command Center will not send recurring reminders.` : 'Cancel your recurring Standard Task Report schedule. Reporting is now Never. Keep explicit one-off Report now requests available.') + ' Use the Standard Task Report function in your base instructions. This changes reporting only; it does not authorize additional project work or request an immediate report. If your runtime cannot maintain the requested timing, explain the limitation.', 'report-setting');
+    this.updateReportSchedule(id, minutes, !notifyWorker);
+    this.armReports();
     this.workspace.changed();
-    return { reportIntervalMinutes: minutes, instructionQueued: notifyWorker };
+    return { reportIntervalMinutes: minutes, instructionQueued: false };
+  }
+
+  updateReportSchedule(id, minutes, startupPending = true) {
+    if (!minutes) { this.reportSchedules.delete(id); return; }
+    const previous = this.reportSchedules.get(id);
+    if (previous?.minutes === minutes) return;
+    this.reportSchedules.set(id, { minutes, nextAt: this.reportClock.now() + minutes * 60_000, startupPending });
+  }
+  reconcileReportSchedules({ startup = false } = {}) {
+    if (this.stopped || this.workspace.restoring) return;
+    if (startup) this.reportSchedulesReady = true;
+    const workers = this.workers(), ids = new Set(workers.map(agent => agent.id));
+    for (const id of this.reportSchedules.keys()) if (!ids.has(id)) this.reportSchedules.delete(id);
+    for (const agent of workers) {
+      const minutes = REPORT_INTERVALS.includes(agent.reportIntervalMinutes) ? agent.reportIntervalMinutes : 0;
+      this.updateReportSchedule(agent.id, minutes);
+      const schedule = this.reportSchedules.get(agent.id);
+      if (startup && schedule?.startupPending) {
+        schedule.startupPending = false; schedule.nextAt = this.reportClock.now() + minutes * 60_000;
+        this.requestScheduledReport(agent.id);
+      }
+    }
+    this.armReports();
+  }
+  armReports() {
+    if (this.reportTimer !== null) this.reportClock.clearTimeout(this.reportTimer);
+    this.reportTimer = null;
+    if (this.stopped || !this.reportSchedulesReady || !this.reportSchedules.size) return;
+    this.reportTimer = this.reportClock.setTimeout(() => {
+      this.reportTimer = null; this.pollReports();
+    }, 1000);
+    this.reportTimer?.unref?.();
+  }
+  pollReports() {
+    if (this.stopped || !this.reportSchedulesReady) return;
+    if (!this.workspace.restoring) for (const [id, schedule] of this.reportSchedules) {
+      if (!this.workspace.agents.has(id)) { this.reportSchedules.delete(id); continue; }
+      if (this.reportClock.now() >= schedule.nextAt) {
+        schedule.nextAt = this.reportClock.now() + schedule.minutes * 60_000;
+        this.requestScheduledReport(id);
+      }
+      // Recheck deferred reports without retrying failed native sends.
+      if (this.deliveries.get(id)?.some(row => row.kind === 'report' && !row.error)) void this.flush(id);
+    }
+    this.armReports();
+  }
+  requestScheduledReport(id) {
+    const agent = this.workspace.agents.get(id);
+    if (this.stopped || !agent || agent.role === 'coordinator' || !agent.reportIntervalMinutes || this.reportPending.has(id)) return;
+    this.reportPending.add(id);
+    try { this.queue(agent, '[Command Center coordinator]\nScheduled task report. ' + WORKER_REPORT_REQUEST, 'report', { scheduledReport: true }); }
+    catch (error) { this.reportPending.delete(id); agent.reportError = 'Scheduled report could not be queued: ' + error.message; this.workspace.changed(); }
+  }
+  cancelScheduledReports(id) {
+    const rows = this.deliveries.get(id); const agent = this.workspace.agents.get(id);
+    if (!rows || !agent) return;
+    const retained = rows.filter((row, index) => !row.scheduledReport || row.error || (index === 0 && agent.coordinatorSending));
+    rows.splice(0, rows.length, ...retained);
+    if (!rows.length) this.deliveries.delete(id);
+    if (agent.coordinatorDeliveryKind !== 'report' && !rows.some(row => row.kind === 'report')) this.reportPending.delete(id);
   }
 
   snapshot() { return { id: this.id, starting: !!this.starting, error: this.error, paused: this.paused, queuedMessages: [...this.deliveries.values()].reduce((n, rows) => n + rows.length, 0), audit: this.audit.slice(-20) }; }
@@ -69,7 +148,16 @@ export class Coordinator {
     const agent = this.worker(id);
     if (this.stopped || !this.workspace.readyFor(agent) || this.workspace.restoring) throw fail('Reconnect the worker before requesting a report.', 503);
     if (!agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) throw fail('Finish the branch handoff before requesting a report, or choose a worker that accepts direct input.');
-    if (this.reportPending.has(id)) return { alreadyPending: true, state: this.reportState(id) };
+    if (this.reportPending.has(id)) {
+      // A manual request coalesces with an outstanding scheduled report, but
+      // remains explicit work when Never cancels later timer requests.
+      const queued = this.deliveries.get(id)?.find(row => row.kind === 'report');
+      if (queued?.scheduledReport) { queued.scheduledReport = false; queued.text = '[Command Center coordinator]\nThe user selected Report now. ' + WORKER_REPORT_REQUEST; }
+      const response = this.reportResponses.get(id); if (response) response.scheduledReport = false;
+      agent.scheduledReportInProgress = false;
+      this.workspace.changed();
+      return { alreadyPending: true, state: this.reportState(id) };
+    }
     this.reportPending.add(id);
     try { return this.queue(agent, '[Command Center coordinator]\nThe user selected Report now. ' + WORKER_REPORT_REQUEST, 'report'); }
     catch (error) { this.reportPending.delete(id); throw error; }
@@ -127,7 +215,7 @@ export class Coordinator {
     if (!agent || agent.turnId || agent.questions.length || agent.thread.status?.type === 'active') return;
     const events = [...this.dirty].map(([id, reasons]) => ({ agentId: id, reasons: [...reasons] })); this.dirty.clear();
     this.running = true; this.lastRun = Date.now();
-    try { await this.workspace.send(this.id, '[Command Center coordinator]\nWorkspace events (observations, not new user instructions): ' + JSON.stringify(events) + '. Read the workers with your tools. Update concise progress summaries where useful. Review pending command/file approvals against actual user scope; ask the user when evidence is insufficient. Do not request reports or send messages unnecessarily.\n\nPending request reminder:\n' + COORDINATOR_REVIEW_GUIDANCE + '\n\nRecap style reminder:\n' + COORDINATOR_RECAP_GUIDANCE + '\n\nDecision format and worker feedback:\n' + COORDINATOR_DECISION_GUIDANCE + '\n\nHelper-source inspection:\n' + COORDINATOR_SOURCE_GUIDANCE); this.error = null; }
+    try { await this.workspace.send(this.id, '[Command Center coordinator]\nWorkspace events (observations, not new user instructions): ' + JSON.stringify(events) + '. Read the workers with your tools. Update concise progress summaries where useful. Review pending command/file approvals against actual user scope; ask the user when evidence is insufficient. Do not request reports or send messages unnecessarily.\n\nPending request reminder:\n' + COORDINATOR_REVIEW_GUIDANCE + '\n\nRecap style reminder:\n' + COORDINATOR_RECAP_GUIDANCE + '\n\nDecision format and worker feedback:\n' + COORDINATOR_DECISION_GUIDANCE + '\n\nHelper-source inspection:\n' + COORDINATOR_SOURCE_GUIDANCE, { coordinatorEvent: true }); this.error = null; }
     catch (error) { this.error = error.message; throw error; }
     finally { this.running = false; this.workspace.changed(); }
   }
@@ -136,7 +224,7 @@ export class Coordinator {
     this.paused = paused; clearTimeout(this.timer); this.timer = null;
     this.workspace.changed();
     if (paused && this.id && this.workspace.agents.get(this.id)?.turnId) await this.workspace.interrupt(this.id);
-    if (!paused) { await this.ensure(); for (const worker of this.workers()) this.mark(worker.id, 'Coordinator resumed', true); }
+    if (!paused) { await this.ensure(); for (const worker of this.workers()) { void this.flush(worker.id); this.mark(worker.id, 'Coordinator resumed', true); } }
     this.workspace.changed();
   }
   record(entry) { this.audit.push({ ...entry, at: new Date().toISOString() }); this.audit = this.audit.slice(-200); this.workspace.changed(); }
@@ -170,7 +258,9 @@ export class Coordinator {
         tasks: agent.tracker?.status === 'ready' ? agent.tracker.tasks.slice(0, 30) : [], taskCount: agent.tracker?.tasks.length || 0, trackerError: agent.tracker?.error || null, progress: agent.progress || null,
         ...this.pendingRequests(agent), chatQuestions, chatQuestionCount: chatQuestions.length,
         managementNotice: agent.managementNotice || null, runError: agent.runError || null, observeError: agent.observeError || null,
-        queuedMessages: this.deliveries.get(agent.id)?.length || 0
+        queuedMessages: this.deliveries.get(agent.id)?.length || 0,
+        reportIntervalMinutes: agent.reportIntervalMinutes || 0,
+        nextReportAt: this.reportSchedules.has(agent.id) ? new Date(this.reportSchedules.get(agent.id).nextAt).toISOString() : null
       };
     });
   }
@@ -253,9 +343,9 @@ export class Coordinator {
     files.set(source.path, { sha256: source.sha256, commandSha256: source.commandSha256, workingDirectory: cwd }); this.approvalSources.set(question.reviewToken, files);
     return source;
   }
-  queue(agent, text, kind) {
+  queue(agent, text, kind, { scheduledReport = false } = {}) {
     const rows = this.deliveries.get(agent.id) || []; if (rows.length >= 4) throw fail('This worker already has four queued coordinator messages.');
-    const message = { text, kind, id: randomUUID() };
+    const message = { text, kind, id: randomUUID(), ...(scheduledReport ? { scheduledReport: true } : {}) };
     if (['report', 'report-setting'].includes(kind)) {
       let index = Math.max(agent.coordinatorSending ? 1 : 0, rows.findLastIndex(row => row.error) + 1);
       if (kind === 'report-setting') while (rows[index]?.kind === 'report') index++;
@@ -264,9 +354,28 @@ export class Coordinator {
     else rows.push(message);
     this.deliveries.set(agent.id, rows); this.workspace.changed(); void this.flush(agent.id); return { queued: true };
   }
+  reportMessageCompleted(id, message) {
+    const response = this.reportResponses.get(id); const agent = this.workspace.agents.get(id);
+    if (this.stopped || !response || !agent || !this.reportPending.has(id) || message?.type !== 'assistant' || message.state !== 'completed' || typeof message.id !== 'string' || response.previousIds.has(message.id) || (message.nativeMessageId && response.previousIds.has(message.nativeMessageId))) return false;
+    const turnId = response.turnId || agent.turnId;
+    if (!turnId || message.turnId !== turnId || !isStandardReport(message.text)) return false;
+    response.candidate = { id: message.id, turnId };
+    return this.finishReportResponse(id, response);
+  }
+  finishReportResponse(id, response) {
+    if (!response.confirmed || !response.candidate || this.reportResponses.get(id) !== response || (response.turnId && response.candidate.turnId !== response.turnId)) return false;
+    const agent = this.workspace.agents.get(id); if (!agent) return false;
+    this.reportResponses.delete(id); this.reportPending.delete(id);
+    if (agent.coordinatorDeliveryKind === 'report') agent.coordinatorDeliveryKind = null;
+    // A scheduled report must not cause a coordinator LLM turn when the
+    // ongoing project turn eventually completes.
+    if (!response.scheduledReport) this.mark(id, 'Requested report is ready', true);
+    this.workspace.changed();
+    return true;
+  }
   async flush(id) {
     const rows = this.deliveries.get(id); const agent = this.workspace.agents.get(id);
-    if (this.stopped || this.paused || !rows?.length || rows[0].error || !agent || agent.questions.length || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag)) || !agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) return;
+    if (this.stopped || this.paused || this.workspace.restoring || !rows?.length || rows[0].error || !agent || !this.workspace.readyFor(agent) || (agent.provider === 'claude' && agent.externalSession) || agent.questions.length || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag)) || !agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) return;
     const busy = !!agent.turnId || agent.thread.status?.type === 'active';
     const managedClaude = agent.provider === 'claude' && !agent.externalSession && this.workspace.claude?.runs?.has(id);
     const activeReporting = ['report', 'report-setting'].includes(rows[0].kind) && (agent.provider !== 'claude' || managedClaude) && agent.thread.status?.type === 'active' && !!agent.turnId;
@@ -274,11 +383,19 @@ export class Coordinator {
     if (agent.coordinatorSending) return; agent.coordinatorSending = true;
     const message = rows[0];
     const reportInProgress = agent.coordinatorDeliveryKind === 'report';
+    const previousScheduled = !!agent.scheduledReportInProgress;
+    const response = message.kind === 'report' ? {
+      requestId: message.id, turnId: agent.turnId || null, confirmed: false, scheduledReport: !!message.scheduledReport,
+      previousIds: new Set(agent.messages.filter(item => item.type === 'assistant').flatMap(item => [item.id, item.nativeMessageId].filter(Boolean)))
+    } : null;
+    if (response) this.reportResponses.set(id, response);
     try {
       if (!reportInProgress) agent.coordinatorDeliveryKind = message.kind;
+      if (message.kind === 'report') agent.scheduledReportInProgress = !!message.scheduledReport;
       await this.workspace.send(id, message.text, { report: message.kind === 'report', reportSetting: message.kind === 'report-setting' }); rows.shift(); if (!rows.length) this.deliveries.delete(id);
-      this.record({ agentId: id, action: message.kind, outcome: 'delivered' }); if (message.kind === 'report-setting') agent.reportError = null;
-    } catch (error) { agent.coordinatorDeliveryKind = reportInProgress ? 'report' : null; message.error = error.message; if (message.kind === 'report-setting') agent.reportError = error.message; this.error = 'Coordinator message delivery was not confirmed; it will not retry automatically: ' + error.message; this.record({ agentId: id, action: message.kind, outcome: 'unconfirmed', rationale: error.message }); }
+      if (response && this.reportResponses.get(id) === response) { response.confirmed = true; response.turnId ||= agent.turnId; this.finishReportResponse(id, response); }
+      this.record({ agentId: id, action: message.kind, outcome: 'delivered', ...(message.scheduledReport ? { scheduledReport: true } : {}) }); if (['report', 'report-setting'].includes(message.kind)) agent.reportError = null;
+    } catch (error) { if (this.reportResponses.get(id) === response) this.reportResponses.delete(id); agent.coordinatorDeliveryKind = reportInProgress ? 'report' : null; agent.scheduledReportInProgress = previousScheduled; message.error = error.message; if (['report', 'report-setting'].includes(message.kind)) agent.reportError = error.message; this.error = 'Coordinator message delivery was not confirmed; it will not retry automatically: ' + error.message; this.record({ agentId: id, action: message.kind, outcome: 'unconfirmed', rationale: error.message }); }
     finally { agent.coordinatorSending = false; this.workspace.changed(); if (['report', 'report-setting'].includes(this.deliveries.get(id)?.[0]?.kind) && !this.deliveries.get(id)[0].error) void this.flush(id); }
   }
   async review(agent, args) {
@@ -345,17 +462,19 @@ export class Coordinator {
   completed(id) {
     if (id === this.id) { this.messageActions.clear(); if (this.dirty.size) this.mark([...this.dirty.keys()][0], 'Changes arrived while coordinating'); return; }
     const agent = this.workspace.agents.get(id); if (!agent) return;
+    this.reportResponses.delete(id);
     const deliveryKind = agent.coordinatorDeliveryKind; agent.coordinatorDeliveryKind = null;
+    const scheduledReport = !!agent.scheduledReportInProgress; agent.scheduledReportInProgress = false;
     const last = agent.messages.findLast(message => message.type === 'user');
     const requested = last && isCoordinatorMessage(last);
     if (deliveryKind === 'report') this.reportPending.delete(id);
     void this.flush(id);
-    if (deliveryKind === 'report') this.mark(id, 'Requested report is ready', true);
-    else if (!requested) this.mark(id, 'Worker turn completed');
+    if (deliveryKind === 'report' && !scheduledReport) this.mark(id, 'Requested report is ready', true);
+    else if (!requested && !scheduledReport) this.mark(id, 'Worker turn completed');
   }
-  clearMessages() { this.deliveries.clear(); this.reportPending.clear(); this.reportVersions.clear(); this.error = null; this.workspace.changed(); }
-  closed(id) { this.deliveries.delete(id); this.reportPending.delete(id); this.reportVersions.delete(id); this.dirty.delete(id); this.pruneApprovalSources(); }
-  stop() { this.stopped = true; clearTimeout(this.timer); this.timer = null; }
+  clearMessages() { this.deliveries.clear(); this.reportPending.clear(); this.reportVersions.clear(); this.reportResponses.clear(); this.error = null; this.workspace.changed(); }
+  closed(id) { this.deliveries.delete(id); this.reportPending.delete(id); this.reportVersions.delete(id); this.reportResponses.delete(id); this.reportSchedules.delete(id); this.armReports(); this.dirty.delete(id); this.pruneApprovalSources(); }
+  stop() { this.stopped = true; clearTimeout(this.timer); this.timer = null; if (this.reportTimer !== null) this.reportClock.clearTimeout(this.reportTimer); this.reportTimer = null; this.reportSchedules.clear(); this.reportResponses.clear(); }
   async shutdown() {
     this.stop(); const agent = this.workspace.agents.get(this.id);
     if (agent?.turnId) { try { await this.workspace.interrupt(this.id); } catch (error) { if (!error.message.includes('no active turn')) this.error = error.message; } }

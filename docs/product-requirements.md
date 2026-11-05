@@ -316,7 +316,7 @@ Version 0.18.0 exposes per-worker native model/effort settings for subsequent
 turns, a browser-persisted desktop overview divider, chat-width text, coordinator
 alignment and the version badge in the composer footer. Model choices and saved
 state come from the native runtime; no permission/global default changes.
-The user explicitly rejects CCNG's recurring report timer. Radio selection sends
+Historical0.18.0 decision (superseded by0.26.0): the user rejected CCNG's recurring report timer. Radio selection sends
 one Standard Task Report timing instruction; changes replace it and Never asks
 the agent to cancel its schedule. Timing belongs to the agent runtime. Report now
 remains one explicit request. Restoring tabs does not replay timing instructions.
@@ -364,7 +364,7 @@ Version 0.21.0 prioritizes due and one-off Standard Task Reports at the next saf
 checkpoint, using current evidence before further project work. Report now uses
 existing native Codex steering during safe active turns and precedes unsent
 summaries. Preserve blocking-request, pause, handoff, queue and native identity
-protections; do not add automatic interrupts or a recurring CCNG timer.
+protections; do not add automatic interrupts. The later0.26.0 decision authorizes the report timer.
 
 Version 0.22.0 adds explicit user-level systemd install/start/stop/restart/status/
 logs/enable/disable/uninstall through the maintained launcher. Preserve explicit
@@ -392,4 +392,17 @@ A saved report interval remains the selected cadence after browser refresh and
 is supplied in runtime instructions when a worker starts/resumes its next turn.
 The agent reconciles its timing without duplicate schedules or chat reminders.
 Native timing and live recurrence must be verified separately from saving or
-delivering an instruction; no CCNG recurring timer is selected by this change.
+delivering an instruction. The later0.26.0 decision selects a CCNG backend timer.
+
+## CCNG-managed reporting in0.26.0
+
+The user explicitly switches report timing to CCNG. Internal report requests
+and routine coordinator event inputs must be silent in both CCNG chat histories;
+actual agent reports remain visible. On startup the coordinator backend reads
+all saved worker intervals, queues one initial report for each enabled session
+and schedules subsequent reports without radio toggling. Refresh keeps existing
+deadlines. Never cancels scheduled work; one-off Report now remains available.
+Reuse current native input queues, coalesce outstanding reports, avoid missed
+report bursts and preserve pending native questions, pause, ownership and
+permission protections. Stop older agent-owned report loops during migration.
+This supersedes the earlier native-agent-owned timing requirement.

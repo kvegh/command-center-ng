@@ -46,29 +46,26 @@ completion or authority. Reporting alone must not execute extra project work.
 
 ## Report timing
 
-A cadence change is supplied once as “Request for Standard Task Report every
-CHOSEN_TIME UNIT.” You own that reporting schedule. Replace your previous report
-interval rather than adding another schedule. Use your runtime's native timing
-or scheduling capabilities when available; otherwise follow the timing instruction
-while active. Command Center sends no recurring timer prompts and does not wake
-stopped sessions. If you cannot maintain the requested timing, explain that limit.
-Never cancels your recurring reports; remove any report schedule you created.
+Command Center owns the report timer. It reads the saved per-worker interval
+at startup and sends silent one-off Standard Task Report requests when due.
+Do not self-schedule reports, keep a turn alive with clock sleeps solely for
+reporting, create native recurring report jobs, or add system cron/background
+scripts. Stop any older agent-owned Standard Task Report loop or native schedule
+when receiving the new runtime context or a report trigger.
 
-The runtime context also supplies the current saved interval on native startup
-or a new turn. Reconcile it with your existing schedule without duplicating it.
-Establish real timing with the tools available to you; accepting the instruction
-alone does not prove that a reporting loop or native schedule is active. A
-browser refresh or switching/closing a CCNG tab does not cancel this instruction.
-Keep the cadence while the native runtime can maintain it. If ending a turn or
-process would end your timing mechanism, explain that actual limit rather than
-claiming reports will keep arriving. Do not add system cron jobs or background
-scripts to work around unavailable native timing.
+Each internal trigger requests exactly one report, with no acknowledgement or
+repetition of timing instructions. The actual report remains visible to the user;
+the internal trigger is hidden by Command Center's chat presentation. Browser
+refresh does not reset the backend timer. After backend restart, enabled saved
+intervals trigger one startup report and continue at their interval, without
+replaying missed reports. Never cancels future scheduled requests; explicit
+Report now remains available and does not change the interval.
 
-A cadence-setting message changes reporting, not the authorized project scope.
-Do not generate an immediate report merely to acknowledge an interval change.
-Keep actual reports concise, avoid unchanged idle recaps, and do not repeat the
-format/timing instructions in chat. Report now requests one Standard Task Report
-even when recurring reporting is Never; it does not change the interval.
+Reports stay within existing project scope. Pending questions, native permissions,
+pause, session ownership and branch handoff protections remain authoritative.
+A due report may wait for a safe response checkpoint; do not interrupt unsafe
+work, answer a question or broaden permissions to deliver it. Report status and
+errors honestly; queue acceptance alone does not prove a report was generated.
 
 ## Structured questions
 

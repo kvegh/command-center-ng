@@ -159,14 +159,14 @@ test('branch summary reviews are nonmodal, hidden outside their own tab and inde
 test('worker report settings expose queued and generating states without the old idle wording', () => {
   const props = { agentId: 'queued-worker', minutes: 5, disabled: false, paused: false, save: async () => true, reportNow: async () => true };
   const queued = renderToStaticMarkup(React.createElement(WorkerSettings, { ...props, reportState: 'queued' }));
-  assert.match(queued, /Report queued/); assert.match(queued, /current work and questions/);
+  assert.match(queued, /Report queued/); assert.match(queued, /next safe checkpoint/); assert.match(queued, /Pending questions stay open/);
   assert.doesNotMatch(queued, /Reports wait for idle/);
   const generating = renderToStaticMarkup(React.createElement(WorkerSettings, { ...props, reportState: 'generating' }));
   assert.match(generating, /Generating task report/);
   const setting = renderToStaticMarkup(React.createElement(WorkerSettings, { ...props, minutes: 0, settingPending: true }));
-  assert.match(setting, /Reporting instruction queued/);
+  assert.match(setting, /Reporting update queued/);
   const selected = renderToStaticMarkup(React.createElement(WorkerSettings, props));
-  assert.match(selected, /agent handles this interval/); assert.match(selected, /no recurring reminders/);
+  assert.match(selected, /Command Center schedules reports at this interval/); assert.match(selected, /Request prompts stay hidden/);
 });
 
 test('native requests identify the worker and render permission, MCP form, external and unsupported controls faithfully', () => {

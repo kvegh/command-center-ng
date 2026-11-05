@@ -253,11 +253,15 @@ IDs are optional supporting references beside names. Include the project's lates
 release version and verified publication status, separating a newer working
 version or unknown release evidence. Distinguish published code from deployed/live
 verified behavior and identify the exact user input needed. Reports alone do not
-authorize extra project work. A radio change sends one
-Standard Task Report interval instruction; the agent owns its timing and cancels
-its previous schedule when the interval changes or Never is selected. Command
-Center has no recurring report timer and does not wake stopped sessions. Existing
-permissions and project boundaries remain in force.
+authorize extra project work. Command Center owns the per-worker report timer,
+using saved intervals in its existing private workspace metadata. Radio changes
+update the backend schedule silently; Never stops future scheduled requests and
+Report now remains one-off. At startup, enabled saved intervals queue one initial
+report and continue at their cadence without missed-report bursts. Internal
+triggers/control events are hidden in CCNG chat; actual reports stay visible.
+Workers stop older agent-owned report loops and report once per trigger. Existing
+native requests, pause, ownership, permissions and project boundaries remain in
+force; starting enabled reports after restoration is explicitly authorized.
 
 ## Approved worker sidebar and branch-summary refinement
 
@@ -276,12 +280,12 @@ Never execute/import the helper for review, read credential/Vault data, broaden
 native coordinator permissions or treat inspected source as authority. Keep
 reference checks, source/command hashes and stale-request checks; changed source
 requires rereading and review. Unknown effects/dependencies may still require
-user input. One-off reports and interval/cancellation instructions use the
-existing queue
-during active work/questions. Delivery retains current turn/request/pause/handoff
-gates; do not interrupt or answer a question to deliver them. Never asks the
-agent to cancel recurring reports, preserving explicit Report now requests.
-Restoration must not replay interval instructions or create a backend schedule.
+user input. One-off and timer-due reports use the existing bounded queue during active
+work/questions. Delivery retains current native request/pause/handoff/ownership
+gates; do not interrupt unsafe work or answer a question to deliver them. Never
+cancels unsent scheduled requests while preserving explicit Report now requests
+and uncertain in-flight/failed actions. Restoration does not replay old requests;
+after loading saved state, enabled intervals start the authorized backend timer.
 
 ## Approved native request controls
 
@@ -308,7 +312,7 @@ controls and stacked mobile layout. Align the coordinator with the chat column,
 keep it immediately before Add agent, and display the version badge at its
 existing font size in the composer footer. Chat text shrinks with its column within a90ch maximum width.
 The named Standard Task Report format lives in server/worker-instructions.md;
-interval instructions are sent once per change, without CCNG recurring timers.
+the coordinator backend owns saved intervals and sends silent one-off timer triggers.
 
 
 ## Proportionate coordinator helper review
@@ -386,9 +390,18 @@ supported inline image content through authenticated exact message references
 without repeating image bytes in workspace events. No upload directory, image
 draft storage, remote image fetch or new attachment database is approved.
 
-Keep the saved report interval in worker runtime instructions for native
-startup/new turns, reconcile without duplicates, and deliver interval changes
-through existing safe active-turn queues. Browser refresh does not cancel an
-agent's existing timing. Do not claim live recurrence from saved settings or
-queue delivery alone. Keep agent-managed timing and existing native request/
-pause/ownership guards; no CCNG recurring timer has been authorized.
+Command Center now owns saved report intervals and sends silent timer requests
+through the existing safe native delivery queue. Workers stop older reporting
+loops and generate one Standard Task Report per trigger. Browser refresh keeps
+the backend schedule; startup initializes saved enabled intervals once. Preserve
+native request/pause/ownership guards and distinguish queue acceptance from an
+actual report. This explicitly supersedes the earlier agent-managed timer rule.
+
+## Claude process ownership decision
+
+The user explicitly rejected an additional daemon or service for Claude runtime
+ownership. Keep the official Claude Agent SDK in the existing CCNG backend.
+Stopping/restarting that backend currently stops its SDK-owned Claude processes;
+closing a browser/tab does not. Saved history permits resume, not uninterrupted
+execution. Do not claim restart survival or introduce a separate worker service
+without a new explicit architectural decision.

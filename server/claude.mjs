@@ -61,13 +61,17 @@ export function addClaudeMessage(agent, message, turnId = message.uuid || 'histo
   const id = message.uuid || randomUUID();
   const nativeTime = messageTime(message.timestamp);
   const time = nativeTime ? { timestamp: nativeTime, timestampSource: 'native' } : timing;
+  // SDK synthetic user inputs become native isMeta transcript rows. The SDK
+  // omits those rows from history; suppress their live text echoes as well.
+  // Tool results still reconcile normally and assistant reports stay visible.
+  const syntheticInput = message.type === 'user' && message.isSynthetic === true;
   const content = blocks(message.message); let images = [];
-  if (message.type === 'user') for (const block of content) if (block.type === 'image' && block.source?.type === 'base64') {
+  if (message.type === 'user' && !syntheticInput) for (const block of content) if (block.type === 'image' && block.source?.type === 'base64') {
     try { images = validateImages([...images, readInlineImage('data:' + block.source.media_type + ';base64,' + block.source.data)]); } catch { /* Unsupported or oversized native images stay unavailable; never fetch alternatives. */ }
   }
   if (images.length) put(agent, { id: id + ':0', nativeMessageId: id, turnId, type: 'user', text: bounded(content.filter(block => block.type === 'text').map(block => block.text || '').join('\n')), images, state: 'completed', ...time });
   for (const [index, block] of content.entries()) {
-    if (block.type === 'text' && block.text && !images.length) put(agent, { id: id + ':' + index, nativeMessageId: id, turnId, type: message.type === 'assistant' ? 'assistant' : 'user', text: bounded(block.text), state: 'completed', ...time });
+    if (block.type === 'text' && block.text && !images.length && !syntheticInput) put(agent, { id: id + ':' + index, nativeMessageId: id, turnId, type: message.type === 'assistant' ? 'assistant' : 'user', text: bounded(block.text), state: 'completed', ...time });
     if (block.type === 'tool_use') put(agent, { id: 'tool:' + block.id, turnId, type: 'activity', text: bounded(block.name + '\n' + JSON.stringify(block.input, null, 2)), state: 'inProgress' });
     if (block.type === 'tool_result') {
       const item = agent.messages.find(item => item.id === 'tool:' + block.tool_use_id);
@@ -164,7 +168,7 @@ export class ClaudeSessions extends EventEmitter {
       } catch (error) { this.runs.delete(agent.id); throw error; }
       return job;
   }
-  async send(agent, text, { instructions = '', stillOpen = () => true, priority, images = [] } = {}) {
+  async send(agent, text, { instructions = '', stillOpen = () => true, priority, images = [], report = false, reportSetting = false } = {}) {
     this.ready(); images = validateImages(images); let job = this.runs.get(agent.id);
     if (!job || this.starts.has(agent.id)) {
       let start = this.starts.get(agent.id);
@@ -175,9 +179,10 @@ export class ClaudeSessions extends EventEmitter {
     const messageId = randomUUID(); agent.runError = null;
     if (!agent.turnId) { job.turnId = messageId; agent.turnId = messageId; agent.thread.status = { type: 'active' }; }
     const timestamp = new Date().toISOString();
-    put(agent, { id: messageId + ':0', nativeMessageId: messageId, turnId: job.turnId, type: 'user', text, ...(images.length ? { images } : {}), state: 'completed', timestamp, timestampSource: 'received' });
+    const syntheticInput = report === true || reportSetting === true;
+    if (!syntheticInput) put(agent, { id: messageId + ':0', nativeMessageId: messageId, turnId: job.turnId, type: 'user', text, ...(images.length ? { images } : {}), state: 'completed', timestamp, timestampSource: 'received' });
     const content = images.length ? [...images.map(image => ({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.dataUrl.slice(image.dataUrl.indexOf(',') + 1) } })), ...(text ? [{ type: 'text', text }] : [])] : text;
-    job.inputs.push({ type: 'user', session_id: agent.nativeSessionId, uuid: messageId, timestamp, parent_tool_use_id: null, ...(priority ? { priority } : {}), message: { role: 'user', content } });
+    job.inputs.push({ type: 'user', session_id: agent.nativeSessionId, uuid: messageId, timestamp, parent_tool_use_id: null, ...(syntheticInput ? { isSynthetic: true } : {}), ...(priority ? { priority } : {}), message: { role: 'user', content } });
     this.changed(agent);
   }
   async consume(agent, job) {
@@ -196,6 +201,7 @@ export class ClaudeSessions extends EventEmitter {
         const timing = { timestamp: stream?.timestamp || new Date().toISOString(), timestampSource: stream?.timestampSource || 'received' };
         if (message.type === 'assistant') { agent.messages = agent.messages.filter(item => item.id !== streamedId); const thinking = agent.messages.find(item => item.id === 'thinking:' + job.turnId); if (thinking) thinking.state = 'completed'; job.streamId = null; job.streamTimestamp = null; job.streamText = ''; }
         addClaudeMessage(agent, message, job.turnId, timing);
+        if (message.type === 'assistant') this.emit('assistantMessageCompleted', agent.id, { id: stream?.id || message.uuid + ':0', turnId: job.turnId, type: 'assistant', state: 'completed', text: blocks(message.message).filter(block => block.type === 'text').map(block => block.text || '').join('\n') });
         for (const block of blocks(message.message)) if (block.type === 'tool_result') this.confirm(agent, block.tool_use_id);
       }
       if (message.type === 'tool_progress' && message.tool_use_id) this.confirm(agent, message.tool_use_id);

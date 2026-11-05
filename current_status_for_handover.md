@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.25.0** in package.json and the lockfile.
+The authoritative version is **0.26.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -769,3 +769,47 @@ exposed a fixture missing Beads.context, which was corrected before final pass.
 Running installation/systemd environment refresh remains a separate host step.
 
 0.25.0 implementation: `a4c30659cf7150d777e9f767738721bb6b2e7196`.
+
+## 0.26.0 CCNG timer and silent report requests
+
+The user explicitly switched from agent-managed timing to a CCNG backend timer,
+superseding the earlier no-CCNG-timer decision. The coordinator backend reads
+existing saved per-worker interval metadata. After restoration, enabled sessions
+queue one initial report and continue at their cadence; browser refresh and
+reconciliation do not duplicate startup reports or reset deadlines. New radio
+choices reset the next deadline; Never cancels unsent scheduled requests while
+preserving explicit Report now and uncertain in-flight/failed actions. No missed
+report bursts are replayed. Closing a tab removes its CCNG schedule.
+
+One backend timer handles due work through existing bounded native queues,
+without a coordinator model call per tick or scheduled-report completion. Native
+questions, pause, permissions, ownership, unavailable runtimes and branch handoff
+gates remain. Existing agent-owned report loops are canceled by the new runtime
+instructions/one-off trigger, avoiding duplicate timing mechanisms. No new
+service, attachment store or persistent message queue was added.
+
+CCNG hides typed internal user report/control/coordinator-event inputs, including
+restored Codex history through native client IDs or full-span UI metadata. Claude
+uses official SDK synthetic input metadata; native history remains authoritative
+and unchanged. Actual assistant reports, ordinary summaries and identical real
+user-written text remain visible. Silence is presentation, not permission or
+history deletion.
+
+Long-running turns can release report bookkeeping when a new live completed
+assistant message contains the four Standard Task Report sections in order, so
+later timer reports do not wait for the whole project turn to end. This bounded
+recognition changes no Beads task state or approval authority. Partial/stale/
+quoted/code output stays pending; full native turn completion is a fallback.
+
+The user separately raised interruption of CCNG-managed Claude on backend stop.
+Read-only inspection confirms SDK query.close terminates its owned subprocess;
+persistSession/resume retains history, not live execution. Native Claude has
+background/attach commands, but supported local SDK detach/reattach compatibility
+is not established. The user explicitly rejected a separate daemon/service after the assessment.
+Keep current SDK ownership; no lifecycle change or restart-survival fix was made.
+
+Validation for0.26.0: all246 application tests and the production build pass.
+New checks cover saved startup intervals, no duplicate restore triggers, silent
+native/SDK history, safe deferral/coalescing/Never and reports during active turns.
+Live browser/provider cadence and actual running-installation update remain
+separate; no model run, service restart or live unit change was used for tests.

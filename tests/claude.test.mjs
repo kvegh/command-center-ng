@@ -4,7 +4,7 @@ import { EventEmitter } from 'node:events';
 import { ClaudeSessions, addClaudeMessage, CLAUDE_APPROVAL, CLAUDE_QUESTION, CLAUDE_ELICITATION } from '../server/claude.mjs';
 import { Workspace } from '../server/workspace.mjs';
 import { WorkspacePersistence, workspaceRecord } from '../server/workspace-store.mjs';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -106,6 +106,59 @@ test('Claude native history retains bounded inline user images with their captio
     assert.equal(agent.messages[0].timestampSource, 'native');
     await f.runtime.refresh(agent);
     assert.equal(agent.messages[0].images[0].dataUrl, imageUrl); assert.equal(f.queries.length, 0);
+  } finally { await f.close(); }
+});
+
+test('Claude report inputs use native synthetic metadata without displaying prompts or hiding real user text and report output', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId), text = 'Standard Task Report.';
+    await f.runtime.send(agent, text, { report: true, priority: 'next' });
+    const query = f.queries[0], report = (await query.params.prompt.next()).value;
+    assert.equal(report.isSynthetic, true); assert.equal(report.priority, 'next');
+    assert.match(report.uuid, /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
+    assert.equal(report.message.content, text); assert.equal(agent.messages.length, 0, 'no optimistic report prompt');
+    query.push({ ...report, isReplay: true }); await tick();
+    assert.equal(agent.messages.length, 0, 'native report echo is also silent');
+    await f.runtime.send(agent, 'Cancel previous agent-owned schedule.', { reportSetting: true, priority: 'next' });
+    const setting = (await query.params.prompt.next()).value;
+    assert.equal(setting.isSynthetic, true); query.push(setting); await tick(); assert.equal(agent.messages.length, 0);
+    query.push({ type: 'assistant', uuid: 'actual-report', session_id: nativeId, message: { content: [{ type: 'text', text: '🟩 Done: current release published.' }] } });
+    await until(() => agent.messages.length === 1);
+    assert.equal(agent.messages[0].type, 'assistant'); assert.match(agent.messages[0].text, /current release published/);
+    await f.runtime.send(agent, text);
+    const user = (await query.params.prompt.next()).value;
+    assert.equal(user.isSynthetic, undefined, 'ordinary user text is not classified by matching its content');
+    query.push(user); await tick();
+    assert.equal(agent.messages.filter(message => message.type === 'user').length, 1);
+    assert.equal(agent.messages.at(-1).text, text); assert.deepEqual(f.controls, [], 'report delivery does not interrupt native work or change permissions');
+  } finally { await f.close(); }
+});
+
+test('Claude synthetic user echoes retain tool-result reconciliation', () => {
+  const agent = { messages: [] };
+  addClaudeMessage(agent, { type: 'assistant', uuid: 'tool-call', message: { content: [{ type: 'tool_use', id: 'read-project', name: 'Read', input: { file_path: '/example/project/README.md' } }] } });
+  addClaudeMessage(agent, { type: 'user', uuid: 'tool-result', isSynthetic: true, message: { content: [{ type: 'text', text: 'Hidden control.' }, { type: 'tool_result', tool_use_id: 'read-project', content: 'Project documentation.' }] } });
+  assert.equal(agent.messages.length, 1); assert.equal(agent.messages[0].type, 'activity');
+  assert.equal(agent.messages[0].state, 'completed'); assert.match(agent.messages[0].text, /Project documentation/);
+});
+
+test('Claude emits completed assistant output for report bookkeeping before its long-running turn ends', async () => {
+  const f = await fixture(), completed = [];
+  f.runtime.on('assistantMessageCompleted', (id, message) => completed.push({ id, message }));
+  try {
+    const agent = await f.runtime.open(workerId);
+    await f.runtime.send(agent, 'Standard Task Report.', { report: true });
+    const query = f.queries[0], turn = agent.turnId;
+    query.push({ type: 'stream_event', event: { type: 'message_start', message: { id: 'report-stream', model: 'native-model' } } });
+    query.push({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: '🟩 Done: partial' } } });
+    await tick(); assert.equal(completed.length, 0);
+    const text = '🟩 Done: release published.\n🟨 In progress: implementation.\n🟥 Blocked: no blocker.\n🟦 Next: continue.';
+    query.push({ type: 'assistant', uuid: 'completed-report', session_id: nativeId, message: { content: [{ type: 'text', text }] } });
+    await until(() => completed.length === 1);
+    assert.equal(completed[0].id, workerId);
+    assert.deepEqual(completed[0].message, { id: 'stream-report-stream', turnId: turn, type: 'assistant', state: 'completed', text });
+    assert.equal(agent.turnId, turn); assert.equal(agent.thread.status.type, 'active');
   } finally { await f.close(); }
 });
 
@@ -360,6 +413,31 @@ test('the installed official SDK reads isolated native headless history without 
     assert.equal(history.at(-1).message.content[0].text, 'Synthetic source reviewed.');
     const agent = { messages: [] }; for (const message of history) addClaudeMessage(agent, message);
     assert.equal(agent.messages[0].text, 'Review synthetic project.'); assert.equal(agent.messages[0].images[0].dataUrl, imageUrl);
+  } finally { if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = previous; await rm(directory, { recursive: true, force: true }); }
+});
+
+test('official SDK history excludes native synthetic report inputs after reload while keeping user text and assistant reports', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'ccng-sdk-report-')), cwd = join(directory, 'project'), config = join(directory, 'config');
+  const previous = process.env.CLAUDE_CONFIG_DIR; process.env.CLAUDE_CONFIG_DIR = config;
+  try {
+    await mkdir(cwd); const folder = join(config, 'projects', cwd.replace(/[^a-zA-Z0-9]/g, '-')); await mkdir(folder, { recursive: true });
+    const rows = [
+      { type: 'user', uuid: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', message: { role: 'user', content: 'Standard Task Report.' } },
+      { type: 'user', uuid: 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff', isMeta: true, message: { role: 'user', content: 'Standard Task Report.' } },
+      { type: 'assistant', uuid: 'cccccccc-dddd-4eee-8fff-aaaaaaaaaaaa', message: { role: 'assistant', content: [{ type: 'text', text: '🟩 Done: report output remains visible.' }] } },
+      { type: 'user', uuid: 'dddddddd-eeee-4fff-8aaa-bbbbbbbbbbbb', isMeta: true, message: { role: 'user', content: 'Cancel previous agent-owned schedule.' } },
+      { type: 'assistant', uuid: 'eeeeeeee-ffff-4aaa-8bbb-cccccccccccc', message: { role: 'assistant', content: [{ type: 'text', text: 'Proceeding with authorized work.' }] } }
+    ].map((row, index, all) => ({ ...row, parentUuid: index ? all[index - 1].uuid : null, sessionId: nativeId, cwd, isSidechain: false, timestamp: '2026-11-05T10:20:00.000Z' }));
+    const file = join(folder, nativeId + '.jsonl'), nativeTranscript = rows.map(row => JSON.stringify(row)).join('\n') + '\n';
+    await writeFile(file, nativeTranscript);
+    const sdk = await import('@anthropic-ai/claude-agent-sdk');
+    const history = await sdk.getSessionMessages(nativeId, { dir: cwd, includeSystemMessages: true });
+    assert.deepEqual(history.map(message => message.uuid), [rows[0].uuid, rows[2].uuid, rows[4].uuid]);
+    const agent = { messages: [] }; for (const message of history) addClaudeMessage(agent, message);
+    assert.deepEqual(agent.messages.map(message => message.type), ['user', 'assistant', 'assistant']);
+    assert.equal(agent.messages[0].text, 'Standard Task Report.', 'a real user can say the exact same words');
+    assert.match(agent.messages[1].text, /report output remains visible/);
+    assert.equal(await readFile(file, 'utf8'), nativeTranscript, 'native transcript is preserved, including hidden inputs');
   } finally { if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = previous; await rm(directory, { recursive: true, force: true }); }
 });
 

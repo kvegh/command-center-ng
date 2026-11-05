@@ -10,7 +10,7 @@ import ts from 'typescript';
 const require = createRequire(import.meta.url);
 const source = await readFile(new URL('../src/activity-groups.tsx', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React } }).outputText;
-const { groupMessages, ActivityGroup } = await import('data:text/javascript;base64,' + Buffer.from(compiled.replace(/from ['"]react['"]/, `from '${pathToFileURL(require.resolve('react')).href}'`)).toString('base64'));
+const { groupMessages, ActivityGroup, isVisibleMessage } = await import('data:text/javascript;base64,' + Buffer.from(compiled.replace(/from ['"]react['"]/, `from '${pathToFileURL(require.resolve('react')).href}'`)).toString('base64'));
 const message = (id, type = 'activity', state = 'completed', text = `Action ${id}`) => ({ id, type, state, text });
 const render = messages => renderToStaticMarkup(React.createElement(ActivityGroup, { messages }));
 
@@ -52,4 +52,20 @@ test('appended progress retains group identity and stopped or unknown activity i
   const unknown = render([message('unknown', 'activity', 'new-native-state')]);
   assert.doesNotMatch(unknown.slice(unknown.indexOf('<summary>'), unknown.indexOf('</summary>')), /completed/);
   assert.equal(render([]), '');
+});
+
+test('only typed internal inputs are silent; report answers, normal summaries and quoted user prompts remain visible', () => {
+  const prompt = '[Command Center coordinator]\nStandard Task Report.';
+  const hidden = [
+    { ...message('scheduled', 'user', 'completed', prompt), internalReport: true },
+    { ...message('control', 'user', 'completed', 'Cancel the old reporting loop.'), internalReportControl: true },
+    { ...message('coordinator-event', 'user', 'completed', 'Workspace events'), internalCoordinatorEvent: true }
+  ];
+  const visible = [message('real-user', 'user', 'completed', prompt), message('actual-report', 'assistant', 'completed', '🟩 Done: useful outcome.'), message('summary', 'user', 'completed', '[Command Center coordinator]\nA relevant cross-project finding.')];
+  const all = [...hidden, ...visible];
+  assert.deepEqual(groupMessages(all).map(group => group.id), visible.map(item => item.id));
+  assert.deepEqual(all.filter(isVisibleMessage), visible);
+  assert.equal(all.length, 6, 'presentation filtering does not remove native conversation records');
+  assert.deepEqual(groupMessages(hidden), []);
+  assert.equal(isVisibleMessage({ ...visible[1], internalReport: true }), true, 'an assistant report is never hidden as an input');
 });
