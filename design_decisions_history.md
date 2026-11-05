@@ -986,3 +986,35 @@ build review, with interactive browser review still pending. No live approval,
 helper import, native restart or deployment was used for tests. Comprehensive
 native request controls, model/effort controls and local Claude SDK management
 remain separate unfinished work.
+
+## 2026-11-05 — Answer current native user requests and request reports in 0.17.0
+
+Implementation: `63c5cf173eef5c295c8041e3151e29b933fc167c`.
+
+The user broadened request support from MCP/permissions to all user-facing native
+blocking requests. A shared current-protocol catalog now drives worker-specific
+cards and backend responses for supported MCP primitive forms, external actions
+and exact native-requested turn-scoped filesystem/network access, alongside
+existing clarification/command/file controls. Unsupported schemas, legacy and
+unknown approval-style callbacks stay visible instead of being automatically
+refused. Internal token/attestation exchanges remain internal. External steps
+require an explicit browser action and completion; unsupported answer formats
+still require the native client. Policy-changing command choices remain native.
+
+Manual grants cannot inject extra permissions or a session duration. The
+coordinator remains unable to approve MCP/permission requests or broaden its own
+restrictions through manual controls. Typed IDs, exact worker identity, native
+confirmation and local per-request answer state are preserved. Source publication
+adds no new service, permission policy, dependency or runtime restart.
+
+The user also requested Report now immediately after Never. It queues the
+existing vivid report prompt without changing cadence, including when automatic
+reports are disabled. Existing requests coalesce; active work/questions/pause/
+handoff gates remain, with no interruption or automatic request answer.
+
+All 122 application tests and production build pass. Fixtures cover real native
+response shape/confirmation, invalid and injected answers, primitive forms and
+external URLs, legacy/unknown visibility, coordinator restrictions and reporting
+with Never. No live approval/model call was used; browser review is unperformed.
+Model/effort selection, sidebar resizing/tab alignment/version relocation and
+local official Claude SDK management remain unfinished requests.

@@ -508,3 +508,5 @@ All 122 tests and build pass; no live approval or provider call was used.
 Model/effort controls, the requested resizable sidebar/tab/version layout and
 local official Claude SDK management are still unfinished. SDK package version
 was checked, but no package installation or actual integration has occurred.
+
+0.17.0 implementation: `63c5cf173eef5c295c8041e3151e29b933fc167c`. Check remote refs for publication.
