@@ -5,6 +5,7 @@ import { stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { VERSION } from './version.mjs';
 import { WORKER_BASE_INSTRUCTIONS } from './worker-instructions.mjs';
+import { isHumanRequest, manualRequestAnswer } from './native-requests.mjs';
 import { taskSummary, reportedPlan } from './task-summary.mjs';
 import { BeadsTasks, sessionLabel } from './beads.mjs';
 import { Coordinator, COORDINATOR_NAME, isCoordinatorThread } from './coordinator.mjs';
@@ -366,11 +367,11 @@ export class Workspace extends EventEmitter {
   close(id) { const agent = this.agent(id); if (agent.role === 'coordinator') throw Object.assign(new Error('Pause the coordinator using its controls.'), { status: 409 }); if (this.summaryJobs.has(id) || this.returnJobs.has(id)) throw Object.assign(new Error('Wait for the branch handoff to finish before closing its tab.'), { status: 409 }); this.agents.delete(id); this.coordinator?.closed(id); this.changed(); }
   request(message) {
     const p = message.params || {};
+    if (['execCommandApproval', 'applyPatchApproval'].includes(message.method) && typeof p.conversationId === 'string' && !p.threadId) p.threadId = p.conversationId;
     if (message.method === 'currentTime/read') { this.rpc.respond(message.id, { currentTime: new Date().toISOString() }); return; }
     if (message.method === 'item/tool/call' && p.threadId === this.coordinator?.id) { void this.coordinator.handle(message); return; }
     if (!this.watched.has(p.threadId)) return;
-    const supported = ['item/tool/requestUserInput', 'item/commandExecution/requestApproval', 'item/fileChange/requestApproval', 'mcpServer/elicitation/request', 'item/permissions/requestApproval'];
-    if (!supported.includes(message.method)) { this.rpc.refuse(message.id, 'This client does not implement this tool. Use the Codex client for it.'); return; }
+    if (!isHumanRequest(message.method)) { this.rpc.refuse(message.id, 'This client does not implement this internal tool. Use the original client for it.'); return; }
     const question = { id: message.id, method: message.method, params: p, reviewToken: randomUUID() };
     const key = requestKey(p.threadId, message.id);
     if (this.pending.has(key)) return;
@@ -390,16 +391,13 @@ export class Workspace extends EventEmitter {
         answers[q.id] = { answers: [value] };
       }
       result = { answers };
-    } else if (question.method === 'item/permissions/requestApproval') {
-      // Broad permission grants remain in the native client; refusing is safe and explicit.
-      if (answer.decision !== 'decline') throw Object.assign(new Error('Grant filesystem/network permissions in the native Codex client.'), { status: 400 });
-      result = { permissions: {} };
-    } else if (question.method === 'mcpServer/elicitation/request') {
-      if (answer.decision !== 'decline') throw Object.assign(new Error('Complete this app form in the native Codex client.'), { status: 400 });
-      result = { action: 'decline' };
-    } else {
+    } else if (['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method)) {
       if (!['accept', 'decline', 'cancel'].includes(answer.decision)) throw Object.assign(new Error('Invalid approval decision.'), { status: 400 });
+      if (Array.isArray(question.params.availableDecisions) && !question.params.availableDecisions.includes(answer.decision)) throw Object.assign(new Error('Choose a decision offered by the native request.'), { status: 400 });
       result = { decision: answer.decision };
+    } else {
+      if (this.agents.get(id)?.role === 'coordinator' && answer.decision === 'accept') throw Object.assign(new Error('Coordinator tool and filesystem/network restrictions must remain unchanged. This request cannot be granted here.'), { status: 403 });
+      result = manualRequestAnswer(question, answer);
     }
     return new Promise((resolve, reject) => {
       let timer;

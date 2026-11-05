@@ -10,7 +10,7 @@ import ts from 'typescript';
 const require = createRequire(import.meta.url);
 const source = await readFile(new URL('../src/open-questions.tsx', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React } }).outputText;
-const module = await import('data:text/javascript;base64,' + Buffer.from(compiled.replace(/from ['"]react['"]/, `from '${pathToFileURL(require.resolve('react')).href}'`)).toString('base64'));
+const module = await import('data:text/javascript;base64,' + Buffer.from(compiled.replace(/from ['"]([^'"]+)['"]/g, (_, pkg) => `from '${pathToFileURL(require.resolve(pkg)).href}'`)).toString('base64'));
 
 test('an attention flag without request details does not claim another client owns the request', () => {
   const html = renderToStaticMarkup(React.createElement(module.OpenQuestions, { agentId: 'worker', questions: [], attention: true }));

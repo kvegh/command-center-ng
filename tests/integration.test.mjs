@@ -584,6 +584,43 @@ test('disconnect rejects an unconfirmed answer and clears requests tied to the l
   } finally { await f.close(); }
 });
 
+test('native MCP and permission answers retain exact identity and wait for confirmation; unsupported human requests stay visible', async () => {
+  const f = await fixture();
+  try {
+    await f.workspace.open('existing');
+    const profile = { fileSystem: { read: ['/example/project'], write: null }, network: null };
+    f.request({ id: 801, method: 'item/permissions/requestApproval', params: { threadId: 'existing', turnId: 'turn-existing', permissions: profile, reason: 'Read selected source' } });
+    await waitFor(() => f.workspace.agent('existing').questions.length === 1);
+    const pending = f.workspace.answer('existing', 801, { decision: 'accept', permissions: { network: { enabled: true } }, scope: 'session' });
+    await waitFor(() => f.replies.some(reply => reply.id === 801));
+    assert.deepEqual(f.replies.find(reply => reply.id === 801).result, { permissions: { fileSystem: profile.fileSystem }, scope: 'turn' });
+    assert.equal(f.workspace.agent('existing').questions.length, 1, 'sending is not native confirmation');
+    f.notify('serverRequest/resolved', { threadId: 'existing', requestId: 801 }); await pending;
+    assert.throws(() => f.workspace.answer('existing', 801, { decision: 'accept' }), /already been resolved/);
+    f.request({ id: '801', method: 'mcpServer/elicitation/request', params: { threadId: 'existing', turnId: 'turn-existing', serverName: 'Example connector', mode: 'openai/form', message: 'Allow this tool?', requestedSchema: { type: 'object', properties: { decision: { type: 'string', enum: ['once', 'deny'] } }, required: ['decision'] } } });
+    await waitFor(() => f.workspace.agent('existing').questions.length === 1);
+    const before = f.replies.length;
+    assert.throws(() => f.workspace.answer('existing', '801', { decision: 'accept', content: { decision: 'always' } }), /Check the answer/);
+    assert.equal(f.replies.length, before);
+    const accepted = f.workspace.answer('existing', '801', { decision: 'accept', content: { decision: 'once' } });
+    await waitFor(() => f.replies.length > before);
+    assert.deepEqual(f.replies.at(-1).result, { action: 'accept', content: { decision: 'once' }, _meta: null });
+    f.notify('serverRequest/resolved', { threadId: 'existing', requestId: '801' }); await accepted;
+    f.request({ id: 'future', method: 'item/future/requestApproval', params: { threadId: 'existing', reason: 'Review a future action' } });
+    await waitFor(() => f.workspace.agent('existing').questions.length === 1);
+    assert.equal(f.replies.length, before + 1, 'unknown human requests are not automatically refused');
+    assert.throws(() => f.workspace.answer('existing', 'future', { decision: 'accept' }), /no supported answer format/);
+    assert.equal(f.workspace.agent('existing').questions[0].id, 'future');
+    f.request({ id: 'legacy', method: 'execCommandApproval', params: { conversationId: 'existing', command: ['printf', 'example'], reason: 'Legacy callback' } });
+    await waitFor(() => f.workspace.agent('existing').questions.length === 2);
+    assert.equal(f.workspace.agent('existing').questions.find(question => question.id === 'legacy').params.threadId, 'existing');
+    f.request({ id: 'internal', method: 'account/chatgptAuthTokens/refresh', params: { reason: 'Refresh native credentials' } });
+    await new Promise(resolve => setTimeout(resolve, 15));
+    assert.equal(f.workspace.agent('existing').questions.length, 2);
+    assert.equal(f.calls.some(call => call.method === 'turn/interrupt'), false);
+  } finally { await f.close(); }
+});
+
 test('password stays hashed/private; HTTP login protects controls, rejects cross-origin writes, and logout revokes sessions', async () => {
   const f = await fixture(); const authFile = join(f.dir, 'auth.json'); const password = randomBytes(24).toString('base64url');
   const linkCalls = [];

@@ -430,3 +430,43 @@ test('helper inspection refuses unrelated, symlinked, sensitive, non-source and 
     assert.equal(f.rpc.replies.length, 0); assert.equal(f.workspace.agent('worker').questions.length, 1);
   } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
 });
+
+test('Report now queues immediately with Never, coalesces pending reports and leaves native requests unanswered', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); assert.equal(worker.reportIntervalMinutes, 0);
+    worker.turnId = 'busy'; worker.thread.status = { type: 'active' }; f.rpc.ask('pending-manual', 'worker');
+    assert.deepEqual(f.coordinator.requestUserReport('worker'), { queued: true });
+    assert.equal(f.coordinator.requestUserReport('worker').alreadyPending, true);
+    assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+    assert.equal(worker.reportIntervalMinutes, 0); assert.equal(worker.nextReportAt, null);
+    f.rpc.complete('worker', 'busy'); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+    assert.equal(f.rpc.replies.length, 0);
+    f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: 'worker', requestId: 'pending-manual' } });
+    await new Promise(resolve => setImmediate(resolve));
+    const report = f.rpc.calls.find(call => call.method === 'turn/start');
+    assert.match(report.params.input[0].text, /user selected Report now/);
+    assert.match(report.params.input[0].text, /latest release version/);
+    f.rpc.complete('worker'); assert.equal(worker.reportIntervalMinutes, 0); assert.equal(worker.nextReportAt, null);
+    assert.equal(f.coordinator.reportPending.has('worker'), false);
+    assert.throws(() => f.coordinator.requestUserReport(f.coordinator.id), /open worker/);
+    f.workspace.summaryJobs.set('worker', {});
+    assert.throws(() => f.coordinator.requestUserReport('worker'), /branch handoff/);
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
+  } finally { await f.close(); }
+});
+
+test('manual request support cannot broaden coordinator filesystem, network or MCP tool access', async () => {
+  const f = await fixture();
+  try {
+    f.rpc.ask('coordinator-access', f.coordinator.id, 'item/permissions/requestApproval');
+    assert.throws(() => f.workspace.answer(f.coordinator.id, 'coordinator-access', { decision: 'accept' }), /restrictions must remain unchanged/);
+    f.rpc.ask('coordinator-mcp', f.coordinator.id, 'mcpServer/elicitation/request');
+    assert.throws(() => f.workspace.answer(f.coordinator.id, 'coordinator-mcp', { decision: 'accept', content: {} }), /restrictions must remain unchanged/);
+    assert.equal(f.rpc.replies.length, 0);
+    assert.equal(f.workspace.agent(f.coordinator.id).questions.length, 2);
+    await f.workspace.answer(f.coordinator.id, 'coordinator-access', { decision: 'decline' });
+    assert.equal(f.rpc.replies.at(-1).result.scope, 'turn');
+  } finally { await f.close(); }
+});

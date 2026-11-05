@@ -266,3 +266,16 @@ user input. Due scheduled reports can enter the existing queue during active
 work/questions, with one outstanding report and visible queued/generating state.
 Delivery retains current turn/request/pause/handoff gates; do not interrupt or
 answer a question to deliver a report. Never cancels only unsent scheduled work.
+
+## Approved native request controls
+
+Surface current user-facing blocking native requests in the originating worker,
+including clarification, command/file approvals, MCP forms/external steps and
+filesystem/network grants. Unsupported human answer formats remain visible with
+an exact next action; do not automatically refuse or silently discard them.
+Internal token/attestation exchanges are not user questions. Native permission
+answers may grant only the exact requested access for this turn. Preserve exact
+IDs and native confirmation, and never broaden coordinator restrictions or give
+it MCP/permission auto-approval. Form answers are not persisted in workspace data.
+Report now after Never queues/coalesces one existing report without changing
+cadence, interrupting work or answering a pending request.

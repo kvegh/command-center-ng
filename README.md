@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.16.0 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.17.0 (in development)** includes the Codex workspace and Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -574,3 +574,39 @@ refusal and unchanged approval protections. Scheduler fixtures cover active work
 pending/missing requests, one queued report, generating state, Never cancellation,
 fresh post-report delay and no interruption/answer. The three-row viewport was
 checked through CSS/build review; interactive desktop/mobile review is pending.
+
+## Native requests and Report now: 0.17.0
+
+Current Codex user-request types appear in their originating worker tab and Open
+questions: clarifications, command/file approvals, MCP forms/external steps and
+filesystem/network permission requests. MCP primitive forms (including titled
+choices, numbers, booleans and multiselects) can be answered here; unsupported
+schemas/modes stay visible with precise native-client guidance. External sign-in
+steps offer an explicit browser link and manual completion button. Internal token
+refresh/attestation exchanges are not presented as user questions. Unknown
+approval-style and legacy callbacks stay visible without an automatic refusal;
+unknown answer formats require the native client.
+
+Manual permission approval returns only the exact native-requested access for the
+current turn, ignoring client-supplied attempts to broaden access or duration.
+It does not change global settings. The coordinator cannot approve MCP forms or
+permission grants, and even manual controls cannot broaden its own restrictions.
+Command/file controls honor the offered native decisions; policy-changing choices
+remain in the native client. Full native request details stay available in an
+expandable section. Every answer keeps exact IDs, typed request identity and
+pending state until native confirmation. Form input stays local to its worker/
+request component and is not saved in browser workspace metadata.
+
+**Report now**, immediately after **Never**, queues a vivid status report for the
+selected worker without changing its cadence. It also works with automatic
+reports set to Never. Existing queued/generating reports are coalesced, and busy
+workers/pending questions/pause retain their normal delivery gates. It does not
+interrupt, answer requests or generate a new report merely to test the feature.
+
+All 122 application tests and the production build pass. Synthetic protocol,
+UI and schema fixtures cover native response shape, exact request identity,
+confirmation, privilege-injection refusal, supported/unsupported forms, external
+URLs, legacy/unknown visibility, coordinator restrictions and manual reporting.
+No live approval, model call or service restart was used. Interactive browser
+review remains pending. Local Claude management and model/effort controls are
+still unfinished, as are the requested resizable sidebar/tab/version layout.

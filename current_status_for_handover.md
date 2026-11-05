@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.16.0** in package.json and the lockfile.
+The authoritative version is **0.17.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -495,3 +495,16 @@ fresh post-report delay and no interruption/answer. The three-row viewport was
 checked through CSS/build review; interactive desktop/mobile review is pending.
 
 0.16.0 implementation: `4248900ba0629b4400dd281755f0352f63870c59`. Consult current remote refs for publication.
+
+## Native user requests and manual reporting: 0.17.0
+
+Current Codex human requests render with worker identity, supported MCP form/
+external controls and exact requested turn-scoped filesystem/network decisions.
+Unsupported/legacy/unknown approval callbacks remain visible without auto-refusal.
+Token refresh/attestation remain internal. Native confirmation, typed IDs,
+coordinator exclusions and permission restrictions are tested. Report now after
+Never queues/coalesces a report with normal delivery gates and no cadence change.
+All 122 tests and build pass; no live approval or provider call was used.
+Model/effort controls, the requested resizable sidebar/tab/version layout and
+local official Claude SDK management are still unfinished. SDK package version
+was checked, but no package installation or actual integration has occurred.

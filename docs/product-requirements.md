@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.16.0
+## Current development version: 0.17.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -294,3 +294,12 @@ gates and coalesce missed intervals.
 The task-list viewport is capped at three visible rows on desktop and mobile;
 all remaining tasks remain available by scrolling, and header totals include
 the entire current list. This changes the viewport only, not task retrieval.
+
+Version 0.17.0 mirrors current user-facing native requests and renders supported
+MCP/permission controls manually, preserving exact native access and confirmation.
+Unsupported/legacy/unknown human requests stay visible with a precise next step;
+internal protocol exchanges stay internal. Coordinator restrictions are retained.
+Report now beside Never queues one report without changing saved cadence.
+The user also requests model/effort selection and a resizable overview/sidebar,
+coordinator alignment with the chat column, uncapped useful chat text width and
+moving the version label into the composer footer. These remain unfinished.

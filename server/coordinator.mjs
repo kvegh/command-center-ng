@@ -76,6 +76,15 @@ export class Coordinator {
     if (this.deliveries.get(id)?.some(row => ['report', 'scheduled-report'].includes(row.kind))) return 'queued';
     return ['report', 'scheduled-report'].includes(this.workspace.agents.get(id)?.coordinatorDeliveryKind) ? 'generating' : null;
   }
+  requestUserReport(id) {
+    const agent = this.worker(id);
+    if (this.stopped || !this.rpc.ready || this.workspace.restoring) throw fail('Reconnect the worker before requesting a report.', 503);
+    if (!agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) throw fail('Finish the branch handoff before requesting a report, or choose a worker that accepts direct input.');
+    if (this.reportPending.has(id)) return { alreadyPending: true, state: this.reportState(id) };
+    this.reportPending.add(id);
+    try { return this.queue(agent, '[Command Center coordinator]\nThe user selected Report now. ' + WORKER_REPORT_REQUEST, 'report'); }
+    catch (error) { this.reportPending.delete(id); throw error; }
+  }
   worker(id) { const agent = this.workspace.agent(id); if (agent.role === 'coordinator') throw fail('Choose an open worker conversation.', 400); return agent; }
   async restrictedOptions(cwd) {
     const { config } = await this.rpc.call('config/read', { includeLayers: false, cwd });

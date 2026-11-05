@@ -1,0 +1,12 @@
+export type FormField = { name: string; label: string; type: 'string' | 'number' | 'integer' | 'boolean' | 'array'; required: boolean; description?: string; default?: any; options: { value: string; label: string }[] | null; format?: string; minLength?: number; maxLength?: number; minimum?: number; maximum?: number; minItems?: number; maxItems?: number };
+export const COMMAND_APPROVAL: string;
+export const FILE_APPROVAL: string;
+export const CLARIFICATION: string;
+export const PERMISSIONS: string;
+export const MCP_REQUEST: string;
+export const knownHumanRequests: string[];
+export function isHumanRequest(method: string): boolean;
+export function requestKind(question: { method: string; params: Record<string, any> }): string;
+export function formFields(schema: unknown): FormField[] | null;
+export function formContent(schema: unknown, content: unknown): Record<string, any>;
+export function manualRequestAnswer(question: { method: string; params: Record<string, any> }, answer: Record<string, any>): Record<string, any>;

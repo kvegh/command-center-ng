@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { requestKind } from '../server/native-requests.mjs';
 
 export type Question = {
   id: string | number; method: string; params: Record<string, any>;
@@ -13,7 +14,7 @@ export function revealQuestion(agentId: string, requestId: string | number) {
   const card = document.getElementById(questionTarget(agentId, requestId));
   if (!card) return;
   card.scrollIntoView({ block: 'start', behavior: 'instant' });
-  const control = card.querySelector<HTMLElement>('input:not(:disabled), button:not(:disabled), textarea:not(:disabled)');
+  const control = card.querySelector<HTMLElement>('input:not(:disabled), select:not(:disabled), button:not(:disabled), textarea:not(:disabled)');
   (control || card).focus({ preventScroll: true });
 }
 
@@ -37,9 +38,9 @@ export function OpenQuestions({ agentId, questions, attention }: { agentId: stri
     const prompts: string[] = clarification && Array.isArray(question.params.questions)
       ? question.params.questions.map((item: any) => typeof item.question === 'string' ? item.question : '').filter(Boolean)
       : [];
-    const kind = clarification ? 'Question' : question.method === 'item/commandExecution/requestApproval' ? 'Command approval' : question.method === 'item/fileChange/requestApproval' ? 'File approval' : 'Native action';
+    const kind = requestKind(question);
     const detail = [question.params.reason, question.params.message, question.params.title].find(value => typeof value === 'string' && value.trim());
-    const fallback = detail || (clarification ? 'Answer the pending clarification.' : kind === 'Command approval' ? 'Review the requested command.' : kind === 'File approval' ? 'Review the proposed file changes.' : 'Complete this request in Codex.');
+    const fallback = detail || (clarification ? 'Answer the pending clarification.' : kind === 'Command approval' ? 'Review the requested command.' : kind === 'File approval' ? 'Review the proposed file changes.' : 'Review this native request.');
     return (prompts.length ? prompts : [fallback]).map((text, index) => ({ question, kind, text, key: JSON.stringify([question.id, index]) }));
   });
   const pending = rows.length > 0 || attention;

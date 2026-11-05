@@ -480,3 +480,11 @@ kbd { font-family: inherit; }
 .markdown img { max-width: 100%; height: auto; }
 .markdown input[type=checkbox] { width: auto; margin-right: 7px; accent-color: var(--green); }
 .markdown .task-list-item { list-style: none; }
+
+.native-request-message { white-space: pre-wrap; overflow-wrap: anywhere; }
+.native-form-fields { display: grid; gap: 12px; border: 0; padding: 0; margin: 0 0 12px; }
+.native-form-fields label { display: grid; gap: 5px; }
+.native-form-fields label small { color: var(--muted); font-size: 12px; }
+.native-form-fields select { padding: 9px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 5px; max-width: 100%; }
+.native-external-step { display: grid; justify-items: start; gap: 9px; margin: 12px 0; }
+.native-external-step a { text-decoration: none; }
