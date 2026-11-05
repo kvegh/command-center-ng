@@ -520,3 +520,22 @@ kbd { font-family: inherit; }
 .background-request { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
 .background-request > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .background-request small { display: block; margin-top: 3px; color: var(--muted); }
+.overview-sections { min-width: 0; display: flex; flex-direction: column; }
+.overview-section { min-width: 0; }
+.overview-section-body { min-width: 0; }
+.overview-section-body > :is(.branch-context, .goal-row, .progress-recap, .task-summary, .open-questions, .worker-settings, .coordinator-workers, .coordinator-audit) { margin-top: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; border-top: 0; border-bottom: 0; }
+.overview-section-divider { display: none; }
+@media (min-width: 901px) {
+  .overview-section-body.sized { height: var(--section-height); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+  .overview-section-divider { display: block; position: relative; height: 13px; flex: 0 0 13px; margin: 8px 0; cursor: row-resize; touch-action: none; }
+  .overview-section-divider::after { content: ''; position: absolute; top: 6px; left: 0; right: 0; height: 1px; background: var(--line); }
+  .overview-section-divider:hover::after, .overview-section-divider.resizing::after { height: 3px; top: 5px; background: var(--accent); }
+  .overview-section-divider:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; border-radius: 3px; }
+  .overview-section[data-section="tasks"] .overview-section-body.sized > .task-summary { height: 100%; min-height: 0; }
+  .overview-section[data-section="tasks"] .overview-section-body.sized .task-scroll { max-height: none !important; min-height: 0; flex: 1 1 auto; }
+  .overview-section-body.sized .progress-recap p:first-of-type { display: block; -webkit-line-clamp: unset; }
+}
+@media (max-width: 900px) {
+  .overview-sections { gap: 20px; }
+  .overview-section-body.sized { height: auto; overflow: visible; }
+}

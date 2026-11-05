@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.19.2 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.20.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -780,3 +780,17 @@ pass, including eight new older-history authority regressions. Tests use
 synthetic native pages and approvals; the reported live request remains
 independently reviewable after normal installation update/restart and a fresh
 read of its original user-history page.
+
+
+Version 0.20.0 makes the horizontal overview dividers draggable on desktop.
+Drag a boundary to resize the two adjacent sections; each resized section scrolls
+independently. Use Up/Down arrows when focused (Shift for larger steps), Home/End
+for the limits, Escape to cancel a drag, or double-click to restore natural
+heights. Sizes stay in the existing browser-local preferences across tabs and
+reloads. Worker and coordinator overviews share these controls; mobile keeps
+natural stacked sections. Tasks retain their three-row default until resized.
+
+Validation: all183 application tests and production build pass, including
+adjacent-section sizing, short-pair growth, separator semantics and browser
+preference restoration/refusal checks. Interactive browser visual review remains
+unperformed; no running installation was updated or restarted.

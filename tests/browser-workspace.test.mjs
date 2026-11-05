@@ -36,3 +36,11 @@ test('overview width persists in existing browser preferences while invalid valu
   saveBrowserWorkspace(value, local); assert.equal(loadBrowserWorkspace(local).state.overviewWidth, 520);
   for (const width of [0, -1, 279, 801, Infinity, '520']) assert.equal(browserWorkspace({ version: 1, overviewWidth: width }).overviewWidth, undefined);
 });
+
+test('overview section heights survive reload and reject invalid or unrelated preferences', () => {
+  const local = storage();
+  saveBrowserWorkspace({ ...emptyBrowserWorkspace(), overviewHeights: { tasks: 240, questions: 160, settings: 64 } }, local);
+  assert.deepEqual(loadBrowserWorkspace(local).state.overviewHeights, { tasks: 240, questions: 160, settings: 64 });
+  assert.deepEqual(browserWorkspace({ version: 1, overviewHeights: { tasks: Infinity, goal: 63, settings: 1201, questions: '180', password: 200 } }).overviewHeights, {});
+  assert.equal(browserWorkspace({ version: 1 }).overviewHeights, undefined);
+});

@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.19.2** in package.json and the lockfile.
+The authoritative version is **0.20.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -623,3 +623,17 @@ worker/reopen boundaries, unavailable/changed pages, resolved/closed-worker race
 bounded references and messages omitted by the response budget.
 
 0.19.2 implementation: `3b3c868bc722c6abf7cb31b2abc2394e05fd8a0c`.
+
+## Resizable overview sections: 0.20.0
+
+Desktop worker and coordinator overviews have draggable horizontal boundaries
+that resize both adjacent sections with independent scrolling and bounded
+minimum heights. Keyboard controls and double-click reset are included. Heights
+use existing browser preferences; mobile remains naturally stacked. Tasks keep
+three rows by default and can show more when manually enlarged. No backend or
+native permission changes, live model calls or running-service restart.
+
+Validation: all183 application tests and production build pass, including
+adjacent-section sizing, short-pair growth, separator semantics and browser
+preference restoration/refusal checks. Interactive browser visual review remains
+unperformed; no running installation was updated or restarted.

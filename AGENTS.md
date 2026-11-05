@@ -348,3 +348,8 @@ not yet integrated. Preserve explicit closed-tab request reopening.
 Task rows use natural height with a viewport sized to the first three rows;
 assignee names remain in backend metadata rather than row presentation. Model
 and Effort labels/selects stay on one line; omit routine descriptive paragraphs.
+
+The user approved draggable horizontal overview boundaries. Resize adjacent
+section heights with usable minimums and independent scrolling, using existing
+browser-local layout preferences. Preserve keyboard controls, natural/reset
+heights, mobile stacking and three-task default until explicitly resized.
