@@ -665,3 +665,7 @@ matching approval binding. Older coordinators can use their existing reader;
 there is no need to replace their conversation or rewrite native state. General
 outside-project reads and secret/data reads remain refused. Source publication
 does not update the running installation or approve the quoted action.
+
+Regression checks and production build pass; helper reads are tested with
+synthetic files, including changed-source refusal and multiple current requests.
+No real request was approved or executed for validation.

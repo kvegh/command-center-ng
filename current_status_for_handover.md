@@ -544,3 +544,5 @@ catalog without the helper reader. The existing reader now applies the same appr
 returns exact current bindings for directly referenced outside helpers. This
 preserves that coordinator/history and native registration. Source publication
 still requires an installation update before live behavior changes.
+
+0.18.1 implementation: `ab05d4fb17544a9918dea7df2502b943f062a9b5`. Regression suite/build pass; installation not updated.

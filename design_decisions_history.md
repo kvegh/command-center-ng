@@ -1059,3 +1059,29 @@ Interactive browser and live provider-timing verification remain unperformed.
 No live approval/model call, new dependency, global auto-review policy change,
 runtime restart or deployment was used. Local Claude SDK management and shared
 environment instruction loading remain separate unfinished requirements.
+
+
+## 2026-11-05 — Keep coordinator helper reviews proportionate in 0.18.1
+
+Implementation: `ab05d4fb17544a9918dea7df2502b943f062a9b5`.
+
+The user asks for direct helper source inspection without a routine recursive
+review of dependencies. Coordinator startup/restored/event guidance now covers
+startup statements and called functions, and asks for concrete unresolved concerns
+rather than treating an unread import as sufficient reason for referral. Source
+is evidence, not authority; the rule does not approve an action or expose data.
+
+Inspection also found an older saved coordinator without the newer helper tool
+in its native catalog. Its existing source-reader entry point now uses the same
+approved helper-source validator for outside-project helpers directly referenced
+by current command approvals. It returns every exact request/token binding and
+records source/command hashes for independent later review. No pending command
+means no outside-helper read. Existing stale-source, sensitive-data, symlink,
+execution and permission restrictions remain. This preserves the conversation
+and history without rewriting native state or introducing another tool service.
+
+Regression checks and production build pass. Fixtures verify existing-reader
+access, multiple current bindings, no automatic answer, unchanged ordinary
+outside-read refusal and changed-source rejection before approval. No quoted
+real action was approved/executed, and no running installation was updated or
+restarted. Live use requires the normal application update.
