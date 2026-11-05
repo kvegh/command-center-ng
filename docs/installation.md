@@ -13,7 +13,7 @@ The interface must remain usable from a Linux desktop browser and a smartphone
 browser. Browser support does not imply a selected remote-access or hosting
 arrangement.
 
-Version 0.9.1 is in development. The installer checks RHEL 9 prerequisites and
+The installer checks RHEL 9 prerequisites and
 can offer missing RPMs and user-local CLI packages after confirmation. Other
 Linux distributions are not yet tested; automatic package setup is RHEL 9 only.
 Run `./install.sh --check` for a read-only inventory. Full details and package
@@ -21,10 +21,10 @@ names are in [RHEL 9 prerequisites](rhel9-prerequisites.md).
 
 Beads 1.3.2 and Codex 0.166.0 are the verified CLI versions used for optional
 fresh local installation. Existing compatible CLIs are reused. The application
-checks Beads JSON/read-only/brief-list support. Existing trackers are preserved;
-fresh tracker/shared Dolt setup still awaits the user's architecture choice and
-is not yet automated. No system package, global tool, tracker or service is
-changed without its explicit setup authorization.
+checks Beads JSON/read-only/brief-list support. After the application is built,
+fresh tracker/shared Dolt setup is offered for an explicitly selected task
+workspace. Existing trackers and connection settings are preserved. No system
+package, global tool, tracker or server is changed without terminal confirmation.
 
 From the cloned repository:
 
@@ -48,15 +48,16 @@ then restart the app. Sessions are invalidated when the app restarts.
 
 The same configuration directory holds private `workspace.json` (mode 600):
 open conversation IDs, coordinator ID and pause state. It is written by the
-existing Command Center backend on port 4242; no additional server/service or
-database is installed. Installer updates preserve it outside the target, along
+existing Command Center backend on port 4242; that workspace file does not need
+another service or database. Optional Beads setup is separate, as described below.
+Installer updates preserve the workspace file outside the target, along
 with the password file. Browser drafts/order/positions stay in local browser
 storage. On restart, sign in again to see restored tabs. Restoring reads existing
 history without starting worker work; already-running Codex tasks remain native.
 See [workspace restore and recovery](workspace-restore.md).
 
 If CLIs were installed under the target, export its
-`tools/node_modules/.bin` on PATH before starting the daemon so native agents
+`tools/bin` and `tools/node_modules/.bin` on PATH before starting the daemon so native agents
 can also find Beads. An already-running daemon retains its original PATH; after
 adding Beads, restart it only when existing work is idle.
 
@@ -146,11 +147,61 @@ target. Other launchers and symlinks are left untouched. No PATH shortcut is cre
 ## Beads project setup
 
 Ensure `bd` is on PATH for the account running both Command Center and Codex.
-Each conversation's working directory must resolve to an existing Beads tracker.
-Run `bd where` there to check it. If none exists, deliberately initialize it with
-`bd init` according to your project's workflow before using task tracking. The
-app never initializes or migrates a tracker as a side effect of viewing a tab.
+Each conversation's working directory must resolve to a Beads tracker. Run
+`bd where` there to check it. The installer first checks the invoking workspace
+without auto-starting a server. If an existing project/parent/redirected tracker
+resolves, it is reused without initialization, migration or server changes.
+
+For a fresh setup, select an existing task workspace at the terminal prompt, or
+pass it explicitly:
+
+```sh
+./install.sh --workspace "$HOME/projects/WORKSPACE" "$HOME/apps/command-center-ng"
+```
+
+The directory option selects the workspace; it does not approve changes. The
+installer displays and asks before running native
+`bd init --shared-server --non-interactive --skip-agents --skip-hooks` there.
+That creates the tracker and lets Beads manage its private local shared Dolt
+server, using its existing lifecycle and per-project database isolation. It does
+not initialize the Command Center source checkout unless you explicitly select
+it, and it leaves project agent instructions and Git hooks unchanged.
+
+Missing Dolt is offered separately under `TARGET_DIR/tools/bin`, using the
+official Linux amd64/arm64 archive pinned to Dolt 2.2.0 for Beads 1.3.2. Its
+published SHA256 is checked before extraction; existing Dolt is reused rather
+than replaced. Downloading requires curl; a missing RHEL 9 curl RPM is offered
+through the same confirmed DNF flow. No shell profile or global binary is changed.
+
+Fresh setup runs only after the application build and replacement succeed, so
+the native server uses the final tool path. It applies an owner-only umask and
+verifies a read-only Beads query after initialization. A failed native setup is
+reported and left intact for diagnosis, without force/reinitialization retries.
+If initialization is declined or there is no terminal, the application remains
+installed and reports task setup pending. Existing partial tracker, routing or
+connection configuration is left for deliberate review rather than overwritten.
+
+Beads stores shared-server state under its native `~/.beads/shared-server` and
+manages startup on demand. From the selected task workspace, use `bd dolt status`,
+`bd dolt start` or `bd dolt stop` for deliberate lifecycle actions. No CCNG Dolt
+wrapper, systemd unit or boot autostart is installed. Keep the installed local
+tool directories on PATH for new terminals and agent daemons.
+
+The application never initializes or migrates a tracker as a side effect of
+viewing a tab. Read-only `--check` reports tracker readiness without setup.
 
 Use Link tasks to associate existing issues. Automatic reads are read-only and
 disable Beads auto-push. Link edits require an explicit authenticated action and
 only add/remove that conversation's label. Task states remain agent-managed.
+
+
+## Optional local Claude runtime
+
+Claude management requires a signed-in native Claude CLI on the backend host.
+The application pins the official Agent SDK0.3.212 and uses the installed CLI;
+this installer does not replace Claude login, user/project/local settings or
+permission defaults. The CLI interface was checked with2.1.316. An unavailable
+Claude runtime is reported separately; Codex workflows remain available.
+Source publication does not update the running app. Plan updates when managed
+Claude work can stop: backend shutdown ends SDK-owned processes, while closing
+only a tab leaves them running and native history survives either action.

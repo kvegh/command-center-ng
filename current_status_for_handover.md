@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.18.1** in package.json and the lockfile.
+The authoritative version is **0.19.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -546,3 +546,38 @@ preserves that coordinator/history and native registration. Source publication
 still requires an installation update before live behavior changes.
 
 0.18.1 implementation: `ab05d4fb17544a9918dea7df2502b943f062a9b5`. Regression suite/build pass; installation not updated.
+
+
+## Local providers, runtime rules and context refinements: 0.19.0
+
+Implemented: official Claude Agent SDK0.3.212 with installed native CLI interface,
+local headless history, managed streaming/send/interrupt and manual SDK requests;
+shared local environment AGENTS import; worker-owned Beads ordinary-chat question
+records and replies; confirmed fresh native Dolt/Beads installation;90ch maximum
+chat text, hidden task assignees, natural-height first-three-row task viewport and
+single-row model/effort controls without routine explanations. Current source
+supersedes historical unfinished statuses above. See README for provider limits.
+
+Root/subagents used separate source ownership and root reviewed integration.
+External active Claude processes remain their own owners. Closing a tab keeps
+managed work alive, closed-tab requests can be reopened, and app shutdown ends
+SDK-owned processes while retaining native history. Model controls are managed-
+process scoped; persistence across process restarts remains unverified. No live
+model/approval, service restart or deployment is used for validation.
+
+Remaining: actual AAP deployment/CaC/credential setup and live verification.
+The original-chat audit found target/architecture choices but no captured Machine
+or Vault source choice; a display acknowledgment is not an answered question.
+The default environment template now allows7subagents+primary, but the live
+user-level edit was blocked EROFS and automatically rejected for sandbox
+escalation. Its application remains a separate blocked task, not a CCNG release.
+
+
+Validation for0.19.0: all **163 application tests** and the production build pass.
+Coverage includes real official-SDK reads of isolated native JSONL, local/external
+ownership, streamed controls and exact callbacks, provider disconnect/restore
+races, closed-tab pending requests, shared-source rereads/missing sources,
+complete recorded chat questions, variable task-row sizing and isolated confirmed
+Dolt/Beads installer fixtures. No live model/approval, development-host database
+setup, runtime restart or deployment was used. Interactive browser/live provider
+verification remains pending.

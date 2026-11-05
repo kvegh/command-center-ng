@@ -73,7 +73,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.18.1
+## Current development version: 0.19.0
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus
@@ -321,3 +321,14 @@ functions, without a routine recursive dependency audit. Referrals require a
 concrete unresolved concern; absent source-reader tooling is reported separately.
 The existing reader applies the same exact-current-approval helper checks for
 older coordinators, preserving their conversation and native tool registration.
+
+
+Version 0.19.0 adds official-SDK local Claude discovery/management, shared local
+AGENTS runtime context, Beads-backed ordinary-chat input questions and explicit
+fresh Dolt/Beads installer setup. Native histories, exact requests, provider
+ownership and permissions remain authoritative. External active Claude sessions
+are followed until released; SDK-owned processes end at app shutdown, and Claude
+branching is not yet integrated. Codex-only coordinator restrictions remain.
+The user also restored90ch maximum message width, removed task assignee names,
+requested natural-height task rows/first-three-row viewport, and put Model/Effort
+labels/selects on one line without routine explanatory paragraphs.

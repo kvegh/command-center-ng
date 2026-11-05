@@ -18,25 +18,26 @@ export function revealQuestion(agentId: string, requestId: string | number) {
   (control || card).focus({ preventScroll: true });
 }
 
-export function RequestRecovery({ recovering, error, disabled, recover }: { recovering: boolean; error?: string | null; disabled: boolean; recover: () => Promise<unknown> }) {
+export function RequestRecovery({ recovering, error, disabled, recover, provider = 'codex' }: { recovering: boolean; error?: string | null; disabled: boolean; recover: () => Promise<unknown>; provider?: 'codex' | 'claude' }) {
   const [busy, setBusy] = useState(false); const [localError, setError] = useState('');
   const loading = busy || recovering;
   return <section className="request-recovery" aria-label="Pending request details">
-    <strong>Codex is waiting for your response.</strong>
-    <span>The request details are not loaded in Command Center. Load them to review the request here.</span>
+    <strong>{provider === 'claude' ? 'Claude' : 'Codex'} is waiting for your response.</strong>
+    <span>{provider === 'claude' ? 'Waiting for Claude’s request details. Refresh them here if needed.' : 'The request details are not loaded in Command Center. Load them to review the request here.'}</span>
     {(localError || error) && <span className="error-text" role="alert">{localError || error}</span>}
     <button type="button" className="button subtle small" disabled={disabled || loading} onClick={async () => {
       setBusy(true); setError('');
       try { await recover(); } catch (problem) { setError((problem as Error).message); } finally { setBusy(false); }
-    }}>{loading ? 'Loading request…' : localError || error ? 'Retry loading request' : 'Load pending request'}</button>
+    }}>{loading ? 'Loading request…' : localError || error ? 'Retry loading request' : provider === 'claude' ? 'Refresh request details' : 'Load pending request'}</button>
   </section>;
 }
 
-export function OpenQuestions({ agentId, questions, attention }: { agentId: string; questions: Question[]; attention: boolean }) {
+export function OpenQuestions({ agentId, questions, attention, provider = 'codex' }: { agentId: string; questions: Question[]; attention: boolean; provider?: 'codex' | 'claude' }) {
   const rows = questions.flatMap(question => {
-    const clarification = question.method === 'item/tool/requestUserInput';
-    const prompts: string[] = clarification && Array.isArray(question.params.questions)
-      ? question.params.questions.map((item: any) => typeof item.question === 'string' ? item.question : '').filter(Boolean)
+    const clarification = ['item/tool/requestUserInput', 'claude/tool/requestUserInput'].includes(question.method);
+    const fields = question.method === 'claude/tool/requestUserInput' ? question.params.input?.questions : question.params.questions;
+    const prompts: string[] = clarification && Array.isArray(fields)
+      ? fields.map((item: any) => typeof item?.question === 'string' ? item.question : '').filter(Boolean)
       : [];
     const kind = requestKind(question);
     const detail = [question.params.reason, question.params.message, question.params.title].find(value => typeof value === 'string' && value.trim());
@@ -54,6 +55,6 @@ export function OpenQuestions({ agentId, questions, attention }: { agentId: stri
         {question.error && <span className="error-text">{question.error}</span>}
         <span className="open-question-action">{question.responding ? 'Confirming answer…' : question.error ? 'Review answer error →' : 'Go to question →'}</span>
       </button>
-    </li>)}</ul> : <p className="open-questions-empty">{attention ? 'Codex reports a pending request. Its details are not loaded here; use Load pending request in the conversation.' : 'No pending requests.'}</p>}
+    </li>)}</ul> : <p className="open-questions-empty">{attention ? provider === 'claude' ? 'Claude reports that it needs input; the request details have not arrived. Refresh request details in the conversation.' : 'Codex reports a pending request. Its details are not loaded here; use Load pending request in the conversation.' : 'No pending requests.'}</p>}
   </section>;
 }

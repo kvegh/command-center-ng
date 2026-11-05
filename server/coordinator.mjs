@@ -3,6 +3,7 @@ import { readFile, realpath } from 'node:fs/promises';
 import { resolve, relative, extname, basename, dirname } from 'node:path';
 import { COORDINATOR_PROMPT, COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE } from './coordinator-prompt.mjs';
 import { isBranchControlMessage } from './branch-summary.mjs';
+import { taskSummary } from './task-summary.mjs';
 import { WORKER_REPORT_REQUEST, REPORT_INTERVALS } from './worker-instructions.mjs';
 import { approvalCommand, inspectApprovalSource, referencesApprovalSource } from './approval-source.mjs';
 
@@ -11,6 +12,7 @@ const textInput = text => [{ type: 'text', text, text_elements: [] }];
 const object = (properties, required = Object.keys(properties)) => ({ type: 'object', properties, required, additionalProperties: false });
 const str = { type: 'string' }; const target = { agentId: str };
 const tool = (name, description, inputSchema) => ({ type: 'function', name, description, inputSchema, deferLoading: false });
+const isClarification = question => ['item/tool/requestUserInput', 'claude/tool/requestUserInput'].includes(question.method);
 const isApproval = question => ['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method);
 const isUnreviewedApproval = question => isApproval(question) && !question.review && !question.responding && !question.error;
 export const COORDINATOR_NAME = 'Command Center coordinator';
@@ -42,7 +44,7 @@ export class Coordinator {
     if (!REPORT_INTERVALS.includes(minutes)) throw fail('Choose 1h, 15min, 5min or Never.', 400);
     if (agent.reportIntervalMinutes === minutes) return { reportIntervalMinutes: minutes, alreadySet: true };
     if (notifyWorker) {
-      if (this.stopped || !this.rpc.ready || this.workspace.restoring) throw fail('Reconnect the worker before changing its report instruction.', 503);
+      if (this.stopped || !this.workspace.readyFor(agent) || this.workspace.restoring) throw fail('Reconnect the worker before changing its report instruction.', 503);
       if (!agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) throw fail('Finish the branch handoff before changing its report instruction, or choose a worker that accepts direct input.');
       const rows = this.deliveries.get(id);
       const retained = rows?.filter((row, index) => row.kind !== 'report-setting' || (index === 0 && agent.coordinatorSending));
@@ -62,7 +64,7 @@ export class Coordinator {
   }
   requestUserReport(id) {
     const agent = this.worker(id);
-    if (this.stopped || !this.rpc.ready || this.workspace.restoring) throw fail('Reconnect the worker before requesting a report.', 503);
+    if (this.stopped || !this.workspace.readyFor(agent) || this.workspace.restoring) throw fail('Reconnect the worker before requesting a report.', 503);
     if (!agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) throw fail('Finish the branch handoff before requesting a report, or choose a worker that accepts direct input.');
     if (this.reportPending.has(id)) return { alreadyPending: true, state: this.reportState(id) };
     this.reportPending.add(id);
@@ -72,7 +74,7 @@ export class Coordinator {
   worker(id) { const agent = this.workspace.agent(id); if (agent.role === 'coordinator') throw fail('Choose an open worker conversation.', 400); return agent; }
   async restrictedOptions(cwd) {
     const { config } = await this.rpc.call('config/read', { includeLayers: false, cwd });
-    const overrides = { 'features.shell_tool': false, 'features.apps': false, 'features.plugins': false, 'features.memories': false, 'features.request_permissions_tool': false, 'features.multi_agent': false, web_search: 'disabled' };
+    const overrides = { 'features.shell_tool': false, 'features.apps': false, 'features.plugins': false, 'features.memories': false, 'features.request_permissions_tool': false, 'agents.enabled': false, 'features.multi_agent_v2': false, 'features.multi_agent': false, web_search: 'disabled' };
     for (const name of Object.keys(config?.mcp_servers || {})) {
       if (!/^[a-zA-Z0-9_-]+$/.test(name)) throw fail('The coordinator cannot safely scope this MCP server name. Worker sessions remain available.');
       overrides['mcp_servers.' + name + '.enabled'] = false;
@@ -137,15 +139,15 @@ export class Coordinator {
   record(entry) { this.audit.push({ ...entry, at: new Date().toISOString() }); this.audit = this.audit.slice(-200); this.workspace.changed(); }
   pendingRequests(agent) {
     const questions = agent.questions.map(q => ({ id: q.id, method: q.method, params: q.params, reviewToken: q.reviewToken, review: q.review || null, responding: !!q.responding, error: q.error || null }));
-    const clarifications = questions.filter(q => q.method === 'item/tool/requestUserInput');
+    const clarifications = questions.filter(isClarification);
     return {
       requestSummary: {
         totalRequests: questions.length,
         commandApprovals: questions.filter(q => q.method === 'item/commandExecution/requestApproval').length,
         fileApprovals: questions.filter(q => q.method === 'item/fileChange/requestApproval').length,
         clarificationRequests: clarifications.length,
-        clarificationQuestions: clarifications.reduce((total, q) => total + (Array.isArray(q.params.questions) ? q.params.questions.length : 0), 0),
-        otherRequests: questions.filter(q => !isApproval(q) && q.method !== 'item/tool/requestUserInput').length,
+        clarificationQuestions: clarifications.reduce((total, q) => { const fields = q.method === 'claude/tool/requestUserInput' ? q.params.input?.questions : q.params.questions; return total + (Array.isArray(fields) ? fields.length : 0); }, 0),
+        otherRequests: questions.filter(q => !isApproval(q) && !isClarification(q)).length,
         unreviewedApprovals: questions.filter(isUnreviewedApproval).length,
         awaitingConfirmation: questions.filter(q => q.responding).length,
         needsUserRequests: questions.filter(q => !isApproval(q) || q.review?.decision === 'ask' || q.error).length
@@ -158,13 +160,18 @@ export class Coordinator {
     if (agent?.role !== 'coordinator' && agent?.questions.some(isUnreviewedApproval)) this.mark(id, 'Other approvals remain unreviewed', true);
   }
   list() {
-    return this.workers().map(agent => ({
-      id: agent.id, name: agent.name, goal: agent.goal, cwd: agent.cwd, status: agent.thread.status,
-      tasks: agent.tracker?.status === 'ready' ? agent.tracker.tasks.slice(0, 30) : [], taskCount: agent.tracker?.tasks.length || 0, trackerError: agent.tracker?.error || null, progress: agent.progress || null,
-      ...this.pendingRequests(agent),
-      queuedMessages: this.deliveries.get(agent.id)?.length || 0
-    }));
+    return this.workers().map(agent => {
+      const { chatQuestions } = taskSummary(agent);
+      return {
+        id: agent.id, provider: agent.provider || 'codex', name: agent.name, goal: agent.goal, cwd: agent.cwd, status: agent.thread.status,
+        tasks: agent.tracker?.status === 'ready' ? agent.tracker.tasks.slice(0, 30) : [], taskCount: agent.tracker?.tasks.length || 0, trackerError: agent.tracker?.error || null, progress: agent.progress || null,
+        ...this.pendingRequests(agent), chatQuestions, chatQuestionCount: chatQuestions.length,
+        managementNotice: agent.managementNotice || null, runError: agent.runError || null, observeError: agent.observeError || null,
+        queuedMessages: this.deliveries.get(agent.id)?.length || 0
+      };
+    });
   }
+
   async instructions(agent) {
     const paths = new Set((agent.instructionSources || []).filter(path => basename(path) === 'AGENTS.md'));
     let current = resolve(agent.cwd); for (let i = 0; i < 12; i++) { paths.add(resolve(current, 'AGENTS.md')); const parent = dirname(current); if (parent === current) break; current = parent; }
@@ -176,6 +183,7 @@ export class Coordinator {
     return result;
   }
   async readWorker(agent, cursor) {
+    if (cursor && agent.provider === 'claude') throw fail('Claude history is supplied from its local native transcript, without a Codex pagination cursor.', 400);
     let messages = agent.messages.slice(-60); let nextCursor = agent.olderCursor;
     if (cursor) {
       const page = await this.rpc.call('thread/turns/list', { threadId: agent.id, cursor, limit: 10, itemsView: 'full' }); nextCursor = page.nextCursor || null;

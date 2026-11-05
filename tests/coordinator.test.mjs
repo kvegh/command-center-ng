@@ -29,6 +29,15 @@ class Rpc extends EventEmitter {
   ask(id, threadId, method = 'item/commandExecution/requestApproval') { const params = { threadId, turnId: 'work-turn', command: 'fixture-command', reason: 'Synthetic approval', availableDecisions: ['accept', 'decline'] }; this.requests.set(id, params); this.emit('request', { id, method, params }); }
   complete(threadId, turnId = this.workspace.agent(threadId).turnId || 'work-turn') { this.emit('notification', { method: 'turn/completed', params: { threadId, turn: { id: turnId, status: 'completed' } } }); }
 }
+async function waitFor(predicate) {
+  const deadline = performance.now() + 2000;
+  while (!predicate()) {
+    if (performance.now() >= deadline) throw new Error('The expected coordinator delivery was not observed.');
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+}
+const delivered = (f, count = 1) => waitFor(() => f.rpc.calls.filter(call => call.method === 'turn/start').length === count && f.coordinator.workers().every(agent => !agent.coordinatorSending));
+
 async function fixture() {
   const cwd = await mkdtemp(join(tmpdir(), 'ccng-coordinator-')); const rpc = new Rpc(cwd);
   const workspace = new Workspace(rpc, { beads: null, coordinator: { debounceMs: 1000000, intervalMs: 1000000 } }); rpc.workspace = workspace;
@@ -49,6 +58,7 @@ test('coordinator starts separately with reduced capabilities and preserves sixt
     assert.equal(start.threadSource, 'command-center-coordinator');
     assert.equal(start.sandbox, 'read-only'); assert.equal(start.config['features.shell_tool'], false);
     assert.equal(start.config['features.plugins'], false); assert.equal(start.config['features.apps'], false);
+    assert.equal(start.config['agents.enabled'], false); assert.equal(start.config['features.multi_agent_v2'], false); assert.equal(start.config['features.multi_agent'], false);
     assert.equal(start.config['mcp_servers.fixture.enabled'], false);
     assert.deepEqual(start.dynamicTools, COORDINATOR_TOOLS); assert.equal(start.model, undefined); assert.equal(start.approvalPolicy, undefined);
     assert.throws(() => f.workspace.close(f.coordinator.id), /Pause the coordinator/);
@@ -70,6 +80,7 @@ test('recap and multi-request guidance reach new and restored coordinators and e
     assert.equal(resumed.threadId, id);
     for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE]) assert.ok(resumed.developerInstructions.includes(guidance));
     assert.equal(resumed.sandbox, 'read-only');
+    assert.equal(resumed.config['agents.enabled'], false); assert.equal(resumed.config['features.multi_agent_v2'], false);
     const event = f.rpc.calls.findLast(call => call.method === 'turn/start');
     assert.equal(event.params.threadId, id);
     for (const guidance of [COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE]) assert.ok(event.params.input[0].text.includes(guidance));
@@ -118,7 +129,7 @@ test('summaries wait for idle, remain attributed, and cannot create repeated mes
     await f.call('ccng_send_summary', { agentId: 'worker', summary: 'A related investigation verified the smaller option.' });
     assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 0);
     await assert.rejects(f.call('ccng_request_report', { agentId: 'worker' }), /Only one message/);
-    f.rpc.complete('worker', 'busy'); await new Promise(resolve => setImmediate(resolve));
+    f.rpc.complete('worker', 'busy'); await delivered(f);
     const sent = f.rpc.calls.find(call => call.method === 'turn/start'); assert.equal(sent.params.threadId, 'worker');
     assert.match(sent.params.input[0].text, /^\[Command Center coordinator\]/);
     assert.match(sent.params.input[0].text, /smaller option/); assert.equal(f.coordinator.deliveries.size, 0);
@@ -274,7 +285,7 @@ test('non-approval feedback queues without dismissing the request and reaches th
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(f.coordinator.deliveries.get('worker').length, 1, 'resolving the request alone does not interrupt active work');
     f.rpc.complete('worker', 'worker-running');
-    await new Promise(resolve => setImmediate(resolve));
+    await delivered(f);
     const sent = f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId === 'worker');
     assert.equal(sent.length, 1);
     assert.ok(sent[0].params.input[0].text.includes(summary));
@@ -302,7 +313,7 @@ test('a requested report wakes the coordinator once, without repeated report loo
   try {
     const worker = f.workspace.agent('worker'); worker.turnId = 'original'; worker.thread.status = { type: 'active' };
     await f.call('ccng_request_report', { agentId: 'worker' });
-    f.rpc.complete('worker', 'original'); await new Promise(resolve => setImmediate(resolve));
+    f.rpc.complete('worker', 'original'); await delivered(f);
     assert.equal(f.coordinator.reportPending.has('worker'), true, 'original work finishing does not finish the queued report');
     f.coordinator.dirty.clear(); f.rpc.complete('worker');
     assert.equal(f.coordinator.reportPending.has('worker'), false);
@@ -320,7 +331,7 @@ test('interval selections send one independent instruction per worker and elapse
     await f.workspace.open('second');
     f.coordinator.setReportInterval('worker', 5, { notifyWorker: true });
     f.coordinator.setReportInterval('second', 15, { notifyWorker: true });
-    await new Promise(resolve => setImmediate(resolve));
+    await delivered(f, 2);
     const sent = f.rpc.calls.filter(call => call.method === 'turn/start');
     assert.equal(sent.length, 2);
     assert.match(sent.find(call => call.params.threadId === 'worker').params.input[0].text, /every 5 minutes/);
@@ -443,7 +454,7 @@ test('Report now queues immediately with Never, coalesces pending reports and le
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
     assert.equal(f.rpc.replies.length, 0);
     f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: 'worker', requestId: 'pending-manual' } });
-    await new Promise(resolve => setImmediate(resolve));
+    await delivered(f);
     const report = f.rpc.calls.find(call => call.method === 'turn/start');
     assert.match(report.params.input[0].text, /user selected Report now/);
     assert.match(report.params.input[0].text, /Standard Task Report/);
@@ -475,7 +486,7 @@ test('one-off report requests have persisted native identity and leave actual re
   const f = await fixture();
   try {
     const worker = f.workspace.agent('worker'); f.coordinator.requestUserReport('worker');
-    await new Promise(resolve => setImmediate(resolve));
+    await delivered(f);
     const start = f.rpc.calls.find(call => call.method === 'turn/start');
     assert.match(start.params.clientUserMessageId, /^ccng-report-/);
     assert.match(start.params.additionalContext['command-center-worker-instructions'].value, /## Standard Task Report/);
@@ -514,7 +525,7 @@ test('cadence instructions queue once per actual change, supersede unsent prefer
     assert.equal(f.coordinator.deliveries.get('worker').length, 1);
     assert.match(f.coordinator.deliveries.get('worker')[0].text, /every 1 hour/);
     assert.equal(f.coordinator.reportPending.has('worker'), false);
-    f.rpc.complete('worker', 'busy'); await new Promise(resolve => setImmediate(resolve));
+    f.rpc.complete('worker', 'busy'); await delivered(f);
     const start = f.rpc.calls.find(call => call.method === 'turn/start');
     assert.match(start.params.clientUserMessageId, /^ccng-report-setting-/);
     assert.match(start.params.input[0].text, /changes reporting only/);
@@ -546,4 +557,37 @@ test('the existing project reader binds helper evidence to every matching curren
     worker.questions = [];
     await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path }), /inside this worker directory or a helper/);
   } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
+});
+
+
+test('all recorded chat questions reach coordinator reads beyond the task preview without becoming native requests', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker');
+    worker.tracker = { status: 'ready', tasks: Array.from({ length: 40 }, (_, index) => ({ id: 'stored-' + index, text: index === 39 ? 'Which approved target should be used?' : 'Existing project work', state: index === 39 ? 'blocked' : 'open', isChatQuestion: index === 39 })) };
+    const row = (await f.call('ccng_list_workers'))[0];
+    assert.equal(row.tasks.length, 30); assert.equal(row.chatQuestionCount, 1);
+    assert.deepEqual(row.chatQuestions.map(question => [question.workerId, question.id]), [['worker', 'stored-39']]);
+    assert.equal(row.requestSummary.totalRequests, 0); assert.equal(row.questions.length, 0);
+    const detail = await f.call('ccng_read_worker', { agentId: 'worker' });
+    assert.deepEqual(detail.chatQuestions, row.chatQuestions);
+    assert.equal(f.rpc.replies.length, 0); assert.equal(worker.tracker.tasks[39].state, 'blocked');
+  } finally { await f.close(); }
+});
+
+
+test('coordinator counts nested Codex and Claude questions separately from manual SDK tool permissions', async () => {
+  const f = await fixture();
+  try {
+    f.workspace.agent('worker').questions = [
+      { id: 'codex-choice', method: 'item/tool/requestUserInput', reviewToken: 'choice-one', params: { questions: [{ id: 'first', question: 'Which target?' }] } },
+      { id: 'claude-choice', method: 'claude/tool/requestUserInput', reviewToken: 'choice-two', params: { input: { questions: [{ question: 'Which scope?' }, { question: 'Which order?' }] } } },
+      { id: 'claude-permission', method: 'claude/tool/requestApproval', reviewToken: 'tool-three', params: { toolName: 'Bash', input: { command: 'inspect-metadata' } } }
+    ];
+    const row = (await f.call('ccng_list_workers'))[0];
+    assert.equal(row.requestSummary.totalRequests, 3); assert.equal(row.requestSummary.clarificationRequests, 2);
+    assert.equal(row.requestSummary.clarificationQuestions, 3); assert.equal(row.requestSummary.otherRequests, 1);
+    await assert.rejects(f.call('ccng_review_approval', { agentId: 'worker', reviewToken: 'tool-three', decision: 'approve', rationale: 'Visible tool call.' }), /cannot answer user preferences or broad permission/);
+    assert.equal(f.rpc.replies.length, 0); assert.equal(f.workspace.agent('worker').questions.length, 3);
+  } finally { await f.close(); }
 });

@@ -273,3 +273,23 @@ worker, which owns reporting cadence. CCNG sends no recurring report prompts.
 Never asks the worker to cancel its schedule; Report now remains a one-off request.
 Existing work/question/pause/handoff gates govern queued instruction delivery.
 Restoration restores selection without replaying instructions or starting turns.
+
+
+## Local providers and recorded chat questions in0.19.0
+
+The coordinator remains a native Codex conversation. It can read local Claude
+worker history/status and all delivered requests, but SDK tool/MCP permission
+grants remain manual. Request counts include nested Codex and Claude
+clarifications; recorded ordinary-chat Beads questions have separate complete
+chatQuestions/count fields rather than fabricated native request IDs. The worker
+owns their lifecycle and the coordinator has no Beads-write authority.
+
+Shared environment AGENTS text enters the existing native instruction context;
+missing sources are stated explicitly. Read-only role restrictions remain higher
+priority. Coordinator-only agents.enabled=false plus features.multi_agent_v2=false
+and the retained V1 flag disable subagents for the checked native runtime.
+Global concurrency/default settings are separate from these role restrictions.
+
+Explicit report instructions and Report now can reach a ready local Claude worker
+without a Codex model run. Native automatic coordinator work still requires its
+Codex connection. Source publication does not restart either runtime.

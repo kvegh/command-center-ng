@@ -59,7 +59,12 @@ export class WorkspacePersistence {
   constructor(workspace, store) {
     this.workspace = workspace; this.store = store; this.saved = emptyWorkspace(); this.loaded = false; this.ready = false;
     this.job = null; this.queue = Promise.resolve(); this.lastScheduled = ''; this.failedIds = []; this.closed = false; this.fileError = false;
-    this.onChange = () => this.schedule(); this.onConnect = () => { void this.restore(); };
+    this.restoreAfterConnect = false;
+    this.onChange = () => this.schedule(); this.onConnect = () => {
+      if (this.job) { this.restoreAfterConnect = true; return; }
+      if (this.failedIds.length || (this.saved.coordinatorId && !this.workspace.agents.has(this.saved.coordinatorId))) this.ready = false;
+      void this.restore();
+    };
     workspace.on('change', this.onChange); workspace.rpc.on('connected', this.onConnect);
     workspace.restoration = { status: 'pending', error: null, warnings: [] };
   }
@@ -67,11 +72,11 @@ export class WorkspacePersistence {
     try { this.saved = await this.store.load(); }
     catch (error) { this.fileError = true; this.workspace.restoration = { status: 'error', error: 'Workspace restoration is unavailable: ' + error.message, warnings: [] }; }
     this.loaded = true;
-    if (!this.fileError && this.workspace.rpc.ready) void this.restore();
+    if (!this.fileError && this.workspace.available()) void this.restore();
   }
   async restore() {
     if (this.job) return this.job;
-    if (!this.loaded || this.fileError || this.ready || this.closed || !this.workspace.rpc.ready) return;
+    if (!this.loaded || this.fileError || this.ready || this.closed || !this.workspace.available()) return;
     this.job = (async () => {
       const workspace = this.workspace; workspace.restoring = true; workspace.restoration = { status: 'restoring', error: null, warnings: [] }; workspace.changed();
       const warnings = []; this.failedIds = [];
@@ -80,7 +85,8 @@ export class WorkspacePersistence {
         if (workspace.coordinator.id === this.saved.coordinatorId) workspace.coordinator.paused = this.saved.coordinatorPaused;
       }
       for (const id of this.saved.workerIds) {
-        if (this.closed || !workspace.rpc.ready) break;
+        if (this.closed || !workspace.available()) break;
+        if (!workspace.readyFor(id)) { this.failedIds.push(id); warnings.push({ id, message: 'Connect to the native runtime to restore this conversation.' }); continue; }
         try { await workspace.open(id, { observeOnly: true }); const minutes = this.saved.workerReportIntervals?.[id] || 0; if (workspace.coordinator && workspace.agent(id).reportIntervalMinutes !== minutes) workspace.coordinator.setReportInterval(id, minutes); }
         catch (error) { this.failedIds.push(id); warnings.push({ id, message: error.message }); }
       }
@@ -88,11 +94,13 @@ export class WorkspacePersistence {
         try { await workspace.open(this.saved.coordinatorId, { observeOnly: true }); const agent = workspace.agent(this.saved.coordinatorId); agent.name = 'Coordinator'; agent.goal = 'Coordinate open workers, summarize progress, and review authorized actions.'; }
         catch (error) { workspace.coordinator.error = 'Saved coordinator could not be restored: ' + error.message; warnings.push({ id: this.saved.coordinatorId, message: error.message }); }
       }
-      if (!workspace.rpc.ready || this.closed) { workspace.restoration = { status: 'pending', error: 'Connect to Codex to restore the saved workspace.', warnings }; return; }
+      if (!workspace.available() || this.closed) { workspace.restoration = { status: 'pending', error: 'Connect to a local agent runtime to restore the saved workspace.', warnings }; return; }
       this.ready = true;
       workspace.restoration = { status: 'ready', error: null, warnings }; workspace.changed();
     })().catch(error => { this.workspace.restoration = { status: 'error', error: error.message, warnings: [] }; }).finally(() => {
       this.workspace.restoring = false; this.job = null; this.workspace.changed();
+      const retry = this.restoreAfterConnect; this.restoreAfterConnect = false;
+      if (retry && !this.closed && this.workspace.rpc.ready) { this.ready = false; queueMicrotask(() => { void this.restore(); }); }
     });
     return this.job;
   }

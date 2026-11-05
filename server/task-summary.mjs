@@ -12,7 +12,8 @@ export function taskSummary(agent) {
     else if (state === 'deferred') taskCounts.deferred++;
     else taskCounts.other++;
   }
-  return { tasks, taskCount: tasks.length, taskCounts };
+  const chatQuestions = tasks.filter(task => task.isChatQuestion === true).map(task => ({ id: task.id, workerId: agent.id, text: task.text, state: task.state, displayState: task.displayState }));
+  return { tasks, taskCount: tasks.length, taskCounts, chatQuestions };
 }
 
 export function reportedPlan(item) {

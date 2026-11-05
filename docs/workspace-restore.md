@@ -81,3 +81,18 @@ A disposable native restart check confirmed the same worker/coordinator and
 history, private file mode, unchanged password and required login, with no
 `thread/start`, `thread/resume` or `turn/start` during restoration. Rendered browser
 restoration and visual review remain to be checked with the user's screenshot.
+
+
+## Local Claude restoration in0.19.0
+
+Claude worker IDs use a provider prefix in the same private workspace metadata.
+Restoration reads the official SDK's local session information/history without
+starting a query or replaying instructions/permissions. Claude can restore while
+Codex is disconnected; a connect event arriving during restoration schedules one
+read-only retry for skipped Codex tabs. Missing threads do not create retry loops.
+An external active Claude process retains ownership and remains observed.
+
+Closing a tab keeps a managed SDK process running; requests in closed tabs offer
+explicit reopening. Shutting down the backend ends its SDK-owned processes and
+retains native history. Callback answers are not persisted or replayed. A live
+provider/model run and interactive browser verification remain separate checks.

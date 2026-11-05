@@ -104,5 +104,13 @@ ccng_environment_report() {
     fi
     if [ "$CCNG_RHEL9" -eq 1 ] && ! rpm -q ca-certificates >/dev/null 2>&1; then echo '[missing RPM] ca-certificates'; CCNG_PROBLEMS=1; fi
     if command -v dolt >/dev/null 2>&1; then echo '[available] Dolt server binary'; else echo '[not installed] Dolt server binary (needed for the multi-writer server setup).'; fi
+    if command -v bd >/dev/null 2>&1 && command -v ccng_beads_existing >/dev/null 2>&1; then
+        if ccng_beads_existing "${CCNG_TASK_WORKSPACE:-$CCNG_INITIAL_WORK_DIR}"; then
+            echo '[available] Beads tracker for the selected workspace (existing configuration preserved).'
+        else
+            echo '[not ready] No usable tracker was resolved. Fresh setup needs an explicitly selected --workspace and terminal confirmation.'
+            CCNG_PROBLEMS=1
+        fi
+    fi
     return "$CCNG_PROBLEMS"
 }

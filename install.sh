@@ -4,12 +4,15 @@ set -eu
 CCNG_INSTALL_DIR=''
 CCNG_UPDATE=0
 CCNG_CHECK_ONLY=0
+CCNG_TASK_WORKSPACE=''
+CCNG_INITIAL_WORK_DIR=$(pwd)
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --prefix) [ "$#" -ge 2 ] || { echo 'Missing --prefix directory.' >&2; exit 1; }; CCNG_INSTALL_DIR=$2; shift 2 ;;
         --update) CCNG_UPDATE=1; shift ;;
         --check) CCNG_CHECK_ONLY=1; shift ;;
-        --help|-h) echo 'Usage: ./install.sh [--update | --check] [DIRECTORY_UNDER_YOUR_HOME]'; echo 'Without a directory, installation prompts before doing any work.'; echo '--check reports prerequisites without installing or changing configuration.'; echo 'RHEL 9 can install missing prerequisites after explicit terminal confirmation.'; echo 'Run --update from a clean source checkout to fetch latest main automatically.'; exit 0 ;;
+        --workspace) [ "$#" -ge 2 ] || { echo 'Missing --workspace directory.' >&2; exit 1; }; CCNG_TASK_WORKSPACE=$2; shift 2 ;;
+        --help|-h) echo 'Usage: ./install.sh [--update | --check] [--workspace TASK_DIRECTORY] [DIRECTORY_UNDER_YOUR_HOME]'; echo 'Without a directory, installation prompts before doing any work.'; echo '--check reports prerequisites without installing or changing configuration.'; echo '--workspace selects a task workspace; fresh Beads/local Dolt setup requires terminal confirmation.'; echo 'RHEL 9 can install missing prerequisites after explicit terminal confirmation.'; echo 'Run --update from a clean source checkout to fetch latest main automatically.'; exit 0 ;;
         -*) echo "Unknown argument: $1" >&2; exit 1 ;;
         *) [ -z "$CCNG_INSTALL_DIR" ] || { echo 'Provide one installation directory.' >&2; exit 1; }; CCNG_INSTALL_DIR=$1; shift ;;
     esac
@@ -18,9 +21,10 @@ for CCNG_TOOL in id uname dirname; do command -v "$CCNG_TOOL" >/dev/null 2>&1 ||
 [ "$(uname -s)" = Linux ] || { echo 'Linux is required.' >&2; exit 1; }
 CCNG_SOURCE_DIR=$(dirname "$0")
 . "$CCNG_SOURCE_DIR/installer/prerequisites.sh"
+. "$CCNG_SOURCE_DIR/installer/beads.sh"
 if [ "$CCNG_CHECK_ONLY" -eq 1 ]; then
     [ "$CCNG_UPDATE" -eq 0 ] || { echo 'Choose --check or --update.' >&2; exit 1; }
-    if [ -n "$CCNG_INSTALL_DIR" ] && [ -d "$CCNG_INSTALL_DIR/tools/node_modules/.bin" ]; then PATH="$CCNG_INSTALL_DIR/tools/node_modules/.bin:$PATH"; export PATH; fi
+    if [ -n "$CCNG_INSTALL_DIR" ]; then PATH="$CCNG_INSTALL_DIR/tools/bin:$CCNG_INSTALL_DIR/tools/node_modules/.bin:$PATH"; export PATH; fi
     ccng_environment_report
     exit $?
 fi
@@ -60,6 +64,7 @@ if [ "$CCNG_UPDATE" -eq 1 ]; then
     git -C "$CCNG_SOURCE_DIR" merge-base --is-ancestor HEAD FETCH_HEAD || { echo 'Local source commits diverge from latest main; refusing to overwrite them.' >&2; exit 1; }
     git -C "$CCNG_SOURCE_DIR" merge --ff-only FETCH_HEAD
     # Re-enter the freshly fetched installer; ordinary reinstall preserves private config.
+    if [ -n "$CCNG_TASK_WORKSPACE" ]; then exec sh "$CCNG_SOURCE_DIR/install.sh" --workspace "$CCNG_TASK_WORKSPACE" "$CCNG_INSTALL_DIR"; fi
     exec sh "$CCNG_SOURCE_DIR/install.sh" "$CCNG_INSTALL_DIR"
 fi
 CCNG_PARENT=$(dirname "$CCNG_INSTALL_DIR")
@@ -71,7 +76,7 @@ if [ -d "$CCNG_INSTALL_DIR/tools" ]; then
     [ ! -L "$CCNG_INSTALL_DIR/tools" ] || { echo 'Refusing to use a symlink as the managed CLI directory.' >&2; exit 1; }
     cp -a "$CCNG_INSTALL_DIR/tools" "$CCNG_STAGE/app/tools"
 fi
-PATH="$CCNG_STAGE/app/tools/node_modules/.bin:$PATH"
+PATH="$CCNG_STAGE/app/tools/bin:$CCNG_STAGE/app/tools/node_modules/.bin:$PATH"
 export PATH
 ccng_agent_prerequisites
 tar -C "$CCNG_SOURCE_DIR" -cf "$CCNG_STAGE/source.tar" package.json package-lock.json index.html tsconfig.json vite.config.mjs src server README.md docs AGENTS.md design_decisions_history.md
@@ -90,7 +95,7 @@ cat > "$CCNG_STAGE/app/command-center-ng" <<'SH'
 #!/bin/sh
 # Command Center NG launcher
 CCNG_APP_DIR=$(dirname "$(realpath "$0")")
-PATH="$CCNG_APP_DIR/tools/node_modules/.bin:$PATH"
+PATH="$CCNG_APP_DIR/tools/bin:$CCNG_APP_DIR/tools/node_modules/.bin:$PATH"
 export PATH
 exec node "$CCNG_APP_DIR/server/main.mjs" "$@"
 SH
@@ -99,6 +104,12 @@ if [ -e "$CCNG_INSTALL_DIR" ]; then mv "$CCNG_INSTALL_DIR" "$CCNG_STAGE/previous
 if ! mv "$CCNG_STAGE/app" "$CCNG_INSTALL_DIR"; then
     [ ! -d "$CCNG_STAGE/previous" ] || mv "$CCNG_STAGE/previous" "$CCNG_INSTALL_DIR"
     echo 'Installation failed; the previous installation was restored.' >&2; exit 1
+fi
+PATH="$CCNG_INSTALL_DIR/tools/bin:$CCNG_INSTALL_DIR/tools/node_modules/.bin:$PATH"
+export PATH
+if ! ccng_beads_setup; then
+    echo 'The Command Center application was installed, but Beads task setup failed. Existing setup state was preserved for inspection.' >&2
+    exit 1
 fi
 node --input-type=module - "$CCNG_INSTALL_DIR" "$CCNG_USER_HOME/.local/bin/command-center-ng" <<'JS'
 import { readFileSync, lstatSync, unlinkSync } from 'node:fs';
@@ -111,7 +122,7 @@ try {
   }
 } catch (error) { if (error.code !== 'ENOENT') console.log('Existing PATH shortcut left untouched.'); }
 console.log('For native CLI commands in this terminal:');
-console.log('  export PATH=' + quote(process.argv[2] + '/tools/node_modules/.bin') + ':"$PATH"');
+console.log('  export PATH=' + quote(process.argv[2] + '/tools/bin') + ':' + quote(process.argv[2] + '/tools/node_modules/.bin') + ':"$PATH"');
 JS
 CCNG_VERSION=$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1])).version' "$CCNG_INSTALL_DIR/package.json")
 echo "Installed Command Center NG $CCNG_VERSION into $CCNG_INSTALL_DIR"

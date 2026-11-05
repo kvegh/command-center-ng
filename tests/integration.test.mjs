@@ -218,7 +218,9 @@ test('return prepares a concise native-context summary, sends only the reviewed 
     const [first, second] = await Promise.all([f.workspace.summarize(f.id), f.workspace.summarize(f.id)]);
     assert.equal(first.text, f.summary.text); assert.equal(second.text, first.text);
     const starts = f.calls.filter(c => c.method === 'turn/start'); assert.equal(starts.length, 1);
-    assert.deepEqual(Object.keys(starts[0].params).sort(), ['input', 'outputSchema', 'threadId']);
+    assert.deepEqual(Object.keys(starts[0].params).sort(), ['additionalContext', 'input', 'outputSchema', 'threadId']);
+    assert.match(starts[0].params.additionalContext['command-center-environment-instructions'].value, /Setup-Agentic-Dev-Environment/);
+    assert.match(starts[0].params.additionalContext['command-center-worker-instructions'].value, /Standard Task Report/);
     assert.match(starts[0].params.input[0].text, /conclusions, decisions and their reasons/);
     assert.ok(!starts[0].params.input[0].text.includes('Inherited background'));
     await f.workspace.summarize(f.id); assert.equal(f.calls.filter(c => c.method === 'turn/start').length, 1, 'reopening the dialog reuses the current summary');

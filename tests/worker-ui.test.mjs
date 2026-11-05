@@ -22,9 +22,13 @@ async function component(name) { return import(await componentUrl(name)); }
 const { Markdown } = await component('markdown');
 const { WorkerSettings } = await component('worker-settings');
 const { TaskTotals } = await component('task-totals');
+const { ChatQuestions } = await component('chat-questions');
+const { TaskListViewport, taskViewportHeight } = await component('task-list-viewport');
+const { BackgroundRequests } = await component('background-requests');
 const { taskInputMessage } = await component('task-discussion');
 const { BranchSummaryReview } = await component('branch-summary-review');
 const { NativeRequestCard } = await component('native-request-card');
+const { OpenQuestions, RequestRecovery, questionTarget } = await component('open-questions');
 const { ModelControls } = await component('worker-model-settings');
 const { SidebarDivider, sidebarLimits, sidebarSize } = await component('sidebar-divider');
 const markdown = value => renderToStaticMarkup(React.createElement(Markdown, { value }));
@@ -131,4 +135,97 @@ test('sidebar sizing bounds retain usable chat space and expose an accessible se
   assert.equal(sidebarSize(900, 1000), 640); assert.equal(sidebarSize(100, 1200), 280);
   const html = renderToStaticMarkup(React.createElement(SidebarDivider, { width: 420, panelWidth: 1200, change() {} }));
   assert.match(html, /role="separator"/); assert.match(html, /aria-orientation="vertical"/); assert.match(html, /aria-valuenow="420"/); assert.match(html, /tabindex="0"/);
+});
+
+
+test('chat-question cards keep exact worker/task identity separate from native approval controls', () => {
+  const questions = [
+    { id: 'decision-one', workerId: 'alpha', text: 'Choose the backup interval', state: 'blocked' },
+    { id: 'decision-two', workerId: 'beta', text: 'Other worker decision', state: 'blocked' },
+    { id: 'decision-closed', workerId: 'alpha', text: 'Already answered', state: 'closed' }
+  ];
+  const html = renderToStaticMarkup(React.createElement(ChatQuestions, { agentId: 'alpha', questions, reply() {} }));
+  assert.match(html, /CHAT QUESTIONS/); assert.match(html, /1 recorded chat questions/);
+  assert.match(html, /Choose the backup interval/); assert.match(html, /Read context and reply/);
+  assert.match(html, /worker resolves the question after processing your answer/);
+  assert.doesNotMatch(html, /Other worker decision|Already answered|Approve|Decline|ccng-question-/);
+  const empty = renderToStaticMarkup(React.createElement(ChatQuestions, { agentId: 'unknown-worker', questions, reply() {} }));
+  assert.equal(empty, '');
+});
+
+
+test('provider request routing resets answer state for the exact worker, typed request ID and method', () => {
+  const props = { agentId: 'claude-worker-one', workerName: 'Local Claude project', act: async () => true };
+  const question = { id: 1, method: 'claude/tool/requestApproval', params: { toolName: 'Bash', input: { command: 'read project state' } } };
+  const first = NativeRequestCard({ ...props, question });
+  const anotherWorker = NativeRequestCard({ ...props, agentId: 'claude-worker-two', question });
+  const anotherType = NativeRequestCard({ ...props, question: { ...question, id: '1' } });
+  const native = NativeRequestCard({ ...props, question: { ...question, method: 'item/commandExecution/requestApproval' } });
+  assert.notEqual(first.key, anotherWorker.key); assert.notEqual(first.key, anotherType.key); assert.notEqual(first.type, native.type);
+  const html = renderToStaticMarkup(React.createElement(NativeRequestCard, { ...props, question }));
+  assert.ok(html.includes(questionTarget(props.agentId, 1))); assert.match(html, /Claude tool approval.*Local Claude project/);
+  assert.match(html, /Allow once/); assert.match(html, /Decline/); assert.match(html, /No persistent permission rule/);
+  assert.doesNotMatch(html, /Ask coordinator to review|native Codex client/);
+  const pending = renderToStaticMarkup(React.createElement(NativeRequestCard, { ...props, question: { ...question, responding: true } }));
+  assert.match(pending, /Waiting for Claude/); assert.match(pending, /disabled=""[^>]*>Allow once/);
+  const restricted = renderToStaticMarkup(React.createElement(NativeRequestCard, { ...props, question, readOnlyCoordinator: true }));
+  assert.match(restricted, /disabled=""[^>]*>Allow once/);
+});
+
+test('Claude clarification cards show choices and preserve unsupported native question formats without approving them', () => {
+  const props = { agentId: 'claude-worker', workerName: 'Local Claude project', act: async () => true };
+  const question = { id: 'choice', method: 'claude/tool/requestUserInput', params: { input: { questions: [{ question: 'Choose the target', multiSelect: true, options: [{ label: 'Read, then verify', description: 'Inspect the approved target' }, { label: 'Read only' }] }] } } };
+  const html = renderToStaticMarkup(React.createElement(NativeRequestCard, { ...props, question }));
+  assert.match(html, /Choose the target/); assert.match(html, /Read, then verify/); assert.match(html, /aria-pressed="false"/);
+  assert.match(html, /maxLength="8000"|maxlength="8000"/); assert.match(html, /disabled=""[^>]*>Send answer/);
+  assert.doesNotMatch(html, />Allow once</);
+  for (const questions of [null, { question: 'Invalid object' }, [{ question: '__proto__' }], [{ question: 'Duplicate' }, { question: 'Duplicate' }], [{ question: 'Bad options', options: {} }]]) {
+    const unsupported = renderToStaticMarkup(React.createElement(NativeRequestCard, { ...props, question: { ...question, params: { input: { questions } } } }));
+    assert.match(unsupported, /request stays open; decline it here or use Interrupt/); assert.doesNotMatch(unsupported, /Send answer/);
+  }
+});
+
+test('Claude MCP and sidebar controls retain provider identity and supported manual response shapes', () => {
+  const props = { agentId: 'claude-worker', workerName: 'Local Claude project', act: async () => true };
+  const question = { id: 'mcp', method: 'claude/mcp/elicitation/request', params: { mode: 'form', requestedSchema: { type: 'object', properties: { mode: { type: 'string', enum: ['inspect'] } }, required: ['mode'] } } };
+  const form = renderToStaticMarkup(React.createElement(NativeRequestCard, { ...props, question }));
+  assert.match(form, /MCP form.*Local Claude project/); assert.match(form, /value="inspect"/); assert.match(form, /Submit response/);
+  const unsupported = renderToStaticMarkup(React.createElement(NativeRequestCard, { ...props, question: { ...question, params: { mode: 'form', requestedSchema: { type: 'string' } } } }));
+  assert.match(unsupported, /decline or cancel it here/); assert.doesNotMatch(unsupported, /complete this exact request in the native client/);
+  const input = { id: 'ask', method: 'claude/tool/requestUserInput', params: { input: { questions: [{ question: 'First decision' }, { question: 'Second decision' }] } } };
+  const sidebar = renderToStaticMarkup(React.createElement(OpenQuestions, { agentId: props.agentId, questions: [question, input], attention: true, provider: 'claude' }));
+  assert.match(sidebar, /3 open questions/); assert.match(sidebar, /First decision/); assert.match(sidebar, /Second decision/);
+  const recovery = renderToStaticMarkup(React.createElement(RequestRecovery, { recovering: false, disabled: false, provider: 'claude', recover: async () => ({}) }));
+  assert.match(recovery, /Claude is waiting for your response/); assert.match(recovery, /Refresh request details/); assert.doesNotMatch(recovery, /Codex is waiting/);
+  const missing = renderToStaticMarkup(React.createElement(OpenQuestions, { agentId: props.agentId, questions: [], attention: true, provider: 'claude' }));
+  assert.match(missing, /request details have not arrived/); assert.doesNotMatch(missing, /Codex reports|native client/);
+});
+
+
+test('task viewport follows the natural heights of at most the first three rows as text reflows', () => {
+  assert.equal(taskViewportHeight([19, 38, 19, 50], 6), 88);
+  assert.equal(taskViewportHeight([19, 19, 19, 50], 6), 69, 'one-line titles shrink the viewport');
+  assert.equal(taskViewportHeight([19], 6), 19, 'one task does not reserve three task slots');
+  assert.equal(taskViewportHeight([], 6), 0);
+  const html = renderToStaticMarkup(React.createElement(TaskListViewport, null, React.createElement('div', { className: 'task-row' }, 'Natural task row')));
+  assert.match(html, /role="region"/); assert.match(html, /aria-label="Linked tasks"/); assert.match(html, /Natural task row/);
+});
+
+test('model controls keep concise labels and omit routine effort descriptions', () => {
+  const models = [{ model: 'first', displayName: 'First native model', description: '', defaultEffort: 'high', efforts: [{ value: 'high', description: 'Routine effort explanation' }] }];
+  const html = renderToStaticMarkup(React.createElement(ModelControls, { models, model: 'first', effort: 'high', disabled: false, chooseModel() {}, chooseEffort() {} }));
+  assert.match(html, /<span>Model<\/span><select/); assert.match(html, /<span>Effort<\/span><select/);
+  assert.match(html, /aria-label="Worker reasoning effort"/); assert.doesNotMatch(html, /Routine effort explanation|field-note/);
+});
+
+
+test('closed-tab pending requests stay explicit and only offer opening the exact conversation', () => {
+  const workers = [{ id: 'closed-claude', name: 'Claude project', provider: 'claude', questionCount: 2 }, { id: 'closed-codex', name: 'Codex project', provider: 'codex', questionCount: 1 }];
+  const html = renderToStaticMarkup(React.createElement(BackgroundRequests, { workers, available: provider => provider === 'claude', opening: false, full: false, open() {} }));
+  assert.match(html, /Requests in closed tabs/); assert.match(html, /Claude project/); assert.match(html, /2 pending/); assert.match(html, /Codex project/);
+  assert.match(html, /aria-label="Open Claude project to review pending requests"/);
+  assert.match(html, /disabled=""[^>]*aria-label="Open Codex project/);
+  assert.doesNotMatch(html, /Allow once|Decline|Submit response/);
+  const empty = renderToStaticMarkup(React.createElement(BackgroundRequests, { workers: [], available: () => true, opening: false, full: false, open() {} }));
+  assert.equal(empty, '');
 });

@@ -222,8 +222,9 @@ change credentials or retry automatically to deliver or avoid a non-approval.
 The user explicitly limits Command Center session monitoring to local Claude and
 Codex sessions on the backend host for now. No SSH session monitoring, remote
 agent transport, remote-session fallback or remote file access is authorized.
-Local Codex monitoring already exists; local read-write Claude management through the user-approved official Claude
-Agent SDK is separate unfinished work. Browser access and Ansible deployment are distinct
+Local Codex monitoring already exists; local read-write Claude management uses the user-approved official Claude
+Agent SDK and installed local native CLI. External active processes retain their
+ownership; native permissions and provider history remain authoritative. Browser access and Ansible deployment are distinct
 from the monitored sessions' location. Do not infer remote-monitoring approval
 from Git SSH rules, VM deployment authority or coordinator relays.
 
@@ -295,7 +296,7 @@ settings/permissions. Preserve coordinator restrictions.
 Keep the desktop sidebar resizable with bounded browser-local width, keyboard
 controls and stacked mobile layout. Align the coordinator with the chat column,
 keep it immediately before Add agent, and display the version badge at its
-existing font size in the composer footer. Chat text uses the available width.
+existing font size in the composer footer. Chat text shrinks with its column within a90ch maximum width.
 The named Standard Task Report format lives in server/worker-instructions.md;
 interval instructions are sent once per change, without CCNG recurring timers.
 
@@ -313,3 +314,25 @@ credential/Vault data. Existing approved credential sources need no new choice.
 The existing source-reader tool can use the same helper checks and return exact
 current approval bindings, preserving older coordinator conversations. Reading
 source does not approve a command or expand native permissions.
+
+
+## Shared runtime rules, ordinary-chat inputs and local Claude
+
+Import the local Setup-Agentic-Dev-Environment/AGENTS.md into worker runtime
+instructions and the coordinator, without recursive self-import, automatic
+fetching or native permission changes. Codex context is read at app-started
+turns; an existing managed Claude process retains its startup context until its
+next process startup. Missing sources must be identified truthfully.
+When structured questions are unavailable, workers with existing Beads-write
+authority create/reuse a current-conversation input record labelled
+ccng-chat-question. Only the worker resolves it after processing an actual
+answer/withdrawal. The coordinator reads it, never writes records or treats it
+as a native approval. Do not infer closure from chat, idle state or delivery.
+Keep SDK tool/MCP grants manual and tied to exact callbacks. Do not take over an
+external active CLI session, change native auth/settings or claim live model
+validation from fixtures. Closing a tab keeps managed processes running; app
+shutdown ends SDK-owned runs and retains native history. Claude branching is
+not yet integrated. Preserve explicit closed-tab request reopening.
+Task rows use natural height with a viewport sized to the first three rows;
+assignee names remain in backend metadata rather than row presentation. Model
+and Effort labels/selects stay on one line; omit routine descriptive paragraphs.

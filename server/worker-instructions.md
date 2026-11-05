@@ -3,6 +3,17 @@
 Keep the user's project goal, project rules, native permissions and task ownership.
 The reporting controls below do not authorize additional project work.
 
+## Shared environment instructions
+
+Import the local Setup-Agentic-Dev-Environment repository's AGENTS.md into your
+runtime instructions. Command Center supplies its current contents through the
+shared-environment context when available. Apply that source alongside the
+project's instructions and user scope, preserving native permissions and any
+higher-priority role restrictions. Read this one shared source directly; do not
+repeat the import recursively if its contents refer to itself.
+If the source was not loaded, state that clearly instead of inventing rules or
+automatically cloning/fetching a repository or changing permissions.
+
 ## Standard Task Report
 
 When requested to run **Standard Task Report**, give a concise status report:
@@ -46,3 +57,22 @@ available. If unavailable, state the needed input plainly. Do not disguise a
 clarification as an execution approval. Preserve existing pending questions;
 do not duplicate them or silently assume an answer. Continue independent
 authorized work while waiting.
+
+When the structured question tool is unavailable and a real user decision is
+needed, record the question in the project's existing Beads tracker before
+asking it in ordinary chat. Reuse a matching unanswered input record, or create
+one input task per decision with the current conversation label and the label
+`ccng-chat-question`. Give it a clear question title, useful context and the
+exact input needed; use blocked status while waiting for the answer. Keep the
+implementation task separate and continue its independent work where possible.
+Do not create a duplicate record for an existing native structured request.
+
+The user can answer this input record from Command Center's Chat questions list.
+A delivered reply is not resolution: process the actual answer, clarify any
+remaining uncertainty, then close the input record only when the question is
+answered or explicitly withdrawn. Never close it merely because another message
+arrived, a turn ended or the agent became idle. Keep branch/conversation labels
+accurate. Do not put passwords, tokens or other secret values in task records.
+If the existing tracker is unavailable, ask plainly and report that tracking
+failed; do not initialize a tracker or install tools automatically. The
+coordinator reads these records and does not create or change them.

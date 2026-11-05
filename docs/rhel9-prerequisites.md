@@ -5,9 +5,9 @@ tested; they may reuse preinstalled prerequisites but have no assisted package
 installation here. The installer runs as the ordinary user. Sudo is used only
 for explicitly approved DNF transactions, never to build or run Command Center.
 
-The 0.7.0 installer changes are in development. Checks and confirmed prerequisite
-installation are implemented; fresh Beads tracker/shared Dolt configuration
-awaits the user's choice and is not yet automated.
+Checks, confirmed prerequisites and explicitly selected fresh Beads/shared Dolt
+setup are implemented. Fresh tracker creation remains a terminal-confirmed
+installer action, not an application startup or tab-viewing side effect.
 
 | Prerequisite | RHEL 9 package or installation | Purpose |
 | --- | --- | --- |
@@ -20,7 +20,8 @@ awaits the user's choice and is not yet automated.
 | sudo and DNF | Existing administrator-provided access | Optional installation of missing system prerequisites |
 | Beads CLI | Existing compatible `bd`, or approved target-local `@beads/bd@1.3.2` | Read and maintain project tasks |
 | Codex CLI and sign-in | Existing compatible Codex, or approved target-local `@openai/codex@0.166.0` | Native agent conversations and daemon |
-| Dolt server binary | Required for the proposed parallel-writer server mode | Shared task database access |
+| Dolt server binary | Existing Dolt, or confirmed target-local Dolt 2.2.0 prebuilt archive | Native shared-server task database access |
+| curl | `curl`, only if a fresh Dolt binary must be downloaded | HTTPS download with certificate verification |
 
 No Go compiler, C/C++ compiler, Python, ICU headers or Beads MCP server is needed
 for the prebuilt CLI installation path. Source-build requirements are separate.
@@ -62,7 +63,8 @@ From the source checkout:
 Check-only mode reports command availability, the Node/npm requirements, Beads
 interface compatibility, Codex daemon support and presence of sign-in credentials.
 It does not install packages, initialize trackers or start services. Supplying an
-existing target also checks its locally installed CLI directory on PATH.
+existing target also checks both locally installed CLI directories on PATH, and
+`--workspace DIRECTORY` selects the tracker readiness check.
 
 Interactive installation lists the exact RPM command and asks before sudo. DNF
 also presents its transaction. Missing Beads/Codex CLIs can be installed under
@@ -82,7 +84,7 @@ for deliberate upgrade review; existing databases are not migrated automatically
 Use the target you selected:
 
 ```sh
-export PATH="$HOME/apps/command-center-ng/tools/node_modules/.bin:$PATH"
+export PATH="$HOME/apps/command-center-ng/tools/bin:$HOME/apps/command-center-ng/tools/node_modules/.bin:$PATH"
 codex login --device-auth
 codex app-server daemon start
 "$HOME/apps/command-center-ng/command-center-ng" --cwd "$HOME/projects/PROJECT"
@@ -106,12 +108,12 @@ is idle after adding Beads. The installer never interrupts or restarts it.
 
 ## Beads and Dolt configuration
 
-Beads 1.3.2 uses Dolt storage. Its embedded-capable build can run without a
-separate server; the documented multi-writer setup uses a Dolt SQL server.
-See the versioned [Beads quick start](https://github.com/gastownhall/beads/blob/v1.3.2/docs/getting-started/quickstart.md).
-Command Center can run four workers plus its coordinator, so a private local
-shared server is proposed for a fresh installation. This architecture choice
-is still awaiting user approval; it is not silently selected or installed.
+The approved fresh multi-writer setup uses native `bd init --shared-server`,
+after an explicit workspace selection and terminal confirmation. Beads manages
+one private local Dolt server and keeps project databases separate. The installer
+does not add its own service wrapper or systemd unit. The normal Beads default
+is embedded storage; existing trackers keep their current storage mode.
+See [Beads shared-server mode](https://github.com/gastownhall/beads/blob/v1.3.2/docs/architecture/dolt.md#shared-server-mode).
 
 Existing installations keep their tracker, routing, credentials and server mode.
 In each intended working directory, verify the existing setup with:
@@ -121,10 +123,27 @@ bd where --json
 bd --readonly list --json --brief --flat --limit 1
 ```
 
-Fresh tracker initialization, Dolt server installation/startup and Codex Beads
-hook setup are not yet automated. Do not initialize the Command Center source
-checkout merely to satisfy the task panel. Each agent's working directory must
-resolve the intended existing project or parent tracker.
+For a fresh workspace:
+
+```sh
+./install.sh --workspace "$HOME/projects/WORKSPACE" "$HOME/apps/command-center-ng"
+```
+
+The selected directory must already exist. Initialization uses the native
+shared-server command, skipping changes to agent instructions and Git hooks;
+it then verifies a read-only query. Existing parent/redirected trackers, partial
+configuration and connection settings are preserved. No automatic re-init,
+migration, server restart or credential/routing replacement is attempted.
+
+If Dolt is missing, the installer offers the official Linux amd64/arm64 archive
+for version 2.2.0 under the selected target and verifies its published SHA256.
+That version follows the [Beads 1.3.2 standalone Dolt pin](https://github.com/gastownhall/beads/blob/v1.3.2/docs/architecture/dolt.md#which-dolt-version-to-install),
+not a floating latest release. Checksums come from the
+[official Dolt 2.2.0 release](https://github.com/dolthub/dolt/releases/tag/v2.2.0).
+Other CPU architectures require a preinstalled Dolt. Existing Dolt is reused;
+it is not downgraded or replaced. Declined/noninteractive setup reports pending
+work and leaves the application available. See [installation](installation.md)
+for startup, data location, failure handling and native lifecycle commands.
 
 ## Validation status
 
@@ -132,5 +151,9 @@ The prerequisite inventory passed on the existing RHEL 9 development VM.
 Shell syntax and installer update-protection fixtures passed. Terminal consent
 checks verified that yes invokes the exact simulated sudo/DNF command while no
 and noninteractive execution invoke none. No actual system package, new CLI,
-database or service was installed during those checks. A clean minimal-RHEL
-bootstrap and other-distribution testing remain unperformed.
+database or service was installed during those checks. Isolated stub fixtures
+also verify native shared-server initialization arguments, private permissions,
+existing/redirected tracker preservation, consent/check-only gates and pinned
+Dolt download/checksum refusal. No real database or server was created for
+these tests. A clean minimal-RHEL bootstrap and other-distribution testing remain
+unperformed.

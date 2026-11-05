@@ -1,21 +1,31 @@
 import React, { useState } from 'react';
 import { formFields, requestKind, COMMAND_APPROVAL, FILE_APPROVAL, CLARIFICATION, PERMISSIONS, MCP_REQUEST } from '../server/native-requests.mjs';
 import { questionTarget, type Question } from './open-questions';
+import { ClaudeRequestCard } from './claude-request-card';
 
 function safeExternalUrl(value: unknown) {
   if (typeof value !== 'string') return null;
   try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) ? value : null; } catch { return null; }
 }
 
-export function NativeRequestCard({ question, agentId, workerName, readOnlyCoordinator = false, act }: {
+type RequestCardProps = {
   question: Question; agentId: string; workerName: string;
   readOnlyCoordinator?: boolean;
   act: (path: string, data: unknown) => Promise<boolean>;
-}) {
+};
+
+export function NativeRequestCard(props: RequestCardProps) {
+  const key = JSON.stringify([props.agentId, props.question.id, props.question.method]);
+  return ['claude/tool/requestApproval', 'claude/tool/requestUserInput'].includes(props.question.method)
+    ? <ClaudeRequestCard key={key} {...props} />
+    : <NativeRequestFields key={key} {...props} />;
+}
+
+function NativeRequestFields({ question, agentId, workerName, readOnlyCoordinator = false, act }: RequestCardProps) {
   const approval = [COMMAND_APPROVAL, FILE_APPROVAL].includes(question.method);
   const clarification = question.method === CLARIFICATION;
   const permissions = question.method === PERMISSIONS;
-  const mcp = question.method === MCP_REQUEST;
+  const mcp = question.method === MCP_REQUEST || question.method === 'claude/mcp/elicitation/request';
   const fields = mcp && ['form', 'openai/form', 'openaiForm'].includes(question.params.mode) ? formFields(question.params.requestedSchema) : null;
   const external = mcp && question.params.mode === 'url';
   const url = external ? safeExternalUrl(question.params.url) : null;
@@ -60,8 +70,8 @@ export function NativeRequestCard({ question, agentId, workerName, readOnlyCoord
             : field.options ? <select aria-label={field.label} required={field.required} value={content[field.name] ?? ''} onChange={event => setContent({ ...content, [field.name]: event.target.value })}><option value="">Choose…</option>{field.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
             : <input aria-label={field.label} required={field.required} type={['number', 'integer'].includes(field.type) ? 'number' : field.format === 'password' ? 'password' : field.format === 'email' ? 'email' : field.format === 'uri' ? 'url' : field.format === 'date' ? 'date' : 'text'} step={field.type === 'integer' ? 1 : 'any'} min={field.minimum} max={field.maximum} minLength={field.minLength} maxLength={Math.min(8000, field.maxLength ?? 8000)} value={content[field.name] ?? ''} onChange={event => setContent({ ...content, [field.name]: ['number', 'integer'].includes(field.type) ? event.target.value === '' ? undefined : Number(event.target.value) : event.target.value })} />}
         </label>)}</fieldset><button className="button amber" disabled={busy || readOnlyCoordinator}>Submit response</button>
-      </form> : external ? <div className="native-external-step"><p>This step must be completed on the external page, then confirmed here.</p>{url ? <a className="button subtle" href={url} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">Open external page</a> : <p className="error-text">The native agent supplied no supported browser URL. Check this request in its native client.</p>}{url && <button className="button amber" disabled={busy || readOnlyCoordinator} onClick={() => void submit({ decision: 'accept' })}>I completed this step</button>}</div>
-        : <p>This native form uses a schema or mode CCNG cannot answer yet. The request stays open; complete this exact request in the native client.</p>}
+      </form> : external ? <div className="native-external-step"><p>This step must be completed on the external page, then confirmed here.</p>{url ? <a className="button subtle" href={url} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">Open external page</a> : <p className="error-text">{question.method.startsWith('claude/') ? 'Claude supplied no supported browser URL. Decline or cancel this request here.' : 'The native agent supplied no supported browser URL. Check this request in its native client.'}</p>}{url && <button className="button amber" disabled={busy || readOnlyCoordinator} onClick={() => void submit({ decision: 'accept' })}>I completed this step</button>}</div>
+        : <p>{question.method.startsWith('claude/') ? 'This Claude form uses a schema or mode CCNG cannot answer yet. The request stays open; decline or cancel it here.' : 'This native form uses a schema or mode CCNG cannot answer yet. The request stays open; complete this exact request in the native client.'}</p>}
       <div className="button-row"><button className="button subtle" disabled={busy} onClick={() => void submit({ decision: 'decline' })}>Decline</button><button className="button subtle" disabled={busy} onClick={() => void submit({ decision: 'cancel' })}>Cancel request</button></div>
     </> : <p>This blocking request is visible, but its answer format is not supported yet. Open {workerName} in the native client to answer this exact request. It has not been declined or dismissed.</p>}
     <details className="native-request-details"><summary>Native request details</summary><pre><code>{JSON.stringify({ method: question.method, ...question.params }, null, 2)}</code></pre></details>

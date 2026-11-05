@@ -13,11 +13,10 @@ export function ModelControls({ models, model, effort, disabled, chooseModel, ch
       {!selected && <option value={model}>{model || 'Choose a model…'}</option>}
       {models.map(option => <option key={option.model} value={option.model}>{option.displayName}</option>)}
     </select></label>
-    <label><span>Reasoning effort</span><select aria-label="Worker reasoning effort" disabled={disabled || !selected?.efforts.length} value={effort || ''} onChange={event => chooseEffort(event.target.value)}>
+    <label><span>Effort</span><select aria-label="Worker reasoning effort" disabled={disabled || !selected?.efforts.length} value={effort || ''} onChange={event => chooseEffort(event.target.value)}>
       {!selected?.efforts.some(option => option.value === effort) && <option value="">{selected?.efforts.length ? 'Choose effort…' : 'Not available'}</option>}
       {selected?.efforts.map(option => <option key={option.value} value={option.value}>{option.value}</option>)}
     </select></label>
-    {selected?.efforts.find(option => option.value === effort)?.description && <p className="field-note">{selected.efforts.find(option => option.value === effort)!.description}</p>}
   </fieldset>;
 }
 
@@ -46,7 +45,7 @@ export function WorkerModelSettings({ agentId, connected, currentModel, currentE
     catch (problem) { setError((problem as Error).message); } finally { setSaving(false); }
   }}>
     <ModelControls models={models} model={model} effort={effort} disabled={!connected || loading || saving || change?.status === 'pending'} chooseModel={value => { const next = models.find(option => option.model === value); setModel(value); setEffort(next?.efforts.some(option => option.value === effort) ? effort : next?.defaultEffort || next?.efforts[0]?.value || null); setDirty(true); }} chooseEffort={value => { setEffort(value); setDirty(true); }} />
-    <p className="field-note" role="status">{loading ? 'Loading native model choices…' : change?.status === 'pending' ? 'Change requested; waiting for native confirmation. Current work continues.' : change?.status === 'unconfirmed' ? 'Native confirmation is missing. Refresh choices to check the saved settings before retrying.' : change?.status === 'saved' ? 'Saved for subsequent turns. Current work is not interrupted.' : 'Changes apply to subsequent turns for this worker.'}</p>
+    {(loading || change?.status === 'pending' || change?.status === 'unconfirmed') && <p className="field-note" role="status">{loading ? 'Loading model choices…' : change?.status === 'pending' ? 'Waiting for native confirmation…' : 'Native confirmation is missing. Refresh choices to check the saved settings.'}</p>}
     {error && <p className="error-text" role="alert">{error}</p>}
     <div className="button-row"><button className="button subtle small" disabled={!connected || !dirty || !valid || saving || change?.status === 'pending'}>{saving ? 'Saving…' : 'Save model settings'}</button><button type="button" className="button subtle small" disabled={!connected || loading || saving} onClick={() => void refresh()}>Refresh choices</button></div>
   </form>;

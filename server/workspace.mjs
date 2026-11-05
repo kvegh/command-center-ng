@@ -12,6 +12,8 @@ import { taskSummary, reportedPlan } from './task-summary.mjs';
 import { BeadsTasks, sessionLabel } from './beads.mjs';
 import { Coordinator, COORDINATOR_NAME, isCoordinatorThread } from './coordinator.mjs';
 import { SUMMARY_LIMIT, SUMMARY_SCHEMA, summaryPrompt, readSummary } from './branch-summary.mjs';
+import { ClaudeSessions, isClaudeId } from './claude.mjs';
+import { readEnvironmentInstructions, environmentInstructionContext } from './environment-instructions.mjs';
 
 export const input = text => [{ type: 'text', text, text_elements: [] }];
 const requestKey = (threadId, requestId) => JSON.stringify([threadId, requestId]);
@@ -32,7 +34,7 @@ function itemText(item) {
 }
 
 export class Workspace extends EventEmitter {
-  constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, recoveryTimeout = 2000, beads = new BeadsTasks(), coordinator = false } = {}) {
+  constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, recoveryTimeout = 2000, beads = new BeadsTasks(), coordinator = false, claude = null } = {}) {
     super(); this.rpc = rpc; this.agents = new Map(); this.pending = new Map(); this.opening = new Set(); this.watched = new Set(); this.creating = 0; this.error = null;
     this.summaryJobs = new Map(); this.returnJobs = new Map(); this.summaryTimeout = summaryTimeout;
     this.workerReads = new Set(); this.beads = beads; this.trackerReads = new Map();
@@ -40,24 +42,40 @@ export class Workspace extends EventEmitter {
     this.requestJobs = new Map(); this.recoveryTimeout = recoveryTimeout;
     this.coordinator = coordinator ? new Coordinator(this, typeof coordinator === 'object' ? coordinator : {}) : null;
     this.restoring = false; this.observedReads = new Map(); this.restoration = null;
+    this.claude = claude === true ? new ClaudeSessions() : claude;
+    this.claude?.on('change', id => { this.changed(); if (this.agents.has(id)) void this.coordinator?.flush(id); });
+    this.claude?.on('completed', id => { if (this.agents.has(id)) { this.coordinator?.completed(id); void this.refreshTasks(id); } });
     rpc.on('notification', message => this.notification(message));
     rpc.on('request', message => this.request(message));
     rpc.on('disconnected', message => {
       this.error = message;
       for (const job of this.answerJobs.values()) job.finish(Object.assign(new Error('Codex disconnected before confirming the answer. Check the native session.'), { status: 503 }));
-      this.pending.clear(); for (const agent of this.agents.values()) agent.questions = [];
+      this.pending.clear(); for (const agent of this.agents.values()) if (agent.provider !== 'claude') agent.questions = [];
       this.changed();
     });
     rpc.on('connected', () => { this.error = null; this.changed(); });
   }
   changed() { this.emit('change'); }
+  readyFor(agent) { return (typeof agent === 'string' ? isClaudeId(agent) : agent?.provider === 'claude') ? !!this.claude?.available : this.rpc.ready; }
+  available() { return this.rpc.ready || !!this.claude?.available; }
   workerCount() { return [...this.agents.values()].filter(agent => agent.role !== 'coordinator').length; }
   workerSlots() { return this.workerCount() + [...this.opening].filter(id => id !== this.coordinator?.id).length + this.creating; }
+  backgroundRequests() {
+    const workers = new Map();
+    for (const question of this.pending.values()) if (!this.agents.has(question.params.threadId)) {
+      const id = question.params.threadId, previous = workers.get(id);
+      workers.set(id, { id, name: 'Codex session', provider: 'codex', questionCount: (previous?.questionCount || 0) + 1 });
+    }
+    for (const agent of this.claude?.records.values() || []) if (!this.agents.has(agent.id) && agent.questions.length) workers.set(agent.id, { id: agent.id, name: agent.name, provider: 'claude', questionCount: agent.questions.length });
+    return { backgroundQuestions: [...workers.values()].reduce((total, worker) => total + worker.questionCount, 0), backgroundWorkers: [...workers.values()] };
+  }
   snapshot() {
-    return { connected: this.rpc.ready, error: this.error, version: VERSION, restoration: this.restoration, coordinator: this.coordinator?.snapshot() || null, backgroundQuestions: [...this.pending.values()].filter(q => !this.agents.has(q.params.threadId)).length, agents: [...this.agents.values()].map(agent => ({ ...agent, ...taskSummary(agent), reportState: this.coordinator?.reportState(agent.id) || null, reportSettingPending: !!this.coordinator?.deliveries.get(agent.id)?.some(row => row.kind === 'report-setting'), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), recoveringRequests: this.requestJobs.has(agent.id), status: this.rpc.ready ? (agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline', thread: undefined })) };
+    return { connected: this.available(), codexConnected: this.rpc.ready, claudeAvailable: !!this.claude?.available, claudeError: this.claude?.error || null, error: this.error, version: VERSION, restoration: this.restoration, coordinator: this.coordinator?.snapshot() || null, ...this.backgroundRequests(), agents: [...this.agents.values()].map(agent => ({ ...agent, ...taskSummary(agent), reportState: this.coordinator?.reportState(agent.id) || null, reportSettingPending: !!this.coordinator?.deliveries.get(agent.id)?.some(row => row.kind === 'report-setting'), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), recoveringRequests: this.requestJobs.has(agent.id), status: this.readyFor(agent) ? (agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline', thread: undefined })) };
   }
   agent(id) { const agent = this.agents.get(id); if (!agent) throw Object.assign(new Error('Open this agent first.'), { status: 404 }); return agent; }
-  async list(cursor) {
+  async list(cursor, provider = 'codex') {
+    if (provider === 'claude') { if (!this.claude) throw Object.assign(new Error('Local Claude support is unavailable.'), { status: 503 }); return this.claude.list(cursor); }
+    if (provider !== 'codex') throw Object.assign(new Error('Choose Codex or Claude.'), { status: 400 });
     const result = await this.rpc.call('thread/list', { limit: 50, useStateDbOnly: true, ...(cursor ? { cursor } : {}) });
     return { agents: result.data.filter(t => !isCoordinatorThread(t)).map(t => ({ id: t.id, name: t.name || t.preview?.split('\n')[0]?.slice(0, 90) || 'Untitled agent', cwd: t.cwd, status: statusOf(t), parentId: t.parentThreadId || null, forkedFromId: t.forkedFromId || null })), nextCursor: result.nextCursor };
   }
@@ -68,6 +86,12 @@ export class Workspace extends EventEmitter {
     if (this.opening.has(id)) throw Object.assign(new Error('This agent is already opening.'), { status: 409 });
     this.opening.add(id);
     try {
+      if (isClaudeId(id)) {
+        if (!this.claude) throw Object.assign(new Error('Local Claude support is unavailable.'), { status: 503 });
+        const agent = await this.claude.open(id); this.agents.set(id, agent); await this.refreshTasks(id); this.changed();
+        if (this.coordinator && !this.restoring && this.rpc.ready) { void this.coordinator.ensure().catch(() => {}); this.coordinator.mark(id, 'Claude worker opened'); }
+        return agent;
+      }
       const observed = await this.rpc.call('thread/read', { threadId: id });
       if (!observed.thread) throw Object.assign(new Error('The saved conversation is unavailable.'), { status: 404 });
       if (role === 'worker' && isCoordinatorThread(observed.thread)) throw Object.assign(new Error('A coordinator conversation cannot be opened as a worker. Open a worker conversation instead.'), { status: 409 });
@@ -87,6 +111,7 @@ export class Workspace extends EventEmitter {
   }
   async activate(id, { force = false } = {}) {
     const agent = this.agent(id); if (!agent.observingOnly && !force) return;
+    if (agent.provider === 'claude') return;
     if (agent.role === 'coordinator') return this.coordinator.activate({ force });
     const resumed = await this.rpc.call('thread/resume', { threadId: id, excludeTurns: true });
     agent.thread = resumed.thread; agent.instructionSources = resumed.instructionSources || [];
@@ -96,6 +121,7 @@ export class Workspace extends EventEmitter {
   async recoverRequests(id) {
     if (this.requestJobs.has(id)) return this.requestJobs.get(id);
     const agent = this.agent(id);
+    if (agent.provider === 'claude') { await this.claude.refresh(agent); return { requests: agent.questions.length }; }
     if (agent.questions.length) return { requests: agent.questions.length };
     agent.requestError = null;
     const job = (async () => {
@@ -128,7 +154,9 @@ export class Workspace extends EventEmitter {
     try { return await job; } finally { this.requestJobs.delete(id); this.changed(); }
   }
   async refreshObserved(id) {
-    const agent = this.agents.get(id); if (!agent?.observingOnly || !this.rpc.ready || this.restoring) return;
+    const agent = this.agents.get(id);
+    if (agent?.provider === 'claude') { if (!this.claude?.available || this.restoring || this.observedReads.has(id)) return; const job = this.claude.refresh(agent); this.observedReads.set(id, job); try { await job; } catch (error) { agent.observeError = error.message; this.changed(); } finally { this.observedReads.delete(id); } return; }
+    if (!agent?.observingOnly || !this.rpc.ready || this.restoring) return;
     if (this.observedReads.has(id)) return this.observedReads.get(id);
     const job = (async () => {
       try {
@@ -169,6 +197,7 @@ export class Workspace extends EventEmitter {
   }
   async history(id, cursor) {
     const agent = this.agent(id);
+    if (agent.provider === 'claude') { if (cursor) throw Object.assign(new Error('Claude history uses its native current transcript.'), { status: 400 }); await this.claude.refresh(agent); return; }
     const page = await this.rpc.call('thread/turns/list', { threadId: id, limit: 20, itemsView: 'full', ...(cursor ? { cursor } : {}) });
     const current = { tasks: agent.tasks, workers: agent.workers.map(worker => ({ ...worker })), summary: agent.summary, activity: agent.activity };
     const live = agent.messages; agent.messages = []; if (!cursor) agent.turnId = null;
@@ -224,6 +253,7 @@ export class Workspace extends EventEmitter {
   }
   async modelSettings(id) {
     const agent = this.agent(id);
+    if (agent.provider === 'claude') return this.claude.modelSettings(agent);
     if (agent.role === 'coordinator') throw Object.assign(new Error('Choose a worker to change its model.'), { status: 400 });
     const { thread } = await this.rpc.call('thread/read', { threadId: id });
     if (!thread) throw new Error('The native worker is unavailable.');
@@ -233,6 +263,7 @@ export class Workspace extends EventEmitter {
   }
   async updateModel(id, choice) {
     const agent = this.agent(id);
+    if (agent.provider === 'claude') return this.claude.updateModel(agent, choice);
     if (agent.role === 'coordinator' || !agent.canSend) throw Object.assign(new Error('Choose a worker that accepts direct input.'), { status: 400 });
     if (agent.modelChange?.status === 'pending') throw Object.assign(new Error('Wait for the native model change to be confirmed, or refresh settings.'), { status: 409 });
     const selected = validateModelChoice(await readModelCatalog(this.rpc), choice);
@@ -257,7 +288,8 @@ export class Workspace extends EventEmitter {
     try { agent.tracker = await this.beads.setLinks(agent.cwd, id, ids); this.changed(); return agent.tracker; }
     catch (error) { await this.refreshTasks(id); throw error; }
   }
-  async create({ goal, cwd }) {
+  async create({ goal, cwd, provider = 'codex' }) {
+    if (!['codex', 'claude'].includes(provider)) throw Object.assign(new Error('Choose Codex or Claude.'), { status: 400 });
     if (this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error(`All ${limits.maxWorkers} worker tabs are already open.`), { status: 409 });
     if (typeof goal !== 'string' || !goal.trim() || goal.length > 2000) throw Object.assign(new Error('Enter a goal of 1–2000 characters.'), { status: 400 });
     if (goal.trim().split('\n')[0].slice(0, 120) === COORDINATOR_NAME) throw Object.assign(new Error('This name is reserved for the coordinator. Enter a worker goal.'), { status: 400 });
@@ -265,6 +297,13 @@ export class Workspace extends EventEmitter {
     if (this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error(`All ${limits.maxWorkers} worker tabs are already open.`), { status: 409 });
     this.creating++; let reserved = true;
     try {
+      if (provider === 'claude') {
+        if (!this.claude) throw Object.assign(new Error('Local Claude support is unavailable.'), { status: 503 });
+        const agent = this.claude.create(cwd, goal.trim()); this.agents.set(agent.id, agent); this.creating--; reserved = false;
+        await this.refreshTasks(agent.id); await this.send(agent.id, goal.trim());
+        if (this.coordinator && this.rpc.ready) { void this.coordinator.ensure().catch(() => {}); this.coordinator.mark(agent.id, 'Claude worker started'); }
+        return agent.id;
+      }
       // Do not override native model, permissions, instructions, or approval policy.
       const { thread } = await this.rpc.call('thread/start', { cwd });
       await this.rpc.call('thread/name/set', { threadId: thread.id, name: goal.trim().split('\n')[0].slice(0, 120) });
@@ -276,30 +315,45 @@ export class Workspace extends EventEmitter {
   async send(id, text, { report = false, reportSetting = false } = {}) {
     const agent = this.agent(id);
     if (this.summaryJobs.has(id) || this.returnJobs.has(id) || agent.returnSummary?.delivered) throw Object.assign(new Error('Finish the branch handoff before sending another message.'), { status: 409 });
-    if (!agent.canSend) throw Object.assign(new Error('Codex does not allow direct input to this agent.'), { status: 409 });
+    if (!agent.canSend) throw Object.assign(new Error(agent.managementNotice || 'The native agent does not allow direct input to this session.'), { status: 409 });
     if (typeof text !== 'string' || !text.trim() || text.length > 32_000) throw Object.assign(new Error('Enter a message of 1–32000 characters.'), { status: 400 });
     if (agent.questions.length) throw Object.assign(new Error('Answer the pending question before sending another message.'), { status: 409 });
     if (statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Load the pending request before sending another message.'), { status: 409 });
     await this.activate(id);
+    const context = await this.instructionContext(agent);
+    if (this.agents.get(id) !== agent) throw Object.assign(new Error('The worker was closed before message delivery.'), { status: 409 });
+    if (!this.readyFor(agent)) throw Object.assign(new Error('Reconnect the native runtime before sending this message.'), { status: 503 });
     if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
+    if (agent.provider === 'claude') {
+      await this.claude.send(agent, text.trim(), { instructions: Object.values(context).map(part => part.value).join('\n\n'), stillOpen: () => this.agents.get(id) === agent, ...(report || reportSetting ? { priority: 'next' } : {}) }); return;
+    }
     if (agent.freshBranch && !report && !reportSetting) {
       const title = text.trim().split('\n')[0].slice(0, 120);
       await this.rpc.call('thread/name/set', { threadId: id, name: title });
       agent.name = title; agent.goal = title; agent.freshBranch = false;
     }
+    if (this.agents.get(id) !== agent) throw Object.assign(new Error('The worker was closed before message delivery.'), { status: 409 });
+    if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
     if (agent.thread.status?.type === 'active' && agent.turnId) {
       await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: agent.turnId, input: input(text.trim()) });
     } else {
-      const { turn } = await this.rpc.call('turn/start', { threadId: id, input: input(text.trim()), ...(report || reportSetting ? { clientUserMessageId: (report ? 'ccng-report-' : 'ccng-report-setting-') + randomUUID() } : {}), ...(agent.role !== 'coordinator' ? { additionalContext: { ...this.beads?.context(id), 'command-center-worker-instructions': { kind: 'application', value: WORKER_BASE_INSTRUCTIONS } } } : {}) }); agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed();
+      const { turn } = await this.rpc.call('turn/start', { threadId: id, input: input(text.trim()), ...(report || reportSetting ? { clientUserMessageId: (report ? 'ccng-report-' : 'ccng-report-setting-') + randomUUID() } : {}), additionalContext: context }); agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed();
     }
+  }
+  async instructionContext(agent) {
+    const source = await readEnvironmentInstructions(agent.cwd);
+    const { text, ...state } = source; agent.environmentInstructions = state;
+    return { ...environmentInstructionContext(source), ...(agent.role !== 'coordinator' ? { ...this.beads?.context(agent.id), 'command-center-worker-instructions': { kind: 'application', value: WORKER_BASE_INSTRUCTIONS } } : {}) };
   }
   async interrupt(id) {
     const agent = this.agent(id);
+    if (agent.provider === 'claude') return this.claude.interrupt(agent);
     if (!agent.turnId) throw Object.assign(new Error('There is no active turn to interrupt.'), { status: 409 });
     await this.rpc.call('turn/interrupt', { threadId: id, turnId: agent.turnId });
   }
   async fork(id, lastTurnId) {
     const source = this.agent(id);
+    if (source.provider === 'claude') throw Object.assign(new Error('Claude branching is not supported in Command Center yet. This session remains unchanged.'), { status: 400 });
     if (source.role === 'coordinator') throw Object.assign(new Error('Branch a worker conversation instead.'), { status: 400 });
     const atReply = lastTurnId !== undefined && lastTurnId !== null;
     if (atReply && (typeof lastTurnId !== 'string' || !source.messages.some(message => message.turnId === lastTurnId && message.branchable))) throw Object.assign(new Error('Choose a completed reply to branch from.'), { status: 400 });
@@ -341,7 +395,10 @@ export class Workspace extends EventEmitter {
   }
   async generateSummary(branch) {
     await this.refreshTasks(branch.id);
-    const { turn } = await this.rpc.call('turn/start', { threadId: branch.id, input: input(summaryPrompt(branch.goal, branch.tracker?.tasks)), outputSchema: SUMMARY_SCHEMA });
+    const context = await this.instructionContext(branch);
+    if (this.agents.get(branch.id) !== branch) throw Object.assign(new Error('The branch was closed before summary preparation.'), { status: 409 });
+    if (branch.questions.length || statusOf(branch.thread, branch.questions) !== 'idle') throw Object.assign(new Error('Resolve the branch question or active turn before preparing its summary.'), { status: 409 });
+    const { turn } = await this.rpc.call('turn/start', { threadId: branch.id, input: input(summaryPrompt(branch.goal, branch.tracker?.tasks)), outputSchema: SUMMARY_SCHEMA, additionalContext: context });
     if (branch.finishedTurn?.id !== turn.id) { branch.turnId = turn.id; branch.thread.status = { type: 'active', activeFlags: [] }; this.changed(); }
     await new Promise((resolve, reject) => {
       const finish = error => { clearTimeout(timer); this.off('change', check); error ? reject(error) : resolve(); };
@@ -410,6 +467,7 @@ export class Workspace extends EventEmitter {
     this.coordinator?.mark(p.threadId, 'Approval or question needs review', true);
   }
   answer(id, requestId, answer) {
+    const agent = this.agent(id); if (agent.provider === 'claude') return this.claude.answer(agent, requestId, answer);
     const key = requestKey(id, requestId); const question = this.pending.get(key);
     if (!question || question.params.threadId !== id) throw Object.assign(new Error('This question has already been resolved.'), { status: 409 });
     if (this.answerJobs.has(key)) throw Object.assign(new Error('An answer is already awaiting confirmation.'), { status: 409 });

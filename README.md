@@ -5,12 +5,13 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.18.1 (in development)** includes the Codex workspace and Linux installer. It supports
+**Version 0.19.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
 green running states, and amber attention states.
-The interface uses a local Node.js service and the existing Codex daemon.
+The interface uses one local Node.js service, the existing Codex daemon and the
+official Claude Agent SDK. Each provider keeps its native session history and execution.
 A compact top bar puts the agent tabs and controls first, with branding at the
 far right. It spans the full browser width. The workspace fills the window, with goal/tasks in a right sidebar on desktop and
 above the conversation on smaller screens. The desktop sidebar is about 40%
@@ -129,8 +130,9 @@ chosen target, always after terminal confirmation. See the
 [RHEL 9 prerequisite guide](docs/rhel9-prerequisites.md). Beads must be on PATH for both the app and working agents.
 The installer and app check for JSON/read-only/brief-list support; Beads 1.3.2
 was verified. See the [official Beads installation guide](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md).
-The native integration is tested with Codex 0.166.0. Fresh local Dolt provisioning and Beads initialization are approved follow-up
-work but are not implemented yet; existing trackers are preserved. System packages are changed only after
+The native integration is tested with Codex 0.166.0. Fresh local Dolt provisioning and Beads initialization are offered for an
+explicitly selected task workspace after terminal confirmation; existing
+trackers and connection settings are preserved. System packages are changed only after
 explicit installer confirmation.
 
 Clone this repository and run the installer with a target directory:
@@ -273,7 +275,8 @@ as the owner. The sidebar reports missing details instead of making that claim.
 
 This list follows native pending requests; unanswered questions written only in
 ordinary chat prose are not inferred. Coordinator tracking of those questions
-is approved follow-up work and remains unimplemented. No new question store or model call is added.
+uses worker-recorded Beads input tasks as described below. There is no new
+question store or automatic transcript classifier.
 
 ## Worker settings, task answers and Markdown
 
@@ -315,7 +318,7 @@ and remote images appear as links rather than loading automatically. Code exampl
 remain literal code. The existing authentication and content security policy apply.
 
 Session management is local to the backend host. Local read-write Claude support
-through the user-approved official Claude Agent SDK is still under development;
+uses the official Claude Agent SDK;
 this release continues to manage Codex sessions. No SSH/remote session monitoring
 is implemented or authorized. Per-worker model/effort controls are also unfinished.
 
@@ -669,3 +672,76 @@ does not update the running installation or approve the quoted action.
 Regression checks and production build pass; helper reads are tested with
 synthetic files, including changed-source refusal and multiple current requests.
 No real request was approved or executed for validation.
+
+
+## Local Claude, shared instructions and compact context: 0.19.0
+
+Choose Codex or Claude when opening or starting a worker. Claude uses the official
+Agent SDK **0.3.212** and the backend host's installed, signed-in native Claude
+CLI (verified interface: **2.1.316**). It lists local headless sessions such as
+`claude -p`, follows their saved conversation/tool activity, and supports managed
+new/resumed conversations, streamed replies, follow-up input and interruption.
+User/project/local native settings and permissions are retained. Tool approvals,
+structured questions and supported MCP forms use SDK-owned callbacks with exact
+worker/request identity. Submission is distinct from native progress confirming
+that the request has ended. Claude permission decisions remain manual here.
+
+An already running external CLI process keeps its session: Command Center follows
+its transcript and permits management after that process releases it. There is
+no SSH/remote-session monitoring. Claude can remain usable while Codex is offline;
+automatic coordinator work still needs Codex. Closing a tab leaves its managed
+process running, and a pending request in a closed tab offers an explicit Open
+control. Shutting down Command Center stops its SDK-owned Claude processes;
+native conversation history survives. Claude branching is not integrated yet.
+Model/effort choices become available after a managed process starts; SDK controls
+apply to that process, with restart persistence unverified. Reading settings does
+not create a model run. Private reasoning text is not displayed; visible progress,
+assistant messages and tool activity are shown.
+
+Worker startup Markdown and coordinator instructions require importing the local
+`Setup-Agentic-Dev-Environment/AGENTS.md`. The existing backend discovers that
+named repository in the worker/backend workspace and supplies its full bounded
+text through native instruction context. Missing/unreadable sources are reported;
+there is no automatic fetch or extra instruction store. Codex receives current
+context on app-started turns; Claude receives it at managed-process startup.
+Edits are not injected into an already running Claude process. Project rules and
+higher-priority/native role permissions remain authoritative. Coordinator-only
+canonical and V2 overrides preserve its no-subagents restriction.
+
+When a structured question tool is unavailable, workers record/reuse an input
+question in their existing Beads tracker with the current conversation label and
+`ccng-chat-question`. The sidebar's **Chat questions** list opens the existing
+context/reply flow. All current recorded questions reach coordinator reads,
+including those beyond its task preview. Beads polling can expose them during an
+active turn. A reply, idle state or turn completion never auto-closes a question;
+the worker processes the real answer and updates its record. Older unrecorded
+prose needs worker reconciliation. The coordinator reads these records and gains
+no Beads-write authority, text classifier or new question database.
+
+The installer can initialize a deliberately selected fresh task workspace through
+native Beads shared-server setup after confirmation. Missing Dolt is offered as
+a checksum-verified, user-local binary; existing trackers/routing/settings remain
+intact. `--check` stays read-only. See [installation](docs/installation.md).
+
+Chat messages again have a **90ch maximum width**, while narrower panes shrink
+naturally. Task rows hide assignee names and use their natural text height; the
+scroll viewport follows the first three rows, so widening the overview moves
+later sections up. Model and Effort labels/dropdowns share one line, without
+routine effort/subsequent-turn explanations. Actual loading and errors remain.
+This supersedes the uncapped text and unfinished-feature notes in older releases.
+
+Validation uses isolated provider/permission/history/installer fixtures and the
+production build. No live model run, real approval, running-service restart,
+remote session transport or deployment is used for these checks. Interactive
+browser and live provider testing remain pending. Actual encrypted AAP CaC and
+host rollout remain unfinished; source publication does not deploy the app.
+
+
+Validation for0.19.0: all **163 application tests** and the production build pass.
+Coverage includes real official-SDK reads of isolated native JSONL, local/external
+ownership, streamed controls and exact callbacks, provider disconnect/restore
+races, closed-tab pending requests, shared-source rereads/missing sources,
+complete recorded chat questions, variable task-row sizing and isolated confirmed
+Dolt/Beads installer fixtures. No live model/approval, development-host database
+setup, runtime restart or deployment was used. Interactive browser/live provider
+verification remains pending.

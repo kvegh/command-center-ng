@@ -393,7 +393,7 @@ kbd { font-family: inherit; }
 .workspace-frame .agent-panel { height: 100%; min-height: 0; max-height: none; }
 .workspace-restoring { height: 100%; display: grid; place-content: center; color: var(--muted); font-size: 14px; }
 .empty-workspace { height: 100%; min-height: 0; }
-.message-body { max-width: none; }
+.message-body { max-width: 90ch; }
 
 @media (min-width: 901px) {
   .workspace-frame .agent-panel { display: grid; grid-template-columns: minmax(0, 1fr) var(--overview-width, clamp(364px, 32.2vw, 448px)); grid-template-rows: minmax(0, 1fr) auto; }
@@ -438,8 +438,8 @@ kbd { font-family: inherit; }
 .request-recovery .button { align-self: flex-start; }
 
 /* Worker reports and a bounded complete task list share the existing context pane. */
-.task-summary > .task-scroll { max-height: 180px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 5px; }
-.task-scroll > .task-row { flex: 0 0 56px; min-height: 56px; }
+.task-summary > .task-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 5px; }
+.task-scroll > .task-row { flex: 0 0 auto; }
 .task-scroll:focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
 .task-totals { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--muted); font: 10px/1.6 var(--mono); }
 .task-totals .tasks-in-progress { color: var(--green); }
@@ -490,9 +490,11 @@ kbd { font-family: inherit; }
 .native-external-step a { text-decoration: none; }
 
 .worker-model-settings { margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--line); }
-.worker-model-controls { display: grid; gap: 10px; }
-.worker-model-controls label { display: grid; gap: 6px; font-size: 12px; }
-.worker-model-controls select { width: 100%; min-width: 0; padding: 9px; color: var(--ink); background: var(--canvas); border: 1px solid var(--line); border-radius: 5px; font-size: 12px; }
+.worker-model-controls { display: flex; align-items: center; gap: 10px; }
+.worker-model-controls label { display: flex; align-items: center; flex: 1; min-width: 0; gap: 6px; font-size: 12px; }
+.worker-model-controls label > span { flex-shrink: 0; }
+.worker-model-controls label:first-child { flex: 1.5; }
+.worker-model-controls select { flex: 1; width: 100%; min-width: 0; padding: 9px; color: var(--ink); background: var(--canvas); border: 1px solid var(--line); border-radius: 5px; font-size: 12px; }
 .worker-model-settings .button-row { flex-wrap: wrap; gap: 8px; }
 .overview-header { display: flex; align-items: center; min-width: 0; flex-shrink: 0; gap: 10px; padding-left: 12px; }
 .overview-header > .brand { margin-left: auto; }
@@ -509,3 +511,12 @@ kbd { font-family: inherit; }
 }
 @container overview-controls (max-width: 430px) { .brand > span:last-child { display: none; } .brand { gap: 0; } }
 @media (max-width: 900px) { .overview-header { padding-left: 0; gap: 6px; } }
+
+.provider-choice { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; font-size: 13px; }
+.provider-choice select { color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 8px 12px; }
+.session-notice { padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; }
+
+.background-requests { flex-shrink: 0; max-height: 150px; overflow-y: auto; margin-bottom: 8px; padding: 10px 12px; border: 1px solid #ffc16c40; border-radius: 7px; background: #ffc16c09; color: #ead7b7; font-size: 12px; }
+.background-request { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+.background-request > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.background-request small { display: block; margin-top: 3px; color: var(--muted); }

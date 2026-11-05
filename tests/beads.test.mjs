@@ -159,3 +159,38 @@ test('task detail reads only a linked task and does not change labels or state',
   await assert.rejects(f.beads.detail('/project', 'alpha', '../unsafe'), /valid/);
   assert.ok(f.calls.every(call => call.args.includes('--readonly')));
 });
+
+test('recorded chat questions are visible during an active turn and stay open until the worker resolves their Beads records', async () => {
+  const f = fixture(); const label = sessionLabel('alpha');
+  f.add('decision-one', 'Choose the backup interval', 'blocked', [label, 'ccng-chat-question']);
+  f.add('work-one', 'An ordinary task containing a question?', 'blocked', [label]);
+  f.add('other-decision', 'A different worker decision', 'blocked', [sessionLabel('beta'), 'ccng-chat-question']);
+  f.add('closed-decision', 'An answered decision', 'closed', [label, 'ccng-chat-question']);
+  const { w } = workspace(f.beads); w.agent('alpha').turnId = 'active-work';
+  await w.refreshTasks('alpha');
+  let snapshot = w.snapshot().agents.find(agent => agent.id === 'alpha');
+  assert.equal(snapshot.status, 'running', 'a chat question does not invent a native attention flag');
+  assert.deepEqual(snapshot.chatQuestions, [{ id: 'decision-one', workerId: 'alpha', text: 'Choose the backup interval', state: 'blocked', displayState: 'blocked' }]);
+  assert.deepEqual(snapshot.questions, []);
+  await assert.rejects(f.beads.detail('/project', 'alpha', 'other-decision'), /linked to this worker/);
+  w.notification({ method: 'item/completed', params: { threadId: 'alpha', turnId: 'active-work', item: { id: 'user-answer', type: 'userMessage', content: [{ type: 'text', text: 'Use the nightly interval.' }] } } });
+  w.notification({ method: 'turn/completed', params: { threadId: 'alpha', turn: { id: 'active-work', status: 'completed' } } });
+  await w.refreshTasks('alpha');
+  assert.equal(w.snapshot().agents[0].chatQuestions.length, 1, 'a reply or turn completion does not infer resolution');
+  assert.ok(f.calls.every(call => call.args.includes('--readonly')), 'the backend never changes question records');
+  const restored = workspace(f.beads); await restored.w.refreshTasks('alpha');
+  assert.equal(restored.w.snapshot().agents[0].chatQuestions[0].id, 'decision-one', 'restoration derives the question from existing Beads state');
+  f.rows.get('/project:decision-one').status = 'closed'; await w.refreshTasks('alpha');
+  assert.deepEqual(w.snapshot().agents[0].chatQuestions, []);
+});
+
+test('the complete chat-question subset is exposed without a preview cutoff or unrelated labels', async () => {
+  const f = fixture(); const label = sessionLabel('alpha');
+  for (let index = 0; index < 35; index++) f.add('decision-' + index, 'Question ' + index, 'blocked', [label, 'ccng-chat-question', 'unrelated-private-label']);
+  const { w } = workspace(f.beads); await w.refreshTasks('alpha');
+  const snapshot = w.snapshot().agents[0];
+  assert.equal(snapshot.chatQuestions.length, 35); assert.equal(snapshot.taskCount, 35);
+  assert.ok(snapshot.chatQuestions.every(question => question.workerId === 'alpha' && !('method' in question) && !('labels' in question)));
+  assert.match(f.beads.context('alpha')['command-center-tasks'].value, /structured question tool is unavailable/);
+  assert.match(f.beads.context('alpha')['command-center-tasks'].value, /ccng-chat-question/);
+});

@@ -27,7 +27,8 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
   const verify = await loadPassword(authFile);
   const sessions = new Sessions(); const clients = new Set();
   rpc ||= new CodexRpc({ socketPath: settings.socketPath });
-  workspace ||= new Workspace(rpc, { coordinator: true });
+  workspace ||= new Workspace(rpc, { coordinator: true, claude: true });
+  await workspace.claude?.initialize();
   await workspace.beads?.checkAvailable(settings.cwd);
   const persistence = new WorkspacePersistence(workspace, new WorkspaceStore(workspaceFile || join(dirname(authFile), 'workspace.json')));
   await persistence.initialize();
@@ -92,6 +93,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           await rpc.connect();
           await persistence.retry();
           for (const agent of [...workspace.agents.values()]) {
+            if (agent.provider === 'claude') { await workspace.refreshObserved(agent.id); continue; }
             if (agent.observingOnly) { await workspace.refreshObserved(agent.id); continue; }
             if (agent.role === 'coordinator') { agent.observingOnly = true; await workspace.activate(agent.id); }
             else { const { thread } = await rpc.call('thread/resume', { threadId: agent.id, excludeTurns: true }); agent.thread = thread; }
@@ -99,7 +101,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           }
           workspace.changed(); return json(response, { connected: true });
         }
-        if (path === '/api/agents' && request.method === 'GET') return json(response, await workspace.list(url.searchParams.get('cursor')));
+        if (path === '/api/agents' && request.method === 'GET') return json(response, await workspace.list(url.searchParams.get('cursor'), url.searchParams.get('provider') || 'codex'));
         if (request.method === 'POST') await persistence.restore();
         if (path === '/api/agents' && request.method === 'POST') return json(response, { id: await workspace.create(await body(request)) }, 201);
         if (path === '/api/coordinator' && request.method === 'POST') {
@@ -166,7 +168,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
     const { createServer } = await import('vite');
     vite = await createServer({ root, server: { middlewareMode: true, hmr: { server } }, appType: 'spa' });
   }
-  const close = async () => { await workspace.coordinator?.shutdown(); clearInterval(taskTimer); clearTimeout(broadcastTimer); for (const client of clients) client.response.end(); clients.clear(); workspace.off('change', publish); rpc.close(); await vite?.close(); await new Promise(resolve => server.close(resolve)); await persistence.close(); };
+  const close = async () => { await workspace.coordinator?.shutdown(); await workspace.claude?.shutdown(); clearInterval(taskTimer); clearTimeout(broadcastTimer); for (const client of clients) client.response.end(); clients.clear(); workspace.off('change', publish); rpc.close(); await vite?.close(); await new Promise(resolve => server.close(resolve)); await persistence.close(); };
   return { server, workspace, rpc, close, settings, persistence };
 }
 
