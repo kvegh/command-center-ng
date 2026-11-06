@@ -1537,3 +1537,46 @@ or test bypass. GFM/source-link and whitespace validation also passed. No live
 agent was interrupted for testing, and interactive browser acceptance or an
 installed-copy update was not performed. User-level systemd operation was
 separately confirmed by the user, not inferred from these tests.
+
+## 2026-11-06 — Add three themes and task attention controls in 0.29.0
+
+Implementation: `f11242fe1080b4212055ee24a4ce61e7d21d1854`.
+
+The user chose classic, contrastful and light themes. Classic preserves the
+original palette; the other themes address measured weak text and control
+contrast. A compact palette menu uses existing browser preferences. Logout
+follows the branding, while Add agent and its count form one group.
+
+Tasks needing real input appear first, with dependency-waiting work remaining
+Queued. Ordinary recorded questions now appear once in Tasks with a Question
+label. Native requests stay in Open questions. Input dialogs show explicitly
+recorded context, input type and exact input needed, with truthful clarification
+for older vague records. Worker instructions require those description fields.
+
+The user approved per-task Notify me controls, after the state near the title,
+with in-app alerts and optional native desktop notifications. Existing live
+snapshots supply observed transitions; subscription IDs use browser workspace
+preferences rather than a new service or database. Initial/restored observations
+are baselined, not replayed. Missing records are not completion evidence.
+Worker-level requests/errors remain worker-scoped when task ownership is unknown.
+Desktop permission is requested only through a user gesture, desktop text stays
+generic, and in-app alerts remain usable when desktop access is unavailable.
+Delivery requires the page to remain open; cross-window deduplication is absent.
+
+A deployment-focused report had omitted a delegated audit. Saved instructions
+now require every active workstream, including delegated audits, research,
+documentation, verification and publication, without extra commands solely for
+reporting. Concise grouping must not silently omit unchanged active work.
+
+The user also approved native Goals execution with CCNG controls and made native
+Goals a requirement for future full managed integrations. The reference and
+project guidance record that choice. An isolated, tested Codex protocol adapter
+is preparatory; no Goal route, UI, continuation engine or automatic activation
+is included. Claude Goal confirmation and control integration remain unfinished.
+
+All 322 application checks and the production build pass. A read-only independent
+review found no concrete notification defect. Verification covers preference
+compatibility, contrast and menu keys, task ordering/context, transition
+baselines and native desktop permission/privacy handling. Actual rendered
+desktop/mobile layouts, browser permission prompts and OS popup delivery remain
+unverified. No installation, live Goal or AAP rollout was changed.
