@@ -1666,3 +1666,27 @@ warning-isolation coverage. Two bounded independent reviews found no blocking
 defect. Actual browser behavior and deployed native saving remain unverified;
 no real approval, native permission/configuration change or update/restart was
 performed to obtain this result. Live acceptance remains separately tracked.
+
+## 2026-11-06 — Return to the chat draft after manual approval
+
+Implementation: `71585f27fe5a8751653245fc3bf7499297fd4662` (0.31.1).
+
+The user confirmed this request belongs to Command Center after withdrawing an
+unpublished attempt in another conversation. A successful manual Codex approval
+now returns focus to its editable chat input, with the caret at the end of the
+current draft and without scrolling. The native answer must be confirmed first;
+Decline, Cancel, review requests and failed answers do not move focus.
+
+The interface captures the originating input and current tab/dialog revision
+before sending. A later tab or dialog change cancels focus return, including
+switching away and back. Hidden pages, locked/detached inputs and another
+worker's composer are excluded. Focus is never queued for a later render.
+Existing native permission and coordinator behavior stays unchanged; Claude
+work remains postponed. No new dependency, backend API or storage was needed.
+
+All 366 application checks and the production build pass. Eight new regressions
+cover positive decisions, failure/refusal/review, delayed tab/dialog changes and
+draft/caret/scroll preservation. Independent bounded review found no blocking
+defect. Actual browser interaction remains unverified because browser tooling
+was unavailable; no real approval, permission change, installation update or
+restart was performed for validation.
