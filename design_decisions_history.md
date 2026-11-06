@@ -1580,3 +1580,34 @@ compatibility, contrast and menu keys, task ordering/context, transition
 baselines and native desktop permission/privacy handling. Actual rendered
 desktop/mobile layouts, browser permission prompts and OS popup delivery remain
 unverified. No installation, live Goal or AAP rollout was changed.
+
+## 2026-11-06 — Prioritize coordinator input needs in 0.30.0
+
+Implementation: `ed2b4738c5c4db3e0073e8f27bb5bd1c4b32afb6`.
+
+The user values the coordinator's clickable project overview but wants pending
+input ahead of implementation details. Each project card now places its report
+cadence beside the name and shows every current Needs input task title instead
+of the progress recap when such tasks exist. The label and titles use the same
+amber theme token as worker task totals. The native activity badge and whole-card
+tab navigation remain independent.
+
+The card reads only its worker's ready tracker and derived display states.
+Queued dependencies and unavailable/stale rows do not become input questions;
+cards without recorded input needs retain the existing summary/goal. The small
+component separates this presentation from the application shell without adding
+backend state, requests, model calls or dependencies.
+
+All 330 application checks and the production build pass, including eight new
+card checks for priority, multiple requests, queued/unavailable exclusions,
+worker isolation, navigation, cadence placement and escaped text. Actual rendered
+desktop/mobile layout remains unverified; the installed application was not
+updated or restarted.
+
+Separately, the user moved all remaining Claude integration and live validation
+to Todo. Existing SDK code and completed research/fixture evidence are retained,
+while Claude Goals/rewind are consolidated into that unfinished provider work.
+Codex Goals and Codex Edit & rewind remain separate. The existing deployment
+input record was transferred to AAP AutoDeploy by user direction; native history
+shows it originated here for the Command Center rollout, not as an imported AAP
+question. Label-filtered reads verify the transfer without resolving credentials.
