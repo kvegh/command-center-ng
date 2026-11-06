@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.27.1 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.27.2 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -19,8 +19,8 @@ wider and includes Goal, current task summaries and **Open questions**. Live
 clarification questions and approvals have an amber count, full question text
 and links to their answer controls, so requests remain easy to find while
 reading older messages. Selecting a tab focuses its chat
-input and places the cursor at the end of its saved draft. The generated airport
-control-tower logo uses a simple white tower with three clear windows on graphite; the header and browser favicon
+input and places the cursor at the end of its saved draft. The generated logo
+shows a schematic white curved control console and three monitors on graphite; the header and browser favicon
 share the same asset. See [brand asset and generation prompt](docs/brand-assets.md). The visible
 wordmark is **command center NG**. Tabs have a sixteen-pixel top inset.
 Inactive tabs stay compact at about 34 pixels; the selected tab is about 40 pixels
@@ -471,7 +471,8 @@ context. Validation tasks/conversations were cleaned up. Production installation
 automatic updates, dependency pruning, private-config preservation, and failed
 build preservation have also been exercised in temporary home installations.
 Browser desktop/mobile focus and visual automation remain unavailable here.
-The [brand note](docs/brand.md) records the generated tower asset and exact prompt.
+The [brand notes](docs/brand-assets.md) record the current operations-console icon,
+earlier tower assets and exact generation prompts.
 
 The 0.5.0 regression suite covers private atomic workspace writes, four-worker
 and coordinator restoration, failed-ID retries, read-only startup, explicit

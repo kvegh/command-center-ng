@@ -43,8 +43,9 @@ native plans, idle state, or archiving. Preserve other labels, ownership, task
 content, and project tracker configuration. Do not auto-initialize or migrate
 trackers, install tools, or manage a Dolt service.
 
-The user requested chat-input focus on tab selection and a generated airport
-control-tower icon. Workspace restore uses the user-approved split: a private file beside login
+The user requested chat-input focus on tab selection and a generated brand icon,
+now a schematic white curved operations console with an arc of monitors.
+Workspace restore uses the user-approved split: a private file beside login
 configuration in the existing Node.js backend, plus browser-local drafts,
 selected tab, order and reading positions. Persist only open worker IDs,
 coordinator ID and pause state on the server. Keep runtime files outside the

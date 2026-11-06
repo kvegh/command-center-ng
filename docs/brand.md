@@ -1,11 +1,11 @@
-# Control-tower icon and wordmark
+# Command Center icon and wordmark
 
 The visible wordmark is **command center NG**. The user requested uppercase NG
 without the former dot. Branding remains the final item at the right of the header.
 
-The active header/favicon asset is now the white tower documented in
+The active header/favicon asset is now the schematic operations console documented in
 [brand assets](brand-assets.md). The earlier detailed illustration remains
-tracked at `src/assets/airport-control-tower.png`; the cyan icon is retained in
+tracked at `src/assets/airport-control-tower.png`; the cyan icon and white tower are retained in
 Git history. The following describes the earlier illustration, not the active icon.
 
 The original generated mark was insufficiently recognizable. Its replacement

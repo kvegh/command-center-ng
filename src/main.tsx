@@ -24,7 +24,7 @@ import { MessageTime } from './message-time';
 import { CopyButton } from './copy-button';
 import './style.css';
 import { version as VERSION } from '../package.json';
-const towerIcon = new URL('./assets/command-center-icon.png', import.meta.url).href;
+const brandIcon = new URL('./assets/command-center-icon.png', import.meta.url).href;
 
 type Provider = 'codex' | 'claude';
 type Status = 'running' | 'attention' | 'idle' | 'offline' | 'error';
@@ -62,7 +62,7 @@ function Icon({ name, size = 18 }: { name: string; size?: number }) {
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name] || paths.chat}</svg>;
 }
-function Brand() { return <div className="brand" role="img" aria-label="Command Center NG"><img className="brandmark" src={towerIcon} alt="" /><span>command center<span className="brand-ng"> NG</span></span></div>; }
+function Brand() { return <div className="brand" role="img" aria-label="Command Center NG"><img className="brandmark" src={brandIcon} alt="" /><span>command center<span className="brand-ng"> NG</span></span></div>; }
 function Badge({ status }: { status: Status }) { return <span className={`status ${status}`}><span className="status-dot" />{labels[status]}</span>; }
 function Text({ value }: { value: string }) { return <Markdown value={value} />; }
 
