@@ -1637,3 +1637,32 @@ This is documentation and task reconciliation only. Whitespace checks pass;
 application code/version remain 0.30.0 with the previously verified 330 checks
 and production build. No live acceptance, installation, service or runtime
 configuration changed.
+## 2026-11-06 — Native saved approval choices for Codex
+
+Implementation: `8d06dab79c31b714e9b622650282755eec039c65` (0.31.0).
+
+The user requested Allow always alongside Allow once through the provider's own
+permission management, then explicitly limited this work to Codex. The interface
+now exposes exact offered command-prefix, network-host and native MCP-tool rules,
+showing each scope before submission. Native session choices retain their own
+label. Ordinary MCP forms, turn-only filesystem/network permission requests and
+file approvals do not acquire invented permanent permissions.
+
+One shared choice validator serves the interface and backend. Answers must match
+the current worker/request and offered proposal; native confirmation still owns
+request resolution. Codex owns saving and enforcing rules in its existing user
+settings, which may affect other matching sessions. CCNG adds no permission
+store or settings-file writer. The coordinator cannot choose reusable approvals
+or expand its own tool/access permissions. All Claude work stays postponed.
+
+Native save warnings are displayed for their worker, or globally when unscoped.
+A resolved action is not independent disk-save proof: native persistence can
+fail while the current action proceeds, and MCP may fall back to session access
+without a separate client confirmation. The interface states these limits.
+
+All 358 application checks and the production build pass, with exact payload,
+scope, stale/forged rejection, HTTP/native acknowledgement, coordinator and
+warning-isolation coverage. Two bounded independent reviews found no blocking
+defect. Actual browser behavior and deployed native saving remain unverified;
+no real approval, native permission/configuration change or update/restart was
+performed to obtain this result. Live acceptance remains separately tracked.
