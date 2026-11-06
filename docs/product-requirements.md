@@ -80,7 +80,17 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.30.0
+## Current development version: 0.31.0
+
+Codex approval cards expose native Allow always choices beside Allow once when
+the current request offers a command-prefix, network-host or native MCP tool
+saved permission. Show the exact offered scope and use the native approval
+management system for persistence, with no CCNG allow-list or direct config-file
+writer. Validate current request/identity and reject changed or forged rules.
+Session choices are not permanent; file and request-permission limitations stay
+explicit. Preserve ordinary forms, native confirmation, and coordinator limits.
+Surface native save warnings without claiming resolved means saved. Claude
+permission controls remain postponed with all other Claude work.
 
 Coordinator project cards place the saved report cadence beside the project
 name. When the worker's current tracker has Needs input tasks, their titles

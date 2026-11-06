@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import { Workspace } from '../server/workspace.mjs';
 import { formFields, formContent, manualRequestAnswer, isHumanRequest } from '../server/native-requests.mjs';
 
 test('MCP primitive forms preserve false, numbers, titled choices, multiselects and optional fields', () => {
@@ -45,4 +47,30 @@ test('MCP actions match native response shape and unsupported schemas cannot be 
 test('human blocking requests include unknown approval variants but exclude internal protocol exchanges', () => {
   for (const method of ['item/tool/requestUserInput', 'item/permissions/requestApproval', 'mcpServer/elicitation/request', 'item/future/requestApproval', 'execCommandApproval', 'applyPatchApproval']) assert.equal(isHumanRequest(method), true);
   for (const method of ['account/chatgptAuthTokens/refresh', 'attestation/generate', 'item/tool/call', 'currentTime/read']) assert.equal(isHumanRequest(method), false);
+});
+
+test('native rule-save warnings stay visible in their own worker without resolving approvals', () => {
+  const rpc = new EventEmitter(); rpc.ready = true; let replies = 0; rpc.respond = () => replies++;
+  const workspace = new Workspace(rpc, { beads: null });
+  for (const id of ['one', 'two']) {
+    workspace.agents.set(id, { id, name: id, provider: 'codex', questions: [], messages: [], thread: { status: { type: 'idle' } } });
+    workspace.watched.add(id);
+  }
+  rpc.emit('request', { id: 1, method: 'item/commandExecution/requestApproval', params: { threadId: 'one' } });
+  const message = 'Failed to apply execpolicy amendment: fixture write refused';
+  rpc.emit('notification', { method: 'warning', params: { threadId: 'one', message } });
+  let state = workspace.snapshot();
+  assert.equal(state.agents.find(agent => agent.id === 'one').nativeWarning, message);
+  assert.equal(state.agents.find(agent => agent.id === 'two').nativeWarning, undefined);
+  assert.equal(state.nativeWarning, null);
+  assert.equal(workspace.agent('one').questions.length, 1);
+  assert.equal(replies, 0);
+  rpc.emit('notification', { method: 'warning', params: { threadId: 'unopened', message: 'Unrelated warning' } });
+  rpc.emit('notification', { method: 'warning', params: { threadId: null, message: 'Global native warning' } });
+  state = workspace.snapshot();
+  assert.equal(state.nativeWarning, 'Global native warning');
+  assert.equal(state.agents.find(agent => agent.id === 'one').nativeWarning, message);
+  assert.equal(state.agents.find(agent => agent.id === 'two').nativeWarning, undefined);
+  assert.equal(workspace.agent('one').questions.length, 1);
+  assert.equal(replies, 0);
 });

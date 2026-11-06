@@ -634,6 +634,150 @@ test('command and file approval decisions await native resolution without broad 
   } finally { await f.close(); }
 });
 
+test('persistent Codex command, network and file choices forward only the exact native offer', async () => {
+  const f = await fixture();
+  try {
+    await f.workspace.open('existing');
+    const prefix = { acceptWithExecpolicyAmendment: { execpolicy_amendment: ['git', 'status'] } };
+    const network = { applyNetworkPolicyAmendment: { network_policy_amendment: { host: 'docs.example.invalid', action: 'allow' } } };
+    const cases = [
+      { id: 'saved-prefix', kind: 'commandExecution', decision: prefix, forged: { acceptWithExecpolicyAmendment: { execpolicy_amendment: ['git'] } } },
+      { id: 'saved-host', kind: 'commandExecution', decision: network, forged: { applyNetworkPolicyAmendment: { network_policy_amendment: { host: '*.example.invalid', action: 'allow' } } } },
+      { id: 'file-session', kind: 'fileChange', decision: 'acceptForSession', forged: prefix }
+    ];
+    for (const choice of cases) {
+      f.request({ id: choice.id, method: `item/${choice.kind}/requestApproval`, params: {
+        threadId: 'existing', turnId: 'turn-existing', command: 'git status', availableDecisions: ['accept', choice.decision, 'decline']
+      } });
+      await waitFor(() => f.workspace.agent('existing').questions.some(question => question.id === choice.id));
+      const repliesBefore = f.replies.length;
+      assert.throws(() => f.workspace.answer('existing', choice.id, { decision: choice.forged }), /offered by the current native request/);
+      assert.equal(f.replies.length, repliesBefore);
+      assert.equal(f.workspace.agent('existing').questions[0].responding, undefined);
+      const accepted = f.workspace.answer('existing', choice.id, { decision: structuredClone(choice.decision) });
+      await waitFor(() => f.replies.length > repliesBefore);
+      assert.deepEqual(f.replies.at(-1), { id: choice.id, result: { decision: choice.decision } });
+      assert.equal(f.workspace.agent('existing').questions[0].responding, true, 'native persistence is not confirmed merely by sending');
+      f.notify('serverRequest/resolved', { threadId: 'existing', requestId: choice.id }); await accepted;
+      assert.equal(f.workspace.agent('existing').questions.length, 0);
+    }
+    assert.equal(f.calls.some(call => /config|settings\/update/.test(call.method)), false, 'CCNG does not write native configuration itself');
+  } finally { await f.close(); }
+});
+
+test('native tool persistence uses MCP approval metadata while generic forms and permissions reject it', async () => {
+  const f = await fixture();
+  try {
+    await f.workspace.open('existing');
+    for (const [id, offered, answer, expected] of [
+      ['native-always', ['session', 'always'], { decision: 'accept', persistence: 'always' }, { action: 'accept', content: null, _meta: { persist: 'always' } }],
+      ['native-once', 'session', { decision: 'accept' }, { action: 'accept', content: null, _meta: null }]
+    ]) {
+      f.request({ id, method: 'mcpServer/elicitation/request', params: { threadId: 'existing', mode: 'openai/form',
+        requestedSchema: { type: 'object', properties: {} }, _meta: { codex_approval_kind: 'mcp_tool_call', persist: offered } } });
+      await waitFor(() => f.workspace.agent('existing').questions.some(question => question.id === id));
+      if (id === 'native-once') {
+        const before = f.replies.length;
+        assert.throws(() => f.workspace.answer('existing', id, { decision: 'accept', persistence: 'always' }), /offered by the current native request/);
+        assert.equal(f.replies.length, before);
+      }
+      const accepted = f.workspace.answer('existing', id, answer);
+      await waitFor(() => f.replies.some(reply => reply.id === id));
+      assert.deepEqual(f.replies.at(-1), { id, result: expected });
+      assert.equal(f.workspace.agent('existing').questions.length, 1);
+      f.notify('serverRequest/resolved', { threadId: 'existing', requestId: id }); await accepted;
+    }
+    f.request({ id: 'generic-form', method: 'mcpServer/elicitation/request', params: { threadId: 'existing', mode: 'openai/form', requestedSchema: { type: 'object', properties: {} } } });
+    f.request({ id: 'permissions', method: 'item/permissions/requestApproval', params: { threadId: 'existing', permissions: { network: { enabled: true } } } });
+    await waitFor(() => f.workspace.agent('existing').questions.length === 2);
+    const before = f.replies.length;
+    for (const id of ['generic-form', 'permissions']) {
+      assert.throws(() => f.workspace.answer('existing', id, { decision: 'accept', persistence: 'always' }), /does not offer a saved permission choice/);
+    }
+    assert.equal(f.replies.length, before);
+    assert.equal(f.workspace.agent('existing').questions.length, 2, 'unoffered persistence never resolves or dismisses a request');
+  } finally { await f.close(); }
+});
+
+test('persistent approval answers preserve strict request and thread identity until native acknowledgement', async () => {
+  const f = await fixture();
+  try {
+    f.threads.set('other', { ...f.threads.get('existing'), id: 'other', status: { type: 'idle' } });
+    await f.workspace.open('existing'); await f.workspace.open('other');
+    for (const [threadId, id] of [['existing', 901], ['other', '901']]) {
+      f.request({ id, method: 'item/commandExecution/requestApproval', params: { threadId, availableDecisions: ['accept', 'acceptForSession', 'decline'] } });
+    }
+    await waitFor(() => f.workspace.pending.size === 2);
+    assert.throws(() => f.workspace.answer('existing', '901', { decision: 'acceptForSession' }), /already been resolved/);
+    assert.throws(() => f.workspace.answer('other', 901, { decision: 'acceptForSession' }), /already been resolved/);
+    const accepted = f.workspace.answer('existing', 901, { decision: 'acceptForSession' });
+    await waitFor(() => f.replies.length === 1);
+    assert.deepEqual(f.replies[0], { id: 901, result: { decision: 'acceptForSession' } });
+    assert.throws(() => f.workspace.answer('existing', 901, { decision: 'accept' }), /awaiting confirmation/);
+    f.notify('serverRequest/resolved', { threadId: 'other', requestId: 901 });
+    f.notify('serverRequest/resolved', { threadId: 'existing', requestId: '901' });
+    await new Promise(resolve => setTimeout(resolve, 15));
+    assert.equal(f.workspace.pending.size, 2); assert.equal(f.workspace.answerJobs.size, 1);
+    f.notify('serverRequest/resolved', { threadId: 'existing', requestId: 901 }); await accepted;
+    assert.equal(f.workspace.agent('existing').questions.length, 0);
+    assert.equal(f.workspace.agent('other').questions[0].id, '901');
+    assert.throws(() => f.workspace.answer('existing', 901, { decision: 'acceptForSession' }), /already been resolved/);
+    assert.equal(f.replies.length, 1);
+  } finally { await f.close(); }
+});
+
+test('coordinator requests cannot grant persistent command choices or native MCP and permission access', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.workspace.open('existing'); agent.role = 'coordinator';
+    const prefix = { acceptWithExecpolicyAmendment: { execpolicy_amendment: ['git', 'status'] } };
+    f.request({ id: 'coordinator-command', method: 'item/commandExecution/requestApproval', params: { threadId: 'existing', availableDecisions: ['accept', 'acceptForSession', prefix, 'decline'] } });
+    f.request({ id: 'coordinator-mcp', method: 'mcpServer/elicitation/request', params: { threadId: 'existing', mode: 'openai/form', requestedSchema: { type: 'object', properties: {} }, _meta: { codex_approval_kind: 'mcp_tool_call', persist: ['session', 'always'] } } });
+    f.request({ id: 'coordinator-permission', method: 'item/permissions/requestApproval', params: { threadId: 'existing', permissions: { network: { enabled: true } } } });
+    await waitFor(() => agent.questions.length === 3);
+    for (const decision of ['acceptForSession', prefix]) {
+      assert.throws(() => f.workspace.answer('existing', 'coordinator-command', { decision }), { status: 400 });
+    }
+    for (const answer of [{ decision: 'accept' }, { decision: 'accept', persistence: 'session' }, { decision: 'accept', persistence: 'always' }]) {
+      assert.throws(() => f.workspace.answer('existing', 'coordinator-mcp', answer), { status: 403 });
+    }
+    assert.throws(() => f.workspace.answer('existing', 'coordinator-permission', { decision: 'accept' }), { status: 403 });
+    assert.equal(f.replies.length, 0); assert.equal(f.workspace.answerJobs.size, 0);
+    assert.equal(agent.questions.length, 3);
+    assert.equal(f.calls.some(call => /config|settings\/update/.test(call.method)), false);
+  } finally { await f.close(); }
+});
+
+test('HTTP persistent approval strips its request envelope and waits for exact native confirmation', async () => {
+  const f = await fixture(); const authFile = join(f.dir, 'auth.json'); const password = randomBytes(24).toString('base64url');
+  f.workspace.beads = { checkAvailable: async () => 'fixture', context: () => ({}), linked: async () => ({ status: 'ready', tasks: [] }) };
+  await setPassword(password, authFile);
+  const app = await createApp({ rpc: f.rpc, workspace: f.workspace, authFile });
+  await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
+  const base = 'http://127.0.0.1:' + app.server.address().port;
+  const post = (path, data, cookie) => fetch(base + path, { method: 'POST', headers: {
+    'Content-Type': 'application/json', Origin: base, ...(cookie ? { Cookie: cookie } : {})
+  }, body: JSON.stringify(data) });
+  try {
+    const login = await post('/api/login', { password }); assert.equal(login.status, 200);
+    const cookie = login.headers.get('set-cookie');
+    assert.equal((await post('/api/agents/existing/open', {}, cookie)).status, 200);
+    const decision = { acceptWithExecpolicyAmendment: { execpolicy_amendment: ['git', 'status'] } };
+    f.request({ id: 'http-persistent', method: 'item/commandExecution/requestApproval', params: {
+      threadId: 'existing', availableDecisions: ['accept', decision, 'decline']
+    } });
+    await waitFor(() => f.workspace.agent('existing').questions.some(question => question.id === 'http-persistent'));
+    let settled = false;
+    const pending = post('/api/agents/existing/answer', { requestId: 'http-persistent', decision }, cookie).then(response => { settled = true; return response; });
+    await waitFor(() => f.replies.some(reply => reply.id === 'http-persistent'));
+    assert.deepEqual(f.replies.at(-1), { id: 'http-persistent', result: { decision } });
+    assert.equal(settled, false); assert.equal(f.workspace.agent('existing').questions.length, 1);
+    f.notify('serverRequest/resolved', { threadId: 'existing', requestId: 'http-persistent' });
+    assert.equal((await pending).status, 200);
+    assert.equal(f.workspace.agent('existing').questions.length, 0);
+  } finally { await app.close(); await f.close(); }
+});
+
 test('unconfirmed answers stay visible after timeout and late native resolution clears them', async () => {
   const f = await fixture(); f.workspace.answerTimeout = 35;
   try {

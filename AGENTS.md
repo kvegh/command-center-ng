@@ -301,10 +301,15 @@ Surface current user-facing blocking native requests in the originating worker,
 including clarification, command/file approvals, MCP forms/external steps and
 filesystem/network grants. Unsupported human answer formats remain visible with
 an exact next action; do not automatically refuse or silently discard them.
-Internal token/attestation exchanges are not user questions. Native permission
-answers may grant only the exact requested access for this turn. Preserve exact
-IDs and native confirmation, and never broaden coordinator restrictions or give
-it MCP/permission auto-approval. Form answers are not persisted in workspace data.
+Internal token/attestation exchanges are not user questions. Request-permission
+filesystem/network answers remain exact and turn-only. A manual user may select
+a currently offered native Codex command-prefix, network-host or MCP tool saved
+rule; Codex owns persistence and scope, with no CCNG allow-list/config writer.
+Session grants are not permanent. Show exact scopes and native warnings; request
+resolution does not independently confirm a disk save. Preserve exact IDs and
+native confirmation. Never give the coordinator reusable approvals or broader
+tool/access permissions. Claude saved-rule work stays Todo. Form answers are not
+persisted in workspace data.
 Report now after Never queues/coalesces one existing report without changing
 cadence, interrupting work or answering a pending request.
 

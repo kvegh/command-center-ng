@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { formFields, requestKind, COMMAND_APPROVAL, FILE_APPROVAL, CLARIFICATION, PERMISSIONS, MCP_REQUEST } from '../server/native-requests.mjs';
+import { nativeApprovalChoices, isNativeToolApproval } from '../server/approval-choices.mjs';
 import { questionTarget, type Question } from './open-questions';
 import { ClaudeRequestCard } from './claude-request-card';
 
@@ -21,8 +22,35 @@ export function NativeRequestCard(props: RequestCardProps) {
     : <NativeRequestFields key={key} {...props} />;
 }
 
+export function NativeApprovalControls({ question, busy, readOnlyCoordinator = false, submit, review }: {
+  question: Question;
+  busy: boolean;
+  readOnlyCoordinator?: boolean;
+  submit: (answer: Record<string, unknown>) => void;
+  review?: () => void;
+}) {
+  const choices = nativeApprovalChoices(question, { allowPersistent: !readOnlyCoordinator });
+  const persistent = choices.some(choice => choice.persistent);
+  const toolApproval = isNativeToolApproval(question);
+  return <>
+    {persistent ? <p className="field-note">Allow always asks Codex to save this rule for matching future requests. Shared user settings may affect other sessions.</p>
+      : <p className="field-note">{readOnlyCoordinator ? 'Coordinator restrictions stay in place; reusable approval rules are unavailable here.' : 'This request offers no native permanent approval choice.'}</p>}
+    <div className="button-row native-approval-choices">{choices.map(choice => {
+      const refusing = ['decline', 'cancel'].includes(String(choice.answer.decision || choice.answer.action));
+      const disabled = busy || (readOnlyCoordinator && toolApproval && !refusing);
+      return <div className="native-approval-choice" key={choice.key}>
+        {choice.scope && <p className="field-note native-approval-scope">{choice.scope}</p>}
+        <button type="button" className={refusing ? 'button subtle' : 'button amber'} disabled={disabled} onClick={() => submit(choice.answer)}>{choice.label}</button>
+      </div>;
+    })}
+      {review && <button type="button" className="button subtle small" disabled={busy} onClick={review}>Ask coordinator to review</button>}
+    </div>
+  </>;
+}
+
 function NativeRequestFields({ question, agentId, workerName, readOnlyCoordinator = false, act }: RequestCardProps) {
-  const approval = [COMMAND_APPROVAL, FILE_APPROVAL].includes(question.method);
+  const toolApproval = isNativeToolApproval(question);
+  const approval = [COMMAND_APPROVAL, FILE_APPROVAL].includes(question.method) || toolApproval;
   const clarification = question.method === CLARIFICATION;
   const permissions = question.method === PERMISSIONS;
   const mcp = question.method === MCP_REQUEST || question.method === 'claude/mcp/elicitation/request';
@@ -38,7 +66,6 @@ function NativeRequestFields({ question, agentId, workerName, readOnlyCoordinato
     try { if (!await act(`agents/${agentId}/answer`, { requestId: question.id, ...answer })) setError('The answer was not confirmed. Your input is retained.'); }
     catch (problem) { setError((problem as Error).message); } finally { setSending(false); }
   };
-  const offered = (decision: string) => !Array.isArray(question.params.availableDecisions) || question.params.availableDecisions.includes(decision);
   return <section id={questionTarget(agentId, question.id)} className="question-card native-request" tabIndex={-1} aria-label={`${requestKind(question)} for ${workerName}`}>
     <div className="eyebrow">{requestKind(question)} · {workerName}{question.params.serverName ? ` · ${question.params.serverName}` : ''}</div>
     {question.params.message && <p className="native-request-message">{question.params.message}</p>}
@@ -54,9 +81,7 @@ function NativeRequestFields({ question, agentId, workerName, readOnlyCoordinato
     </form> : approval ? <>
       {question.params.command && <pre><code>{typeof question.params.command === 'string' ? question.params.command : JSON.stringify(question.params.command)}</code></pre>}
       {question.params.grantRoot && <p>Requested change root: {question.params.grantRoot}</p>}
-      <div className="button-row">{offered('accept') && <button className="button amber" disabled={busy} onClick={() => void submit({ decision: 'accept' })}>Allow once</button>}{offered('decline') && <button className="button subtle" disabled={busy} onClick={() => void submit({ decision: 'decline' })}>Decline</button>}{offered('cancel') && <button className="button subtle" disabled={busy} onClick={() => void submit({ decision: 'cancel' })}>Cancel turn</button>}
-        <button className="button subtle small" disabled={busy} onClick={() => void act(`agents/${agentId}/review`, { requestId: question.id })}>Ask coordinator to review</button></div>
-      {question.params.availableDecisions?.some((choice: unknown) => typeof choice !== 'string' || !['accept', 'decline', 'cancel'].includes(choice as string)) && <p className="field-note">Additional policy-changing choices are available in the native client.</p>}
+      <NativeApprovalControls question={question} busy={busy} readOnlyCoordinator={readOnlyCoordinator} submit={answer => void submit(answer)} review={toolApproval ? undefined : () => void act(`agents/${agentId}/review`, { requestId: question.id })} />
     </> : permissions ? <>
       <p>Review the exact requested access. Allowing applies only to the current turn; it does not change global settings.</p>
       <pre><code>{JSON.stringify(question.params.permissions, null, 2)}</code></pre>

@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.30.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.31.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The classic dark graphite theme uses cyan controls,
@@ -70,6 +70,39 @@ Goals execution with CCNG controls is approved; the isolated Codex protocol
 adapter is preparatory code, with no routed controls or automatic goal activation
 in this version. It is a reference for assessing candidates,
 not a claim that other products are already supported.
+
+## Native saved approvals for Codex
+
+Alongside **Allow once**, CCNG shows **Allow always** when the current Codex
+request offers a native saved-permission choice. Each button displays the scope
+before submission: the proposed command-argument prefix, network host, or native
+MCP tool approval. Codex handles saving and applying its rule; CCNG keeps no
+permission allow-list and does not write the user's native configuration itself.
+Saved user settings can affect matching requests in other sessions.
+
+The backend validates the answer against the exact current native proposal.
+Changed, forged or unoffered rules are rejected without answering the request.
+Native resolution is still required before the approval card disappears.
+**Allow for session**, when explicitly offered, stays labelled as session-only.
+File approvals have no native permanent choice through this interface, and
+filesystem/network request-permission grants remain exact and turn-only.
+Ordinary MCP forms and external steps keep their existing answer formats.
+Native MCP saved approvals require the runtime's explicit tool-approval metadata
+and offered persistence scope; arbitrary forms cannot invent an Always choice.
+
+Native rule-save warnings are displayed for their originating worker; unscoped
+warnings are shown as global Codex warnings. A resolved request is not independent
+proof that a rule was written: Codex can approve the current action after a save
+failure, and MCP persistence may fall back to session access without a separate
+client confirmation. The UI does not claim a verified disk save. See the official
+[App Server approval protocol](https://developers.openai.com/codex/app-server)
+and [Codex rules](https://developers.openai.com/codex/rules).
+
+The coordinator cannot add reusable approvals or expand its own tool/access
+permissions. This feature is **Codex only**; all Claude permission-control work
+remains in Todo. No real native approval or persistent permission was granted
+to test this implementation. Protocol/UI tests do not establish live native-save
+acceptance; that remains part of installed-app validation.
 
 ## Themes and task attention
 
@@ -560,6 +593,12 @@ Version 0.30.0 passes all 330 application checks and the production build.
 Eight new card checks cover input priority, queued/unavailable exclusions,
 worker isolation, navigation, cadence placement and escaped task titles.
 Interactive browser layout remains unverified.
+
+Version 0.31.0 passes all 358 application checks and the production build.
+New coverage validates native saved choices, exact scopes, forged/stale rejection,
+HTTP request identity, native acknowledgement, coordinator limits and warning
+isolation. Actual deployed native persistence and browser controls remain
+unverified; no real permission was granted to obtain this test result.
 
 Validation includes production builds, protocol/auth/control integration tests,
 Beads task/link isolation and error-handling fixtures, installer update guards,

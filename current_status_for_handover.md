@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.30.0** in package.json and the lockfile.
+The authoritative version is **0.31.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -64,6 +64,21 @@ All 330 application checks and the production build pass for 0.30.0. Eight
 new coordinator-card tests cover input priority, task/worker isolation,
 dependency/unavailable exclusions, cadence/header placement and navigation.
 Actual rendered desktop/mobile layout remains unverified.
+
+Version 0.31.0 adds Codex-only native Allow always choices for offered command,
+network-host and MCP tool rules, with visible scope and strict current-request
+validation. Native Codex owns persistence; no CCNG permission store/config writer
+was added. Native save warnings are shown per worker or globally when unscoped.
+Request resolution is not independent disk-save confirmation. File/session and
+turn-only permission limits, ordinary forms and coordinator restrictions remain.
+Claude permission work is postponed. No live persistent approval, installation
+update or native configuration change was made during implementation; deployed
+native-save behavior and actual browser layout remain unverified.
+
+All 358 application checks and the production build pass. Two bounded independent
+reviews found no concrete blocking issue. Verification uses synthetic native
+requests and real application protocol/HTTP fixtures; it does not establish that
+a deployed provider wrote a persistent rule. No Claude code or dependencies changed.
 
 | Version | Local implementation | Decision record |
 | --- | --- | --- |

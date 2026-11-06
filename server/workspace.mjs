@@ -6,6 +6,7 @@ import { isAbsolute } from 'node:path';
 import { VERSION } from './version.mjs';
 import { WORKER_BASE_INSTRUCTIONS, WORKER_REPORT_INSTRUCTIONS, reportTimingContext } from './worker-instructions.mjs';
 import { isHumanRequest, manualRequestAnswer } from './native-requests.mjs';
+import { isNativeToolApproval, nativeApprovalAnswer } from './approval-choices.mjs';
 import { readModelCatalog, validateModelChoice } from './worker-models.mjs';
 import { markInternalInput, reportMessageFlags } from './report-messages.mjs';
 import { taskSummary, reportedPlan } from './task-summary.mjs';
@@ -82,7 +83,7 @@ export class Workspace extends EventEmitter {
     return { backgroundQuestions: [...workers.values()].reduce((total, worker) => total + worker.questionCount, 0), backgroundWorkers: [...workers.values()] };
   }
   snapshot() {
-    return { connected: this.available(), codexConnected: this.rpc.ready, claudeAvailable: !!this.claude?.available, claudeError: this.claude?.error || null, error: this.error, version: VERSION, restoration: this.restoration, coordinator: this.coordinator?.snapshot() || null, ...this.backgroundRequests(), agents: [...this.agents.values()].map(agent => ({ ...agent, messages: agent.messages.map(message => imageReferences(agent.id, message)), ...taskSummary(agent), reportState: this.coordinator?.reportState(agent.id) || null, reportSettingPending: !!this.coordinator?.deliveries.get(agent.id)?.some(row => row.kind === 'report-setting'), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), recoveringRequests: this.requestJobs.has(agent.id), status: this.readyFor(agent) ? (agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline', thread: undefined })) };
+    return { connected: this.available(), codexConnected: this.rpc.ready, claudeAvailable: !!this.claude?.available, claudeError: this.claude?.error || null, error: this.error, nativeWarning: this.nativeWarning || null, version: VERSION, restoration: this.restoration, coordinator: this.coordinator?.snapshot() || null, ...this.backgroundRequests(), agents: [...this.agents.values()].map(agent => ({ ...agent, messages: agent.messages.map(message => imageReferences(agent.id, message)), ...taskSummary(agent), reportState: this.coordinator?.reportState(agent.id) || null, reportSettingPending: !!this.coordinator?.deliveries.get(agent.id)?.some(row => row.kind === 'report-setting'), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), recoveringRequests: this.requestJobs.has(agent.id), status: this.readyFor(agent) ? (agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline', thread: undefined })) };
   }
   agent(id) { const agent = this.agents.get(id); if (!agent) throw Object.assign(new Error('Open this agent first.'), { status: 404 }); return agent; }
   messageImage(id, messageId, index) {
@@ -518,12 +519,13 @@ export class Workspace extends EventEmitter {
         answers[q.id] = { answers: [value] };
       }
       result = { answers };
-    } else if (['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method)) {
-      if (!['accept', 'decline', 'cancel'].includes(answer.decision)) throw Object.assign(new Error('Invalid approval decision.'), { status: 400 });
-      if (Array.isArray(question.params.availableDecisions) && !question.params.availableDecisions.includes(answer.decision)) throw Object.assign(new Error('Choose a decision offered by the native request.'), { status: 400 });
-      result = { decision: answer.decision };
+    } else if (['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method) || isNativeToolApproval(question)) {
+      if (isNativeToolApproval(question) && agent.role === 'coordinator' && answer.decision === 'accept') throw Object.assign(new Error('Coordinator tool restrictions must remain unchanged. This request cannot be granted here.'), { status: 403 });
+      const { requestId: ignoredRequestId, ...choice } = answer;
+      result = nativeApprovalAnswer(question, choice, { allowPersistent: agent.role !== 'coordinator' });
     } else {
       if (this.agents.get(id)?.role === 'coordinator' && answer.decision === 'accept') throw Object.assign(new Error('Coordinator tool and filesystem/network restrictions must remain unchanged. This request cannot be granted here.'), { status: 403 });
+      if (answer.persistence !== undefined) throw Object.assign(new Error('This native request does not offer a saved permission choice.'), { status: 400 });
       result = manualRequestAnswer(question, answer);
     }
     return new Promise((resolve, reject) => {
@@ -548,6 +550,15 @@ export class Workspace extends EventEmitter {
   }
   notification({ method, params: p = {} }) {
     if (method === 'serverRequest/resolved') { this.removeQuestion(p.threadId, p.requestId); this.changed(); return; }
+    if (method === 'warning' && typeof p.message === 'string' && p.message.trim()) {
+      // Native rule-save failures can leave the current action approved. Keep the
+      // warning visible without treating request resolution as persistence proof.
+      if (p.threadId != null) {
+        const target = this.agents.get(p.threadId); if (!target) return;
+        target.nativeWarning = p.message.slice(0, 2000);
+      } else this.nativeWarning = p.message.slice(0, 2000);
+      this.changed(); return;
+    }
     const id = p.threadId || p.thread?.id; const agent = this.agents.get(id); if (!agent) return;
     if (method === 'thread/status/changed') agent.thread.status = p.status;
     if (method === 'thread/name/updated') agent.name = p.threadName || p.name || agent.name;
