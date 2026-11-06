@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.31.1 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.31.2 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The classic dark graphite theme uses cyan controls,
@@ -110,6 +110,13 @@ end of its current draft. Decline, Cancel, coordinator review and failed answers
 do not move focus. Switching tabs or opening a dialog cancels a pending focus
 return; hidden pages and disabled or removed inputs receive no deferred focus.
 This change does not apply to the postponed Claude integration.
+
+Version 0.31.2 anchors each hidden copy-result announcement inside its own
+control. Previously its absolute positioning could escape the scrolling chat
+and extend the outer page with invisible content in long histories. The change
+preserves screen-reader announcements, internal chat/sidebar scrolling and dialog
+behavior; it does not hide page overflow globally. Browser reproduction and
+rendered verification remain pending because browser tooling was unavailable.
 
 ## Themes and task attention
 
@@ -611,6 +618,11 @@ Version 0.31.1 passes all 366 application checks and the production build,
 including approval-success/failure and delayed tab/dialog focus regressions.
 Actual browser focus interaction remains unverified; no browser automation tool
 or browser binary was available and no real native approval was used for tests.
+
+Version 0.31.2 also passes all 366 existing application checks and the production
+build. This is a targeted CSS correction; existing clipboard behavior checks
+remain green. Source/spec review establishes the containment issue, but these
+checks do not reproduce browser layout or prove the visible scrollbar is gone.
 
 Validation includes production builds, protocol/auth/control integration tests,
 Beads task/link isolation and error-handling fixtures, installer update guards,

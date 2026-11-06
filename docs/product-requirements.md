@@ -80,7 +80,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.31.1
+## Current development version: 0.31.2
 
 Confirmed manual Codex approval returns keyboard focus to its current editable
 chat draft. Preserve draft contents, native confirmation and errors. Do not

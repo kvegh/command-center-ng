@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.31.1** in package.json and the lockfile.
+The authoritative version is **0.31.2** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -87,6 +87,18 @@ change cancels delayed focus, including switching away and back; hidden, locked
 or detached inputs are excluded. Claude behavior is unchanged. All 366 checks
 and the production build pass. Actual rendered browser focus remains unverified;
 no real approval, permission change, update or restart was performed for testing.
+
+Version 0.31.2 fixes an uncontained absolute copy-status live region: each copy
+control now establishes its containing block, with the hidden announcement
+pinned inside it. This addresses a source-level cause of an outer scrollbar and
+blank page below a bounded long-history workspace, present in the older installed
+version too. Accessibility and existing chat/sidebar scrolling stay intact.
+The actual browser symptom and its rendered correction remain unverified;
+no browser binary was available and no installation was updated or restarted.
+
+All 366 existing application checks and the production build pass for 0.31.2.
+Independent source review identified the same containment defect. No synthetic
+CSS assertion is presented as rendered overflow verification.
 
 | Version | Local implementation | Decision record |
 | --- | --- | --- |
