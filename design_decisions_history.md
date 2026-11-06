@@ -1476,3 +1476,25 @@ or conversation identifiers found in the PNG. No dependencies or new tests were
 added; the full application suite was not rerun for this visual asset change.
 Actual browser appearance at small sizes and installed-copy update remain
 unverified; no live installation or service was changed.
+
+## 2026-11-06 — Preserve the accepted icon and remove its background in 0.27.3
+
+Implementation: `1a39c45bf5e1146e8f9a28c16a78fbd38a95d11a`.
+
+The user approved the console design but required a transparent background for
+the very same icon. Two built-in generative background edits introduced speckles
+and changed negative spaces; neither was integrated. The user then approved a
+direct pixel conversion using existing Node.js standard-library tooling, with
+no tool installation or application runtime helper. The original dimensions and
+foreground contour were retained, opaque foreground RGB was preserved, and
+dark negative spaces now have alpha zero. Edge alpha is described in the brand
+notes. The original image and generation prompt remain recoverable in Git.
+
+The 1254 by 1254 output has 1,343,881 fully transparent pixels, 219,512 opaque
+pixels and 9,123 antialiased pixels. Checks against the prior committed image
+confirmed the same foreground contour and opaque RGB, plus transparent screen
+interiors and outer background. The separate checkerboard composite was
+visually inspected; it is not part of the final asset. Production build, shared
+header/favicon asset checks, version metadata and whitespace checks passed.
+The full application suite was not rerun for this asset-only change. Installed
+application appearance remains unverified; no live restart was performed.
