@@ -412,39 +412,27 @@ and offer Open parent. No request is answered or dismissed by navigation.
 Source publication and updating the running installation are separate operations.
 Interactive desktop/mobile review remains unperformed.
 
-## Beads references
+## Task records and historical checkpoints
 
-| Issue | Current work |
-| --- | --- |
-| bead-wd-1rl | Broader Command Center project |
-| bead-wd-1rl.23 | Rendered design review; source review done, screenshot pending |
-| bead-wd-1rl.24 | Scope approved: implement ordinary-chat unanswered-question tracking |
-| bead-wd-1rl.25 | Fresh local Dolt/Beads provisioning approved; implementation pending |
-| bead-wd-1rl.26 | Role and project-directory safeguards published in 0.8.0; semantic/legacy-name limits documented |
-| bead-wd-1rl.27 | Tab/chat gap correction published in 0.7.1 and included in 0.8.0 |
-| bead-wd-1rl.28 | Shared coordinator tab styling/order published in 0.8.1 |
-| bead-wd-1rl.29 | Closed: recovery published in 0.9.0 and confirmed live by the user on 0.9.1 |
-| bead-wd-1rl.30 | Connected folder-tab source published in 0.9.1; rendered review remains in .23 |
-| bead-wd-1rl.31 | Local read-write Claude SDK integration approved; implementation pending |
-| bead-wd-1rl.32 | Closed: visible-tab emphasis and doubled top spacing published in 0.9.2 |
-| bead-wd-1rl.34 | Closed: fixed chat clipping inset and matching inactive tab fill published in 0.9.3 |
-| bead-wd-1rl.35 | RHEL 9 playbook implemented and locally validated; live target run pending protected inputs |
-| bead-wd-1rl.36 | Closed: current-conversation Branch chat correction published in 0.10.0 |
-| bead-wd-1rl.37 | Collapsed tool activity implemented in 0.11.0 |
-| bead-wd-1rl.38 | Draft editing during questions implemented in 0.11.0 |
-| bead-wd-1rl.39 | Closed: private companion scaffold published; actual setup remains in .40 |
-| bead-wd-1rl.40 | Actual AAP/VM rollout unfinished; review prior credential answer first |
-| bead-wd-1rl.41 | Closed: coordinator recap wording published in 0.11.1 |
-| bead-wd-1rl.42 | Closed: multiple-request visibility/review published in 0.12.0 |
-| bead-wd-1rl.43 | Two-bullet vivid decision instructions saved in 0.13.0; consult Git for publication |
-| bead-wd-1rl.44 | Non-approval feedback policy and safe-idle fixture in 0.13.0 |
-| bead-wd-1rl.45 | Markdown/GFM rendering implemented in 0.15.0 |
-| bead-wd-ywg | Existing shared Dolt restart and successful reads verified |
-| bead-wd-9so | Closed: generated Beads no-remote Git rule investigated and corrected |
+Beads is the authoritative project backlog, including branch-associated records
+outside the current conversation. The former copied status table was stale:
+fresh Dolt/Beads setup, ordinary-chat questions, model controls and parent-handoff
+errors are implemented and published. Their historical pending notes above are
+release checkpoints, not a current implementation backlog. Later release entries
+and actual task records take precedence.
 
-Read these records before updating them. Use the next chat's own conversation
-label when working on an issue; do not inherit the previous chat's label or
-relabel unrelated tasks. Keep remaining work open until actually delivered.
+The audit checked all 61 epic descendants plus standalone and branch-associated
+records. Existing unfinished work remains in Beads; documented gaps for durable
+decision summaries, real fresh RHEL 9 bootstrap and live report/dashboard/
+notification acceptance now have explicit records. Browser visual review remains
+in its older project branch. The deployment input record is AAP-owned. Do not
+copy another conversation's input question into this chat or reopen completed
+implementation work merely because its live acceptance is still unverified.
+
+Read the relevant records before updating them. Use the next chat's own
+conversation label, preserve other labels and ownership, and distinguish
+unfinished implementation from validation or future design. No new feature,
+deployment, live test, storage architecture or service is authorized by the audit.
 
 ## Git hook correction
 

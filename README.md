@@ -427,11 +427,23 @@ and remote images appear as links rather than loading automatically. Code exampl
 remain literal code. The existing authentication and content security policy apply.
 
 Session management is local to the backend host. Local read-write Claude support
-uses the official Claude Agent SDK;
-this release continues to manage Codex sessions. No SSH/remote session monitoring
-is implemented or authorized. Per-worker model/effort controls are also unfinished.
+uses the published official Claude Agent SDK integration; its remaining work and
+live validation are postponed at the user's request. Codex per-worker model and
+effort controls are implemented. No SSH/remote session monitoring is implemented
+or authorized. Release-specific paragraphs below retain their historical context;
+later implementation records supersede their earlier unfinished-feature claims.
 
 ## Development and current limits
+
+Beads is the authoritative backlog, including records owned by other project
+branches. A project-wide audit reconciled the implementation records with these
+documents: old release notes saying model controls, fresh Dolt/Beads setup,
+ordinary-chat questions or parent-handoff errors are unfinished are superseded
+by their later releases. Live browser/runtime acceptance and a real clean RHEL 9
+bootstrap remain validation gaps even though those features have fixture coverage.
+Durable decision summaries beyond native conversation history still require a
+future agreed design. Track that work in Beads rather than copying task states
+into another Markdown backlog.
 
 Run `npm ci --ignore-scripts`, `npm run password`, and `npm run dev` for local
 development. For production from source, run `npm run build` and `npm start`.
@@ -443,7 +455,8 @@ switches and browser refreshes in the same browser. Closing a tab does not delet
 
 The task panel reads Beads directly through the backend, refreshing every five
 seconds and after an agent turn. It shows all current linked tasks in an
-independently scrollable region, prioritizing in-progress and blocked work.
+independently scrollable region, prioritizing actual Needs input tasks before
+other current work.
 The header shows total, in progress, need input, queued and other nonempty states.
 Queued means unfinished Beads prerequisites; it is distinct from a decision
 waiting for you and does not change the stored Beads status. Titles, assignees, parent IDs, and states come from
