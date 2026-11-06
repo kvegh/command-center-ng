@@ -1611,3 +1611,29 @@ Codex Goals and Codex Edit & rewind remain separate. The existing deployment
 input record was transferred to AAP AutoDeploy by user direction; native history
 shows it originated here for the Command Center rollout, not as an imported AAP
 question. Label-filtered reads verify the transfer without resolving credentials.
+
+## 2026-11-06 — Reconcile project backlog evidence
+
+Documentation correction: `3518b73eabdff853e8f0ae4b85b82aeca5950982`.
+
+The user challenged a Todo recap limited to the current conversation. The audit
+checked all 61 project-epic descendants, standalone/branch-associated Beads
+records and current Git requirements, implementation history and source. It
+recovered the older branch's open rendered visual review and recorded three
+documented gaps: future durable decision summaries, real fresh RHEL 9 installer
+acceptance, and live report/dashboard/notification checks. They are tracking
+records, not authorization to implement storage, run providers or change hosts.
+
+The README incorrectly called delivered model controls unfinished, and the
+handover copied an outdated task-status table. Corrected the current wording and
+removed that duplicate backlog, keeping version-specific historical notes
+explicitly historical. Existing implementation records for model controls,
+fresh Dolt/Beads, ordinary-chat questions, handoff errors and the testing route
+remain closed. Claude remains postponed; rollout ownership remains with AAP
+AutoDeploy. Native history/source evidence, rather than age or task state alone,
+guided the distinction.
+
+This is documentation and task reconciliation only. Whitespace checks pass;
+application code/version remain 0.30.0 with the previously verified 330 checks
+and production build. No live acceptance, installation, service or runtime
+configuration changed.
