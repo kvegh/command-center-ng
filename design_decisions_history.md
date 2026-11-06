@@ -1498,3 +1498,42 @@ visually inspected; it is not part of the final asset. Production build, shared
 header/favicon asset checks, version metadata and whitespace checks passed.
 The full application suite was not rerun for this asset-only change. Installed
 application appearance remains unverified; no live restart was performed.
+
+## 2026-11-06 — Record requirements for future agent and harness integrations
+
+Documentation implementation: `c53e67217d982a13fe64fc579ecd27db103520a2`.
+
+The user requested a reusable reference before considering additional agents or
+harnesses. The new agent-harness requirements document traces current source,
+tests and decision history into native session/history/control requirements,
+project and permission boundaries, questions/approvals, instructions, tasks and
+reports. Capability-gated features and current gaps are explicit; a model name
+alone is not a managed runtime. It records the superseding backend report timer
+and rejected additional Claude daemon, without claiming other products are
+supported or selecting a new architecture. README links the reference.
+
+Independent read-only reviews checked Claude/runtime claims and decision
+provenance; the final wording preserves mandatory structured questions and
+closed-tab callback ownership. GFM tables, relative source links and public-data
+checks passed. No integration, native session, dependency or permission changed.
+
+## 2026-11-06 — Interrupt the visible agent with Escape in 0.28.0
+
+Implementation: `1f7dc8f42a65615b9e3f7570cd8e747303b82bb0`.
+
+The user requested Escape as a stop control. It now shares the existing Interrupt
+action for the visible connected Codex/Claude turn, with a visible Esc hint and
+accessible shortcut metadata. Native request and ownership protections are
+unchanged. Local Escape behavior is preserved for dialogs, question controls,
+selects, summary review, tab dragging, resizing and text composition; modified,
+repeated and in-flight duplicate interruption requests are suppressed. Drafts
+and other tabs remain untouched. Interrupting does not undo completed work.
+
+All258 application tests and the production build pass, including seven new
+keyboard checks and existing native protocol/installer fixtures. Earlier
+redirected and direct-per-file invocations hit fixture socket/home restrictions;
+the established ordinary npm test invocation passed without permission changes
+or test bypass. GFM/source-link and whitespace validation also passed. No live
+agent was interrupted for testing, and interactive browser acceptance or an
+installed-copy update was not performed. User-level systemd operation was
+separately confirmed by the user, not inferred from these tests.
