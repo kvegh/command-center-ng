@@ -1690,3 +1690,29 @@ draft/caret/scroll preservation. Independent bounded review found no blocking
 defect. Actual browser interaction remains unverified because browser tooling
 was unavailable; no real approval, permission change, installation update or
 restart was performed for validation.
+
+## 2026-11-06 — Contain invisible copy announcements in long histories
+
+Implementation: `dfc1fc68cbf58f8adbcde2e2dd549c2fed41fc6a` (0.31.2).
+
+The user reported an outer page scrollbar and empty space below the bounded
+workspace. Independent source reviews found the hidden copy-result live region
+was absolutely positioned without a positioned ancestor inside the chat.
+Every message/code copy control emits this element, even while empty. Such
+descendants can escape intervening scroll-container clipping when their
+containing block is outside it, as described by the
+[CSS overflow specification](https://www.w3.org/TR/CSS22/visufx.html#overflow-clipping).
+The installed older version and current source share this defect.
+
+Each copy wrapper now establishes the containing block and pins its hidden
+announcement inside it. This is a small correction to the offending element,
+preserving live-region accessibility and normal chat/sidebar scrolling instead
+of hiding overflow on the whole document. No runtime, dependency or storage
+change was needed.
+
+All 366 existing application checks and the production build pass, including
+existing clipboard behavior checks. Independent review identified the same
+source/spec cause. Browser tooling was unavailable: the reported layout was
+not reproduced or verified after the fix, so this remains a strong source-level
+diagnosis rather than confirmed rendered acceptance. No installed application
+was updated or restarted during implementation.
