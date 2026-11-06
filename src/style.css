@@ -877,3 +877,11 @@ kbd { font-family: inherit; }
   .task-notification-alert { align-items: flex-start; gap: 6px; }
   .task-notification-actions { flex-direction: column-reverse; align-items: flex-end; }
 }
+
+.coordinator-worker-heading { display: flex; align-items: baseline; gap: 8px; flex: 1; min-width: 0; }
+.coordinator-worker-heading strong { flex: 0 1 auto; }
+.coordinator-worker-heading .coordinator-report-cadence { display: inline; flex: 0 0 auto; white-space: nowrap; font-size: 10px; }
+.coordinator-worker-summary { overflow-wrap: anywhere; }
+.coordinator-worker-summary .coordinator-input-label,
+.coordinator-worker-summary .coordinator-input-task { display: block; color: var(--amber); }
+.coordinator-worker-summary .coordinator-input-label { font-weight: 600; }

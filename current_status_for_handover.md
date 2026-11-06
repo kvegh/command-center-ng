@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.29.0** in package.json and the lockfile.
+The authoritative version is **0.30.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -43,6 +43,27 @@ input-context rendering, subscription compatibility, transition baselines,
 worker-level request/error isolation and desktop permission/privacy behavior.
 No live browser permission prompt, OS notification display, rendered desktop or
 mobile layout, live model Goal execution or AAP deployment was tested here.
+
+The 0.30.0 refinement moves report cadence beside coordinator project names and
+prioritizes actual Needs input task titles in amber, preserving native badges
+and click-to-tab navigation. Queued dependencies are excluded and cards read
+only their own ready tracker. Source publication does not update the installed
+copy. A later read of the configured installation's metadata found 0.27.2; this
+supersedes the older last-reported 0.22.0 without proving the running process
+version or browser acceptance.
+
+All remaining Claude implementation, native Goals/rewind integration and live
+validation were moved to Todo at the user's request. Retain existing published
+SDK code and completed research, but do not resume Claude work automatically.
+Codex Goal controls and Codex Edit & rewind remain separate unfinished work.
+The rollout input record is now assigned to AAP AutoDeploy by user direction;
+do not repeat that credential question in this conversation. Its original CCNG
+creation is evidenced, not a demonstrated cross-conversation read leak.
+
+All 330 application checks and the production build pass for 0.30.0. Eight
+new coordinator-card tests cover input priority, task/worker isolation,
+dependency/unavailable exclusions, cadence/header placement and navigation.
+Actual rendered desktop/mobile layout remains unverified.
 
 | Version | Local implementation | Decision record |
 | --- | --- | --- |

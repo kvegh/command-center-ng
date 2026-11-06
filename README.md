@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.29.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.30.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The classic dark graphite theme uses cyan controls,
@@ -110,6 +110,20 @@ Grouping keeps reports short without omitting unchanged active work. Reports
 distinguish active, blocked, queued and deferred work, using known evidence and
 disclosing uncertain coverage. This is saved instruction guidance; it does not
 guarantee perfect model compliance or authorize extra work merely for reporting.
+
+In the coordinator overview, each clickable project card places **Reports: 15min**
+(or its saved cadence) beside the project name. Current **Needs input** task
+titles take priority over the implementation summary and use the same amber
+theme token as the worker's task overview. Dependency-waiting Queued tasks are
+excluded. With no recorded input needs, the existing progress summary or goal
+remains visible. The native activity badge and tab-switch action are unchanged.
+The card uses that worker's current ready tracker, not another conversation's
+tasks or guessed questions.
+
+At the user's request, all remaining Claude implementation, Goals/rewind
+integration and live validation are queued for later. Existing published SDK
+code and completed research/fixture evidence remain; no Claude live acceptance
+is claimed. Codex Goals and Edit & rewind are separate unfinished work.
 
 ## Copy messages and commands
 
@@ -528,6 +542,11 @@ New coverage exercises theme contrast/preferences/keyboard controls, task orderi
 explicit input context, notification transitions and permission/privacy handling.
 Actual browser layout, permission prompts and OS notification display remain
 unverified; no browser automation tool or browser binary was available.
+
+Version 0.30.0 passes all 330 application checks and the production build.
+Eight new card checks cover input priority, queued/unavailable exclusions,
+worker isolation, navigation, cadence placement and escaped task titles.
+Interactive browser layout remains unverified.
 
 Validation includes production builds, protocol/auth/control integration tests,
 Beads task/link isolation and error-handling fixtures, installer update guards,

@@ -80,7 +80,18 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.29.0
+## Current development version: 0.30.0
+
+Coordinator project cards place the saved report cadence beside the project
+name. When the worker's current tracker has Needs input tasks, their titles
+replace the implementation recap in the same amber used in the task overview.
+Exclude dependency-derived Queued work, preserve native activity status and
+whole-card navigation, and do not use another worker's tasks or stale tracker
+rows as current input evidence. Other cards retain their progress/goal summary.
+
+Remaining Claude implementation/integration and live validation are postponed
+at the user's request. Preserve the existing published code and completed
+research while keeping unfinished provider-specific work visible in Todo.
 
 Three browser-persisted themes are classic (original), contrastful (improved
 dark contrast), and light. A compact palette menu occupies the old Logout

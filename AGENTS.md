@@ -379,7 +379,12 @@ section heights with usable minimums and independent scrolling, using existing
 browser-local layout preferences. Preserve keyboard controls, natural/reset
 heights, mobile stacking and three-task default until explicitly resized.
 
-## Task notifications
+## Task attention and notifications
+
+Coordinator project cards keep report cadence beside the project name. Show
+the worker's actual Needs input task titles in the task overview's amber before
+implementation summaries. Exclude queued dependencies and unavailable tracker
+rows, preserve worker identity/native status and whole-card tab navigation.
 
 Per-task Notify me controls follow the state near the task title. Store only
 worker/task subscription IDs in existing browser workspace preferences. Use

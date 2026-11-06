@@ -5,6 +5,7 @@ import { flushSync } from 'react-dom';
 import { TabReorder, reorderTabs, type TabDragState } from './tab-reorder';
 import { loadBrowserWorkspace, saveBrowserWorkspace, type ThemeName } from './browser-workspace';
 import { ThemeSwitcher } from './theme-switcher';
+import { CoordinatorWorkerCard } from './coordinator-worker-card';
 import { OpenQuestions, RequestRecovery, questionTarget, type Question } from './open-questions';
 import { ActivityGroup, groupMessages, isVisibleMessage } from './activity-groups';
 import { ChatDraft, clearSubmittedDraft } from './chat-draft';
@@ -166,7 +167,7 @@ function CoordinatorContext({ state, act, choose, heights, resize }: { state: Sn
     <div className="button-row"><button className="button subtle small" disabled={!runtimeReady(state, 'codex')} onClick={() => void act('coordinator', { paused: !coordinator?.paused })}>{coordinator?.paused ? 'Resume coordinator' : 'Pause coordinator'}</button><button className="button subtle small" disabled={!runtimeReady(state, 'codex') || coordinator?.paused} onClick={() => void act('coordinator', { action: 'refresh' })}>Summarize now</button></div>
     {coordinator?.error && <p className="error-text" role="alert">{coordinator.error}</p>}
     </> },
-{ id: 'workers', label: 'Workers', visible: true, content: <><div className="coordinator-workers">{state.agents.filter(agent => agent.role !== 'coordinator').map(agent => <button key={agent.id} className="coordinator-worker" onClick={() => choose(agent.id)}><strong>{agent.name}</strong><Badge status={agent.status} /><span><span className="coordinator-report-cadence">Reports: {({ 0: 'Never', 5: '5min', 15: '15min', 60: '1h' } as Record<number, string>)[agent.reportIntervalMinutes ?? -1] || 'Unknown'}</span>{agent.progress?.summary || agent.goal}</span></button>)}</div>
+{ id: 'workers', label: 'Workers', visible: true, content: <><div className="coordinator-workers">{state.agents.filter(agent => agent.role !== 'coordinator').map(agent => <CoordinatorWorkerCard key={agent.id} worker={agent} statusBadge={<Badge status={agent.status} />} choose={choose} />)}</div>
     {!!coordinator?.queuedMessages && <div className="field-note">{coordinator.queuedMessages} message(s) waiting for workers to become idle.<button className="button subtle small" onClick={() => void act('coordinator', { action: 'clear-messages' })}>Clear queued messages</button></div>}
     </> },
 { id: 'coordinator-questions', label: 'Open questions', visible: !!agent, content: <>{agent && <OpenQuestions agentId={agent.id} questions={agent.questions} attention={agent.status === 'attention'} />}
