@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.27.2 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.27.3 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -20,7 +20,7 @@ clarification questions and approvals have an amber count, full question text
 and links to their answer controls, so requests remain easy to find while
 reading older messages. Selecting a tab focuses its chat
 input and places the cursor at the end of its saved draft. The generated logo
-shows a schematic white curved control console and three monitors on graphite; the header and browser favicon
+shows a schematic white curved control console and three monitors on a transparent background; the header and browser favicon
 share the same asset. See [brand asset and generation prompt](docs/brand-assets.md). The visible
 wordmark is **command center NG**. Tabs have a sixteen-pixel top inset.
 Inactive tabs stay compact at about 34 pixels; the selected tab is about 40 pixels

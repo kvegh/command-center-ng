@@ -1,15 +1,30 @@
 # Command Center icon
 
-## Current: operations console in 0.27.2
+## Current: transparent operations console in 0.27.3
 
 The shared header/favicon asset, `src/assets/command-center-icon.png`, depicts
 a very schematic operations center: a curved control console with three button
 marks and three blank monitors arranged along a matching arc. White artwork
-on the existing graphite background preserves the monochrome appearance. Bold
+on a genuinely transparent background preserves the monochrome appearance. Bold
 shapes and blank screens avoid clutter. Earlier integrated icons remain in Git
 history. No dependency or layout change was introduced.
 
-The built-in image-generation tool produced the asset with this exact prompt:
+Version 0.27.3 removes the dark background from the exact accepted 0.27.2 image,
+including negative space inside the screens and console. Two generative edit
+attempts added artifacts and were rejected. The user then approved direct pixel
+editing. Existing Node.js standard-library tooling decoded the original PNG and
+added alpha without redrawing, cropping or resizing the artwork; no software was
+installed and no image-processing code was added to the application runtime.
+
+The conversion preserves opaque foreground RGB. For each original pixel,
+`alpha = clamp(2 * (max(R, G, B) - 64), 0, 255)`; partial-alpha edges use white
+RGB to avoid dark fringes. The half-opacity contour matches the original
+half-brightness contour at every pixel. The 1254 by 1254 canvas is unchanged.
+All background samples and monitor interiors are transparent; a checkerboard
+composite was inspected separately and is not baked into the final PNG.
+
+The built-in image-generation tool produced the original opaque asset with this
+exact prompt; only background removal was applied afterward:
 
 > Use case: logo-brand. Asset: tiny square application icon for Command Center
 > NG. A VERY VERY SCHEMATIC critical-infrastructure operations control center:
