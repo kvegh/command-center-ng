@@ -80,7 +80,13 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.31.0
+## Current development version: 0.31.1
+
+Confirmed manual Codex approval returns keyboard focus to its current editable
+chat draft. Preserve draft contents, native confirmation and errors. Do not
+return focus after decline/cancel/review, failed answers, a tab/dialog change,
+or while the input is disabled, detached or the page hidden. Claude work remains
+postponed; this is not a provider permission or runtime change.
 
 Codex approval cards expose native Allow always choices beside Allow once when
 the current request offers a command-prefix, network-host or native MCP tool

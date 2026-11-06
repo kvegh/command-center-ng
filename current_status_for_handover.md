@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.31.0** in package.json and the lockfile.
+The authoritative version is **0.31.1** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -79,6 +79,14 @@ All 358 application checks and the production build pass. Two bounded independen
 reviews found no concrete blocking issue. Verification uses synthetic native
 requests and real application protocol/HTTP fixtures; it does not establish that
 a deployed provider wrote a persistent rule. No Claude code or dependencies changed.
+
+Version 0.31.1 returns focus to the current chat draft after a confirmed manual
+Codex approval. It preserves current draft text and uses the existing caret-at-end,
+no-scroll behavior. Decline/Cancel/review/failure do not focus. A tab or dialog
+change cancels delayed focus, including switching away and back; hidden, locked
+or detached inputs are excluded. Claude behavior is unchanged. All 366 checks
+and the production build pass. Actual rendered browser focus remains unverified;
+no real approval, permission change, update or restart was performed for testing.
 
 | Version | Local implementation | Decision record |
 | --- | --- | --- |

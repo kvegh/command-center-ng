@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.31.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.31.1 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The classic dark graphite theme uses cyan controls,
@@ -103,6 +103,13 @@ permissions. This feature is **Codex only**; all Claude permission-control work
 remains in Todo. No real native approval or persistent permission was granted
 to test this implementation. Protocol/UI tests do not establish live native-save
 acceptance; that remains part of installed-app validation.
+
+After a confirmed manual Codex approval, including Allow once or an offered
+Allow always, focus returns to that chat's editable input with the caret at the
+end of its current draft. Decline, Cancel, coordinator review and failed answers
+do not move focus. Switching tabs or opening a dialog cancels a pending focus
+return; hidden pages and disabled or removed inputs receive no deferred focus.
+This change does not apply to the postponed Claude integration.
 
 ## Themes and task attention
 
@@ -599,6 +606,11 @@ New coverage validates native saved choices, exact scopes, forged/stale rejectio
 HTTP request identity, native acknowledgement, coordinator limits and warning
 isolation. Actual deployed native persistence and browser controls remain
 unverified; no real permission was granted to obtain this test result.
+
+Version 0.31.1 passes all 366 application checks and the production build,
+including approval-success/failure and delayed tab/dialog focus regressions.
+Actual browser focus interaction remains unverified; no browser automation tool
+or browser binary was available and no real native approval was used for tests.
 
 Validation includes production builds, protocol/auth/control integration tests,
 Beads task/link isolation and error-handling fixtures, installer update guards,

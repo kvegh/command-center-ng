@@ -133,3 +133,41 @@ test('scope details remain escaped text', () => {
   assert.doesNotMatch(rendered, /<script>/);
   assert.match(rendered, /&lt;script&gt;/);
 });
+test('manual positive approvals restore composer focus only after confirmed native success', async () => {
+  const cases = [command({ availableDecisions: ['accept'] }), command({ availableDecisions: [exec(['npm', 'test'])] }), command({ availableDecisions: [network('api.example.com')] }), file({ availableDecisions: ['accept'] }), mcp({ codex_approval_kind: 'mcp_tool_call', persist: 'always' })];
+  for (const question of cases) {
+    for (const buttonIndex of question.method === 'mcpServer/elicitation/request' ? [0, 1] : [0]) {
+      let complete; let captured = 0; let focused = 0;
+      const node = controls(question, {
+        prepareApprovalFocus: () => { captured++; return () => focused++; },
+        submit: () => new Promise(resolve => { complete = resolve; })
+      });
+      const pending = buttons(node)[buttonIndex].props.onClick();
+      assert.equal(captured, 1); assert.equal(focused, 0, 'sending is not confirmation');
+      complete(true); await pending;
+      assert.equal(focused, 1);
+    }
+  }
+});
+
+test('failed and rejected native answers never return focus', async () => {
+  for (const submit of [async () => false, async () => { throw new Error('Native answer failed'); }]) {
+    let focused = 0;
+    const action = buttons(controls(command({}), { submit, prepareApprovalFocus: () => () => focused++ }))[0];
+    await action.props.onClick().catch(error => assert.match(error.message, /Native answer failed/));
+    assert.equal(focused, 0);
+  }
+});
+
+test('decline, cancel, coordinator review and disabled controls do not request composer focus', async () => {
+  const captured = () => assert.fail('This action must not request composer focus');
+  const actions = buttons(controls(command({}), { submit: async () => true, prepareApprovalFocus: captured, review() {} }));
+  for (const action of actions.slice(1)) await action.props.onClick();
+  for (const action of buttons(controls(command({}), { busy: true, submit: () => assert.fail('disabled'), prepareApprovalFocus: captured }))) await action.props.onClick();
+});
+
+test('approval controls work without a composer callback', async () => {
+  let submitted = 0;
+  await buttons(controls(command({}), { submit: async () => { submitted++; return true; } }))[0].props.onClick();
+  assert.equal(submitted, 1);
+});

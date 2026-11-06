@@ -12,6 +12,7 @@ function safeExternalUrl(value: unknown) {
 type RequestCardProps = {
   question: Question; agentId: string; workerName: string;
   readOnlyCoordinator?: boolean;
+  prepareApprovalFocus?: () => () => void;
   act: (path: string, data: unknown) => Promise<boolean>;
 };
 
@@ -22,12 +23,13 @@ export function NativeRequestCard(props: RequestCardProps) {
     : <NativeRequestFields key={key} {...props} />;
 }
 
-export function NativeApprovalControls({ question, busy, readOnlyCoordinator = false, submit, review }: {
+export function NativeApprovalControls({ question, busy, readOnlyCoordinator = false, submit, review, prepareApprovalFocus }: {
   question: Question;
   busy: boolean;
   readOnlyCoordinator?: boolean;
-  submit: (answer: Record<string, unknown>) => void;
+  submit: (answer: Record<string, unknown>) => void | boolean | Promise<boolean>;
   review?: () => void;
+  prepareApprovalFocus?: () => () => void;
 }) {
   const choices = nativeApprovalChoices(question, { allowPersistent: !readOnlyCoordinator });
   const persistent = choices.some(choice => choice.persistent);
@@ -40,7 +42,11 @@ export function NativeApprovalControls({ question, busy, readOnlyCoordinator = f
       const disabled = busy || (readOnlyCoordinator && toolApproval && !refusing);
       return <div className="native-approval-choice" key={choice.key}>
         {choice.scope && <p className="field-note native-approval-scope">{choice.scope}</p>}
-        <button type="button" className={refusing ? 'button subtle' : 'button amber'} disabled={disabled} onClick={() => submit(choice.answer)}>{choice.label}</button>
+        <button type="button" className={refusing ? 'button subtle' : 'button amber'} disabled={disabled} onClick={async () => {
+          if (disabled) return;
+          const restoreFocus = refusing ? undefined : prepareApprovalFocus?.();
+          if (await submit(choice.answer) === true) restoreFocus?.();
+        }}>{choice.label}</button>
       </div>;
     })}
       {review && <button type="button" className="button subtle small" disabled={busy} onClick={review}>Ask coordinator to review</button>}
@@ -48,7 +54,7 @@ export function NativeApprovalControls({ question, busy, readOnlyCoordinator = f
   </>;
 }
 
-function NativeRequestFields({ question, agentId, workerName, readOnlyCoordinator = false, act }: RequestCardProps) {
+function NativeRequestFields({ question, agentId, workerName, readOnlyCoordinator = false, act, prepareApprovalFocus }: RequestCardProps) {
   const toolApproval = isNativeToolApproval(question);
   const approval = [COMMAND_APPROVAL, FILE_APPROVAL].includes(question.method) || toolApproval;
   const clarification = question.method === CLARIFICATION;
@@ -62,9 +68,12 @@ function NativeRequestFields({ question, agentId, workerName, readOnlyCoordinato
   const [sending, setSending] = useState(false); const [error, setError] = useState('');
   const busy = sending || !!question.responding;
   const submit = async (answer: Record<string, any>) => {
-    if (busy) return; setSending(true); setError('');
-    try { if (!await act(`agents/${agentId}/answer`, { requestId: question.id, ...answer })) setError('The answer was not confirmed. Your input is retained.'); }
-    catch (problem) { setError((problem as Error).message); } finally { setSending(false); }
+    if (busy) return false; setSending(true); setError('');
+    try {
+      const confirmed = await act(`agents/${agentId}/answer`, { requestId: question.id, ...answer });
+      if (!confirmed) setError('The answer was not confirmed. Your input is retained.');
+      return confirmed;
+    } catch (problem) { setError((problem as Error).message); return false; } finally { setSending(false); }
   };
   return <section id={questionTarget(agentId, question.id)} className="question-card native-request" tabIndex={-1} aria-label={`${requestKind(question)} for ${workerName}`}>
     <div className="eyebrow">{requestKind(question)} · {workerName}{question.params.serverName ? ` · ${question.params.serverName}` : ''}</div>
@@ -81,7 +90,7 @@ function NativeRequestFields({ question, agentId, workerName, readOnlyCoordinato
     </form> : approval ? <>
       {question.params.command && <pre><code>{typeof question.params.command === 'string' ? question.params.command : JSON.stringify(question.params.command)}</code></pre>}
       {question.params.grantRoot && <p>Requested change root: {question.params.grantRoot}</p>}
-      <NativeApprovalControls question={question} busy={busy} readOnlyCoordinator={readOnlyCoordinator} submit={answer => void submit(answer)} review={toolApproval ? undefined : () => void act(`agents/${agentId}/review`, { requestId: question.id })} />
+      <NativeApprovalControls question={question} busy={busy} readOnlyCoordinator={readOnlyCoordinator} submit={submit} prepareApprovalFocus={prepareApprovalFocus} review={toolApproval ? undefined : () => void act(`agents/${agentId}/review`, { requestId: question.id })} />
     </> : permissions ? <>
       <p>Review the exact requested access. Allowing applies only to the current turn; it does not change global settings.</p>
       <pre><code>{JSON.stringify(question.params.permissions, null, 2)}</code></pre>
