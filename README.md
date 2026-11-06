@@ -58,6 +58,14 @@ typography, spacing, responsive layouts, and clear states take precedence over
 decorative effects. See [frontend direction](docs/frontend.md) for the rationale
 and tradeoffs.
 
+## Future agent and harness integrations
+
+For future runtime additions, see [requirements for agents and harnesses](docs/agent-harness-requirements.md).
+It summarizes the source and decision history: native session control and history,
+project isolation, human requests/permissions, instruction/task/report cooperation,
+optional capabilities and current gaps. It is a reference for assessing candidates,
+not a claim that other products are already supported.
+
 ## Copy messages and commands
 
 **Copy this**, beside **Branch here**, copies a message's complete text to your
