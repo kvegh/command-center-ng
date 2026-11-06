@@ -1455,3 +1455,24 @@ identifiers were found. An initial overly restrictive metadata check rejected
 the provenance chunk; inspection established its purpose and the focused check
 then passed. No new tests or full-suite rerun were needed for this asset-only
 correction. Browser appearance and installed-app update remain unverified.
+
+## 2026-11-06 — Schematic operations-console icon in 0.27.2
+
+Implementation: `942fe35dcb905993b7f1ada55585243402ef5980`.
+
+The user requested an operations-center symbol instead of a tower: a curved
+control console with switches/buttons and a matching arc of monitors, very
+schematic. The new shared header/favicon PNG uses three blank screens and three
+button marks in white on the existing graphite background. The built-in image
+generator produced the asset; its exact prompt is in docs/brand-assets.md.
+Earlier integrated icons remain available in Git, and the white tower's prompt
+was preserved. The image reference variable now describes the brand rather than
+a tower; rendering, accessibility and layout behavior are unchanged.
+
+Visual inspection of the generated asset, production build, whitespace checks
+and focused version/asset checks passed. The built header and favicon reference
+the same PNG bytes. Content provenance is retained, with no private source paths
+or conversation identifiers found in the PNG. No dependencies or new tests were
+added; the full application suite was not rerun for this visual asset change.
+Actual browser appearance at small sizes and installed-copy update remain
+unverified; no live installation or service was changed.
