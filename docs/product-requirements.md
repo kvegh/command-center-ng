@@ -80,7 +80,31 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.28.0
+## Current development version: 0.29.0
+
+Three browser-persisted themes are classic (original), contrastful (improved
+dark contrast), and light. A compact palette menu occupies the old Logout
+position; Logout follows the branding at the far right. Group Add agent with
+the worker counter. Preserve mobile navigation and native Escape handling.
+
+Tasks requiring real input sort first, after dependency-derived Queued status
+is established. Ordinary recorded questions appear in Tasks with a Question
+label, while native Open questions remain separate. The reply dialog explains
+recorded context, input type and exact input needed without inventing legacy
+details. Task descriptions awaiting input must record those fields.
+
+Move task state closer to its description and put a Notify me checkbox after
+it. Save subscriptions in existing browser workspace preferences. Notify on
+observed needs-input, error and completion transitions; worker requests/errors
+without a task association remain explicitly worker-scoped. Baseline new and
+restored observations without historical bursts. In-app alerts work independently
+of optional native desktop permission. No new backend notification service or
+closed-browser delivery is selected.
+
+Standard Task Reports must account for every active workstream in the current
+scope, including delegated audits and research. Concise grouping must not hide
+active work. Keep blocked, queued, deferred and completed work distinguishable;
+disclose uncertain coverage without extra commands merely for a report.
 
 Escape interrupts the eligible native turn in the visible chat through the
 existing Interrupt action. It preserves unsent drafts and normal local Escape

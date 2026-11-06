@@ -115,7 +115,9 @@ license or accept legal terms on the user's behalf.
 
 ## Interface
 
-Keep workspace branding at the far right of the full-width navigation bar.
+Keep workspace branding at the right of the full-width navigation bar, with
+Logout last, immediately after it. Put the compact classic/contrastful/light
+palette menu in the former Logout position and group Add agent with its count.
 Keep worker tabs on the left. Group the coordinator and prominent cyan Add agent
 button together on the right, with the coordinator immediately before Add agent
 and outside the workers' scrolling strip. Use the same tab shape, height,
@@ -250,6 +252,11 @@ duplicates or assume an answer. Continue independent authorized work while waiti
 
 Task reports use concise vivid bullets with explicit labels: 🟩 Done, 🟨 In
 progress, 🟥 Blocked/needs input, and 🟦 Next. Name actual work and useful outcomes;
+cover every currently active workstream, including delegated implementation,
+audits, research, documentation, verification and publication, even when unchanged.
+Group related work concisely without silently omitting it. Distinguish active,
+blocked, queued and deferred work; disclose uncertain coverage. Use known evidence
+without extra commands solely to prepare a report or expanding project scope.
 IDs are optional supporting references beside names. Include the project's latest
 release version and verified publication status, separating a newer working
 version or unknown release evidence. Distinguish published code from deployed/live
@@ -353,6 +360,11 @@ authority create/reuse a current-conversation input record labelled
 ccng-chat-question. Only the worker resolves it after processing an actual
 answer/withdrawal. The coordinator reads it, never writes records or treats it
 as a native approval. Do not infer closure from chat, idle state or delivery.
+Show ordinary recorded questions once in Tasks with a Question label; retain
+native Open questions separately. Sort actual Needs input entries first after
+dependency-derived queued classification. Task descriptions awaiting user input
+must explain Context, Input type and exact Input needed. Do not invent missing
+details for legacy records; retain the explicit clarification action.
 Keep SDK tool/MCP grants manual and tied to exact callbacks. Do not take over an
 external active CLI session, change native auth/settings or claim live model
 validation from fixtures. Closing a tab keeps managed processes running; app
@@ -366,6 +378,18 @@ The user approved draggable horizontal overview boundaries. Resize adjacent
 section heights with usable minimums and independent scrolling, using existing
 browser-local layout preferences. Preserve keyboard controls, natural/reset
 heights, mobile stacking and three-task default until explicitly resized.
+
+## Task notifications
+
+Per-task Notify me controls follow the state near the task title. Store only
+worker/task subscription IDs in existing browser workspace preferences. Use
+existing snapshots and first-observation baselines, never infer completion from
+missing records or replay historical changes on refresh/reconnect. Runtime
+requests/errors without task identity stay worker-scoped. Desktop notifications
+are optional, generic, permission-gated and only attempted for a hidden/unfocused
+page; keep in-app alerts available on denial or unsupported browsers. No external
+delivery service, service worker, separate store or closed-browser delivery is
+approved. Notifications must never answer a question or change task state.
 
 ## Priority task reports
 
@@ -422,3 +446,13 @@ sidebar progress with available evidence immediately, then use existing
 throttling for newly arrived startup results. Do not wait for all workers or
 add repeated acknowledgements/chat prompts. Preserve paused startup intent,
 native questions, source/approval protections, ownership and failed-send guards.
+
+## Native Goal execution and CCNG controls
+
+The user approved native Goal execution with controls/status in CCNG. Future
+full managed harness integrations require native Goals support. The harness
+owns goal execution, persistence and continuation; do not add a CCNG goal loop,
+daemon or replacement execution engine. Verify each native interface and expose
+provider differences truthfully. Goal controls require explicit user action;
+restoring/opening a view does not create a goal or grant additional permissions.
+The report timer remains separate. See docs/agent-harness-requirements.md.

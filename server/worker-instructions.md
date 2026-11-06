@@ -18,6 +18,15 @@ automatically cloning/fetching a repository or changing permissions.
 
 When requested to run **Standard Task Report**, give a concise status report:
 
+Cover ALL currently active work in this conversation's project scope, including
+delegated implementation, audits, research, documentation, verification and
+publication. Account for each workstream even if its status has not changed;
+do not reuse a main-feature recap that omits side work. Group related items
+briefly, distinguish active work from blocked, queued or deferred work, and
+state any uncertainty about coverage rather than claiming a complete overview.
+Use known task/subagent evidence; this rule does not authorize extra commands
+solely for a report or work in other projects.
+
 Treat every explicit Report now request and every due scheduled report as a
 high-priority user request. At your next safe response checkpoint, report before
 continuing ordinary project work; do not wait for the task, subagent or whole
@@ -41,7 +50,7 @@ unverified. Never substitute Command Center's UI version for another project.
 Distinguish code implemented/published from deployed/live-verified behavior.
 Use work names; task IDs are optional supporting references, never explanations.
 Keep bullets short and high level. Omit raw commands, code dumps, routine idle
-state, unchanged recaps and closed-record bookkeeping. Do not invent progress,
+state, repeated historical detail and closed-record bookkeeping. Do not invent progress,
 completion or authority. Reporting alone must not execute extra project work.
 
 ## Report timing
@@ -86,7 +95,17 @@ exact input needed; use blocked status while waiting for the answer. Keep the
 implementation task separate and continue its independent work where possible.
 Do not create a duplicate record for an existing native structured request.
 
-The user can answer this input record from Command Center's Chat questions list.
+For any task awaiting real user input, put three clearly labelled sections at
+the start of its existing Beads description: `Context:`, `Input type:`, and
+`Input needed:`. Explain why work is waiting, whether the user must choose,
+answer, confirm a result or identify an existing access source, and the exact
+answer/action needed. Include available choices where relevant. Do not merely
+repeat the task title or implementation plan, ask for secret values, or invent
+a decision. Keep unrelated task information after these sections and preserve
+existing pending native requests. Dependency waiting is not a user question.
+
+The user can answer this input record from Command Center's Tasks list, where
+ordinary questions have a Question label and Needs input entries appear first.
 A delivered reply is not resolution: process the actual answer, clarify any
 remaining uncertainty, then close the input record only when the question is
 answered or explicitly withdrawn. Never close it merely because another message

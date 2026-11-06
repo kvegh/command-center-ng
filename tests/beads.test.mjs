@@ -69,7 +69,7 @@ test('stored states drive all current rows and totals; closed tasks disappear wi
   f.add('demo-done', 'Closed work', 'closed', [label]);
   await w.refreshTasks('alpha');
   let agent = w.snapshot().agents[0]; assert.equal(agent.taskCount, 4); assert.equal(agent.tasks.length, 4);
-  assert.deepEqual(agent.tasks.map(task => task.id), ['demo-running', 'demo-blocked', 'demo-open', 'demo-later']);
+  assert.deepEqual(agent.tasks.map(task => task.id), ['demo-blocked', 'demo-running', 'demo-open', 'demo-later']);
   f.rows.get('/project:demo-running').status = 'closed'; await w.refreshTasks('alpha');
   agent = w.snapshot().agents[0]; assert.equal(agent.taskCount, 3); assert.ok(!agent.tasks.some(task => task.id === 'demo-running'));
   f.rows.get('/project:demo-blocked').status = 'closed'; f.rows.get('/project:demo-open').status = 'closed'; f.rows.get('/project:demo-later').status = 'closed';
@@ -143,6 +143,7 @@ test('unfinished dependencies become queued separately from manual input and all
   f.rows.get('/project:demo-7').blocked_by = ['prerequisite'];
   await w.refreshTasks('alpha'); const agent = w.snapshot().agents[0];
   assert.equal(agent.tasks.length, 8); assert.equal(agent.taskCounts.inProgress, 3); assert.equal(agent.taskCounts.needsInput, 4); assert.equal(agent.taskCounts.queued, 1);
+  assert.deepEqual(agent.tasks.map(task => task.id), ['demo-3', 'demo-4', 'demo-5', 'demo-6', 'demo-0', 'demo-1', 'demo-2', 'demo-7']);
   assert.equal(agent.tasks.find(task => task.id === 'demo-7').displayState, 'queued');
   assert.equal(f.rows.get('/project:demo-7').status, 'blocked', 'display classification must not mutate the tracker');
   f.rows.get('/project:demo-7').blocked_by = []; await w.refreshTasks('alpha'); assert.equal(w.snapshot().agents[0].taskCounts.needsInput, 5);

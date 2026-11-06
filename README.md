@@ -5,15 +5,17 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.28.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.29.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
-interruption, and questions. The dark graphite interface uses cyan controls,
-green running states, and amber attention states.
+interruption, and questions. The classic dark graphite theme uses cyan controls,
+green running states, and amber attention states; contrastful and light themes
+are available from the compact palette menu.
 The interface uses one local Node.js service, the existing Codex daemon and the
 official Claude Agent SDK. Each provider keeps its native session history and execution.
 A compact top bar puts the agent tabs and controls first, with branding at the
-far right. It spans the full browser width. The workspace fills the window, with goal/tasks in a right sidebar on desktop and
+right and Logout after the branding. Add agent and the worker counter form one
+group. It spans the full browser width. The workspace fills the window, with goal/tasks in a right sidebar on desktop and
 above the conversation on smaller screens. The desktop sidebar is about 40%
 wider and includes Goal, current task summaries and **Open questions**. Live
 clarification questions and approvals have an amber count, full question text
@@ -63,8 +65,51 @@ and tradeoffs.
 For future runtime additions, see [requirements for agents and harnesses](docs/agent-harness-requirements.md).
 It summarizes the source and decision history: native session control and history,
 project isolation, human requests/permissions, instruction/task/report cooperation,
-optional capabilities and current gaps. It is a reference for assessing candidates,
+required native Goals support, optional capabilities and current gaps. Native
+Goals execution with CCNG controls is approved; the isolated Codex protocol
+adapter is preparatory code, with no routed controls or automatic goal activation
+in this version. It is a reference for assessing candidates,
 not a claim that other products are already supported.
+
+## Themes and task attention
+
+The palette button offers **classic**, **contrastful** and **light**. Classic
+preserves the original palette. Contrastful strengthens weak small text and
+control boundaries; light uses brighter surfaces with dark, contrasting text.
+The selection uses the existing browser workspace preferences and survives a
+refresh. Logout is the last header control, to the right of the branding.
+
+Tasks needing actual input appear first. Dependency-waiting tasks remain Queued.
+Ordinary recorded chat questions appear once in Tasks with a **Question** label;
+native requests and approvals remain in **Open questions**. A task's reply dialog
+shows **Context**, **Input type** and **Exact input needed** when explicitly
+recorded. Older vague records offer clarification rather than an invented answer.
+
+Each task has **Notify me** after its state, with the tooltip “Notify me when
+this task needs my input, encounters an error, or is completed.” Subscriptions
+are saved for this browser in the existing workspace preferences. In-app alerts
+show observed changes; desktop alerts are optional, require browser consent and
+a supported secure context, and are attempted when the page is hidden or unfocused.
+If desktop access is denied or unavailable, in-app alerts continue. See the
+[browser notification requirements](https://developer.mozilla.org/en-US/docs/Web/API/Notification/requestPermission_static).
+
+Notifications require the CCNG page and its live connection to remain open.
+Reloading, reconnecting, reopening a worker and adding a subscription establish
+a baseline; they do not replay historical events or claim missing tasks completed.
+Beads closure means **marked completed**, not independent proof of successful
+delivery. A worker's new native request or runtime error is labelled as a worker
+event when it cannot be tied to one watched task. Desktop text is generic and
+does not include task titles, commands or request contents. The latest twenty
+in-app alerts remain in memory until dismissed or the page reloads. Separate
+browser windows maintain their own alerts; there is no email, push service,
+closed-browser delivery or cross-window deduplication.
+
+Standard Task Reports cover **every active workstream**, including delegated
+audits, research, implementation, documentation, verification and publication.
+Grouping keeps reports short without omitting unchanged active work. Reports
+distinguish active, blocked, queued and deferred work, using known evidence and
+disclosing uncertain coverage. This is saved instruction guidance; it does not
+guarantee perfect model compliance or authorize extra work merely for reporting.
 
 ## Copy messages and commands
 
@@ -478,6 +523,12 @@ ten pointer-drag regressions for mouse/touch/pen, normal clicks, cancellation,
 coordinator exclusion and changing worker lists. These are event-controller
 tests; interactive browser verification remains unperformed.
 
+Version 0.29.0 passes all 322 application checks and the production build.
+New coverage exercises theme contrast/preferences/keyboard controls, task ordering,
+explicit input context, notification transitions and permission/privacy handling.
+Actual browser layout, permission prompts and OS notification display remain
+unverified; no browser automation tool or browser binary was available.
+
 Validation includes production builds, protocol/auth/control integration tests,
 Beads task/link isolation and error-handling fixtures, installer update guards,
 and real Beads/Codex checks. A two-client native clarification check verified
@@ -763,13 +814,20 @@ canonical and V2 overrides preserve its no-subagents restriction.
 
 When a structured question tool is unavailable, workers record/reuse an input
 question in their existing Beads tracker with the current conversation label and
-`ccng-chat-question`. The sidebar's **Chat questions** list opens the existing
-context/reply flow. All current recorded questions reach coordinator reads,
+`ccng-chat-question`. From 0.29.0, these appear once in **Tasks** with a
+**Question** label, using the existing context/reply flow; the duplicate Chat
+questions section is removed. **Needs input** entries appear first, after
+dependency-derived queued state is determined. Native **Open questions** and
+approvals remain separate. All current recorded questions reach coordinator reads,
 including those beyond its task preview. Beads polling can expose them during an
 active turn. A reply, idle state or turn completion never auto-closes a question;
 the worker processes the real answer and updates its record. Older unrecorded
 prose needs worker reconciliation. The coordinator reads these records and gains
-no Beads-write authority, text classifier or new question database.
+no Beads-write authority, text classifier or new question database. Tasks awaiting
+input should record explicit **Context**, **Input type**, and **Input needed**
+sections in their Beads description. The input dialog displays those fields;
+older records without an exact request remain explicitly incomplete and retain
+**Ask what is needed**, rather than inventing an answer or blocker.
 
 The installer can initialize a deliberately selected fresh task workspace through
 native Beads shared-server setup after confirmation. Missing Dolt is offered as

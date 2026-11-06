@@ -1,11 +1,11 @@
 # Current status for handover
 
-Updated: 2026-11-05. This is a development handover snapshot. Beads remains the
+Updated: 2026-11-06. This is a development handover snapshot. Beads remains the
 task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.28.0** in package.json and the lockfile.
+The authoritative version is **0.29.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -24,6 +24,25 @@ reported installed version was 0.22.0; the user subsequently confirmed the
 user-level service was tested successfully and is running. This does not identify
 the currently installed version. The agent's user-bus status query was restricted,
 so service operation is user-verified.
+
+The 0.29.0 work adds classic/contrastful/light themes, compact palette selection,
+Logout after branding, grouped Add agent/count, Needs input ordering, ordinary
+questions merged into Tasks, explicit task-input context and per-task Notify me.
+Notifications use browser-local subscriptions and existing live snapshots;
+desktop alerts are optional and do not work with the browser page closed.
+Native requests without task identity remain worker-scoped. Report instructions
+now explicitly cover every active workstream, including delegated audits.
+An isolated Codex native Goal adapter is preparatory; no Goal UI/routes or
+automatic activation are included. Claude Goal confirmation remains unverified.
+See Git refs and the decision history for publication and validation evidence;
+these changes do not upgrade or restart a running installation.
+
+Validation for 0.29.0: all 322 application checks and the production build pass.
+Coverage includes theme contrast/persistence/keyboard controls, task ordering and
+input-context rendering, subscription compatibility, transition baselines,
+worker-level request/error isolation and desktop permission/privacy behavior.
+No live browser permission prompt, OS notification display, rendered desktop or
+mobile layout, live model Goal execution or AAP deployment was tested here.
 
 | Version | Local implementation | Decision record |
 | --- | --- | --- |

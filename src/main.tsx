@@ -3,7 +3,8 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { TabReorder, reorderTabs, type TabDragState } from './tab-reorder';
-import { loadBrowserWorkspace, saveBrowserWorkspace } from './browser-workspace';
+import { loadBrowserWorkspace, saveBrowserWorkspace, type ThemeName } from './browser-workspace';
+import { ThemeSwitcher } from './theme-switcher';
 import { OpenQuestions, RequestRecovery, questionTarget, type Question } from './open-questions';
 import { ActivityGroup, groupMessages, isVisibleMessage } from './activity-groups';
 import { ChatDraft, clearSubmittedDraft } from './chat-draft';
@@ -13,11 +14,14 @@ import { TaskTotals, type TaskCounts } from './task-totals';
 import { TaskListViewport } from './task-list-viewport';
 import { BackgroundRequests, type BackgroundWorker } from './background-requests';
 import { TaskDiscussion } from './task-discussion';
+import { TaskInputLink } from './task-input-link';
+import { TaskNotifyToggle, TaskNotificationAlerts, type TaskNotificationEvent } from './task-notification-controls';
+import { TaskNotificationEngine } from './task-notifications';
+import { requestDesktopNotifications, showTaskDesktopNotification } from './desktop-notifications';
 import { Markdown } from './markdown';
 import { BranchSummaryReview } from './branch-summary-review';
 import { NativeRequestCard } from './native-request-card';
 import { WorkerModelSettings } from './worker-model-settings';
-import { ChatQuestions, type ChatQuestion } from './chat-questions';
 import { SidebarDivider, sidebarSize } from './sidebar-divider';
 import { OverviewSections } from './overview-sections';
 import { MessageTime } from './message-time';
@@ -30,9 +34,9 @@ const brandIcon = new URL('./assets/command-center-icon.png', import.meta.url).h
 type Provider = 'codex' | 'claude';
 type Status = 'running' | 'attention' | 'idle' | 'offline' | 'error';
 type Message = { images?: MessageImage[]; timestamp?: string; timestampSource?: 'native' | 'received'; internalReport?: boolean; internalReportControl?: boolean; internalCoordinatorEvent?: boolean; id: string; turnId: string; branchable?: boolean; type: 'user' | 'assistant' | 'activity'; text: string; state: string };
-type Task = { displayState?: string; blockedBy?: string[]; id: string; text: string; state: string; worker?: string; assignee?: string | null; priority?: number; parentId?: string | null };
+type Task = { isChatQuestion?: boolean; displayState?: string; blockedBy?: string[]; id: string; text: string; state: string; worker?: string; assignee?: string | null; priority?: number; parentId?: string | null };
 type Tracker = { status: 'ready' | 'unavailable'; label: string; tasks: Task[]; checkedAt: string; error: string | null };
-type Agent = { modelSettingsAvailable?: boolean; provider?: Provider; canBranch?: boolean; managementNotice?: string | null; chatQuestions?: ChatQuestion[]; reasoningEffort?: string | null; modelChange?: { model: string; effort: string | null; status: string }; reportState?: 'queued' | 'generating' | null; reportIntervalMinutes?: number; reportSettingPending?: boolean; reportError?: string | null; taskCounts?: TaskCounts; recoveringRequests?: boolean; requestError?: string | null; id: string; role?: 'worker' | 'coordinator'; observingOnly?: boolean; observeError?: string | null; progress?: { summary: string; nextStep: string; blocker: string; updatedAt: string }; name: string; goal: string; cwd: string; model: string | null; status: Status; parentId: string | null; freshBranch?: boolean; summarizing?: boolean; returning?: boolean; returnSummary?: { text: string; turnId: string; delivered: boolean }; lastCompletedTurnId: string | null; canSend: boolean; messages: Message[]; tasks: Task[]; taskCount: number; tracker?: Tracker; questions: Question[]; turnId: string | null; olderCursor: string | null };
+type Agent = { modelSettingsAvailable?: boolean; provider?: Provider; canBranch?: boolean; managementNotice?: string | null; reasoningEffort?: string | null; modelChange?: { model: string; effort: string | null; status: string }; reportState?: 'queued' | 'generating' | null; reportIntervalMinutes?: number; reportSettingPending?: boolean; reportError?: string | null; taskCounts?: TaskCounts; recoveringRequests?: boolean; requestError?: string | null; id: string; role?: 'worker' | 'coordinator'; observingOnly?: boolean; observeError?: string | null; progress?: { summary: string; nextStep: string; blocker: string; updatedAt: string }; name: string; goal: string; cwd: string; model: string | null; status: Status; parentId: string | null; freshBranch?: boolean; summarizing?: boolean; returning?: boolean; returnSummary?: { text: string; turnId: string; delivered: boolean }; lastCompletedTurnId: string | null; canSend: boolean; messages: Message[]; tasks: Task[]; taskCount: number; tracker?: Tracker; questions: Question[]; turnId: string | null; olderCursor: string | null };
 type CoordinatorState = { id: string | null; starting: boolean; paused: boolean; error: string | null; queuedMessages: number; audit: { agentId: string; action?: string; decision?: string; outcome: string; rationale?: string; at: string }[] };
 type Snapshot = { backgroundQuestions?: number; backgroundWorkers?: BackgroundWorker[]; connected: boolean; codexConnected?: boolean; claudeAvailable?: boolean; claudeError?: string | null; error: string | null; version: string; agents: Agent[]; defaultCwd?: string; restoration?: { status: string; error: string | null; warnings: { id: string; message: string }[] } | null; coordinator?: CoordinatorState | null };
 type Available = { provider?: Provider; id: string; name: string; cwd: string; status: Status; parentId: string | null; forkedFromId: string | null };
@@ -176,6 +180,13 @@ function CoordinatorContext({ state, act, choose, heights, resize }: { state: Sn
 function App() {
   const [savedBrowser] = useState(loadBrowserWorkspace);
   const [browserError, setBrowserError] = useState(savedBrowser.error);
+  const [theme, setTheme] = useState<ThemeName>(() => savedBrowser.state.theme || 'classic');
+  const [taskWatches, setTaskWatches] = useState<Record<string, string[]>>(savedBrowser.state.taskWatches || {});
+  const [taskAlerts, setTaskAlerts] = useState<TaskNotificationEvent[]>([]);
+  const [notificationNotice, setNotificationNotice] = useState('');
+  const notificationEngine = useRef(new TaskNotificationEngine());
+  const openTaskAlert = useRef<(event: TaskNotificationEvent) => void>(() => {});
+  useLayoutEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   const [overviewWidth, setOverviewWidth] = useState(() => savedBrowser.state.overviewWidth ?? Math.round(Math.max(364, Math.min(448, window.innerWidth * .322))));
   const [overviewHeights, setOverviewHeights] = useState<Record<string, number>>(savedBrowser.state.overviewHeights || {});
@@ -228,11 +239,11 @@ function App() {
   useEffect(() => { if (authenticated === false) { imageDraftsRef.current = {}; setImageDrafts({}); setImageErrors({}); } }, [authenticated]);
   browserSave.current = () => {
     if (!authenticated || ['pending', 'restoring'].includes(state.restoration?.status || '')) return;
-    const problem = saveBrowserWorkspace({ version: 1, selected: active?.id || selected, order: tabOrder, overviewWidth, overviewHeights, drafts, positions: positions.current, bottom: bottom.current });
+    const problem = saveBrowserWorkspace({ version: 1, selected: active?.id || selected, order: tabOrder, overviewWidth, overviewHeights, theme, taskWatches, drafts, positions: positions.current, bottom: bottom.current });
     setBrowserError(problem);
   };
   const scheduleBrowserSave = () => { if (browserSaveTimer.current) clearTimeout(browserSaveTimer.current); browserSaveTimer.current = setTimeout(() => browserSave.current(), 250); };
-  useEffect(() => { if (authenticated) scheduleBrowserSave(); }, [authenticated, active?.id, drafts, tabOrder, overviewWidth, overviewHeights, state.restoration?.status]);
+  useEffect(() => { if (authenticated) scheduleBrowserSave(); }, [authenticated, active?.id, drafts, tabOrder, overviewWidth, overviewHeights, theme, taskWatches, state.restoration?.status]);
   useEffect(() => {
     const flush = () => browserSave.current();
     const hidden = () => { if (document.visibilityState === 'hidden') flush(); };
@@ -266,6 +277,43 @@ function App() {
     nearBottom.current = bottom.current[id] !== false; focusTarget.current = id;
     flushSync(() => setSelected(id)); focusComposer(id);
   };
+  openTaskAlert.current = event => {
+    if (!authenticated || !state.agents.some(worker => worker.id === event.workerId)) return;
+    choose(event.workerId);
+    if (event.taskId) setTaskQuestion({ agentId: event.workerId, taskId: event.taskId });
+  };
+  const enableDesktopAlerts = async () => {
+    const result = await requestDesktopNotifications();
+    setNotificationNotice(result.notice);
+  };
+  const watchTask = (workerId: string, taskId: string, enabled: boolean) => {
+    setTaskWatches(previous => {
+      const ids = previous[workerId] || [];
+      return { ...previous, [workerId]: enabled ? [...new Set([...ids, taskId])].slice(0, 128) : ids.filter(id => id !== taskId) };
+    });
+    // Only this explicit user gesture may request browser notification access.
+    if (enabled) void enableDesktopAlerts();
+  };
+  useEffect(() => {
+    if (!authenticated) { notificationEngine.current.reset(); setTaskAlerts([]); return; }
+    const watches = Object.entries(taskWatches).flatMap(([workerId, ids]) => ids.map(taskId => ({ workerId, taskId })));
+    const connected = state.connected && !['pending', 'restoring'].includes(state.restoration?.status || '');
+    const events = notificationEngine.current.update(state.agents, watches, connected).map(event => ({
+      id: event.id, workerId: event.workerId, taskId: event.taskId, kind: event.kind,
+      title: event.taskTitle || event.workerName,
+      detail: event.scope === 'worker'
+        ? `${event.workerName}: ${event.kind === 'request' ? 'a new question or approval needs attention' : 'the worker encountered an error'} while you are watching its tasks. The event is not assigned to a particular task.`
+        : `${event.workerName}: ${event.kind === 'completed' ? 'this task was marked completed in Beads' : event.kind === 'needs-input' ? 'this task now needs your input' : 'this task was marked failed'}.`
+    }));
+    if (!events.length) return;
+    setTaskAlerts(previous => [...previous, ...events].slice(-20));
+    if (document.visibilityState === 'hidden' || !document.hasFocus()) {
+      for (const event of events) {
+        const problem = showTaskDesktopNotification(event, () => openTaskAlert.current(event));
+        if (problem) setNotificationNotice(problem);
+      }
+    }
+  }, [authenticated, state, taskWatches]);
   const act = async (path: string, data: unknown) => { setError(''); try { await api(path, data); return true; } catch (error) { setError((error as Error).message); return false; } };
   const interrupt = async (id: string) => {
     if (!active || active.id !== id || !canInterrupt(active, activeConnected) || interrupting.current.has(id)) return;
@@ -324,7 +372,25 @@ function App() {
   };
   const coordinator = state.agents.find(agent => agent.role === 'coordinator');
   const tab = (agent: Agent, index: number) => <div className={`tab-wrap ${agent.status} ${active?.id === agent.id ? 'active' : ''} ${agent.role === 'coordinator' ? 'coordinator-tab' : ''} ${tabDrag?.source === agent.id ? 'drag-source' : ''} ${tabDrag?.target === agent.id && tabDrag.source !== agent.id ? (ids.indexOf(tabDrag.source) < index ? 'drop-after' : 'drop-before') : ''}`} key={agent.id} data-worker-tab={agent.role !== 'coordinator' ? agent.id : undefined}><button role="tab" aria-selected={active?.id === agent.id} aria-controls="agent-panel" className="agent-tab" aria-label={`${agent.name}: ${labels[agent.status]}`} draggable={false} onDragStart={event => event.preventDefault()} onPointerDown={event => { tabReorder.current?.consumeClick(1); if (agent.role !== 'coordinator') tabReorder.current?.down(event, agent.id); }} onPointerMove={dragMove} onPointerUp={event => tabReorder.current?.up(event)} onPointerCancel={event => tabReorder.current?.cancel(event)} onLostPointerCapture={event => tabReorder.current?.cancel(event)} onClick={event => { if (tabReorder.current?.consumeClick(event.detail)) { event.preventDefault(); return; } choose(agent.id); }} onKeyDown={event => { if (event.altKey && ['ArrowLeft', 'ArrowRight'].includes(event.key) && agent.role !== 'coordinator') { event.preventDefault(); const other = workers[index + (event.key === 'ArrowLeft' ? -1 : 1)]; if (other) moveTab(agent.id, other.id); } }} title={`${agent.goal} · ${labels[agent.status]}`}><span className="tab-number">{agent.role === 'coordinator' ? <Icon name="compass" size={16} /> : agent.parentId ? <Icon name="branch" size={12} /> : agent.provider === 'claude' ? 'CL' : String(index + 1).padStart(2, '0')}</span><i className="status-dot" /><span className="tab-text"><strong>{agent.role === 'coordinator' ? <><span className="coordinator-name">Coordinator</span><span className="coordinator-short" aria-hidden="true">Coord</span></> : agent.name}</strong></span></button>{agent.role !== 'coordinator' && active?.id === agent.id && workers.length > 1 && <span className="tab-order-controls"><button className="tab-move" disabled={index === 0} aria-label={`Move ${agent.name} tab left`} title="Move tab left (Alt + Left)" onClick={() => moveTab(agent.id, workers[index - 1].id)}>←</button><button className="tab-move" disabled={index === workers.length - 1} aria-label={`Move ${agent.name} tab right`} title="Move tab right (Alt + Right)" onClick={() => moveTab(agent.id, workers[index + 1].id)}>→</button></span>}{agent.role !== 'coordinator' && <button className="tab-close" aria-label={`Close ${agent.name} tab; agent keeps running`} title="Close tab; agent keeps running" onClick={() => void act(`agents/${agent.id}/close`, {})}><Icon name="close" size={13} /></button>}</div>;
-  return <div className="app-shell" style={{ '--overview-width': `${effectiveOverviewWidth}px` } as React.CSSProperties}><header className="topbar"><div className="tabs-row"><div className={`tabs ${tabDrag ? 'reordering' : ''}`} ref={tabStrip} role="tablist" aria-label="Worker agents">{workers.map(tab)}</div>{state.coordinator && <div className="coordinator-tab-group" role="tablist" aria-label="Workspace coordinator">{coordinator ? tab(coordinator, 0) : <div className={`tab-wrap coordinator-tab ${state.coordinator.error ? 'error' : ''}`}><button className="agent-tab" disabled={!runtimeReady(state, 'codex') || state.coordinator.starting || !workers.length} onClick={() => void act('coordinator', {})}><span className="tab-number"><Icon name="compass" size={16} /></span><span className="tab-text"><strong>{state.coordinator.starting ? 'Starting coordinator…' : state.coordinator.error ? 'Retry coordinator' : 'Coordinator'}</strong></span></button></div>}</div>}</div><div className="overview-header"><button className="new-tab" disabled={!state.connected || workers.length >= limits.maxWorkers} onClick={() => setDialog(true)} aria-label="Add agent" title="Open an existing agent or start a new one"><Icon name="plus" /><span>Add agent</span></button><div className="topbar-right"><span className={`connection ${state.connected ? 'connected' : ''}`} title={`Codex: ${state.codexConnected ?? state.connected ? 'connected' : 'disconnected'} · Claude: ${state.claudeAvailable ? 'available' : 'unavailable'}`} aria-label={state.connected ? 'Local agent runtime available' : 'Agent runtimes disconnected'}><span />{state.connected ? 'Local agents available' : 'Agents disconnected'}</span><span className={`agent-count ${attention ? 'needs-attention' : ''}`} title={`${workers.length} of ${limits.maxWorkers} workers open${coordinator ? ' plus coordinator' : ''}${attention ? ` · ${attention} need attention` : ''}`}>{workers.length}<span>/{limits.maxWorkers}</span>{attention > 0 && <i aria-label={`${attention} need attention`} />}</span><button className="icon-button" aria-label="Sign out" title="Sign out" onClick={async () => { if (await act('logout', {})) setAuthenticated(false); }}><Icon name="logout" /></button></div><Brand /></div></header>
+  return <div className="app-shell" style={{ '--overview-width': `${effectiveOverviewWidth}px` } as React.CSSProperties}>
+    <header className="topbar">
+      <div className="tabs-row">
+        <div className={`tabs ${tabDrag ? 'reordering' : ''}`} ref={tabStrip} role="tablist" aria-label="Worker agents">{workers.map(tab)}</div>
+        {state.coordinator && <div className="coordinator-tab-group" role="tablist" aria-label="Workspace coordinator">{coordinator ? tab(coordinator, 0) : <div className={`tab-wrap coordinator-tab ${state.coordinator.error ? 'error' : ''}`}><button className="agent-tab" disabled={!runtimeReady(state, 'codex') || state.coordinator.starting || !workers.length} onClick={() => void act('coordinator', {})}><span className="tab-number"><Icon name="compass" size={16} /></span><span className="tab-text"><strong>{state.coordinator.starting ? 'Starting coordinator…' : state.coordinator.error ? 'Retry coordinator' : 'Coordinator'}</strong></span></button></div>}</div>}
+      </div>
+      <div className="overview-header">
+        <div className="agent-create-group" role="group" aria-label="Agent controls">
+          <button className="new-tab" disabled={!state.connected || workers.length >= limits.maxWorkers} onClick={() => setDialog(true)} aria-label="Add agent" title="Open an existing agent or start a new one"><Icon name="plus" /><span>Add agent</span></button>
+          <span className={`agent-count ${attention ? 'needs-attention' : ''}`} title={`${workers.length} of ${limits.maxWorkers} workers open${coordinator ? ' plus coordinator' : ''}${attention ? ` · ${attention} need attention` : ''}`}>{workers.length}<span>/{limits.maxWorkers}</span>{attention > 0 && <i aria-label={`${attention} need attention`} />}</span>
+        </div>
+        <div className="topbar-right">
+          <span className={`connection ${state.connected ? 'connected' : ''}`} title={`Codex: ${state.codexConnected ?? state.connected ? 'connected' : 'disconnected'} · Claude: ${state.claudeAvailable ? 'available' : 'unavailable'}`} aria-label={state.connected ? 'Local agent runtime available' : 'Agent runtimes disconnected'}><span />{state.connected ? 'Local agents available' : 'Agents disconnected'}</span>
+          <ThemeSwitcher theme={theme} onChange={setTheme} />
+        </div>
+        <Brand />
+        <button className="icon-button logout-button" aria-label="Sign out" title="Sign out" onClick={async () => { if (await act('logout', {})) setAuthenticated(false); }}><Icon name="logout" /></button>
+      </div>
+    </header>
     <main className="workspace" aria-label="Agent workspace">
       {!state.connected && <div className="connection-banner" role="status"><span>{state.error || 'The live connection is unavailable.'}</span><button className="button subtle small" onClick={() => void act('connect', {})}><Icon name="refresh" />Reconnect</button></div>}
       {error && <div className="error-banner" role="alert"><span>{error}</span><button className="icon-button" onClick={() => setError('')} aria-label="Dismiss error"><Icon name="close" /></button></div>}
@@ -334,15 +400,29 @@ function App() {
       {state.restoration?.error && <div className="error-banner" role="alert">{state.restoration.error}</div>}
       {!!state.restoration?.warnings.length && <div className="connection-banner" role="status">Some saved conversations could not be restored. Other tabs remain available.</div>}
       {browserError && <div className="connection-banner" role="status">{browserError}</div>}
+      <TaskNotificationAlerts events={taskAlerts.filter(event => state.agents.some(worker => worker.id === event.workerId))} open={event => openTaskAlert.current(event)} dismiss={id => setTaskAlerts(previous => previous.filter(event => event.id !== id))} />
       <section className="workspace-frame">
         {state.restoration?.status === 'restoring' ? <div className="workspace-restoring" role="status">Restoring your conversations…</div> : active ? <div id="agent-panel" role="tabpanel" className="agent-panel"><SidebarDivider width={effectiveOverviewWidth} panelWidth={viewportWidth - 26} change={setOverviewWidth} />{active.role === 'coordinator' ? <CoordinatorContext state={state} act={act} choose={choose} heights={overviewHeights} resize={resizeOverview} /> : <aside id="overview-panel" className="context" aria-label="Goal, current tasks and open questions">
 <OverviewSections heights={overviewHeights} change={resizeOverview} sections={[
 { id: 'branch', label: 'Branch', visible: !!active.parentId, content: <>{active.parentId && <div className="branch-context"><button className="parent-link" onClick={() => void navigate('parent')} disabled={busy === 'navigate'}><Icon name="branch" size={14} />Back to parent<span>{state.agents.find(agent => agent.id === active.parentId)?.name || 'Parent chat'}</span></button><button className="button subtle small" disabled={!activeConnected || active.status !== 'idle' || active.summarizing || active.returning} onClick={() => { flushSync(() => setReturnReviews(ids => ids.includes(active.id) ? ids : [...ids, active.id])); if (scroll.current) { nearBottom.current = false; bottom.current[active.id] = false; scroll.current.scrollTop = 0; } }}>Return summary<Icon name="arrow" size={13} /></button></div>}</> },
 { id: 'goal', label: 'Goal', visible: true, content: <><div className="goal-row"><span className="context-label">GOAL</span><h2 title={active.goal}>{active.goal}</h2><Badge status={active.status} /></div></> },
 { id: 'recap', label: 'Coordinator recap', visible: !!active.progress, content: <>{active.progress && <div className="progress-recap"><span className="context-label" title={new Date(active.progress.updatedAt).toLocaleString()}>COORDINATOR RECAP</span><p>{active.progress.summary}</p>{active.progress.blocker && <p className="progress-blocker">{active.progress.blocker}</p>}{active.progress.nextStep && <p><strong>Next</strong> {active.progress.nextStep}</p>}</div>}</> },
-{ id: 'tasks', label: 'Tasks', visible: true, content: <><div className="task-summary"><div className="task-heading"><span className="context-label" title={active.tracker?.status === 'ready' ? `${active.taskCount} current Beads tasks` : 'Beads task count unavailable'}>TASKS <small className="task-source">BEADS</small></span>{active.tracker?.status === 'ready' && <TaskTotals total={active.taskCount} counts={active.taskCounts} />}<button className="task-link-button" onClick={() => setTaskAgent(active)}>Link tasks</button></div><TaskListViewport key={active.id}>{active.tasks.length ? active.tasks.map(task => <div className="task-row" key={task.id} title={`${task.id}${task.parentId ? ` · parent ${task.parentId}` : ''}`}><span className={`task-indicator ${task.displayState || task.state}`}>{task.state === 'completed' ? <Icon name="check" size={12} /> : task.worker ? <Icon name="branch" size={10} /> : null}</span><span><button type="button" className="task-title-button" onClick={() => setTaskQuestion({ agentId: active.id, taskId: task.id })}>{task.text}</button></span><small>{(task.displayState || task.state) === 'blocked' ? 'needs input' : (task.displayState || task.state).replace(/([A-Z])/g, ' $1').replaceAll('_', ' ').toLowerCase()}</small></div>) : <div className="task-row empty-task"><span className="task-indicator" /><span>{!active.tracker ? 'Reading Beads tasks…' : active.tracker.status === 'unavailable' ? 'Beads tracker unavailable.' : active.tracker.tasks.length ? 'All linked tasks are closed.' : 'No linked tasks. Link existing work or ask the agent to create it.'}</span></div>}</TaskListViewport>{active.tracker?.error && <details className="tracker-error"><summary>Tracker details</summary><p>{active.tracker.error}</p></details>}</div></> },
+{ id: 'tasks', label: 'Tasks', visible: true, content: <><div className="task-summary">
+  <div className="task-heading"><span className="context-label" title={active.tracker?.status === 'ready' ? `${active.taskCount} current Beads tasks` : 'Beads task count unavailable'}>TASKS <small className="task-source">BEADS</small></span>
+    {active.tracker?.status === 'ready' && <TaskTotals total={active.taskCount} counts={active.taskCounts} />}
+    <button className="task-link-button" onClick={() => setTaskAgent(active)}>Link tasks</button>
+  </div>
+  <TaskListViewport key={active.id}>{active.tasks.length ? active.tasks.map(task => <div className="task-row task-row-notifiable" key={task.id} title={`${task.id}${task.parentId ? ` · parent ${task.parentId}` : ''}`}>
+    <span className={`task-indicator ${task.displayState || task.state}`}>{task.state === 'completed' ? <Icon name="check" size={12} /> : task.worker ? <Icon name="branch" size={10} /> : null}</span>
+    <span><TaskInputLink task={task} open={taskId => setTaskQuestion({ agentId: active.id, taskId })} /></span>
+    <small className="task-state">{(task.displayState || task.state) === 'blocked' ? 'needs input' : (task.displayState || task.state).replace(/([A-Z])/g, ' $1').replaceAll('_', ' ').toLowerCase()}</small>
+    <TaskNotifyToggle taskTitle={task.text} checked={!!taskWatches[active.id]?.includes(task.id)} onChange={enabled => watchTask(active.id, task.id, enabled)} />
+  </div>) : <div className="task-row empty-task"><span className="task-indicator" /><span>{!active.tracker ? 'Reading Beads tasks…' : active.tracker.status === 'unavailable' ? 'Beads tracker unavailable.' : active.tracker.tasks.length ? 'All linked tasks are closed.' : 'No linked tasks. Link existing work or ask the agent to create it.'}</span></div>}</TaskListViewport>
+  {!!taskWatches[active.id]?.length && <div className="task-notification-settings"><button type="button" className="task-link-button" onClick={() => void enableDesktopAlerts()}>Enable desktop alerts</button><span className="field-note">Alerts work while CCNG is open.</span></div>}
+  {notificationNotice && <p className="field-note" role="status">{notificationNotice}</p>}
+  {active.tracker?.error && <details className="tracker-error"><summary>Tracker details</summary><p>{active.tracker.error}</p></details>}
+</div></> },
 { id: 'questions', label: 'Open questions', visible: true, content: <><OpenQuestions agentId={active.id} questions={active.questions} attention={active.status === 'attention'} provider={active.provider} /></> },
-{ id: 'chat-questions', label: 'Chat questions', visible: !!active.chatQuestions?.length, content: <><ChatQuestions agentId={active.id} questions={active.chatQuestions || []} reply={taskId => setTaskQuestion({ agentId: active.id, taskId })} /></> },
 { id: 'settings', label: 'Worker specific settings', visible: true, content: <><WorkerSettings key={active.id} agentId={active.id} minutes={active.reportIntervalMinutes} reportState={active.reportState} settingPending={active.reportSettingPending} disabled={!activeConnected || !active.canSend} paused={!!state.coordinator?.paused} error={active.reportError} save={minutes => act(`agents/${active.id}/report-settings`, { minutes })} reportNow={() => act(`agents/${active.id}/report`, {})}><WorkerModelSettings key={active.id} agentId={active.id} connected={activeConnected && active.canSend && active.modelSettingsAvailable !== false} currentModel={active.model} currentEffort={active.reasoningEffort} change={active.modelChange} load={() => api(`agents/${active.id}/model-settings`)} save={choice => api(`agents/${active.id}/model-settings`, choice)} />{active.provider === 'claude' && active.modelSettingsAvailable === false && active.canSend && <p className="field-note">Start this session here to load its model settings.</p>}</WorkerSettings></> }
 ].filter(section => section.visible)} />
 </aside>}

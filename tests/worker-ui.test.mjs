@@ -23,7 +23,7 @@ const { Markdown } = await component('markdown');
 const { copyText } = await component('copy-button');
 const { WorkerSettings } = await component('worker-settings');
 const { TaskTotals } = await component('task-totals');
-const { ChatQuestions } = await component('chat-questions');
+const { TaskInputLink } = await component('task-input-link');
 const { TaskListViewport, taskViewportHeight } = await component('task-list-viewport');
 const { BackgroundRequests } = await component('background-requests');
 const { taskInputMessage } = await component('task-discussion');
@@ -207,19 +207,16 @@ test('sidebar sizing bounds retain usable chat space and expose an accessible se
 });
 
 
-test('chat-question cards keep exact worker/task identity separate from native approval controls', () => {
-  const questions = [
-    { id: 'decision-one', workerId: 'alpha', text: 'Choose the backup interval', state: 'blocked' },
-    { id: 'decision-two', workerId: 'beta', text: 'Other worker decision', state: 'blocked' },
-    { id: 'decision-closed', workerId: 'alpha', text: 'Already answered', state: 'closed' }
-  ];
-  const html = renderToStaticMarkup(React.createElement(ChatQuestions, { agentId: 'alpha', questions, reply() {} }));
-  assert.match(html, /CHAT QUESTIONS/); assert.match(html, /1 recorded chat questions/);
-  assert.match(html, /Choose the backup interval/); assert.match(html, /Read context and reply/);
-  assert.match(html, /worker resolves the question after processing your answer/);
-  assert.doesNotMatch(html, /Other worker decision|Already answered|Approve|Decline|ccng-question-/);
-  const empty = renderToStaticMarkup(React.createElement(ChatQuestions, { agentId: 'unknown-worker', questions, reply() {} }));
-  assert.equal(empty, '');
+test('task question links retain exact task identity and separate ordinary answers from native approval controls', () => {
+  const question = { id: 'decision-one', text: 'Choose the backup interval', isChatQuestion: true };
+  const opened = [];
+  const html = renderToStaticMarkup(React.createElement(TaskInputLink, { task: question, open: id => opened.push(id) }));
+  assert.match(html, /Question/); assert.match(html, /Reply to question: Choose the backup interval/);
+  assert.doesNotMatch(html, /Approve|Decline|ccng-question-/);
+  TaskInputLink({ task: question, open: id => opened.push(id) }).props.onClick();
+  assert.deepEqual(opened, ['decision-one']);
+  const ordinary = renderToStaticMarkup(React.createElement(TaskInputLink, { task: { id: 'task-one', text: 'Verify the service' }, open() {} }));
+  assert.match(ordinary, /Open task: Verify the service/); assert.doesNotMatch(ordinary, /task-question-label/);
 });
 
 

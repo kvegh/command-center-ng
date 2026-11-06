@@ -44,3 +44,43 @@ test('overview section heights survive reload and reject invalid or unrelated pr
   assert.deepEqual(browserWorkspace({ version: 1, overviewHeights: { tasks: Infinity, goal: 63, settings: 1201, questions: '180', password: 200 } }).overviewHeights, {});
   assert.equal(browserWorkspace({ version: 1 }).overviewHeights, undefined);
 });
+
+test('theme choice survives reload in the existing workspace without changing older saved objects', () => {
+  const local = storage();
+  for (const theme of ['classic', 'contrastful', 'light']) {
+    const value = { ...emptyBrowserWorkspace(), drafts: { worker: 'Keep this draft' }, theme };
+    assert.equal(saveBrowserWorkspace(value, local), null);
+    assert.deepEqual(loadBrowserWorkspace(local).state, value);
+  }
+  const older = { version: 1, selected: 'worker', order: ['worker'], drafts: {}, positions: {}, bottom: {} };
+  assert.deepEqual(browserWorkspace(older), older);
+  assert.equal(browserWorkspace(older).theme, undefined, 'the app supplies classic without rewriting older data');
+});
+
+test('invalid theme preferences do not replace the default or affect other browser state', () => {
+  for (const theme of ['dark', 'system', '', null, 0, true, {}, ['light']]) {
+    const result = browserWorkspace({ ...emptyBrowserWorkspace(), selected: 'worker', theme });
+    assert.equal(result.theme, undefined);
+    assert.equal(result.selected, 'worker');
+  }
+});
+
+test('task notification subscriptions survive reload including hierarchical Beads IDs', () => {
+  const local = storage();
+  const value = { ...emptyBrowserWorkspace(), taskWatches: { worker: ['project-123', 'project-123.4'] } };
+  assert.equal(saveBrowserWorkspace(value, local), null);
+  assert.deepEqual(loadBrowserWorkspace(local).state, value);
+  assert.equal(browserWorkspace(emptyBrowserWorkspace()).taskWatches, undefined);
+});
+
+test('task subscriptions reject malformed IDs and are bounded without storing notification content', () => {
+  const value = browserWorkspace({ version: 1, taskWatches: {
+    worker: ['project-123', 'project-123', '../invalid', '', 'constructor', ...Array.from({ length: 150 }, (_, i) => `project-${i}`)],
+    '../invalid': ['project-123'], other: 'project-123'
+  }, notifications: ['Do not persist message or question text'] });
+  assert.equal(value.taskWatches.worker.length, 128);
+  assert.equal(new Set(value.taskWatches.worker).size, 128);
+  assert.ok(value.taskWatches.worker.every(id => !['../invalid', '', 'constructor'].includes(id)));
+  assert.deepEqual(Object.keys(value.taskWatches), ['worker']);
+  assert.equal(value.notifications, undefined);
+});

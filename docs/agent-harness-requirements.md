@@ -8,6 +8,8 @@ The main finding: **model access alone is insufficient**. A managed integration
 needs a native session interface, truthful state and history, safe input/control,
 and a way to handle every human request on which that runtime can block.
 Advanced capabilities may be unavailable if the limitation is explicit.
+The user subsequently required native Goals support for future full managed
+integrations; that approved requirement is recorded below.
 
 ## What we are integrating
 
@@ -79,6 +81,30 @@ useful, coordinate shared writes, and verify outcomes. A request to continue is
 not new authority. The current runtime context is recorded in
 [worker instructions](../server/worker-instructions.md) and
 [coordinator guidance](../server/coordinator-prompt.mjs).
+
+## Required native Goals support
+
+The user selected **native execution with CCNG controls** on 2026-11-06.
+Future full managed integrations must support native goal-driven continuation:
+the harness owns the objective/completion condition, continuation and stopping
+behavior. CCNG exposes supported native controls and authoritative status. It
+must not implement a replacement goal-execution loop on top of a missing native
+feature. A runtime lacking this capability needs an explicit limitation or user
+exception before being presented as full managed support.
+
+Assess the actual programmatic interface, not just a CLI command's existence.
+Preserve native ownership, permissions, safe boundaries, lifecycle and usage
+limits. Display provider differences honestly, including unavailable pause,
+status or idle wakeup behavior. Starting/changing/clearing a goal requires an
+explicit user control action; restoring a view must not create a goal. A Goal
+does not expand project scope, grant approvals or automatically close Beads work.
+
+Codex exposes native thread Goal state and controls. Claude Code has native
+[/goal](https://code.claude.com/docs/en/goal), with different headless/SDK
+control and observation details. Native APIs and local command acknowledgements
+must be verified before claiming CCNG integration. The controls are approved
+implementation work, not yet part of the 0.27.3 baseline reviewed here.
+The existing CCNG report timer remains a separate approved feature.
 
 ## Questions, approvals and coordinator review
 
@@ -152,7 +178,7 @@ capability guards; this table is not an already-implemented generic adapter API.
 | Images | Native image input/history, validated size/type, authenticated exact message references and visible send failures. | Current clipboard limits are four images, 4 MiB each, 8 MiB total. Unsent drafts are memory-only; no remote fetch or attachment database. |
 | Timestamps | Preserve native historical times; label live receipt fallback and leave unavailable history unknown. | A new provider must not fabricate old timestamps. |
 | Subagents and parallel work | Surface real child identities/state where exposed; distinguish waiting for a child from waiting for the user. | No inference that every occupied slot is useful or that CCNG's tab limit controls native concurrency. |
-| Native Goals/scheduling | Verify exact runtime support, budgets, stopping conditions and pause/resume semantics before exposing it. | Native Goals and a proposed stall watchdog are not integrated; neither replaces the approved report timer. |
+| Native timed scheduling | Assess exact time/restore/permission behavior if exposed. | Recurring reports remain owned by CCNG. Native Goals are a separate required capability, described above. |
 | Restart survival | State who owns the process and what stops it; verify detach/resume separately from reading saved history. | Codex daemon is independent. CCNG shutdown stops its SDK-owned Claude queries; an extra Claude daemon was explicitly rejected. Tab/browser closure is different. |
 
 Sources: [model validation](../server/worker-models.mjs), [branch lifecycle](../server/branch-summary.mjs),
