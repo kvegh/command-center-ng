@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.27.3** in package.json and the lockfile.
+The authoritative version is **0.28.0** in package.json and the lockfile.
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -19,8 +19,11 @@ The formerly local 0.6.0/0.7.0 checkpoints and the 0.7.1 spacing correction are
 included, alongside the 0.8.0 conversation safeguards. The earlier published baseline was 0.5.0 at
 `c24d84c318fe967993bd3e00552e129e7d32531e`.
 The agent did not update or restart the user's installation or native daemon;
-source publication alone does not deploy these changes. The user's last confirmed
-installed version is 0.22.0; the current user service status has not been confirmed.
+source publication alone does not deploy these changes. The last explicitly
+reported installed version was 0.22.0; the user subsequently confirmed the
+user-level service was tested successfully and is running. This does not identify
+the currently installed version. The agent's user-bus status query was restricted,
+so service operation is user-verified.
 
 | Version | Local implementation | Decision record |
 | --- | --- | --- |

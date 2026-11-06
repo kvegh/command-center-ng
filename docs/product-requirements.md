@@ -80,7 +80,12 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.27.3
+## Current development version: 0.28.0
+
+Escape interrupts the eligible native turn in the visible chat through the
+existing Interrupt action. It preserves unsent drafts and normal local Escape
+behavior for dialogs, questions, selects, summary review, resizing and IME.
+It does not interrupt another tab or undo completed work.
 
 The user approved Codex-only support, a local Node.js backend, port 4242,
 configurable localhost/VM-internal listening, and nginx access restrictions plus

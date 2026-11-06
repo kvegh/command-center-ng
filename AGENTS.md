@@ -304,6 +304,10 @@ cadence, interrupting work or answering a pending request.
 
 ## Approved worker controls and layout
 
+Escape uses the existing Interrupt action for the visible eligible native turn.
+Keep local dialog/question/select/summary-review/resize and composition Escape
+behavior; do not send repeated interrupts or affect background tabs.
+
 Use the native model catalog and supported efforts for worker-only model changes.
 Update only per-thread model/effort settings for subsequent turns and confirm
 native state; do not interrupt the active turn, answer requests or change global

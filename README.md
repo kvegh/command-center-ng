@@ -5,7 +5,7 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.27.3 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.28.0 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The dark graphite interface uses cyan controls,
@@ -79,6 +79,18 @@ The browser clipboard API is preferred. Browsers without it can use their
 supported legacy copy action; a denied native clipboard request is not retried
 through that fallback. Clipboard availability still depends on the browser and
 page context. If copying fails, the message remains selectable for manual copy.
+
+## Keyboard interruption
+
+Press **Escape** to interrupt the running agent in the visible chat, using the
+same native action as **Interrupt**. This works for eligible Codex and managed
+Claude turns while connected, including from the composer, and preserves the
+unsent draft. The button shows **Esc** and exposes the keyboard shortcut to
+assistive technology. Interruption does not undo completed commands or files.
+
+Escape keeps its local meaning in dialogs, question controls, dropdowns, branch
+summary editing, resizing and text composition. Modified/repeated keys and an
+already pending interrupt do not send extra requests. Other tabs are unaffected.
 
 ## Core experience
 
