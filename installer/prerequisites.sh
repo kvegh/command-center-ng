@@ -72,9 +72,23 @@ ccng_cli_install() {
 ccng_agent_prerequisites() {
     if ! command -v bd >/dev/null 2>&1; then ccng_cli_install '@beads/bd@1.3.2' || return 1; fi
     node "$CCNG_SOURCE_DIR/server/beads-check.mjs" || { echo 'Existing Beads is incompatible; review its upgrade and database requirements before retrying.' >&2; return 1; }
-    if ! command -v codex >/dev/null 2>&1; then ccng_cli_install '@openai/codex@0.166.0' || return 1; fi
-    codex --version || return 1
-    codex app-server daemon --help >/dev/null 2>&1 || { echo 'This Codex version lacks the native app-server daemon. Install a compatible version before continuing.' >&2; return 1; }
+    if ! command -v codex >/dev/null 2>&1; then
+        if ! ccng_cli_install '@openai/codex@0.167.0'; then
+            CCNG_CODEX_PENDING=1
+            echo 'Warning: Codex installation was declined or failed; Command Center installation will continue. Install a compatible Codex before using Codex agents.' >&2
+            return 0
+        fi
+    fi
+    if ! command -v codex >/dev/null 2>&1 || ! codex --version; then
+        CCNG_CODEX_PENDING=1
+        echo 'Warning: Codex is unavailable; Command Center installation will continue. Install a compatible Codex before using Codex agents.' >&2
+        return 0
+    fi
+    if ! codex app-server daemon --help >/dev/null 2>&1; then
+        CCNG_CODEX_PENDING=1
+        echo 'Warning: this Codex lacks the native app-server daemon; Command Center installation will continue. Upgrade Codex before using Codex agents.' >&2
+        return 0
+    fi
     if ! codex login status >/dev/null 2>&1; then
         echo 'Codex is not signed in. The native device-code login can be completed from another browser.'
         if ccng_confirm 'Run codex login --device-auth now?'; then codex login --device-auth || echo 'Codex login did not complete; it can be retried after installation.' >&2; fi
@@ -90,7 +104,7 @@ ccng_agent_prerequisites() {
 ccng_environment_report() {
     ccng_detect_platform
     CCNG_PROBLEMS=0
-    for CCNG_TOOL in bash git tar gzip realpath dirname mktemp mkdir mv cp rm chmod sha256sum node npm bd codex; do
+    for CCNG_TOOL in bash git tar gzip realpath dirname mktemp mkdir mv cp rm chmod sha256sum node npm bd; do
         if command -v "$CCNG_TOOL" >/dev/null 2>&1; then printf '[available] %s\n' "$CCNG_TOOL"; else printf '[missing] %s\n' "$CCNG_TOOL"; CCNG_PROBLEMS=1; fi
     done
     if command -v node >/dev/null 2>&1; then
@@ -99,8 +113,11 @@ ccng_environment_report() {
     fi
     if command -v npm >/dev/null 2>&1 && ! npm --version >/dev/null 2>&1; then echo '[unavailable] npm cannot run.'; CCNG_PROBLEMS=1; fi
     if command -v codex >/dev/null 2>&1; then
-        codex app-server daemon --help >/dev/null 2>&1 || { echo '[unsupported] Codex app-server daemon is required.'; CCNG_PROBLEMS=1; }
-        codex login status >/dev/null 2>&1 || { echo '[not signed in] Run codex login or codex login --device-auth.'; CCNG_PROBLEMS=1; }
+        echo '[available] codex'
+        codex app-server daemon --help >/dev/null 2>&1 || echo '[warning] Codex lacks the native app-server daemon; upgrade it before using Codex agents.'
+        codex login status >/dev/null 2>&1 || echo '[warning] Codex is not signed in; run codex login or codex login --device-auth before using Codex agents.'
+    else
+        echo '[warning] Codex is missing; installation can continue, but Codex agents need a compatible Codex installation.'
     fi
     if [ "$CCNG_RHEL9" -eq 1 ] && ! rpm -q ca-certificates >/dev/null 2>&1; then echo '[missing RPM] ca-certificates'; CCNG_PROBLEMS=1; fi
     if command -v dolt >/dev/null 2>&1; then echo '[available] Dolt server binary'; else echo '[not installed] Dolt server binary (needed for the multi-writer server setup).'; fi

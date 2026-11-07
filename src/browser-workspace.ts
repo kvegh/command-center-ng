@@ -1,10 +1,12 @@
 export type ThemeName = 'classic' | 'contrastful' | 'light';
+export type ChatColour = 'cyan' | 'violet' | 'green' | 'amber';
 export type BrowserWorkspace = {
   version: 1; selected: string; order: string[]; drafts: Record<string, string>;
   positions: Record<string, number>; bottom: Record<string, boolean>;
   overviewWidth?: number;
   overviewHeights?: Record<string, number>;
   theme?: ThemeName;
+  chatColours?: Record<string, ChatColour>;
   taskWatches?: Record<string, string[]>;
 };
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
@@ -12,6 +14,7 @@ export const BROWSER_WORKSPACE_KEY = 'ccng.workspace.v1';
 export const emptyBrowserWorkspace = (): BrowserWorkspace => ({ version: 1, selected: '', order: [], drafts: {}, positions: {}, bottom: {} });
 const validId = (id: unknown): id is string => typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(id) && !['constructor', 'prototype'].includes(id);
 const validTheme = (value: unknown): value is ThemeName => value === 'classic' || value === 'contrastful' || value === 'light';
+const validChatColour = (value: unknown): value is ChatColour => value === 'cyan' || value === 'violet' || value === 'green' || value === 'amber';
 const validTaskId = (value: unknown): value is string => typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,199}$/.test(value) && !['constructor', 'prototype'].includes(value);
 const entries = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value) ? Object.entries(value).filter(([key]) => validId(key)).slice(-32) : [];
 export function browserWorkspace(value: unknown): BrowserWorkspace {
@@ -26,6 +29,9 @@ export function browserWorkspace(value: unknown): BrowserWorkspace {
     ...(typeof data.overviewWidth === 'number' && Number.isFinite(data.overviewWidth) && data.overviewWidth >= 280 && data.overviewWidth <= 800 ? { overviewWidth: data.overviewWidth } : {}),
     ...(data.overviewHeights ? { overviewHeights: Object.fromEntries(entries(data.overviewHeights).filter(([key, height]) => ['branch', 'goal', 'recap', 'tasks', 'questions', 'chat-questions', 'settings', 'coordinator', 'workers', 'coordinator-questions', 'decisions'].includes(key) && typeof height === 'number' && Number.isFinite(height) && height >= 64 && height <= 1200)) } : {}),
     ...(validTheme(data.theme) ? { theme: data.theme } : {}),
+    ...(data.chatColours && typeof data.chatColours === 'object' && !Array.isArray(data.chatColours) ? {
+      chatColours: Object.fromEntries(entries(data.chatColours).filter(([, colour]) => validChatColour(colour)))
+    } : {}),
     ...(data.taskWatches && typeof data.taskWatches === 'object' && !Array.isArray(data.taskWatches) ? {
       taskWatches: Object.fromEntries(entries(data.taskWatches).filter(([, ids]) => Array.isArray(ids)).map(([workerId, ids]) => [workerId, [...new Set((ids as unknown[]).filter(validTaskId))].slice(0, 128)]))
     } : {})

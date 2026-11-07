@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, stat, rm, symlink } from 'node:fs/
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { userService, serviceUnit, USER_SERVICE } from '../server/user-service.mjs';
+import { loadRuntimeOptions } from '../server/main.mjs';
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'ccng-user-service-'));
@@ -90,5 +91,31 @@ test('service management refuses unrelated or linked units and unsafe/unsupporte
     }
     const unit = serviceUnit(f.appDir, ['--host', '$(touch unintended)'], f.env);
     assert.ok(unit.includes('$$(touch unintended)')); assert.equal(f.calls.length, 0);
+  } finally { await f.close(); }
+});
+test('user service preserves protocol and certificate paths without copying certificate or key contents', () => {
+  const unit = serviceUnit('/example/app', ['--protocol', 'https', '--tls-cert', '/example/cert.pem', '--tls-key', '/example/key.pem'], { CCNG_PROTOCOL: 'https', CCNG_TLS_CERT: '/example/env-cert.pem', CCNG_TLS_KEY: '/example/env-key.pem' });
+  assert.match(unit, /"--protocol" "https"/); assert.match(unit, /"--tls-cert" "\/example\/cert.pem"/); assert.match(unit, /"--tls-key" "\/example\/key.pem"/);
+  assert.match(unit, /Environment="CCNG_PROTOCOL=https"/); assert.match(unit, /Environment="CCNG_TLS_KEY=\/example\/env-key.pem"/);
+  assert.doesNotMatch(unit, /BEGIN.*PRIVATE KEY/);
+  assert.throws(() => serviceUnit('/example/app', ['--protocol', 'automatic'], {}), /http or https/);
+  assert.throws(() => serviceUnit('/example/app', ['--tls-key', 'relative.pem'], {}), /absolute path/);
+});
+
+test('service leaves runtime defaults in the installed config rather than baking HTTP into its unit', async () => {
+  const f = await fixture();
+  try {
+    await mkdir(join(f.appDir, 'etc'));
+    const config = join(f.appDir, 'etc', 'config.conf');
+    await writeFile(config, 'connection_type: http\n');
+    await userService(['install'], f.options);
+    const unit = await readFile(f.path, 'utf8');
+    assert.match(unit, /Runtime defaults are read from INSTALLDIR\/etc\/config.conf/);
+    assert.doesNotMatch(unit, /--protocol|CCNG_PROTOCOL=/);
+    assert.equal((await loadRuntimeOptions([], f.env, { appDir: f.appDir })).protocol, 'http');
+    await writeFile(config, 'connection_type: https\ntls_certificate: certs/server.crt\ntls_private_key: certs/server.key\n');
+    assert.equal((await loadRuntimeOptions([], f.env, { appDir: f.appDir })).protocol, 'https');
+    assert.equal(await readFile(f.path, 'utf8'), unit, 'the next startup reads edited config without rewriting the unit');
+    assert.deepEqual(f.calls, [{ command: 'systemctl', args: ['--user', 'daemon-reload'] }]);
   } finally { await f.close(); }
 });

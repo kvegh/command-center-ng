@@ -69,6 +69,13 @@ export class Workspace extends EventEmitter {
     rpc.on('connected', () => { this.error = null; this.changed(); });
   }
   changed() { this.emit('change'); }
+  nativeActivity(agent, turnId) {
+    if (!agent || agent.provider === 'claude') return;
+    // Receipt of a worker event is evidence of an update, not model progress.
+    // Late events from an earlier turn must not make the current turn look fresh.
+    if (turnId && agent.turnId && turnId !== agent.turnId) return;
+    agent.lastNativeEventAt = new Date().toISOString();
+  }
   readyFor(agent) { return (typeof agent === 'string' ? isClaudeId(agent) : agent?.provider === 'claude') ? !!this.claude?.available : this.rpc.ready; }
   available() { return this.rpc.ready || !!this.claude?.available; }
   workerCount() { return [...this.agents.values()].filter(agent => agent.role !== 'coordinator').length; }
@@ -502,7 +509,9 @@ export class Workspace extends EventEmitter {
     const question = { id: message.id, method: message.method, params: p, reviewToken: randomUUID() };
     const key = requestKey(p.threadId, message.id);
     if (this.pending.has(key)) return;
-    this.pending.set(key, question); this.agents.get(p.threadId)?.questions.push(question); this.changed();
+    const agent = this.agents.get(p.threadId);
+    this.pending.set(key, question); agent?.questions.push(question);
+    this.nativeActivity(agent, p.turnId); this.changed();
     this.coordinator?.mark(p.threadId, 'Approval or question needs review', true);
   }
   answer(id, requestId, answer) {
@@ -560,6 +569,9 @@ export class Workspace extends EventEmitter {
       this.changed(); return;
     }
     const id = p.threadId || p.thread?.id; const agent = this.agents.get(id); if (!agent) return;
+    if (method === 'thread/status/changed' || method.startsWith('turn/') || method.startsWith('item/')) {
+      this.nativeActivity(agent, method === 'turn/started' ? undefined : p.turnId || p.turn?.id);
+    }
     if (method === 'thread/status/changed') agent.thread.status = p.status;
     if (method === 'thread/name/updated') agent.name = p.threadName || p.name || agent.name;
     if (method === 'thread/settings/updated') this.syncModel(agent, p.threadSettings?.model, p.threadSettings?.effort);

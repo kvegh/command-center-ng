@@ -40,7 +40,7 @@ test('installer updates distinguish nested installation output from actual sourc
     await mkdir(join(checkout, targetName));
     await writeFile(join(checkout, targetName, 'package.json'), JSON.stringify({ name: 'command-center-ng', version: '0.0.1' }));
     await writeFile(join(checkout, targetName, 'README.md'), 'Existing installed version');
-    const update = () => exec('sh', [join(checkout, 'install.sh'), '--update', './' + targetName], { cwd: checkout, env });
+    const update = () => exec('sh', [join(checkout, 'install.sh'), '--update', '--prefix', './' + targetName], { cwd: checkout, env });
     const reachesBuild = () => assert.rejects(update(), error => error.code === 42 && error.stdout.includes('CCNG_FIXTURE_BUILD_REACHED'));
     const rejectsSourceChanges = () => assert.rejects(update(), error => error.code === 1 && error.stderr.includes('local changes'));
 

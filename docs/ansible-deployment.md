@@ -8,11 +8,15 @@ in `package.json`.
 
 ## Existing target prerequisites
 
-The approved mode reuses an existing unprivileged Linux account, its home,
-signed-in Codex CLI/profile, running native Codex daemon, existing project and
-working Beads tracker. It checks these without initializing a tracker, migrating
-data, creating an account or managing a Codex/Dolt service. This is not a fresh
-agent-environment bootstrap. The application checkout accepts the existing SSH
+The playbook reuses an existing unprivileged Linux account, its home, existing
+project and working Beads tracker. It does not create the account, initialize a
+tracker, migrate project data or manage a Codex/Dolt service. Codex availability,
+login and native daemon checks produce warnings when unavailable; they do not
+prevent CCNG installation. Agent operation still needs a usable native runtime.
+When package management is enabled, deployment attempts a missing Codex CLI in
+the application's local tool directory, then configures native questions as
+described below. Existing global tools and other profile settings are preserved.
+The application checkout accepts the existing SSH
 mode or credential-free HTTPS for a public repository. SSH needs existing Git
 access and trusted host keys; HTTPS uses normal certificate verification. No
 automatic trust acceptance or authentication exception is used.
@@ -29,7 +33,10 @@ The playbook can install `acl`, `ca-certificates`, `coreutils`, `git`, `gzip` an
 `tar`, plus RHEL's Node.js 22 common module profile when the selected Node does
 not meet 22.12+. It does not reset a conflicting module stream. Set
 `command_center_manage_packages: false` when prerequisites are managed separately.
-These package operations run on the selected VM only.
+HTTPS mode also requires OpenSSL; the playbook installs the existing utility's
+RPM when package management is enabled. These package operations run on the
+selected VM only. It does not provision nginx, firewall rules or an external
+access route.
 
 ## Inputs and private configuration
 
@@ -53,13 +60,18 @@ variables.
 | `command_center_repository` | Required SSH or credential-free HTTPS application source URL |
 | `command_center_revision` | Git revision to deploy; default `main`; pin a reviewed revision for reproducibility |
 | `command_center_source_dir` | Default `<account-home>/.local/src/command-center-ng` |
-| `command_center_install_dir` | Default `<account-home>/apps/command-center-ng` |
-| `command_center_config_dir` | Default `<account-home>/.config/command-center-ng` |
-| `command_center_codex_home` | Default `<account-home>/.codex`; existing signed-in profile |
+| `command_center_install_dir` | Default `<account-home>/commandcenter-ng` |
+| `command_center_config_dir` | Default `<account-home>/.config/command-center-ng`; private auth/workspace metadata |
+| `command_center_codex_home` | Default `<account-home>/.codex`; selected native profile |
 | `command_center_path` | Existing account tool paths plus target-local tools and system executables |
 | `command_center_bind_address` | Default `127.0.0.1` |
 | `command_center_port` | Default `4242` |
 | `command_center_public_origin` | Empty by default; set the approved HTTPS origin when using an existing proxy |
+| `command_center_connection_type` | `http` by default; explicitly select `https` for a managed backend certificate |
+| `command_center_tls_server_name` | Required in HTTPS mode; the selected DNS/IP certificate identity |
+| `command_center_tls_days` | New self-signed certificate lifetime; default `365` days, from 1 to 3650 |
+| `command_center_codex_package` | Default `@openai/codex@0.167.0`; used only for a missing local CLI |
+| `command_center_manage_packages` | Default `true`; set `false` when system and CLI prerequisites are managed separately |
 | `command_center_password` | Initial password, 12–4096 characters; required only when no private auth file exists |
 | `command_center_force_install` | Default `false`; rebuild the selected revision explicitly |
 
@@ -79,7 +91,11 @@ checkout must have the selected origin and a clean worktree. Updates fast-forwar
 only: local commits, divergent revisions and implicit downgrades fail without
 discarding work. Existing source-parent permissions are preserved.
 
-Installation calls the maintained `install.sh` as the application user.
+Installation calls the maintained `install.sh --prefix DIRECTORY` as the
+application user. New installations receive an HTTP-default
+`INSTALLDIR/etc/config.conf`. Existing configuration, certificates and managed
+tools survive installer replacement; the playbook then writes the explicitly
+selected desired connection settings into that same file.
 An identical recorded source commit with an executable launcher skips rebuilding;
 a changed commit, missing/broken launcher or explicit force rebuilds. This decision
 has fixture coverage; full target idempotence still requires a VM rerun.
@@ -91,10 +107,89 @@ an existing process. It writes protected runtime settings, restarts only Command
 Center when its files change, enables startup and checks `/healthz` for the exact
 deployed application version. It never restarts the native Codex daemon.
 
-No proxy, TLS, firewall or public listener is configured automatically. The
-default is loopback access; deployment does not establish a browser access route.
-Use the already approved environment access mechanism before exposing the app.
-Native authentication and Beads/Dolt setup remain independent prerequisites.
+The public default remains HTTP on loopback. Optional HTTPS mode creates or
+reuses the application's self-signed backend pair as described below. This
+playbook's application work does not configure nginx, its public certificate,
+htpasswd, firewall rules or a browser access route. Those environment operations
+and deployment acceptance belong to the infrastructure owner. For an existing
+HTTPS proxy, supply the actual `command_center_public_origin` from protected
+configuration and arrange explicit backend certificate trust there.
+
+## Backend certificates and native tools
+
+With `command_center_connection_type: https`, the playbook manages:
+
+- `INSTALLDIR/etc/certs/server.crt`: public self-signed certificate, mode 644.
+- `INSTALLDIR/etc/certs/server.key`: matching private key, mode 600.
+- `INSTALLDIR/etc/config.conf`: mode 600, with `connection_type: https` and both paths.
+
+The directories are private (mode 700) and belong to the application account.
+The certificate includes the selected server identity, the configured public
+origin's hostname when present, and the health-check address in its subject
+alternative names. HTTPS health verification
+uses that public certificate with verification enabled; it does not disable
+certificate checks. Existing pairs are verified for key agreement, validity,
+signature and endpoint identity before reuse. Partial pairs, mismatched keys
+and unsafe managed symlinks are refused. HTTP mode preserves an existing pair.
+Repeated deployment does not regenerate or silently rotate certificates.
+Renewal/replacement remains an explicit operator action.
+
+The supported Red Hat certificate system role was considered first. It uses
+certmonger and does not provide OpenSSL as a supported provider; adopting it
+would add a certificate-management service for this one generated pair. This
+playbook instead uses the existing OpenSSL utility through shell-free
+`ansible.builtin.command` arguments, with guarded generation and native
+verification. See [Red Hat's certificate role documentation](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html-single/automating_system_administration_by_using_rhel_system_roles/index)
+and the [role's providers](https://github.com/linux-system-roles/certificate#cas-and-providers).
+
+The selected Codex CLI is installed through the existing `npm` executable only
+when absent and package management is enabled. The package version is pinned,
+the prefix is the application's `tools/` directory, and an existing global CLI
+is reused. There is no builtin npm package module; using the existing package
+manager avoids another collection dependency for this local CLI operation.
+Installation failures warn and continue. No new daemon or credential mechanism
+is introduced.
+
+## Native Codex questions
+
+`server/codex-setup.mjs` is shared by installation, deployment and startup.
+It uses native `codex features list` and, only during explicit setup,
+`codex features enable default_mode_request_user_input`. Native Codex writes
+its selected profile configuration; the helper does not edit TOML directly.
+The deployment task runs as the application account with the selected PATH and
+`CODEX_HOME`. The normal installer also attempts setup using its final tool
+PATH. Startup calls the read-only check; it never enables a feature implicitly.
+
+This bounded helper is necessary because no native Node/Ansible feature-settings
+API is exposed. The inspected CLI has no JSON output for `features list`, so the
+helper validates the exact feature row and checks the native result after an
+update. Missing, unsupported or ambiguous interfaces, permission errors,
+timeouts, failed commands and unconfirmed updates produce warnings and allow
+CCNG installation, deployment or startup to continue. The Ansible task also
+handles a missing or malformed helper response as a warning. No login credential
+is copied or invented.
+
+The feature is under development. Its compatibility warning remains visible;
+no unstable-warning suppression setting is written. A selected profile may be
+shared with other Codex clients, and enabling the flag can affect those clients.
+No daemon or worker is restarted, and a saved flag is not proof that an existing
+worker has adopted it. Native permissions and approvals remain in force.
+See the [official native feature command reference](https://learn.chatgpt.com/docs/developer-commands?surface=cli#codex-features).
+
+## Existing proxy and logs
+
+If an external nginx proxy connects to this HTTPS backend, it must explicitly
+trust the matching public certificate and verify the intended backend name.
+Only the public certificate needs to reach the proxy; the backend private key
+stays on the application host. The proxy's own public certificate and htpasswd
+configuration remain its owner's responsibility. This project does not claim
+that the real proxy or route was changed or verified during source development.
+
+Application startup messages, errors and Codex warnings go to stdout/stderr and
+are captured by systemd. For this playbook's system-managed service, use
+`journalctl -u command-center-ng.service` and add `-f` to follow output, subject
+to journal permissions. A manually installed user service instead uses
+`journalctl --user -u command-center-ng.service` or the launcher's `service logs`.
 
 ## AAP integration
 
@@ -132,15 +227,19 @@ Syntax checking parses the real entry point without applying it:
 ANSIBLE_LOCAL_TEMP=/tmp/ccng-syntax-local \
   ansible-playbook --syntax-check -i ansible/examples/inventory.example.yml \
   ansible/deploy_command_center.yml
-python3.12 -m unittest discover -s tests -p test_command_center_deployment.py -v
+python3.12 -m unittest discover -s tests -p 'test_command_center_*.py' -v
 ANSIBLE_HOME=/tmp/ccng-lint-home ANSIBLE_LOCAL_TEMP=/tmp/ccng-lint-local \
-  python3.12 -m ansiblelint --offline --profile production ansible/
+  python3.12 -m ansiblelint --offline --profile production --strict ansible/
 ```
 
 The fixture suite invokes real Ansible only against disposable localhost files:
 OS rejection before a sentinel change, inventory override precedence, canonical
 path protection, rebuild decisions, real password hashing/preservation and
-symlink rejection. It renders the actual systemd template, including spaced
+symlink rejection. Certificate fixtures use real temporary OpenSSL pairs to
+verify SANs, trust, modes, reuse and refusal behavior. Native question fixtures
+use the actual helper with a stub Codex executable and temporary profile data
+to verify setup, idempotence and warning-only failure. They do not alter a real
+native profile. The suite renders the actual systemd template, including spaced
 paths, then parses it offline with `systemd-analyze verify`. It does not install
 packages, alter accounts, start services, connect to a VM or call a model.
 Use already available Python/Ansible/lint/systemd tools; ask before installing
@@ -149,9 +248,11 @@ stateful installer requires real output files.
 
 Passing local checks does not prove a real RHEL 9 startup, an AAP execution
 environment's dependencies, browser access or a successful live deployment.
-Those require running the approved Job Template against the selected VM and
+Those remain deployment-owner acceptance work: running the approved Job Template
+against the selected VM and
 checking its final result, service identity, health and a preservation rerun.
 Native-loader fixtures verify real Vault decryption, instance selection,
 connection-override refusal and temporary-file cleanup. They do not establish
 that the target account has signed in, that Git access works, or that the app
-has started; those remain live acceptance checks.
+has started; those remain live acceptance checks. No live deployment is performed
+as a local test of this playbook.

@@ -8,15 +8,20 @@ CCNG_TASK_WORKSPACE=''
 CCNG_INITIAL_WORK_DIR=$(pwd)
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --prefix) [ "$#" -ge 2 ] || { echo 'Missing --prefix directory.' >&2; exit 1; }; CCNG_INSTALL_DIR=$2; shift 2 ;;
+        --prefix)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || { echo 'Missing --prefix directory.' >&2; exit 1; }
+            case "$2" in -*) echo 'Missing --prefix directory.' >&2; exit 1 ;; esac
+            [ -z "$CCNG_INSTALL_DIR" ] || { echo 'Provide one installation directory.' >&2; exit 1; }
+            CCNG_INSTALL_DIR=$2; shift 2 ;;
         --update) CCNG_UPDATE=1; shift ;;
         --check) CCNG_CHECK_ONLY=1; shift ;;
         --workspace) [ "$#" -ge 2 ] || { echo 'Missing --workspace directory.' >&2; exit 1; }; CCNG_TASK_WORKSPACE=$2; shift 2 ;;
-        --help|-h) echo 'Usage: ./install.sh [--update | --check] [--workspace TASK_DIRECTORY] [DIRECTORY_UNDER_YOUR_HOME]'; echo 'Without a directory, installation prompts before doing any work.'; echo '--check reports prerequisites without installing or changing configuration.'; echo '--workspace selects a task workspace; fresh Beads/local Dolt setup requires terminal confirmation.'; echo 'RHEL 9 can install missing prerequisites after explicit terminal confirmation.'; echo 'Run --update from a clean source checkout to fetch latest main automatically.'; exit 0 ;;
+        --help|-h) echo 'Usage: ./install.sh [--prefix DIRECTORY] [--update | --check] [--workspace TASK_DIRECTORY]'; echo 'Default installation directory: ~/commandcenter-ng. --prefix must stay inside your home.'; echo '--check reports prerequisites without installing or changing configuration.'; echo '--workspace selects a task workspace; fresh Beads/local Dolt setup requires terminal confirmation.'; echo 'RHEL 9 can install missing prerequisites after explicit terminal confirmation.'; echo 'Run --update from a clean source checkout to fetch latest main automatically; use the same --prefix for an existing custom installation.'; exit 0 ;;
         -*) echo "Unknown argument: $1" >&2; exit 1 ;;
-        *) [ -z "$CCNG_INSTALL_DIR" ] || { echo 'Provide one installation directory.' >&2; exit 1; }; CCNG_INSTALL_DIR=$1; shift ;;
+        *) [ -n "$1" ] || { echo 'Installation directory must not be empty.' >&2; exit 1; }; [ -z "$CCNG_INSTALL_DIR" ] || { echo 'Provide one installation directory.' >&2; exit 1; }; CCNG_INSTALL_DIR=$1; shift ;;
     esac
 done
+[ -n "$CCNG_INSTALL_DIR" ] || CCNG_INSTALL_DIR="$HOME/commandcenter-ng"
 for CCNG_TOOL in id uname dirname; do command -v "$CCNG_TOOL" >/dev/null 2>&1 || { echo 'A basic Linux installation with coreutils is required to start this installer.' >&2; exit 1; }; done
 [ "$(uname -s)" = Linux ] || { echo 'Linux is required.' >&2; exit 1; }
 CCNG_SOURCE_DIR=$(dirname "$0")
@@ -28,10 +33,6 @@ if [ "$CCNG_CHECK_ONLY" -eq 1 ]; then
     ccng_environment_report
     exit $?
 fi
-while [ -z "$CCNG_INSTALL_DIR" ]; do
-    printf 'Installation target directory (inside your home): '
-    IFS= read -r CCNG_INSTALL_DIR || { echo 'No target directory provided.' >&2; exit 1; }
-done
 [ "$(id -u)" -ne 0 ] || { echo 'Run this installer as an unprivileged user, without sudo.' >&2; exit 1; }
 ccng_system_prerequisites
 CCNG_INSTALL_DIR=$(realpath -m "$CCNG_INSTALL_DIR")
@@ -64,8 +65,8 @@ if [ "$CCNG_UPDATE" -eq 1 ]; then
     git -C "$CCNG_SOURCE_DIR" merge-base --is-ancestor HEAD FETCH_HEAD || { echo 'Local source commits diverge from latest main; refusing to overwrite them.' >&2; exit 1; }
     git -C "$CCNG_SOURCE_DIR" merge --ff-only FETCH_HEAD
     # Re-enter the freshly fetched installer; ordinary reinstall preserves private config.
-    if [ -n "$CCNG_TASK_WORKSPACE" ]; then exec sh "$CCNG_SOURCE_DIR/install.sh" --workspace "$CCNG_TASK_WORKSPACE" "$CCNG_INSTALL_DIR"; fi
-    exec sh "$CCNG_SOURCE_DIR/install.sh" "$CCNG_INSTALL_DIR"
+    if [ -n "$CCNG_TASK_WORKSPACE" ]; then exec sh "$CCNG_SOURCE_DIR/install.sh" --workspace "$CCNG_TASK_WORKSPACE" --prefix "$CCNG_INSTALL_DIR"; fi
+    exec sh "$CCNG_SOURCE_DIR/install.sh" --prefix "$CCNG_INSTALL_DIR"
 fi
 CCNG_PARENT=$(dirname "$CCNG_INSTALL_DIR")
 mkdir -p "$CCNG_PARENT"
@@ -75,6 +76,16 @@ mkdir "$CCNG_STAGE/app"
 if [ -d "$CCNG_INSTALL_DIR/tools" ]; then
     [ ! -L "$CCNG_INSTALL_DIR/tools" ] || { echo 'Refusing to use a symlink as the managed CLI directory.' >&2; exit 1; }
     cp -a "$CCNG_INSTALL_DIR/tools" "$CCNG_STAGE/app/tools"
+fi
+if [ -e "$CCNG_INSTALL_DIR/etc" ] || [ -L "$CCNG_INSTALL_DIR/etc" ]; then
+    [ -d "$CCNG_INSTALL_DIR/etc" ] && [ ! -L "$CCNG_INSTALL_DIR/etc" ] || { echo 'Refusing an unsafe installation etc directory.' >&2; exit 1; }
+    if [ -e "$CCNG_INSTALL_DIR/etc/config.conf" ] || [ -L "$CCNG_INSTALL_DIR/etc/config.conf" ]; then
+        [ -f "$CCNG_INSTALL_DIR/etc/config.conf" ] && [ ! -L "$CCNG_INSTALL_DIR/etc/config.conf" ] || { echo 'Refusing an unsafe installation config.conf.' >&2; exit 1; }
+    fi
+    if [ -e "$CCNG_INSTALL_DIR/etc/certs" ] || [ -L "$CCNG_INSTALL_DIR/etc/certs" ]; then
+        [ -d "$CCNG_INSTALL_DIR/etc/certs" ] && [ ! -L "$CCNG_INSTALL_DIR/etc/certs" ] || { echo 'Refusing an unsafe installation certificate directory.' >&2; exit 1; }
+    fi
+    cp -a "$CCNG_INSTALL_DIR/etc" "$CCNG_STAGE/app/etc"
 fi
 PATH="$CCNG_STAGE/app/tools/bin:$CCNG_STAGE/app/tools/node_modules/.bin:$PATH"
 export PATH
@@ -87,6 +98,41 @@ tar -C "$CCNG_STAGE/app" -xf "$CCNG_STAGE/source.tar"
     npm run build
     npm prune --omit=dev --ignore-scripts --no-fund --no-audit
 )
+# Prepare private settings after a successful build, before the atomic swap.
+# Preserve operator settings and keys; no certificate is generated or imported.
+node --input-type=module - "$CCNG_STAGE/app/etc" "$CCNG_INSTALL_DIR" <<'JS'
+import { lstatSync, mkdirSync, chmodSync, writeFileSync, writeSync } from 'node:fs';
+import { join } from 'node:path';
+const directory = process.argv[2]; const prefix = process.argv[3];
+function existing(path) {
+  try { return lstatSync(path); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+}
+function privateDirectory(path) {
+  const info = existing(path);
+  if (info && (!info.isDirectory() || info.isSymbolicLink() || info.uid !== process.getuid())) throw new Error('Refusing an unsafe installation configuration directory.');
+  if (!info) mkdirSync(path, { mode: 0o700 });
+  chmodSync(path, 0o700);
+}
+try {
+  privateDirectory(directory);
+  privateDirectory(join(directory, 'certs'));
+  const file = join(directory, 'config.conf'); const info = existing(file);
+  if (info) {
+    if (!info.isFile() || info.isSymbolicLink() || info.uid !== process.getuid()) throw new Error('Refusing an unsafe installation config.conf.');
+    chmodSync(file, 0o600);
+  } else {
+    if (/[\r\n]/.test(prefix)) throw new Error('The installation directory must not contain line breaks.');
+    const config = '# Command Center NG connection settings. Values are literal text, not YAML or shell.\n'
+      + '# To enable HTTPS, replace the HTTP setting below and uncomment both file paths.\n'
+      + '# connection_type: https\n'
+      + '# tls_certificate: ' + join(prefix, 'etc', 'certs', 'server.crt') + '\n'
+      + '# tls_private_key: ' + join(prefix, 'etc', 'certs', 'server.key') + '\n'
+      + '# Other certificate/key paths are supported when readable by the CCNG user.\n'
+      + 'connection_type: http\n';
+    writeFileSync(file, config, { mode: 0o600, flag: 'wx' });
+  }
+} catch (error) { writeSync(2, 'Could not prepare installation settings: ' + error.message + '\n'); process.exitCode = 1; }
+JS
 CCNG_AUTH_FILE="${CCNG_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/command-center-ng}/auth.json"
 if [ -t 0 ] && [ ! -f "$CCNG_AUTH_FILE" ]; then
     node "$CCNG_STAGE/app/server/password.mjs"
@@ -111,6 +157,10 @@ if ! mv "$CCNG_STAGE/app" "$CCNG_INSTALL_DIR"; then
 fi
 PATH="$CCNG_INSTALL_DIR/tools/bin:$CCNG_INSTALL_DIR/tools/node_modules/.bin:$PATH"
 export PATH
+# Native Codex owns the feature setting; missing/unsupported setup only warns.
+if ! node "$CCNG_INSTALL_DIR/server/codex-setup.mjs" --enable; then
+    echo 'Warning: the Codex question setting could not be configured; Command Center installation will continue.' >&2
+fi
 if ! ccng_beads_setup; then
     echo 'The Command Center application was installed, but Beads task setup failed. Existing setup state was preserved for inspection.' >&2
     exit 1
@@ -131,11 +181,16 @@ JS
 CCNG_VERSION=$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1])).version' "$CCNG_INSTALL_DIR/package.json")
 echo "Installed Command Center NG $CCNG_VERSION into $CCNG_INSTALL_DIR"
 echo "Launcher: $CCNG_INSTALL_DIR/command-center-ng"
+echo "Connection settings: $CCNG_INSTALL_DIR/etc/config.conf (existing settings are preserved)."
 echo 'If not set during installation, set your password with:'
 echo "  node '$CCNG_INSTALL_DIR/server/password.mjs'"
-echo "Start: '$CCNG_INSTALL_DIR/command-center-ng' --host 127.0.0.1 --port 4242"
+echo "Start: '$CCNG_INSTALL_DIR/command-center-ng' (new installations default to HTTP)."
+echo 'To enable HTTPS, edit etc/config.conf and supply readable certificate and private-key files.'
+echo "Explicit localhost HTTP: '$CCNG_INSTALL_DIR/command-center-ng' --protocol http --host 127.0.0.1 --port 4242"
 echo "Optional user service: '$CCNG_INSTALL_DIR/command-center-ng' service install -- [your existing runtime options]"
-echo 'For updates, run ./install.sh --update TARGET_DIR from the source checkout, then restart the app.'
+echo 'For updates, run ./install.sh --update from the source checkout, then restart the app.'
+echo 'For an existing custom directory, include --prefix YOUR_INSTALL_DIRECTORY; installations are not moved automatically.'
 if [ "${CCNG_LOGIN_PENDING:-0}" -eq 1 ]; then echo 'Setup pending: run codex login --device-auth using the tool PATH shown above.'; fi
+if [ "${CCNG_CODEX_PENDING:-0}" -eq 1 ]; then echo 'Setup pending: install or upgrade Codex, then rerun the installer before using Codex agents.'; fi
 echo 'Start the native daemon from a terminal with that tool PATH: codex app-server daemon start'
 echo 'Existing daemons keep their original PATH. If Beads was just added, restart the daemon when existing work is idle before starting new agents.'

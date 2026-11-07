@@ -80,7 +80,43 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.31.2
+## Current development version: 0.32.0
+
+Keep a fixed compact header at the top of each chat window. Put the chat title
+and a four-colour selector on the left; put Codex input receipt, native activity,
+connection state and last real update age on the right. Use smaller text than
+the input, theme-compatible cyan/violet/green/amber choices and existing
+browser-local per-conversation preferences. Distinguish native input acceptance
+from model activity, and transport heartbeats from real worker updates. Mark
+unconfirmed connections and last-known activity truthfully; no guessed stuck
+diagnosis, automatic resend, interruption, worker ping or restart.
+
+The Linux shell installer defaults to ~/commandcenter-ng. Document --prefix
+DIRECTORY for custom home-contained destinations; retain old positional-path
+compatibility and preserve nondefault existing installations without migration.
+Updates to those installations need their exact prefix. Successful installation
+creates INSTALLDIR/etc/config.conf with HTTP active and preceding commented
+HTTPS/certificate examples under INSTALLDIR/etc/certs. Existing settings and
+certificates survive updates. Use simple literal key:value text, not YAML.
+
+Approved: omitted --host selects the Linux default-route IPv4 interface; explicit
+host/environment settings remain overrides. Show interface/address at startup
+and in systemd stdout logs. Explain defaults and overrides in --help and usage.
+HTTP is the default. Foreground and systemd startup read the installed config;
+explicit CLI/environment values remain overrides. When HTTPS is selected, missing or unsuitable TLS inputs
+must not silently downgrade. Check files, X509 validity, key matching and browser
+hostname and explain failure with safe public metadata. Keep login, secure-cookie
+and origin protections. Certificate issuance/renewal stays external for ordinary
+installations. The CaC deployment can create/reuse a self-signed backend pair,
+verify its identities and write the selected HTTPS settings. All actual target
+and environment settings remain in the encrypted private companion. Nginx and
+deployment acceptance are owned by the other conversation; no duplicate setup.
+
+The deployment attempts to provide Codex when missing. Installer/deployment
+attempt native structured-question configuration; startup checks read-only.
+Missing Codex, unsupported features or unsuccessful setup produce warnings and
+allow installation/deployment/startup to proceed. Keep beta warnings and normal
+logs; do not edit native TOML, suppress caveats or restart active native work.
 
 Confirmed manual Codex approval returns keyboard focus to its current editable
 chat draft. Preserve draft contents, native confirmation and errors. Do not

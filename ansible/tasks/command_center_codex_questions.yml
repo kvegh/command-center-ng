@@ -1,0 +1,60 @@
+---
+# The shared setup helper uses native Codex commands and returns safe warnings;
+# it never edits TOML or restarts native processes. Keep setup advisory.
+# Justification: ../../docs/ansible-deployment.md#native-codex-questions
+- name: Check or configure native Codex structured questions without blocking deployment
+  no_log: true
+  block:
+    - name: Ask the installed helper to enable native questions for the selected profile
+      ansible.builtin.command:
+        argv:
+          - node
+          - "{{ ccng_install_dir }}/server/codex-setup.mjs"
+          - --enable
+          - --json
+        chdir: "{{ ccng_project_dir | default(ccng_codex_home) }}"
+      register: ccng_codex_question_setup
+      changed_when: false
+      failed_when: false
+
+    - name: Require a successful helper response before decoding it
+      ansible.builtin.assert:
+        that: ccng_codex_question_setup.rc | default(1) == 0
+        quiet: true
+
+    - name: Decode the helper's safe question-feature status
+      ansible.builtin.set_fact:
+        ccng_codex_question_status: "{{ ccng_codex_question_setup.stdout | from_json }}"
+
+    - name: Require the helper's expected status shape
+      ansible.builtin.assert:
+        that:
+          - ccng_codex_question_status is mapping
+          - ccng_codex_question_status.changed is boolean
+          - ccng_codex_question_status.warnings is sequence
+          - ccng_codex_question_status.warnings is not string
+          - ccng_codex_question_status.warnings is not mapping
+          - >-
+            ccng_codex_question_status.warnings | select('string') | list | length ==
+            ccng_codex_question_status.warnings | length
+        quiet: true
+
+    - name: Report the native question-setup result
+      ansible.builtin.debug:
+        msg: Native Codex question setup finished; any warnings follow below.
+      changed_when: ccng_codex_question_status.changed
+
+    - name: Show safe native question-setup warnings and continue deployment
+      ansible.builtin.debug:
+        msg: "Warning: {{ item }}"
+      loop: "{{ ccng_codex_question_status.warnings }}"
+      no_log: false
+
+  rescue:
+    - name: Warn when native question setup cannot be checked and continue deployment
+      ansible.builtin.debug:
+        msg: >-
+          Warning: Required Codex structured questions could not be checked for the selected
+          profile. Deployment continues; review the native Codex installation
+          and profile access when available.
+      no_log: false

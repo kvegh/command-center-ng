@@ -15,12 +15,13 @@ const quote = (value, exec = false) => '"' + clean(value).replaceAll('\\', '\\\\
 const installation = appDir => '# Installation: ' + clean(appDir);
 
 function runtimeOptions(args) {
-  const allowed = ['host', 'port', 'cwd', 'socket', 'public-origin'];
+  const allowed = ['host', 'port', 'protocol', 'cwd', 'socket', 'public-origin', 'tls-cert', 'tls-key'];
   const { values, positionals } = parseArgs({ args: args[0] === '--' ? args.slice(1) : args, options: Object.fromEntries(allowed.map(name => [name, { type: 'string' }])), strict: true, allowPositionals: false });
   if (positionals.length) throw new Error('Use named Command Center runtime options after service install.');
   for (const value of Object.values(values)) clean(value);
+  if (values.protocol && !['http', 'https'].includes(values.protocol)) throw new Error('Choose --protocol http or https.');
   if (values.port && (!/^\d+$/.test(values.port) || Number(values.port) < 1 || Number(values.port) > 65535)) throw new Error('Choose a port from 1 to 65535.');
-  for (const name of ['cwd', 'socket']) if (values[name] && !isAbsolute(values[name])) throw new Error('--' + name + ' must be an absolute path.');
+  for (const name of ['cwd', 'socket', 'tls-cert', 'tls-key']) if (values[name] && !isAbsolute(values[name])) throw new Error('--' + name + ' must be an absolute path.');
   if (values['public-origin']) {
     const origin = new URL(values['public-origin']);
     if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password) throw new Error('Use an HTTP(S) public origin without credentials.');
@@ -31,8 +32,8 @@ function runtimeOptions(args) {
 export function serviceUnit(appDir, args, env = process.env) {
   const values = runtimeOptions(args);
   const runtime = Object.entries(values).flatMap(([name, value]) => ['--' + name, value]);
-  const variables = ['PATH', 'CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'CCNG_CONFIG_DIR', 'XDG_CONFIG_HOME', 'CCNG_HOST', 'CCNG_PORT', 'CCNG_PUBLIC_ORIGIN', 'BEADS_DIR', 'BEADS_DOLT_SHARED_SERVER'];
-  return [marker, installation(appDir), '[Unit]', 'Description=Command Center NG', '', '[Service]', 'Type=simple',
+  const variables = ['PATH', 'CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'CCNG_CONFIG_DIR', 'XDG_CONFIG_HOME', 'CCNG_HOST', 'CCNG_PORT', 'CCNG_PROTOCOL', 'CCNG_PUBLIC_ORIGIN', 'CCNG_TLS_CERT', 'CCNG_TLS_KEY', 'BEADS_DIR', 'BEADS_DOLT_SHARED_SERVER'];
+  return [marker, installation(appDir), '# Runtime defaults are read from INSTALLDIR/etc/config.conf by the launcher.', '[Unit]', 'Description=Command Center NG', '', '[Service]', 'Type=simple',
     'WorkingDirectory=' + clean(values.cwd || appDir).replaceAll('%', '%%'),
     'ExecStart=' + [quote(join(appDir, 'command-center-ng')), ...runtime.map(value => quote(value, true))].join(' '),
     ...variables.filter(name => env[name] !== undefined).map(name => 'Environment=' + quote(name + '=' + env[name])),
@@ -52,7 +53,7 @@ export async function userService(args, { appDir = resolve(dirname(fileURLToPath
   if (process.platform !== 'linux' || process.getuid() === 0) throw new Error('Use a normal unprivileged Linux account, without sudo.');
   const [action = 'help', ...options] = args;
   if (['help', '--help', '-h'].includes(action)) {
-    console.log('Usage: command-center-ng service install [-- RUNTIME_OPTIONS]\n       command-center-ng service start|stop|restart|status|logs|enable|disable|uninstall\nInstall writes a user unit and reloads systemd; it does not start or enable it.');
+    console.log('Usage: command-center-ng service install [-- RUNTIME_OPTIONS]\n       command-center-ng service start|stop|restart|status|logs|enable|disable|uninstall\nInstall writes a user unit and reloads systemd; it does not start or enable it.\nStartup reads INSTALLDIR/etc/config.conf; saved explicit runtime options/environment override it.');
     return 0;
   }
   if (!['install', 'start', 'stop', 'restart', 'status', 'logs', 'enable', 'disable', 'uninstall'].includes(action)) throw new Error('Unknown user service action. Run command-center-ng service help.');

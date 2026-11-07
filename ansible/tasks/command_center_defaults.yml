@@ -12,6 +12,9 @@
     command_center_bind_address: "{{ command_center_bind_address | default(ccng_default_bind_address) }}"
     command_center_port: "{{ command_center_port | default(ccng_default_port) }}"
     command_center_public_origin: "{{ command_center_public_origin | default(ccng_default_public_origin) }}"
+    command_center_connection_type: "{{ command_center_connection_type | default(ccng_default_connection_type) }}"
+    command_center_tls_days: "{{ command_center_tls_days | default(ccng_default_tls_days) }}"
+    command_center_codex_package: "{{ command_center_codex_package | default(ccng_default_codex_package) }}"
 
 - name: Resolve the application PATH after installation paths are known
   ansible.builtin.set_fact:
@@ -21,6 +24,11 @@
   ansible.builtin.assert:
     that:
       - command_center_revision is match('^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$')
+      - command_center_connection_type in ['http', 'https']
+      - >-
+        command_center_connection_type != 'https' or command_center_public_origin == '' or
+        command_center_public_origin.startswith('https://')
+      - command_center_codex_package is match('^@openai/codex@[0-9]+[.][0-9]+[.][0-9]+$')
       - command_center_port | int >= 1 and command_center_port | int <= 65535
       - command_center_bind_address is match('^[A-Za-z0-9.:-]+$')
       - >-

@@ -1,11 +1,55 @@
 # Current status for handover
 
-Updated: 2026-11-06. This is a development handover snapshot. Beads remains the
+Updated: 2026-11-07. This is a development handover snapshot. Beads remains the
 task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-The authoritative version is **0.31.2** in package.json and the lockfile.
+Release version is **0.32.0** in package.json and the lockfile. It builds on the
+published 0.31.3 source at428cc0041861b6d8bb88af2b1e4ed2faefb2b53a. The earlier
+four deployment design choices were explicitly approved in the owning AAP
+conversation; the previous review hold is resolved. See current Git refs and the
+decision history for implementation/publication IDs. Source release does not
+update or restart a running installation.
+
+The user chose HTTP as the runtime/installer default, superseding the earlier
+HTTPS-default proposal. Normal installation defaults to ~/commandcenter-ng with
+--prefix overrides, creates private etc/config.conf after a successful build,
+and preserves settings/certificates/tools on updates. Commented HTTPS/certificate
+examples precede active HTTP. The file uses literal key:value text and comments;
+YAML is explicitly deferred. Foreground/systemd startup reads that file, with
+explicit CLI/environment values retaining priority. Default-route IPv4 selection
+and startup/help interface/address logging are implemented.
+
+Optional application HTTPS validates real certificate/key format, dates, matching
+key and SAN identities. The CaC-style app playbook generates/reuses its selected
+self-signed backend pair under INSTALLDIR/etc/certs and writes HTTPS settings.
+Actual environment settings and credentials stay encrypted in the private
+companion. Nginx is already handled by the other conversation, as the user
+clarified; this worker's duplicate nginx draft/hooks were removed from the release.
+No nginx rollout, live deployment or installation was run here. Private CaC
+updates and normal deployment acceptance remain with their owning conversation.
+
+Installer/deployment attempt native structured-question setup. Startup checks
+read-only. Missing/unsupported/failed Codex setup is warning-only and does not
+block installation/deployment/startup. Beta warnings stay visible; no native
+TOML edit, warning suppression, daemon/worker restart or model call was used.
+The user enabled the native flag and both saved/effective readback confirmed true;
+that input task is closed. Existing worker adoption remains a live-validation gap.
+
+The compact chat header places title/four-colour selector left and Codex
+receipt/activity/connection status right. Native ACK gates receipt; true native
+updates exclude history/polling/heartbeats. The age and transport freshness are
+separate, with last-known state when unconfirmed and no guessed stuck diagnosis.
+Per-chat colours persist in existing browser preferences. Rendered phone/desktop
+acceptance is unverified; the user will test the protected public site.
+
+Validation:449 Node checks,24 isolated Ansible fixture checks, production build,
+syntax checks and strict production lint pass. Review fixes cover nonblocking
+FIFO refusal, exact installer comment ordering, visible safe Codex warnings and
+browser/backend/health SAN coverage. Earlier runs included withdrawn nginx
+fixtures; those are not claimed as this release's deployment acceptance.
+
 0.15.0 implementation: `af85de795c2339b64bf72e1256cc656d763491a6`.
 Worker capacity implementation: `d69bbb9ebead227e107869e33e72ab80b68efb27`.
 Implementation: `36f5eff4e66283314e4749fd82bcdcea3c07d819`.
@@ -905,3 +949,13 @@ dashboard quality and browser presentation still need live acceptance. No
 service restart, dependency installation or native permission change occurred.
 
 0.27.0 implementation: `cfb0484f8b27670fc89a232a6a0e1b4a759d3bfa`.
+
+
+## Mobile acceptance ownership
+
+Responsive web layouts exist, but actual phone rendering/keyboard/approval flows
+remain unverified. The user will test once the externally accessible site is
+protected with htpasswd. That public nginx/htpasswd setup belongs to the other
+AAP/infrastructure conversation; this chat tracks only CCNG UI acceptance. The
+new mobile acceptance record is open, not a new unanswered deployment question.
+Mobile notifications remain deferred and no native mobile app is selected.

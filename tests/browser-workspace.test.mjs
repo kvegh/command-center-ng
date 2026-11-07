@@ -65,6 +65,43 @@ test('invalid theme preferences do not replace the default or affect other brows
   }
 });
 
+test('each chat colour survives reload without changing another chat or existing preferences', () => {
+  const local = storage();
+  const value = {
+    ...emptyBrowserWorkspace(), selected: 'one', theme: 'light', drafts: { one: 'Keep this draft' },
+    chatColours: { one: 'cyan', two: 'violet', three: 'green', four: 'amber' },
+    taskWatches: { one: ['project-123'] }
+  };
+  assert.equal(saveBrowserWorkspace(value, local), null);
+  assert.deepEqual(loadBrowserWorkspace(local).state, value);
+  const next = { ...value, chatColours: { ...value.chatColours, one: 'green' } };
+  assert.equal(saveBrowserWorkspace(next, local), null);
+  assert.deepEqual(loadBrowserWorkspace(local).state, next);
+  assert.equal(loadBrowserWorkspace(local).state.chatColours.two, 'violet');
+});
+
+test('chat colours reject invalid values and worker IDs without adding defaults to older data', () => {
+  const older = { ...emptyBrowserWorkspace(), selected: 'one', drafts: { one: 'Keep this draft' } };
+  assert.deepEqual(browserWorkspace(older), older);
+  assert.equal(browserWorkspace(older).chatColours, undefined);
+  for (const chatColours of [null, 'cyan', ['cyan'], false, 1]) {
+    assert.deepEqual(browserWorkspace({ ...older, chatColours }), older);
+  }
+  const chatColours = JSON.parse('{"one":"cyan","two":"violet","bad-colour":"red","../invalid":"green","constructor":"amber","prototype":"amber","__proto__":"cyan","wrong-type":{},"empty":""}');
+  const result = browserWorkspace({ ...older, chatColours });
+  assert.deepEqual(result.chatColours, { one: 'cyan', two: 'violet' });
+  assert.equal(result.selected, 'one');
+  assert.deepEqual(result.drafts, older.drafts);
+});
+
+test('chat colour preference count uses the existing workspace bound', () => {
+  const chatColours = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`worker-${i}`, i % 2 ? 'cyan' : 'amber']));
+  const result = browserWorkspace({ ...emptyBrowserWorkspace(), chatColours });
+  assert.equal(Object.keys(result.chatColours).length, 32);
+  assert.equal(result.chatColours['worker-0'], undefined);
+  assert.equal(result.chatColours['worker-39'], 'cyan');
+});
+
 test('task notification subscriptions survive reload including hierarchical Beads IDs', () => {
   const local = storage();
   const value = { ...emptyBrowserWorkspace(), taskWatches: { worker: ['project-123', 'project-123.4'] } };

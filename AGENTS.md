@@ -77,6 +77,32 @@ memory and only the approved workspace metadata in the private workspace file.
 Worker settings stay unchanged. The user also requested draggable tab order with
 accessible controls; preserve the separate coordinator group and chat focus.
 
+## Approved listening address and HTTPS
+
+The user approved automatic default-route IPv4 binding when --host/CCNG_HOST is
+omitted, with selected interface/address in startup logs and optional overrides
+documented in --help. HTTP is the installer and runtime default. After a
+successful build, create INSTALLDIR/etc/config.conf with commented HTTPS and
+certificate/key examples before the active HTTP setting. Use literal key:value
+text and full-line comments; full YAML is deferred and adds no dependency.
+Read the file at foreground/systemd startup; preserve explicit CLI/environment
+overrides and existing config/certificates across updates. Other readable
+certificate paths are allowed. A CaC-selected HTTPS deployment creates/reuses
+its backend pair under INSTALLDIR/etc/certs and updates this config.
+Validate certificate suitability and keep native login, Secure cookies and
+Host/Origin controls; never fall back silently to HTTP. Issuance/renewal stays
+with external tools. Keep actual target/settings data in the private whole-file
+Vault companion. Nginx infrastructure and deployment acceptance testing belong
+to the owning other conversation; do not duplicate its completed setup here.
+Preserve explicit saved settings and the live listener/
+restart ownership boundary; do not update or restart installations for tests.
+
+Deployment attempts to provide the selected native Codex CLI; installer and
+deployment use native Codex feature commands to enable structured questions,
+while startup only checks them. Missing, unsupported or unsuccessful Codex
+setup/checks warn and continue. Keep the development-feature caveat visible;
+do not suppress it, edit native TOML directly or restart active native processes.
+
 ## Code versioning
 
 Use numeric MAJOR.MINOR.PATCH versions. The first implementation starts at
@@ -315,6 +341,18 @@ cadence, interrupting work or answering a pending request.
 
 
 ## Approved worker controls and layout
+
+Keep a compact fixed chat header with the current chat title and four-colour
+selector on the left, Codex input/activity/connection indicators on the right.
+Use smaller text than the composer and theme-compatible cyan/violet/green/amber
+choices in existing browser workspace preferences, isolated by conversation.
+Confirm Input received only after native input acknowledgement. Keep real native
+worker-update age separate from browser/backend heartbeat freshness; disconnected
+or delayed updates show last-known activity, never an invented stuck diagnosis.
+Do not send worker pings, restart/resend work or add agent scheduling for status.
+Claude activity integration remains deferred. Default shell installation goes to
+~/commandcenter-ng; --prefix selects another home-contained app directory.
+Preserve existing installations and require their explicit path for updates.
 
 Escape uses the existing Interrupt action for the visible eligible native turn.
 Keep local dialog/question/select/summary-review/resize and composition Escape

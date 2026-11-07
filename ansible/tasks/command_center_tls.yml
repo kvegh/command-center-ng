@@ -1,0 +1,234 @@
+---
+# Generate only the selected application's backend pair, without another service.
+# Rationale: docs/ansible-deployment.md#backend-certificates-and-native-tools
+- name: Configure the selected application's HTTP or HTTPS settings
+  no_log: true
+  block:
+    - name: Require a supported connection type
+      ansible.builtin.assert:
+        that:
+          - command_center_connection_type | default('http') in ['http', 'https']
+        quiet: true
+
+    - name: Record application-local configuration and certificate paths
+      ansible.builtin.set_fact:
+        ccng_runtime_config: "{{ ccng_install_dir }}/etc/config.conf"
+        ccng_tls_certificate: "{{ ccng_install_dir }}/etc/certs/server.crt"
+        ccng_tls_private_key: "{{ ccng_install_dir }}/etc/certs/server.key"
+        ccng_tls_health_address: >-
+          {{ '127.0.0.1' if command_center_bind_address == '0.0.0.0' else
+             ('::1' if command_center_bind_address == '::' else command_center_bind_address) }}
+
+    - name: Inspect the application configuration directory without following links
+      ansible.builtin.stat:
+        path: "{{ ccng_install_dir }}/etc"
+        follow: false
+        get_checksum: false
+      register: ccng_tls_etc
+
+    - name: Refuse an unsafe application configuration directory
+      ansible.builtin.assert:
+        that:
+          - not ccng_tls_etc.stat.exists or (ccng_tls_etc.stat.isdir | default(false) and not (ccng_tls_etc.stat.islnk | default(false)))
+        quiet: true
+
+    - name: Keep the application configuration directory private
+      ansible.builtin.file:
+        path: "{{ ccng_install_dir }}/etc"
+        state: directory
+        owner: "{{ command_center_user }}"
+        mode: '0700'
+
+    - name: Inspect managed configuration and certificate directory entries
+      ansible.builtin.stat:
+        path: "{{ item }}"
+        follow: false
+        get_checksum: false
+      loop:
+        - "{{ ccng_runtime_config }}"
+        - "{{ ccng_install_dir }}/etc/certs"
+      register: ccng_tls_entries
+
+    - name: Refuse linked or unexpected managed configuration entries
+      ansible.builtin.assert:
+        that:
+          - >-
+            not ccng_tls_entries.results[0].stat.exists or
+            (ccng_tls_entries.results[0].stat.isreg | default(false) and
+             not (ccng_tls_entries.results[0].stat.islnk | default(false)))
+          - >-
+            not ccng_tls_entries.results[1].stat.exists or
+            (ccng_tls_entries.results[1].stat.isdir | default(false) and
+             not (ccng_tls_entries.results[1].stat.islnk | default(false)))
+        quiet: true
+
+    - name: Prepare or verify the selected backend certificate pair
+      when: command_center_connection_type | default('http') == 'https'
+      block:
+        - name: Require the selected certificate name and lifetime
+          ansible.builtin.assert:
+            that:
+              - command_center_tls_server_name is defined
+              - command_center_tls_server_name is string
+              - command_center_tls_server_name is match('^[A-Za-z0-9:][A-Za-z0-9.:-]*$')
+              - command_center_tls_days | default(365) | string is match('^[0-9]{1,4}$')
+              - command_center_tls_days | default(365) | int >= 1
+              - command_center_tls_days | default(365) | int <= 3650
+            quiet: true
+
+        - name: Keep the application's certificate directory private
+          ansible.builtin.file:
+            path: "{{ ccng_install_dir }}/etc/certs"
+            state: directory
+            owner: "{{ command_center_user }}"
+            mode: '0700'
+
+        - name: Inspect both existing certificate files without following links
+          ansible.builtin.stat:
+            path: "{{ item }}"
+            follow: false
+            get_checksum: false
+          loop:
+            - "{{ ccng_tls_certificate }}"
+            - "{{ ccng_tls_private_key }}"
+          register: ccng_tls_pair
+
+        - name: Refuse a partial linked or non-file certificate pair
+          ansible.builtin.assert:
+            that:
+              - ccng_tls_pair.results[0].stat.exists == ccng_tls_pair.results[1].stat.exists
+              - not item.stat.exists or (item.stat.isreg | default(false) and not (item.stat.islnk | default(false)))
+            quiet: true
+          loop: "{{ ccng_tls_pair.results }}"
+
+        - name: Record the certificate's selected DNS or IP identities
+          ansible.builtin.set_fact:
+            ccng_tls_subject_alt_names:
+              - >-
+                {{ ('IP:' if ':' in command_center_tls_server_name or
+                    command_center_tls_server_name is match('^(?:[0-9]{1,3}[.]){3}[0-9]{1,3}$') else 'DNS:') ~
+                   command_center_tls_server_name }}
+              - >-
+                {{ ('IP:' if ':' in ccng_tls_health_address or
+                    ccng_tls_health_address is match('^(?:[0-9]{1,3}[.]){3}[0-9]{1,3}$') else 'DNS:') ~
+                   ccng_tls_health_address }}
+
+        - name: Include the configured browser hostname in the certificate identities
+          ansible.builtin.set_fact:
+            ccng_tls_subject_alt_names: >-
+              {{ ccng_tls_subject_alt_names +
+                 [('IP:' if ':' in ccng_tls_browser_name or
+                   ccng_tls_browser_name is match('^(?:[0-9]{1,3}[.]){3}[0-9]{1,3}$') else 'DNS:') ~
+                  ccng_tls_browser_name] }}
+          vars:
+            ccng_tls_browser_name: "{{ command_center_public_origin | ansible.builtin.urlsplit('hostname') }}"
+          when: command_center_public_origin | default('') | length > 0
+
+        - name: Create a new self-signed pair only when neither file exists
+          when: not ccng_tls_pair.results[0].stat.exists
+          block:
+            - name: Allocate a private temporary certificate directory
+              ansible.builtin.tempfile:
+                state: directory
+                path: "{{ ccng_install_dir }}/etc/certs"
+                prefix: .new-pair-
+              register: ccng_tls_temporary
+
+            # The certified certificate role adds certmonger. Use existing OpenSSL
+            # for this one pair: docs/ansible-deployment.md#backend-certificates-and-native-tools
+            - name: Generate the application pair with explicit subject alternative names
+              ansible.builtin.command:
+                argv:
+                  - openssl
+                  - req
+                  - -x509
+                  - -newkey
+                  - rsa:3072
+                  - -noenc
+                  - -keyout
+                  - "{{ ccng_tls_temporary.path }}/server.key"
+                  - -out
+                  - "{{ ccng_tls_temporary.path }}/server.crt"
+                  - -days
+                  - "{{ command_center_tls_days | default(365) | string }}"
+                  - -subj
+                  - "/CN={{ command_center_tls_server_name }}"
+                  - -addext
+                  - "subjectAltName={{ ccng_tls_subject_alt_names | unique | join(',') }}"
+              changed_when: true
+
+            - name: Install the generated private key and public certificate
+              ansible.builtin.copy:
+                src: "{{ ccng_tls_temporary.path }}/{{ item.name }}"
+                dest: "{{ ccng_install_dir }}/etc/certs/{{ item.name }}"
+                remote_src: true
+                owner: "{{ command_center_user }}"
+                mode: "{{ item.mode }}"
+                force: false
+              loop:
+                - {name: server.key, mode: '0600'}
+                - {name: server.crt, mode: '0644'}
+              diff: false
+              notify: Restart Command Center
+          always:
+            - name: Remove only the temporary generated-pair directory
+              ansible.builtin.file:
+                path: "{{ ccng_tls_temporary.path }}"
+                state: absent
+              when: ccng_tls_temporary.path is defined
+
+        - name: Read the certificate's public key
+          ansible.builtin.command:
+            argv: [openssl, x509, -in, "{{ ccng_tls_certificate }}", -pubkey, -noout]
+          register: ccng_tls_cert_public_key
+          changed_when: false
+
+        - name: Read the private key's public component without exposing the private key
+          ansible.builtin.command:
+            argv: [openssl, pkey, -in, "{{ ccng_tls_private_key }}", -pubout]
+            stdin: ''
+          register: ccng_tls_key_public_key
+          changed_when: false
+
+        - name: Require the existing certificate and key to match
+          ansible.builtin.assert:
+            that: ccng_tls_cert_public_key.stdout == ccng_tls_key_public_key.stdout
+            quiet: true
+
+        - name: Require a subject alternative name extension
+          ansible.builtin.command:
+            argv: [openssl, x509, -in, "{{ ccng_tls_certificate }}", -noout, -ext, subjectAltName]
+          register: ccng_tls_existing_san
+          changed_when: false
+          failed_when: ccng_tls_existing_san.rc != 0 or 'Subject Alternative Name:' not in ccng_tls_existing_san.stdout
+
+        - name: Verify certificate dates signature and all selected endpoint names
+          ansible.builtin.command:
+            argv:
+              - openssl
+              - verify
+              - -CAfile
+              - "{{ ccng_tls_certificate }}"
+              - "{{ '-verify_ip' if item.startswith('IP:') else '-verify_hostname' }}"
+              - "{{ item.split(':', 1)[1] }}"
+              - "{{ ccng_tls_certificate }}"
+          loop: "{{ ccng_tls_subject_alt_names | unique }}"
+          changed_when: false
+
+        - name: Keep the verified private key protected and public certificate readable
+          ansible.builtin.file:
+            path: "{{ item.path }}"
+            owner: "{{ command_center_user }}"
+            mode: "{{ item.mode }}"
+          loop:
+            - {path: "{{ ccng_tls_private_key }}", mode: '0600'}
+            - {path: "{{ ccng_tls_certificate }}", mode: '0644'}
+
+    - name: Write the selected protocol and certificate paths to the application config
+      ansible.builtin.template:
+        src: templates/command-center-ng.conf.j2
+        dest: "{{ ccng_runtime_config }}"
+        owner: "{{ command_center_user }}"
+        mode: '0600'
+      diff: false
+      notify: Restart Command Center

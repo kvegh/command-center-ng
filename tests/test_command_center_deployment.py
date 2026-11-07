@@ -287,6 +287,21 @@ class CommandCenterDeploymentTests(unittest.TestCase):
         self.assertNotIn("ExecStartPre", text)
         self.assertNotIn("codex app-server", text)
         self.assertNotIn(canary, (config / "service.env").read_text())
+        service_env = {
+            name: json.loads(value)
+            for line in (config / "service.env").read_text().splitlines()
+            if line and not line.startswith("#")
+            for name, value in [line.split("=", 1)]
+        }
+        runtime = subprocess.run(
+            ["node", "--input-type=module", "-e",
+             "const {runtimeOptions}=await import(process.argv[2]);"
+             "console.log(JSON.stringify(runtimeOptions([],JSON.parse(process.argv[3]))));",
+             "ccng-template-fixture", str(ROOT / "server/main.mjs"), json.dumps(service_env)],
+            capture_output=True, text=True, check=False, timeout=15,
+        )
+        self.assertEqual(runtime.returncode, 0, runtime.stderr)
+        self.assertEqual(json.loads(runtime.stdout)["protocol"], "http")
         verify = subprocess.run(["systemd-analyze", "verify", "--man=no", str(unit)],
                                 capture_output=True, text=True, check=False, timeout=30)
         self.assertEqual(verify.returncode, 0, verify.stdout + verify.stderr)

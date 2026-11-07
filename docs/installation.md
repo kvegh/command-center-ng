@@ -19,25 +19,73 @@ Linux distributions are not yet tested; automatic package setup is RHEL 9 only.
 Run `./install.sh --check` for a read-only inventory. Full details and package
 names are in [RHEL 9 prerequisites](rhel9-prerequisites.md).
 
-Beads 1.3.2 and Codex 0.166.0 are the verified CLI versions used for optional
+The installer offers pinned Beads 1.3.2 and Codex 0.167.0 CLI packages for optional
 fresh local installation. Existing compatible CLIs are reused. The application
 checks Beads JSON/read-only/brief-list support. After the application is built,
 fresh tracker/shared Dolt setup is offered for an explicitly selected task
 workspace. Existing trackers and connection settings are preserved. No system
 package, global tool, tracker or server is changed without terminal confirmation.
+Codex readiness and native question setup are advisory: missing or incompatible
+Codex produces a warning while CCNG installation continues. Node.js, npm and
+Beads prerequisites remain required.
 
 From the cloned repository:
 
 ```sh
-./install.sh "$HOME/apps/command-center-ng"
+./install.sh
+# Optional destination override:
+./install.sh --prefix "$HOME/apps/commandcenter-ng"
 ```
 
-The directory parameter selects the destination. Without it, the installer asks
-for a target directory before doing any work. The destination must remain
+The default destination is `~/commandcenter-ng`; `--prefix DIRECTORY` selects
+another destination. The destination must remain
 inside your home. Unrelated directories and launchers are not overwritten.
+Older positional directory arguments remain accepted for existing update scripts;
+new commands should use `--prefix`. Updating a nondefault installation requires
+its existing path explicitly; the installer does not discover, move or delete it.
 The installer builds the frontend, prunes build-only dependencies, and creates
 `command-center-ng` inside the selected target. On the first interactive install, it prompts
 for an application password of at least 12 characters.
+
+## Application connection settings
+
+After a successful build, the installer prepares `INSTALLDIR/etc/config.conf`
+and an `INSTALLDIR/etc/certs/` directory before replacing the installation.
+`INSTALLDIR` is `~/commandcenter-ng` by default, or the selected `--prefix`.
+New installations use HTTP. The generated config contains commented HTTPS
+examples before the active HTTP setting:
+
+```text
+# connection_type: https
+# tls_certificate: /INSTALLDIR/etc/certs/server.crt
+# tls_private_key: /INSTALLDIR/etc/certs/server.key
+# Other readable certificate/key paths are supported.
+connection_type: http
+```
+
+The installer fills in the actual selected installation path; `/INSTALLDIR`
+above is only a documentation placeholder. Normal installation does not generate
+certificates. Updates preserve existing configuration, certificate files and
+managed tools. The configuration and certificate directories are private
+(mode 700), and the config is mode 600. Unsafe managed symlinks are refused.
+
+The launcher reads this same config during foreground and systemd startup.
+Supported settings are `connection_type`, `tls_certificate`, `tls_private_key`,
+`host`, `port` and `public_origin`. Use one literal `key: value` per line, with
+`#` comments on their own lines. Spaces and `#` inside a value are literal;
+quotes, environment variables, `~` and shell expressions are not expanded.
+This is a small text settings format, not YAML, and adds no parser dependency.
+Duplicate or unsupported keys and malformed settings stop startup with a useful
+error. Certificate paths may be absolute or relative to the config directory;
+other directories work when readable by the application account.
+
+Explicit command-line options override environment values, which override this
+file. Saved explicit service options still take precedence after an update.
+Restart CCNG deliberately after editing settings; it does not reload them while
+running. Password and saved conversation metadata use the separate private
+directory described below, rather than this connection file.
+
+## Password and saved workspace
 
 Passwords are stored only as salted scrypt hashes in
 `${XDG_CONFIG_HOME:-$HOME/.config}/command-center-ng/auth.json`, with owner-only
@@ -61,18 +109,95 @@ If CLIs were installed under the target, export its
 can also find Beads. An already-running daemon retains its original PATH; after
 adding Beads, restart it only when existing work is idle.
 
-Start `codex app-server daemon start` using the same account and Codex home as
-the conversations to manage, then run `"$HOME/apps/command-center-ng/command-center-ng"`
+For native agent operation, start `codex app-server daemon start` using the same
+account and Codex home as
+the conversations to manage, then run `"$HOME/commandcenter-ng/command-center-ng"`
 (adjusting the destination to your installation). The
-default URL is http://localhost:4242. The application connects to the existing
+listening address is selected as described below; use an explicit loopback host
+for local-only access. The application connects to the existing
 daemon and reports disconnection rather than starting a replacement.
 
-## VM access through nginx
+## Native Codex question setup
 
-Use `--host VM_INTERNAL_IP --port 4242` for the VM's internal interface. Set
+After installation, CCNG attempts to enable native
+`default_mode_request_user_input` for the selected Codex profile through Codex's
+own `features` commands. The deployment playbook uses the same helper. Native
+Codex owns persistence; CCNG does not write TOML directly. At app startup the
+helper only checks the setting and reports warnings.
+
+Missing Codex, unsupported feature interfaces, permission failures, timeouts or
+unconfirmed changes warn and continue installation, deployment or startup.
+Agent use may remain unavailable until native setup is completed. The feature
+is currently under development; its compatibility warning remains visible and
+the installer does not suppress unstable-feature warnings. Existing daemons
+and workers are not restarted, and saving the flag does not prove an already
+running worker has adopted it. A selected profile may be shared with other Codex
+clients, so the native setting can affect those clients too. See the
+[deployment details](ansible-deployment.md#native-codex-questions).
+
+## Listening address and HTTPS
+
+`command-center-ng --help` (or `-h`) prints all runtime controls without reading
+authentication, detecting routes, starting services or creating a workspace.
+Without a configured `host`, `--host` or `CCNG_HOST`, Linux selects the usable
+lowest-metric default
+IPv4 route and its interface address. Startup prints that interface, IP, port and
+protocol; systemd captures the same stdout in its journal. The existing `ip`
+command from iproute is required only for automatic selection. Ambiguous or
+unavailable routes fail with guidance to select `--host ADDRESS`; no wildcard
+or loopback fallback is inferred. An address changing later requires a restart.
+
+Use `--host 127.0.0.1` for localhost, a specific local IP for one address, or
+`--host 0.0.0.0` deliberately for all IPv4 interfaces. Explicit saved service
+arguments/environment remain effective; updating code does not replace them.
+
+HTTP is the launcher default. To enable HTTPS in `etc/config.conf`, set
+`connection_type: https` and provide both `tls_certificate` (PEM certificate
+chain, leaf first) and `tls_private_key` (matching private key). Alternatively,
+use `--protocol https --tls-cert FILE --tls-key FILE`, or the corresponding
+`CCNG_PROTOCOL`, `CCNG_TLS_CERT` and `CCNG_TLS_KEY` environment values.
+The service account must be able to read the files. Keep actual key material
+outside Git. The normal installer/runtime does not issue or renew certificates;
+the application deployment playbook can generate its selected self-signed pair.
+After external renewal, restart CCNG to load the replacement files. Startup checks
+format, dates, key matching and browser SAN identity and shows safe public
+certificate information; failures do not enable HTTP. This does not establish
+browser trust in a private/self-signed issuer or perform revocation checks.
+
+Use `--public-origin https://command-center.example:4242` for a DNS certificate
+when directly browsing that nonstandard port. Behind nginx's external port 443,
+the public origin instead omits the internal port. Native HTTPS uses Secure
+cookies and the existing login/Host/Origin guards. Certificate-file paths are
+also supported by user-service runtime options. Supplying certificate paths
+alone does not change the HTTP default. An explicitly selected HTTPS mode with
+missing or unsuitable certificate files fails rather than falling back to HTTP.
+
+Deliberately select `--protocol http` (or `CCNG_PROTOCOL=http`) for localhost,
+proxy or debugging use. Explicit HTTP ignores TLS file settings. It does not
+enable TLS, remove the application login or configure external access.
+The Ansible playbook writes its selected protocol and certificate paths into
+the same application config; its default is HTTP and its HTTPS mode is explicit.
+
+### Existing nginx proxy settings
+
+Use `--protocol http --host VM_INTERNAL_IP --port 4242` for an HTTP backend on the
+VM's internal interface. Set
 `--public-origin https://command-center.example` to the exact browser-facing
 origin. It enables Secure cookies and permits that proxy hostname. These values
 are deployment placeholders; do not commit real addresses or credentials.
+
+Browser-to-nginx HTTPS and nginx-to-CCNG HTTPS are separate connections. An HTTP
+backend needs no CCNG certificate and leaves that internal connection unencrypted.
+For a verified HTTPS backend, nginx must trust CCNG's certificate issuer and
+verify the expected server name; a newly self-signed certificate is not trusted
+automatically. Nginx's default upstream verification is off, so connectivity alone
+does not establish verification. See the official
+[nginx verification](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_ssl_verify)
+and [trusted certificate](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_ssl_trusted_certificate)
+directives. The application installer does not alter a proxy's trust configuration.
+Nginx and the real environment's external route are managed separately from
+CCNG's application deployment; this guide does not claim their live
+configuration has been verified.
 
 Nginx should enforce its own authentication, preserve Host, and avoid buffering
 the live event stream. A generic location inside an existing TLS server is:
@@ -110,12 +235,14 @@ needed. Update the installation first so its launcher includes the service
 commands, then register it with the same runtime options as your foreground app:
 
 ```sh
-"$HOME/apps/command-center-ng/command-center-ng" service install -- \
-  --host 127.0.0.1 --port 4242 --cwd "$HOME/projects/WORKSPACE"
+"$HOME/commandcenter-ng/command-center-ng" service install -- \
+  --host 127.0.0.1 --cwd "$HOME/projects/WORKSPACE"
 ```
 
 Replace the installation/workspace placeholders and retain your existing host,
-port, public origin and socket options. Registration writes an owner-only
+port, public origin and socket options. The example deliberately saves only the
+host/workspace overrides so `etc/config.conf` continues to select the protocol
+and certificate files. Registration writes an owner-only
 `${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/command-center-ng.service`
 and reloads the user manager. It does not start, restart or enable the app.
 It preserves the current PATH and explicitly configured Codex/Claude/CCNG profile
@@ -131,8 +258,8 @@ existing tracker, retain your current runtime options, and then restart when saf
 
 ```sh
 BEADS_DIR="$HOME/EXISTING_WORKSPACE/.beads" BEADS_DOLT_SHARED_SERVER=1 \
-  "$HOME/apps/command-center-ng/command-center-ng" service install -- \
-  --host 127.0.0.1 --port 4242 --cwd "$HOME/projects/WORKSPACE"
+  "$HOME/commandcenter-ng/command-center-ng" service install -- \
+  --host 127.0.0.1 --cwd "$HOME/projects/WORKSPACE"
 ```
 
 The shared-server value above applies only when already used by that tracker;
@@ -146,17 +273,26 @@ After current managed Claude work has finished, stop the foreground CCNG copy
 once with Ctrl+C, then use:
 
 ```sh
-"$HOME/apps/command-center-ng/command-center-ng" service start
-"$HOME/apps/command-center-ng/command-center-ng" service status
-"$HOME/apps/command-center-ng/command-center-ng" service restart
-"$HOME/apps/command-center-ng/command-center-ng" service stop
-"$HOME/apps/command-center-ng/command-center-ng" service logs
+"$HOME/commandcenter-ng/command-center-ng" service start
+"$HOME/commandcenter-ng/command-center-ng" service status
+"$HOME/commandcenter-ng/command-center-ng" service restart
+"$HOME/commandcenter-ng/command-center-ng" service stop
+"$HOME/commandcenter-ng/command-center-ng" service logs
 ```
 
 The equivalents are `systemctl --user start|status|restart|stop
 command-center-ng.service` and `journalctl --user -u command-center-ng.service`.
-The launcher logs command shows the latest100 lines; add `-f` to the direct
-journalctl command to follow output. Inactive status retains systemctl's nonzero
+The launcher logs command shows the latest 100 lines. To follow startup messages,
+errors and Codex readiness warnings from the user service:
+
+```sh
+journalctl --user -u command-center-ng.service -f
+```
+
+The Ansible-managed system service uses `journalctl -u command-center-ng.service`
+instead of `--user`, subject to the account's journal permissions. CCNG writes
+to stdout/stderr; no separate log-file service is introduced.
+Inactive status retains systemctl's nonzero
 exit status. The service restarts after unexpected failure and stops gracefully
 on request; stopping CCNG ends its SDK-owned Claude runs while native history
 survives. The separately running Codex daemon is not started, stopped or changed.
@@ -178,11 +314,14 @@ Running the launcher without `service` still starts it in the foreground.
 From the source checkout, run:
 
 ```sh
-./install.sh --update "$HOME/apps/command-center-ng"
+./install.sh --update
+# For a nondefault existing installation:
+./install.sh --update --prefix "$HOME/apps/commandcenter-ng"
 ```
 
-Use your existing installation directory. Without a directory the installer
-asks for it. Git is required for updates. The installer fetches latest `main`
+Use your existing installation directory. Without --prefix, updates address
+~/commandcenter-ng; another existing path must be supplied explicitly. No
+installation is moved automatically. Git is required for updates. The installer fetches latest `main`
 from `origin`, permits only a fast-forward from a clean `main` checkout, and
 reruns the fetched installer. It refuses uncommitted changes, local commits
 absent upstream, and another branch rather than discarding work. Source fetch
@@ -191,7 +330,7 @@ or build failure leaves the existing installation in place.
 The target may be inside the source checkout, for example:
 
 ```sh
-./install.sh --update ./targetdir
+./install.sh --update --prefix ./local-install
 ```
 
 The existing installation is generated output, so its untracked files do not
@@ -204,8 +343,10 @@ On the first update from 0.0.1 or 0.0.2, run `git pull --ff-only` first: those
 installers do not yet understand `--update`. Future updates fetch automatically.
 Ordinary installation after a manual pull also remains supported.
 
-The application password and workspace files stay in private configuration outside the target.
-Restart the app after updating, using `TARGET_DIR/command-center-ng`; the installer
+The entire installed `etc/` tree, including settings and certificate files,
+survives ordinary updates. Existing managed tools are preserved too. The
+application password and workspace files stay in private configuration outside the target.
+Restart the app after updating, using `PREFIX/command-center-ng`; the installer
 does not restart running applications or the Codex daemon. Update an existing
 service's launch path yourself if it previously used the global shortcut.
 
@@ -227,7 +368,8 @@ For a fresh setup, select an existing task workspace at the terminal prompt, or
 pass it explicitly:
 
 ```sh
-./install.sh --workspace "$HOME/projects/WORKSPACE" "$HOME/apps/command-center-ng"
+./install.sh --workspace "$HOME/projects/WORKSPACE"
+# Add --prefix DIRECTORY if the app should not use ~/commandcenter-ng.
 ```
 
 The directory option selects the workspace; it does not approve changes. The
@@ -238,7 +380,7 @@ server, using its existing lifecycle and per-project database isolation. It does
 not initialize the Command Center source checkout unless you explicitly select
 it, and it leaves project agent instructions and Git hooks unchanged.
 
-Missing Dolt is offered separately under `TARGET_DIR/tools/bin`, using the
+Missing Dolt is offered separately under `PREFIX/tools/bin`, using the
 official Linux amd64/arm64 archive pinned to Dolt 2.2.0 for Beads 1.3.2. Its
 published SHA256 is checked before extraction; existing Dolt is reused rather
 than replaced. Downloading requires curl; a missing RHEL 9 curl RPM is offered

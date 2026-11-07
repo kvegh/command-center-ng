@@ -1,0 +1,18 @@
+# Managed by Command Center Ansible deployment.
+# Plain-text key:value settings; this file does not use YAML or shell expansion.
+# Certificate/key paths may point elsewhere if the application account can read them.
+{% if command_center_connection_type | default('http') == 'http' %}
+# connection_type: https
+# tls_certificate: {{ ccng_tls_certificate }}
+# tls_private_key: {{ ccng_tls_private_key }}
+connection_type: http
+{% else %}
+connection_type: https
+tls_certificate: {{ ccng_tls_certificate }}
+tls_private_key: {{ ccng_tls_private_key }}
+{% endif %}
+host: {{ command_center_bind_address }}
+port: {{ command_center_port }}
+{% if command_center_public_origin | default('') | length > 0 %}
+public_origin: {{ command_center_public_origin }}
+{% endif %}

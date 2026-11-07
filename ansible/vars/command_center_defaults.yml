@@ -4,12 +4,15 @@ ccng_default_revision: main
 ccng_default_manage_packages: true
 ccng_default_force_install: false
 ccng_default_source_dir: "{{ ccng_user_home }}/.local/src/command-center-ng"
-ccng_default_install_dir: "{{ ccng_user_home }}/apps/command-center-ng"
+ccng_default_install_dir: "{{ ccng_user_home }}/commandcenter-ng"
 ccng_default_config_dir: "{{ ccng_user_home }}/.config/command-center-ng"
 ccng_default_codex_home: "{{ ccng_user_home }}/.codex"
 ccng_default_bind_address: 127.0.0.1
 ccng_default_port: 4242
 ccng_default_public_origin: ""
+ccng_default_connection_type: http
+ccng_default_tls_days: 365
+ccng_default_codex_package: "@openai/codex@0.167.0"
 ccng_default_path: >-
   {{ [command_center_install_dir ~ '/tools/bin',
       command_center_install_dir ~ '/tools/node_modules/.bin',

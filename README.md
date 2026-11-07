@@ -5,12 +5,31 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-**Version 0.31.2 (in development)** includes local Codex and Claude workspaces and the Linux installer. It supports
+Version 0.32.0 adds HTTP-default installed configuration, optional native HTTPS,
+automatic interface selection, warning-only Codex setup/checks and a compact chat
+header with per-chat colours and separate receipt/activity/connection indicators.
+All 449 application checks, 24 isolated native Ansible checks, strict production
+lint and the production build pass. Independent integration review fixes are
+verified. Actual installed/browser acceptance remains separate; nginx and
+deployment testing are externally owned. Source publication does not update a
+running installation.
+
+**Version 0.32.0** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The classic dark graphite theme uses cyan controls,
 green running states, and amber attention states; contrastful and light themes
 are available from the compact palette menu.
+A fixed chat header shows the full chat title when space permits and an adjacent
+four-colour selector: cyan, violet, green or amber. Each chat's choice stays in
+the existing browser workspace settings. Title text is 12px and status text 11px,
+smaller than the chat input. On Codex chats the right side distinguishes Sending,
+native-acknowledged Input received, Working, Needs your answer and native turn
+outcomes from the connection status and time since the last real agent update.
+Missing connection updates make activity explicitly last-known; a quiet agent is
+not declared stuck. Browser/backend heartbeats never count as agent activity.
+The header stays above the scrolling history and wraps on narrow screens.
+Actual rendered browser behavior remains unverified; Claude status work stays deferred.
 The interface uses one local Node.js service, the existing Codex daemon and the
 official Claude Agent SDK. Each provider keeps its native session history and execution.
 A compact top bar puts the agent tabs and controls first, with branding at the
@@ -276,19 +295,21 @@ chosen target, always after terminal confirmation. See the
 [RHEL 9 prerequisite guide](docs/rhel9-prerequisites.md). Beads must be on PATH for both the app and working agents.
 The installer and app check for JSON/read-only/brief-list support; Beads 1.3.2
 was verified. See the [official Beads installation guide](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md).
-The native integration is tested with Codex 0.166.0. Fresh local Dolt provisioning and Beads initialization are offered for an
+Fresh optional Codex installation is pinned to 0.167.0; existing compatible
+CLIs are reused. Native CLI/schema checks cover the supported 0.166–0.167 interface. Fresh local Dolt provisioning and Beads initialization are offered for an
 explicitly selected task workspace after terminal confirmation; existing
 trackers and connection settings are preserved. System packages are changed only after
 explicit installer confirmation.
 
-Clone this repository and run the installer with a target directory:
+Clone this repository and run the installer:
 
 ```sh
-./install.sh "$HOME/apps/command-center-ng"
+./install.sh
 ```
 
-Without the directory parameter, `./install.sh` prompts for the target before
-doing any installation work. The target must be inside your home. The script
+It defaults to `~/commandcenter-ng`. Use `--prefix "$HOME/apps/commandcenter-ng"`
+to choose another directory inside your home. Existing installations at another
+path need that explicit prefix for updates; they are not moved automatically. The script
 builds the app, removes build-only dependencies, and creates the launcher
 `command-center-ng` inside that target directory. The first interactive install also prompts for
 an application password; its hash stays outside the repository.
@@ -297,19 +318,33 @@ If the installer added CLIs locally, first add them to the terminal PATH. Start
 the native Codex daemon from that terminal, then the application:
 
 ```sh
-export PATH="$HOME/apps/command-center-ng/tools/node_modules/.bin:$PATH"
+export PATH="$HOME/commandcenter-ng/tools/bin:$HOME/commandcenter-ng/tools/node_modules/.bin:$PATH"
 codex app-server daemon start
-"$HOME/apps/command-center-ng/command-center-ng"
+"$HOME/commandcenter-ng/command-center-ng"
 ```
 
-Open **http://localhost:4242** and sign in. Installation does not add a service
+The installer creates `INSTALLDIR/etc/config.conf` with HTTP active and commented
+HTTPS certificate/key examples above it. Edit that file to select HTTPS and
+readable certificate paths; configuration is read on foreground/systemd startup.
+Updates preserve this file and existing certificates. The format is simple literal
+`key: value` text with full-line comments, without YAML or shell expansion.
+Explicit CLI/environment values override file settings. An omitted host selects
+the Linux default-route IPv4 interface and reports its address at startup; use
+`--host 127.0.0.1` for localhost only. See the
+[listener and TLS options](docs/installation.md#listening-address-and-https).
+
+Installer and deployment attempt to enable native Codex structured questions;
+startup checks them without changing settings. Missing Codex or unsuccessful
+setup is a warning and CCNG continues. The feature is under development, so its
+warning remains visible and existing workers are not automatically restarted.
+Installation does not add a service
 or boot autostart. If installed noninteractively, first run the installed
 `server/password.mjs` with Node to set a password.
 
 For a VM behind nginx, set the internal interface and browser-facing origin:
 
 ```sh
-"$HOME/apps/command-center-ng/command-center-ng" --host VM_INTERNAL_IP --port 4242 --public-origin https://command-center.example
+"$HOME/commandcenter-ng/command-center-ng" --protocol http --host VM_INTERNAL_IP --port 4242 --public-origin https://command-center.example
 ```
 
 Replace the placeholders with your deployment values. Configure nginx's own
@@ -319,14 +354,16 @@ See [installation and proxy details](docs/installation.md).
 To update, run this from your clean source checkout, using the same target:
 
 ```sh
-./install.sh --update "$HOME/apps/command-center-ng"
+./install.sh --update
+# For an existing installation elsewhere:
+./install.sh --update --prefix "$HOME/apps/commandcenter-ng"
 ```
 
 It fetches latest `main` automatically, advances the source without overwriting
 local changes, and rebuilds the installation. For the first update from 0.0.x,
 run `git pull --ff-only` first to obtain the new installer. Restart the application
 after installation. Your password and saved workspace files are preserved; the Codex daemon stays running.
-An installation inside the checkout, such as `./targetdir`, is supported: its
+An installation inside the checkout, selected with `--prefix ./local-install`, is supported: its
 untracked output is excluded from the source-change check. Tracked source edits
 and unrelated untracked files still block automatic updates.
 
@@ -390,8 +427,10 @@ encrypted runtime delivery, SSH pin preparation and target-local tool lookup.
 through the maintained installer and enables `command-center-ng.service`, whose
 process runs as an existing unprivileged account. A first preflight rejects
 anything other than genuine RHEL 9 with systemd before making target changes.
-This mode reuses an existing signed-in Codex profile, running native daemon and
-ready Beads tracker. It does not provision a fresh agent environment.
+This mode preserves existing Codex profiles and native daemons. Missing Codex,
+unavailable sign-in/daemon or unsuccessful feature setup warns and continues;
+ready native agent operation remains separate from application deployment. It requires a
+ready Beads tracker. It preserves existing authentication and native processes.
 
 Reusable playbooks, templates and synthetic examples live in this public repo.
 AAP CaC and all actual deployment settings belong as whole-file Vault ciphertext
@@ -404,8 +443,9 @@ The shared AAP CaC importer can save whole-file runtime ciphertext on the
 application Job Template. Native Ansible tasks select its expected instance,
 bind only documented deployment inputs, and remove the temporary ciphertext.
 Direct inventory/extra-variable deployment remains supported. The selected
-account's native login, daemon, tracker, source Git access and initial app password
-remain prerequisites; importing CaC does not provide those credentials.
+account still needs native login and a running daemon for agent operation. A ready
+tracker, source Git access and an initial app password are separate deployment
+inputs; importing CaC does not create or copy those credentials.
 
 The 0.31.3 repair passed 367 Node checks, 11 native deployment fixtures, strict
 Ansible lint, syntax checks and a production build. Actual AAP deployment and
@@ -1032,7 +1072,7 @@ Native delivery and safe checkpoints still limit response time.
 
 
 Version 0.22.0 adds an optional user-level systemd service through the installed
-launcher. Run `TARGET_DIR/command-center-ng service install -- YOUR_RUNTIME_OPTIONS`
+launcher. Run `PREFIX/command-center-ng service install -- YOUR_RUNTIME_OPTIONS`
 with your existing bind/origin/directory options. Installation writes the owned
 user unit and reloads systemd; start and enable remain explicit. Stop a foreground
 copy before starting the service. Repeating installation without options preserves

@@ -130,6 +130,14 @@
         state: present
       when: command_center_manage_packages | bool
 
+    - name: Install the existing OpenSSL certificate utility for HTTPS deployment
+      ansible.builtin.dnf:
+        name: openssl
+        state: present
+      when:
+        - command_center_manage_packages | bool
+        - command_center_connection_type == 'https'
+
     - name: Inspect the account's selected Node.js version
       ansible.builtin.command:
         argv:
@@ -212,12 +220,14 @@
           loop: ["{{ ccng_project_dir }}", "{{ ccng_codex_home }}"]
           register: ccng_existing_paths
 
-        - name: Require the existing project and owned Codex profile
+        - name: Require the existing project and protect any existing Codex profile
           ansible.builtin.assert:
             that:
               - ccng_existing_paths.results[0].stat.isdir | default(false)
-              - ccng_existing_paths.results[1].stat.isdir | default(false)
-              - ccng_existing_paths.results[1].stat.uid == ccng_user_uid | int
+              - >-
+                not ccng_existing_paths.results[1].stat.exists or
+                (ccng_existing_paths.results[1].stat.isdir | default(false) and
+                 ccng_existing_paths.results[1].stat.uid == ccng_user_uid | int)
             quiet: true
 
         - name: Validate Node.js and npm under the actual application PATH
@@ -228,24 +238,28 @@
             - [npm, --version]
           changed_when: false
 
-        - name: Require the existing Codex sign-in
+        - name: Inspect the existing Codex sign-in without blocking installation
           ansible.builtin.command:
             argv: [codex, login, status]
+          register: ccng_codex_login
           changed_when: false
+          failed_when: false
 
         - name: Read the existing native daemon status without starting or restarting it
           ansible.builtin.command:
             argv: [codex, app-server, daemon, version]
           register: ccng_daemon
           changed_when: false
+          failed_when: false
 
-        - name: Require the existing native daemon to be running
-          ansible.builtin.assert:
-            that:
-              - (ccng_daemon.stdout | from_json).status == 'running'
-              - (ccng_daemon.stdout | from_json).socketPath | length > 0
-            fail_msg: Start the existing native daemon under this account and Codex home before deployment.
-            quiet: true
+        - name: Warn when the selected Codex login or daemon cannot be inspected
+          no_log: false
+          ansible.builtin.debug:
+            msg: >-
+              Warning: Codex login or its existing daemon is unavailable for this
+              account. CCNG deployment continues; agent operation may require
+              completing native login and starting the daemon separately.
+          when: ccng_codex_login.rc != 0 or ccng_daemon.rc != 0
 
         - name: Verify the existing project tracker read-only
           ansible.builtin.command:
@@ -363,7 +377,7 @@
 
         - name: Install through the maintained unprivileged installer
           ansible.builtin.command:
-            argv: [sh, "{{ ccng_source_dir }}/install.sh", "{{ ccng_install_dir }}"]
+            argv: [sh, "{{ ccng_source_dir }}/install.sh", --prefix, "{{ ccng_install_dir }}"]
             chdir: "{{ ccng_project_dir }}"
           when: ccng_install_needed | bool
           changed_when: true
@@ -383,6 +397,47 @@
 
         - name: Preserve or initialize the protected application password
           ansible.builtin.import_tasks: tasks/command_center_password.yml
+
+        - name: Inspect Codex after application installation
+          ansible.builtin.command:
+            argv: [codex, --version]
+          register: ccng_codex_available
+          changed_when: false
+          failed_when: false
+
+        # No builtin npm module exists. Reuse the installer tool prefix without
+        # another collection: docs/ansible-deployment.md#backend-certificates-and-native-tools
+        - name: Install the selected Codex CLI locally when absent
+          ansible.builtin.command:
+            argv:
+              - npm
+              - install
+              - --prefix
+              - "{{ ccng_install_dir }}/tools"
+              - --no-fund
+              - --no-audit
+              - "{{ command_center_codex_package }}"
+            creates: "{{ ccng_install_dir }}/tools/node_modules/.bin/codex"
+          register: ccng_codex_install
+          failed_when: false
+          when:
+            - ccng_codex_available.rc != 0
+            - command_center_manage_packages | bool
+
+        - name: Warn if local Codex installation could not complete
+          no_log: false
+          ansible.builtin.debug:
+            msg: >-
+              Warning: Codex could not be installed for this account. Its native
+              structured questions are required but cannot yet be configured;
+              CCNG deployment will continue.
+          when: ccng_codex_install.rc | default(0) != 0
+
+        - name: Configure native structured questions with warning-only failures
+          ansible.builtin.import_tasks: tasks/command_center_codex_questions.yml
+
+        - name: Configure the application's selected HTTP or HTTPS connection
+          ansible.builtin.import_tasks: tasks/command_center_tls.yml
 
         - name: Write private service configuration without including credentials
           ansible.builtin.template:
@@ -413,8 +468,10 @@
     - name: Verify the deployed application's health and exact version
       ansible.builtin.uri:
         url: >-
-          http://{{ ('[' ~ ('::1' if command_center_bind_address == '::' else command_center_bind_address) ~ ']') if ':' in command_center_bind_address else
-          ('127.0.0.1' if command_center_bind_address == '0.0.0.0' else command_center_bind_address) }}:{{ command_center_port }}/healthz
+          {{ command_center_connection_type }}://{{ '[' ~ ccng_tls_health_address ~ ']' if
+          ':' in ccng_tls_health_address else ccng_tls_health_address }}:{{ command_center_port }}/healthz
+        validate_certs: true
+        ca_path: "{{ ccng_tls_certificate if command_center_connection_type == 'https' else omit }}"
         use_proxy: false
         return_content: true
         status_code: 200
