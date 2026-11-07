@@ -160,3 +160,46 @@ status colors, focus controls, reordering and the coordinator-before-Add-agent
 order remain. Horizontal scrolling still works; its visible scrollbar gutter is
 hidden so it does not separate the tabs from the pane. Rendered browser review
 remains pending; build/source checks alone do not establish the visual result.
+
+
+Version0.33.0 attaches the chat title, colour selector and Codex receipt/activity/
+connection indicators to the composer. The strip sits directly above the input
+box and below the independently scrolling history, retaining small text and
+responsive wrapping. Desktop uses two rows again: history and composer; the
+overview divider spans both. The top-right Command Center branding is retained.
+
+## Resizing the composer
+
+A horizontal divider between the scrolling chat history and the whole composer
+resizes the composer area, including its header, input and footer. Dragging the
+divider up enlarges the input area; dragging down shrinks it. The divider is
+keyboard accessible: Up enlarges, Down shrinks, and Shift uses larger steps.
+Home selects the minimum height and End the maximum. Double-click returns to
+automatic sizing. Escape during a resize or a canceled pointer interaction
+restores the size from before that resize.
+
+One composer-height preference is stored in the existing browser workspace and
+restored after refresh. It applies across chats and is clamped to the available
+vertical space so the history remains usable. This changes browser layout only;
+it does not change draft contents, agent settings, server configuration or
+network behavior. The composer header stays attached directly above the input.
+
+## Overview identity and typography
+
+The overview starts with the selected project's chat name and status, ahead of
+branch navigation. It omits the redundant GOAL label; the coordinator overview
+also starts with its own name. Existing saved section heights remain compatible.
+
+Overview text is one pixel larger throughout, including section labels, task
+states and totals, notes, buttons and settings dropdowns. Each font keeps its
+existing family and relative size hierarchy, including the smaller mobile
+variants. This applies only to the overview, leaving chat, dialogs and top-bar
+typography unchanged. Full recap details use the same size as the recap body.
+
+## Concise input requests
+
+Task input dialogs lead with Needed (the direct question or action) and Why (a
+brief reason). New agent-authored requests use these concise sections by default.
+Exact commands, steps and original context/notes stay in expandable Details.
+Legacy records retain full information and use bounded previews without claiming
+an automatic semantic summary; native permission controls remain unchanged.

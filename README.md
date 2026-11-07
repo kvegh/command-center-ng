@@ -5,22 +5,24 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-Version 0.32.0 adds HTTP-default installed configuration, optional native HTTPS,
-automatic interface selection, warning-only Codex setup/checks and a compact chat
-header with per-chat colours and separate receipt/activity/connection indicators.
-All 449 application checks, 24 isolated native Ansible checks, strict production
-lint and the production build pass. Independent integration review fixes are
-verified. Actual installed/browser acceptance remains separate; nginx and
-deployment testing are externally owned. Source publication does not update a
-running installation.
+Version 0.33.0 adds a draggable divider between chat history and the input area.
+The chat title, colour and status strip now belongs to the input area, directly
+above its text box. Drag the divider up to enlarge the input or down to shrink it;
+its height is saved in browser preferences. Double-click resets automatic sizing.
+The overview starts with the project name, uses fonts one pixel larger, and keeps
+Coordinator recaps near 20 words (maximum 25). Input dialogs lead with short
+Needed/Why summaries and keep steps and background in expandable Details.
+All 469 application tests and the production build pass; independent source
+reviews found no blocking issue. Rendered browser acceptance remains unverified.
+Source publication does not update or restart a running installation.
 
-**Version 0.32.0** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.33.0** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The classic dark graphite theme uses cyan controls,
 green running states, and amber attention states; contrastful and light themes
 are available from the compact palette menu.
-A fixed chat header shows the full chat title when space permits and an adjacent
+The input-area header shows the full chat title when space permits and an adjacent
 four-colour selector: cyan, violet, green or amber. Each chat's choice stays in
 the existing browser workspace settings. Title text is 12px and status text 11px,
 smaller than the chat input. On Codex chats the right side distinguishes Sending,
@@ -28,8 +30,14 @@ native-acknowledged Input received, Working, Needs your answer and native turn
 outcomes from the connection status and time since the last real agent update.
 Missing connection updates make activity explicitly last-known; a quiet agent is
 not declared stuck. Browser/backend heartbeats never count as agent activity.
-The header stays above the scrolling history and wraps on narrow screens.
-Actual rendered browser behavior remains unverified; Claude status work stays deferred.
+Version 0.33.0 places this strip inside the composer, directly above the input
+box and below the scrolling history. It stays with the input and wraps on narrow
+screens; the Command Center branding remains in the upper-right top bar.
+The divider also supports Up/Down arrows (Shift for larger steps), Home/End for
+minimum/maximum height and Escape to cancel a drag. Bounds adapt to the window
+and keep history space available; the overview width and section dividers remain
+independent. Actual rendered browser behavior remains unverified; Claude status
+work stays deferred.
 The interface uses one local Node.js service, the existing Codex daemon and the
 official Claude Agent SDK. Each provider keeps its native session history and execution.
 A compact top bar puts the agent tabs and controls first, with branding at the
@@ -148,8 +156,10 @@ refresh. Logout is the last header control, to the right of the branding.
 Tasks needing actual input appear first. Dependency-waiting tasks remain Queued.
 Ordinary recorded chat questions appear once in Tasks with a **Question** label;
 native requests and approvals remain in **Open questions**. A task's reply dialog
-shows **Context**, **Input type** and **Exact input needed** when explicitly
-recorded. Older vague records offer clarification rather than an invented answer.
+starts with **Needed** (the question or action) and **Why** (a short reason).
+Exact steps, commands and full original context stay under expandable **Details**.
+Older records use clearly marked bounded previews; vague records offer
+clarification rather than an invented answer.
 
 Each task has **Notify me** after its state, with the tooltip “Notify me when
 this task needs my input, encounters an error, or is completed.” Subscriptions

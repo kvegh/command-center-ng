@@ -37,6 +37,20 @@ test('overview width persists in existing browser preferences while invalid valu
   for (const width of [0, -1, 279, 801, Infinity, '520']) assert.equal(browserWorkspace({ version: 1, overviewWidth: width }).overviewWidth, undefined);
 });
 
+test('composer height survives refresh, resets to automatic and rejects invalid preferences', () => {
+  const local = storage();
+  const value = { ...emptyBrowserWorkspace(), composerHeight: 340, drafts: { one: 'Keep this draft' } };
+  assert.equal(saveBrowserWorkspace(value, local), null);
+  assert.deepEqual(loadBrowserWorkspace(local).state, value);
+  assert.equal(saveBrowserWorkspace({ ...value, composerHeight: undefined }, local), null);
+  assert.equal(loadBrowserWorkspace(local).state.composerHeight, undefined);
+  assert.equal(loadBrowserWorkspace(local).state.drafts.one, 'Keep this draft');
+  for (const height of [0, -1, 79, 1201, Infinity, NaN, '340', {}, null]) {
+    assert.equal(browserWorkspace({ version: 1, composerHeight: height }).composerHeight, undefined);
+  }
+  assert.equal(browserWorkspace(emptyBrowserWorkspace()).composerHeight, undefined);
+});
+
 test('overview section heights survive reload and reject invalid or unrelated preferences', () => {
   const local = storage();
   saveBrowserWorkspace({ ...emptyBrowserWorkspace(), overviewHeights: { tasks: 240, questions: 160, settings: 64 } }, local);

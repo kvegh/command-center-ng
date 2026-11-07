@@ -95,14 +95,28 @@ exact input needed; use blocked status while waiting for the answer. Keep the
 implementation task separate and continue its independent work where possible.
 Do not create a duplicate record for an existing native structured request.
 
-For any task awaiting real user input, put three clearly labelled sections at
-the start of its existing Beads description: `Context:`, `Input type:`, and
-`Input needed:`. Explain why work is waiting, whether the user must choose,
-answer, confirm a result or identify an existing access source, and the exact
-answer/action needed. Include available choices where relevant. Do not merely
-repeat the task title or implementation plan, ask for secret values, or invent
-a decision. Keep unrelated task information after these sections and preserve
-existing pending native requests. Dependency waiting is not a user question.
+Keep every question easy to answer at a glance. Start an input record with
+`Needed:`: the direct question or action, at most 30 words in one or two short
+sentences. Follow with `Why:`: one short sentence, at most 20 words, explaining
+why the answer is needed. Use real line breaks, not literal escaped newline text.
+Existing `Input needed:`/`Context:` labels remain readable; keep their content
+equally short. A task title, a bare choice label or a long implementation recap
+does not explain the needed answer.
+
+Put exact commands, background, input-type metadata, preservation boundaries and
+the original supporting notes under `## Details` or in task notes. Keep the
+upfront wording a high-level action, without raw code or repeated safety text.
+The interface preserves full wording in expandable Details; it cannot invent a
+meaningful summary of a poorly written legacy record. Correct or supersede that
+record's short question when new evidence resolves the context.
+
+For structured tools, use the same concise question and a short reason in the
+available fields. Never ask for secret values in chat or task records: direct
+the user to the established protected input mechanism. Preserve exact native
+approval commands/scopes and their answer controls; this presentation rule does
+not change approval authority or allow paraphrases to replace the real action.
+Preserve existing pending requests and avoid duplicate questions. Dependency
+waiting is not a user question.
 
 The user can answer this input record from Command Center's Tasks list, where
 ordinary questions have a Question label and Needs input entries appear first.

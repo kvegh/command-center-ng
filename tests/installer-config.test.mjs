@@ -158,7 +158,7 @@ test('missing Codex with a declined or failed install warns without aborting app
     assert.equal((await readFile(f.featureLog, 'utf8')).trim().split('\n').length, 1);
     if (failCodexInstall) {
       const args = (await readFile(f.npmLog, 'utf8')).trim().split('\n');
-      assert.equal(args[0], 'install'); assert.equal(args.at(-1), '@openai/codex@0.166.0');
+      assert.equal(args[0], 'install'); assert.equal(args.at(-1), '@openai/codex@0.167.0');
     } else await assert.rejects(stat(f.npmLog), { code: 'ENOENT' });
   });
 });

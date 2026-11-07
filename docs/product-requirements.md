@@ -80,9 +80,10 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.32.0
+## Current development version: 0.33.0
 
-Keep a fixed compact header at the top of each chat window. Put the chat title
+Keep a compact header inside the composer, directly above the input box and
+below the scrolling history. This strip belongs to the chat input area. Put the chat title
 and a four-colour selector on the left; put Codex input receipt, native activity,
 connection state and last real update age on the right. Use smaller text than
 the input, theme-compatible cyan/violet/green/amber choices and existing
@@ -90,6 +91,30 @@ browser-local per-conversation preferences. Distinguish native input acceptance
 from model activity, and transport heartbeats from real worker updates. Mark
 unconfirmed connections and last-known activity truthfully; no guessed stuck
 diagnosis, automatic resend, interruption, worker ping or restart.
+
+Place a draggable horizontal divider between the chat history and the whole
+composer, including its header, input and footer. Dragging up enlarges the
+composer/input area and dragging down shrinks it. Support Up/Down keys, Shift
+for larger steps, Home for the minimum height and End for the maximum.
+Double-click resets automatic sizing. Escape during resizing or pointer
+cancellation restores the prior size. Preserve draft contents and the header's
+position directly above the input.
+
+Save one composer-height preference in the existing browser-local workspace and
+restore it after refresh. Clamp it to the available vertical space while leaving
+chat history usable. This layout preference must not alter agent settings,
+server configuration or network behavior.
+
+The overview starts with the project/chat name, without a GOAL label. Increase
+all overview fonts by exactly one pixel, retaining their families and relative
+size differences. Keep sidebar recaps near 20 words and at most25 words across
+summary, blocker and next action; tasks and native questions retain full details.
+
+Input requests start with Needed (a direct question/action, maximum 30 words)
+and Why (one short sentence, maximum 20 words). Exact steps, commands, background
+and original notes are available under expandable Details. This format is the
+agent default as well as the task-dialog layout; preserve full native requests
+and use existing protected input mechanisms for secrets.
 
 The Linux shell installer defaults to ~/commandcenter-ng. Document --prefix
 DIRECTORY for custom home-contained destinations; retain old positional-path
@@ -153,8 +178,9 @@ the worker counter. Preserve mobile navigation and native Escape handling.
 Tasks requiring real input sort first, after dependency-derived Queued status
 is established. Ordinary recorded questions appear in Tasks with a Question
 label, while native Open questions remain separate. The reply dialog explains
-recorded context, input type and exact input needed without inventing legacy
-details. Task descriptions awaiting input must record those fields.
+Needed and Why first, with detailed steps and the original record expandable.
+New input descriptions use those concise fields plus Details. Legacy Context,
+Input type and Input needed remain readable without inventing an answer.
 
 Move task state closer to its description and put a Notify me checkbox after
 it. Save subscriptions in existing browser workspace preferences. Notify on

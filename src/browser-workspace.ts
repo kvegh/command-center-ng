@@ -4,6 +4,7 @@ export type BrowserWorkspace = {
   version: 1; selected: string; order: string[]; drafts: Record<string, string>;
   positions: Record<string, number>; bottom: Record<string, boolean>;
   overviewWidth?: number;
+  composerHeight?: number;
   overviewHeights?: Record<string, number>;
   theme?: ThemeName;
   chatColours?: Record<string, ChatColour>;
@@ -26,6 +27,7 @@ export function browserWorkspace(value: unknown): BrowserWorkspace {
     drafts: Object.fromEntries(entries(data.drafts).filter(([, text]) => typeof text === 'string' && text.length <= 32000)),
     positions: Object.fromEntries(entries(data.positions).filter(([, position]) => typeof position === 'number' && Number.isFinite(position) && position >= 0)),
     bottom: Object.fromEntries(entries(data.bottom).filter(([, value]) => typeof value === 'boolean')),
+    ...(typeof data.composerHeight === 'number' && Number.isFinite(data.composerHeight) && data.composerHeight >= 80 && data.composerHeight <= 1200 ? { composerHeight: data.composerHeight } : {}),
     ...(typeof data.overviewWidth === 'number' && Number.isFinite(data.overviewWidth) && data.overviewWidth >= 280 && data.overviewWidth <= 800 ? { overviewWidth: data.overviewWidth } : {}),
     ...(data.overviewHeights ? { overviewHeights: Object.fromEntries(entries(data.overviewHeights).filter(([key, height]) => ['branch', 'goal', 'recap', 'tasks', 'questions', 'chat-questions', 'settings', 'coordinator', 'workers', 'coordinator-questions', 'decisions'].includes(key) && typeof height === 'number' && Number.isFinite(height) && height >= 64 && height <= 1200)) } : {}),
     ...(validTheme(data.theme) ? { theme: data.theme } : {}),

@@ -222,6 +222,18 @@ messages separate. Pending requests may block sending, but must allow local
 draft editing. Preserve backend send protections, IME and Shift+Enter, and newer
 drafts typed while an earlier send acknowledgment is outstanding.
 
+
+Lead every clarification or input request with a short answer to “What do you
+need from me?” Use **Needed:** for the direct question or action (one or two
+short sentences, at most 30 words), followed by **Why:** (one sentence, at most
+20 words). Put exact commands, steps, background and original notes under
+expandable **Details** where the interface supports it. Use the same explicit
+Needed/Why/Details sections at the start of Beads input descriptions; do not
+bury the actual request behind history, hashes, task IDs or scope bookkeeping.
+Keep new requests understandable without opening Details. Preserve complete
+technical information and native approval scopes; never ask for a password or
+secret in chat when an existing secure input mechanism is required.
+
 Coordinator recaps must explain useful outcomes, unfinished work and the concrete
 blocker/next action using task names or plain-language work descriptions. Bare
 IDs and closed-record lists are not explanations. Distinguish published code
@@ -342,8 +354,10 @@ cadence, interrupting work or answering a pending request.
 
 ## Approved worker controls and layout
 
-Keep a compact fixed chat header with the current chat title and four-colour
-selector on the left, Codex input/activity/connection indicators on the right.
+Keep a compact header inside the composer, directly above the chat input and
+below the scrolling history. Put the current chat title and four-colour selector
+on the left, Codex input/activity/connection indicators on the right. It belongs
+to the input area, not the top of the chat pane. Keep the top-right branding.
 Use smaller text than the composer and theme-compatible cyan/violet/green/amber
 choices in existing browser workspace preferences, isolated by conversation.
 Confirm Input received only after native input acknowledgement. Keep real native
@@ -504,3 +518,14 @@ daemon or replacement execution engine. Verify each native interface and expose
 provider differences truthfully. Goal controls require explicit user action;
 restoring/opening a view does not create a goal or grant additional permissions.
 The report timer remains separate. See docs/agent-harness-requirements.md.
+
+The user approved a draggable horizontal divider between history and the whole
+composer (title/status strip, text input and footer). Preserve keyboard controls,
+cancel/reset and available-history bounds. Store the size in existing browser
+preferences; do not add server settings or alter worker/native state for resizing.
+
+The overview starts with the project/chat name, without the GOAL label. Overview
+fonts are one pixel larger than their previous sizes, with font families and
+size differences preserved. Coordinator sidebar recaps aim for20 words and must
+not exceed 25 words total across summary/blocker/next action; this does not limit
+full task or native-question details or change review authority.

@@ -10,7 +10,7 @@ import ts from 'typescript';
 const require = createRequire(import.meta.url);
 const source = await readFile(new URL('../src/task-discussion.tsx', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React } }).outputText;
-const { parseTaskInputContext, TaskDetailBody, taskInputMessage } = await import('data:text/javascript;base64,' + Buffer.from(compiled.replace(/from ['"]react['"]/, `from '${pathToFileURL(require.resolve('react')).href}'`)).toString('base64'));
+const { parseTaskInputContext, taskInputPreview, TaskDetailBody, taskInputMessage } = await import('data:text/javascript;base64,' + Buffer.from(compiled.replace(/from ['"]react['"]/, `from '${pathToFileURL(require.resolve('react')).href}'`)).toString('base64'));
 const task = values => ({ id: 'example-1', text: 'Choose a deployment option', state: 'blocked', description: '', notes: '', blockers: [], ...values });
 
 test('explicit recorded input sections retain their actual multiline meaning', () => {
@@ -45,34 +45,90 @@ test('structured parsing is bounded while the original record remains available'
   assert.equal(parsed.inputNeeded, null);
   assert.ok(parsed.context.length <= 12000);
   const html = renderToStaticMarkup(React.createElement(TaskDetailBody, { detail: task({ description, notes: 'Preserved original note.' }) }));
-  assert.match(html, /Original task description and notes/);
+  assert.match(html, /<summary>Details<\/summary>/);
   assert.ok(html.includes('Outside the summary bound'));
   assert.ok(html.includes('Preserved original note.'));
 });
 
-test('the task detail prominently labels the recorded context, type and exact input before original details', () => {
+test('the task detail leads with Needed and Why while preserving type and original details inside the closed disclosure', () => {
   const html = renderToStaticMarkup(React.createElement(TaskDetailBody, { detail: task({ description: 'Context: A test target must be chosen.\nInput type: Choice\nInput needed: Choose staging or isolated test.', notes: 'Keep this note.' }) }));
-  for (const label of ['CONTEXT', 'INPUT TYPE', 'EXACT INPUT NEEDED']) assert.ok(html.includes(label));
-  assert.ok(html.indexOf('EXACT INPUT NEEDED') < html.indexOf('<details>'));
+  const upfront = html.slice(0, html.indexOf('<details>'));
+  assert.match(upfront, />Needed<\/h3>/); assert.match(upfront, />Why<\/h3>/);
+  assert.ok(upfront.indexOf('Choose staging or isolated test.') < upfront.indexOf('A test target must be chosen.'));
+  assert.doesNotMatch(upfront, /CONTEXT|INPUT TYPE|EXACT INPUT NEEDED|Choice|Keep this note/);
+  assert.doesNotMatch(html, /<details open/);
   assert.match(html, /Choose staging or isolated test\./);
   assert.match(html, /Keep this note\./);
 });
 
 test('legacy records clearly report missing input and preserve their original description without inventing a requirement', () => {
   const html = renderToStaticMarkup(React.createElement(TaskDetailBody, { detail: task({ description: 'Configure the deployment someday.' }) }));
-  assert.match(html, /exact input needed has not been recorded/);
+  assert.match(html, /exact input needed is not recorded/);
   assert.match(html, /Ask what is needed/);
   assert.match(html, /Configure the deployment someday\./);
-  assert.match(html, /INPUT TYPE/);
-  assert.match(html, /Not recorded\./);
+  assert.match(html, /worker has not recorded a short explanation/);
 });
 
 test('queued dependencies explain waiting without demanding an unrecorded answer', () => {
   const html = renderToStaticMarkup(React.createElement(TaskDetailBody, { detail: task({ state: 'open', description: 'Later deployment stage.', blockers: [{ id: 'prereq-1', text: 'Finish base installation' }] }) }));
   assert.match(html, /queued while its dependencies are unfinished/);
   assert.match(html, /A dependency is not a request for an answer/);
-  assert.match(html, /No specific user input is recorded/);
+  assert.match(html, /No answer is needed while this task waits for dependencies/);
   assert.match(html, /Finish base installation/);
+});
+
+test('concise Needed and Why fields work with plain, Markdown and bold labels and stop at Details', () => {
+  for (const description of [
+    'Needed: Choose a test target.\nWhy: The deployment needs one destination.\nDetails: A much longer background follows.',
+    '## Needed\nChoose a test target.\n## Why\nThe deployment needs one destination.\n## Details\nA much longer background follows.',
+    '**Needed:** Choose a test target.\n**Why**: The deployment needs one destination.\n## Details\nA much longer background follows.',
+  ]) {
+    const input = parseTaskInputContext(description);
+    assert.equal(input.inputNeeded, 'Choose a test target.');
+    assert.equal(input.context, 'The deployment needs one destination.');
+    const html = renderToStaticMarkup(React.createElement(TaskDetailBody, { detail: task({ description }) }));
+    assert.doesNotMatch(html.slice(0, html.indexOf('<details>')), /much longer background/);
+    assert.match(html.slice(html.indexOf('<details>')), /much longer background/);
+  }
+});
+
+test('long legacy requests show only bounded exact excerpts and retain every original word in Details', () => {
+  const question = Array.from({ length: 90 }, (_, index) => `action${index}`).join(' ');
+  const reason = Array.from({ length: 60 }, (_, index) => `reason${index}`).join(' ');
+  const description = `Context: ${reason}\nInput type: Confirmation\nInput needed: ${question}`;
+  const needed = taskInputPreview(question, 30, 2); const why = taskInputPreview(reason, 20, 1);
+  assert.equal(needed.text, question.split(' ').slice(0, 30).join(' ') + '…');
+  assert.equal(why.text, reason.split(' ').slice(0, 20).join(' ') + '…');
+  assert.equal(needed.shortened, true); assert.equal(why.shortened, true);
+  const html = renderToStaticMarkup(React.createElement(TaskDetailBody, { detail: task({ description, notes: 'Important original note.' }) }));
+  const upfront = html.slice(0, html.indexOf('<details>')); const details = html.slice(html.indexOf('<details>'));
+  assert.match(upfront, /Short preview/); assert.match(upfront, /action29…/); assert.doesNotMatch(upfront, /action30|reason20/);
+  assert.ok(details.includes(question)); assert.ok(details.includes(reason)); assert.match(details, /Important original note/);
+});
+
+test('Needed has at most two sentence excerpts and Why one, without changing full recorded requests', () => {
+  const needed = taskInputPreview('Choose the target. Confirm the window. Then explain the earlier experiments.', 30, 2);
+  assert.deepEqual(needed, { text: 'Choose the target. Confirm the window.', shortened: true });
+  const why = taskInputPreview('The deployment needs a target. Earlier work is preserved.', 20, 1);
+  assert.deepEqual(why, { text: 'The deployment needs a target.', shortened: true });
+  assert.deepEqual(taskInputPreview('Choose the target.', 30, 2), { text: 'Choose the target.', shortened: false });
+});
+
+test('fenced commands stay in Details and are never exposed as a cut-off command preview', () => {
+  const command = 'python3 /example/check_status.py --read-only --target example';
+  const description = `Needed: Run the recorded check and report its result.\n\n\`\`\`sh\n${command}\n\`\`\`\nWhy: The saved state needs confirmation.`;
+  const html = renderToStaticMarkup(React.createElement(TaskDetailBody, { detail: task({ description }) }));
+  const upfront = html.slice(0, html.indexOf('<details>'));
+  assert.match(upfront, /Run the recorded check and report its result/);
+  assert.doesNotMatch(upfront, /python3|check_status|--read-only/);
+  assert.ok(html.slice(html.indexOf('<details>')).includes(command));
+  const codeOnly = renderToStaticMarkup(React.createElement(TaskDetailBody, { detail: task({ description: `Needed:\n\`\`\`sh\n${command}\n\`\`\`` }) }));
+  assert.match(codeOnly, /Read the recorded action in Details/);
+});
+
+test('concise field names inside fenced examples cannot become the real request', () => {
+  const parsed = parseTaskInputContext('```text\nNeeded: Example only\nWhy: Example reason\n```\nNeeded: Confirm the test result.\nWhy: The check finished.');
+  assert.equal(parsed.inputNeeded, 'Confirm the test result.'); assert.equal(parsed.context, 'The check finished.');
 });
 
 test('task record content is escaped rather than executed or interpreted as HTML', () => {
@@ -90,6 +146,10 @@ test('answers and clarification retain exact task context and existing scope pro
   assert.match(answer, /only within the existing user scope/);
   assert.match(answer, /after processing the input and verifying the actual outcome/);
   const clarification = taskInputMessage(selected, '', true);
+  assert.match(clarification, /Needed: the direct question or action, at most 30 words/);
+  assert.match(clarification, /Why: one short reason, at most 20 words/);
+  assert.match(clarification, /Details: put exact commands and background here/);
+  assert.match(clarification, /established protected mechanism for secret values/);
   assert.match(clarification, /clarification request only/);
   assert.match(clarification, /do not perform additional project work/);
 });

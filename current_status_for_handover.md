@@ -5,7 +5,27 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Release version is **0.32.0** in package.json and the lockfile.
+Working version is **0.33.0**, adding a draggable vertical composer resize and
+correcting the header placement after published 0.32.0. The title/colour/status strip now belongs to the composer above its
+input box and below scrolling history. Upper-right branding is retained.
+The history/input divider resizes the whole composer, supports pointer and
+keyboard input, cancel/reset, and restores one browser-local height preference.
+Bounds follow available space, including the stacked overview on narrow screens.
+The overview starts with the project name without GOAL; every sidebar font is
+one pixel larger. Sidebar recap fields together aim for 20 words and cap at 25;
+legacy long recaps preserve their full originals in expandable details.
+Input requests now lead with Needed/Why, with exact steps/background/original
+notes under Details. Shared and worker base instructions use the same default;
+no AAP task or password/deployment action is taken by this UI work.
+The release also corrects a stale installer fixture that still expected the old
+Codex package pin after the 0.32.0 version update. All 469 application tests
+and the production build pass after combined integration. Independent reviews
+found no blocking issue; rendered browser acceptance remains unverified.
+Source publication is in progress. The new first-login password-change request
+is separate work awaiting the user's initial-access choice; no authentication
+implementation is included in this UI release.
+
+Previous release version was **0.32.0** in package.json and the lockfile.
 Implementation: `283692d29b8a8bdc4580f5cac0673701929431c2`. It builds on the
 published 0.31.3 source at428cc0041861b6d8bb88af2b1e4ed2faefb2b53a. The earlier
 four deployment design choices were explicitly approved in the owning AAP

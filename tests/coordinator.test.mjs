@@ -152,6 +152,36 @@ test('coordinator tools read only watched workers and bounded source, and publis
   } finally { await f.close(); }
 });
 
+test('sidebar recaps enforce one combined 25-word budget without replacing progress or answering requests', async () => {
+  const f = await fixture();
+  const words = count => Array.from({ length: count }, (_, index) => `word${index}`).join(' ');
+  try {
+    const worker = f.workspace.agent('worker');
+    const accepted = { agentId: worker.id, summary: words(12), blocker: words(8), nextStep: words(5) };
+    const previous = await f.call('ccng_publish_progress', accepted);
+    assert.equal(previous.summary, accepted.summary);
+    assert.equal(previous.blocker, accepted.blocker);
+    assert.equal(previous.nextStep, accepted.nextStep);
+    f.rpc.ask('pending-recap-question', worker.id);
+    const question = worker.questions[0]; const tasks = worker.tasks; const replies = f.rpc.replies.length;
+    let changes = 0; const changed = () => { changes++; };
+    f.workspace.on('change', changed);
+    for (const tooLong of [
+      { summary: words(26), blocker: '', nextStep: '' },
+      { summary: words(12), blocker: words(8), nextStep: words(6) },
+    ]) await assert.rejects(f.call('ccng_publish_progress', { agentId: worker.id, ...tooLong }), /25 words total.*summary, blocker and nextStep.*aim for 20/);
+    f.workspace.off('change', changed);
+    assert.equal(changes, 0);
+    assert.equal(worker.progress, previous);
+    assert.equal(worker.tasks, tasks);
+    assert.equal(worker.questions[0], question);
+    assert.equal(f.rpc.replies.length, replies);
+    assert.match(COORDINATOR_RECAP_GUIDANCE, /aim for 20 words.*maximum 25 words total/);
+    assert.match(COORDINATOR_RECAP_GUIDANCE, /does not apply to approval rationales, worker handoffs or Standard Task Reports/);
+    assert.match(COORDINATOR_TOOLS.find(tool => tool.name === 'ccng_publish_progress').description, /maximum 25 words total across summary, blocker and nextStep/);
+  } finally { await f.close(); }
+});
+
 test('summaries wait for idle, remain attributed, and cannot create repeated messages in one coordinator turn', async () => {
   const f = await fixture();
   try {

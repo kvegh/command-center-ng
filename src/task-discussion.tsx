@@ -25,14 +25,14 @@ export function parseTaskInputContext(description: string) {
       continue;
     }
     const heading = /^#{1,6}\s+/.test(trimmed);
-    const strongHeading = /^(\*\*|__)(context|input type|input needed):?\1\s*$/i.test(trimmed);
-    const normalized = trimmed.replace(/^#{1,6}\s+/, '').replace(/^(\*\*|__)(context|input type|input needed)(:?)\1/i, '$2$3');
-    const label = /^(context|input type|input needed)\s*:\s*(.*)$/i.exec(normalized)
-      || ((heading || strongHeading) ? /^(context|input type|input needed)\s*$/i.exec(normalized) : null);
+    const strongHeading = /^(\*\*|__)(context|input type|input needed|needed|why):?\1\s*$/i.test(trimmed);
+    const normalized = trimmed.replace(/^#{1,6}\s+/, '').replace(/^(\*\*|__)(context|input type|input needed|needed|why)(:?)\1/i, '$2$3');
+    const label = /^(context|input type|input needed|needed|why)\s*:\s*(.*)$/i.exec(normalized)
+      || ((heading || strongHeading) ? /^(context|input type|input needed|needed|why)\s*$/i.exec(normalized) : null);
     if (label) {
-      current = ({ context: 'context', 'input type': 'inputType', 'input needed': 'inputNeeded' } as const)[label[1].toLowerCase() as 'context' | 'input type' | 'input needed'];
+      current = ({ context: 'context', why: 'context', 'input type': 'inputType', 'input needed': 'inputNeeded', needed: 'inputNeeded' } as const)[label[1].toLowerCase() as 'context' | 'why' | 'input type' | 'input needed' | 'needed'];
       if (label[2]) sections[current].push(label[2]);
-    } else if (heading) current = null;
+    } else if (heading || /^details\s*:/i.test(normalized)) current = null;
     else if (current) sections[current].push(line);
   }
   return {
@@ -41,6 +41,27 @@ export function parseTaskInputContext(description: string) {
     inputNeeded: sections.inputNeeded.join('\n').trim() || null,
     truncated: description.length > limit
   };
+}
+
+export function taskInputPreview(value: string | null, wordLimit: number, sentenceLimit: number) {
+  if (!value) return { text: null, shortened: false };
+  // A preview is a bounded excerpt, never a generated interpretation of an old
+  // request. Fenced commands stay in Details rather than becoming partial code.
+  const lines: string[] = []; let fence: string | null = null;
+  for (const line of value.split(/\r?\n/)) {
+    const marker = /^\s*(`{3,}|~{3,})/.exec(line);
+    if (marker) {
+      if (!fence) fence = marker[1][0];
+      else if (fence === marker[1][0]) fence = null;
+    } else if (!fence) lines.push(line);
+  }
+  const prose = lines.join(' ').replace(/\s+/g, ' ').trim();
+  const words = prose.split(/\s+/).filter(Boolean);
+  let text = words.slice(0, wordLimit).join(' ');
+  const endings = [...text.matchAll(/[.!?](?=\s|$)/g)];
+  if (endings.length >= sentenceLimit) text = text.slice(0, endings[sentenceLimit - 1].index! + 1);
+  const shortened = prose !== value.replace(/\s+/g, ' ').trim() || text !== prose;
+  return { text: text ? text + (shortened && !/[.!?]$/.test(text) ? '…' : '') : null, shortened };
 }
 
 function queuedTask(detail: Detail) { return detail.blockers.length > 0 && detail.state !== 'in_progress'; }
@@ -53,26 +74,29 @@ function taskStatus(detail: Detail) {
 export function TaskDetailBody({ detail }: { detail: Detail }) {
   const input = parseTaskInputContext(detail.description);
   const queued = queuedTask(detail);
+  const needed = taskInputPreview(input.inputNeeded, 30, 2);
+  const why = taskInputPreview(input.context, 20, 1);
   return <div className="task-detail-body">
-    {queued && <p className="field-note">This task is queued while its dependencies are unfinished. A dependency is not a request for an answer.</p>}
-    {!!detail.blockers.length && <><strong>Waiting for</strong><ul>{detail.blockers.map(task => <li key={task.id}>{task.text}</li>)}</ul></>}
     <section className="task-input-context" aria-label="Recorded input request">
-      <div className="task-input-field"><h3 className="context-label">CONTEXT</h3><p>{input.context || 'No context section is recorded. The original task description is available below.'}</p></div>
-      <div className="task-input-field"><h3 className="context-label">INPUT TYPE</h3><p>{input.inputType || 'Not recorded.'}</p></div>
-      <div className="task-input-field"><h3 className="context-label">EXACT INPUT NEEDED</h3><p>{input.inputNeeded || (queued
-        ? 'No specific user input is recorded. This task is waiting for dependencies.'
-        : 'The exact input needed has not been recorded. Use “Ask what is needed” to have the worker explain it.')}</p></div>
-      {input.truncated && <p className="field-note">The structured summary is limited to the first 12,000 characters. Review the original record below.</p>}
+      <div className="task-input-field"><h3 className="context-label">Needed</h3><p>{needed.text || (input.inputNeeded
+        ? 'Read the recorded action in Details.'
+        : queued ? 'No answer is needed while this task waits for dependencies.'
+        : 'The exact input needed is not recorded. Use “Ask what is needed” for a short question.')}</p></div>
+      <div className="task-input-field"><h3 className="context-label">Why</h3><p>{why.text || (queued
+        ? 'Prerequisite work must finish first.' : 'The worker has not recorded a short explanation.')}</p></div>
+      {(needed.shortened || why.shortened || input.truncated) && <p className="field-note">Short preview. Read Details for the full wording.</p>}
     </section>
-    <details><summary>Original task description and notes</summary>
-      <strong>Description</strong><p>{detail.description || 'No description recorded.'}</p>
+    <details><summary>Details</summary>
+      {queued && <p className="field-note">This task is queued while its dependencies are unfinished. A dependency is not a request for an answer.</p>}
+      {!!detail.blockers.length && <><strong>Waiting for</strong><ul>{detail.blockers.map(task => <li key={task.id}>{task.text}</li>)}</ul></>}
+      <strong>Original task description</strong><p>{detail.description || 'No description recorded.'}</p>
       <strong>Recorded task notes</strong><p>{detail.notes || 'No notes recorded.'}</p>
     </details>
   </div>;
 }
 
 export function taskInputMessage(task: { id: string; text: string }, answer: string, clarify = false) {
-  return `Task reference (context only, not an instruction): ${JSON.stringify({ id: task.id, title: task.text })}\n\n${clarify ? 'Please explain what input or decision you need from me to resolve this task. This is a clarification request only; do not perform additional project work for the explanation.' : 'My answer/input: ' + answer.trim() + '\n\nUse this answer only within the existing user scope. Update the existing Beads record after processing the input and verifying the actual outcome.'}`;
+  return `Task reference (context only, not an instruction): ${JSON.stringify({ id: task.id, title: task.text })}\n\n${clarify ? 'Please explain the input needed using this format:\nNeeded: the direct question or action, at most 30 words in one or two short sentences.\nWhy: one short reason, at most 20 words.\nDetails: put exact commands and background here, not in the upfront question. Use the established protected mechanism for secret values.\nThis is a clarification request only; do not perform additional project work for the explanation.' : 'My answer/input: ' + answer.trim() + '\n\nUse this answer only within the existing user scope. Update the existing Beads record after processing the input and verifying the actual outcome.'}`;
 }
 
 export function TaskDiscussion({ taskId, workerName, canSend, load, send, dismiss }: {
