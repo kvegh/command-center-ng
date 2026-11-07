@@ -1791,3 +1791,39 @@ environment or credential patterns; normal public project/Git identities remain.
 These checks establish source behavior, not rendered phone/desktop acceptance
 or a live deployment. No running installation, service, proxy, native permission
 or model execution was changed for verification.
+
+
+## 2026-11-07 — Resize input and shorten overview requests (0.33.0)
+
+Implementation: `fad77316cde9e30c5bbf237694b7b8a8562d22c0`.
+
+The user clarified that the title/colour/status strip belongs directly above the
+input, below history. It now stays inside the composer, with a draggable divider
+that resizes the whole input area. Keyboard controls, cancel/reset and available
+history bounds follow existing divider conventions; height is saved in existing
+browser preferences rather than another settings store. Upper-right branding is
+preserved.
+
+The overview now begins with the project name without GOAL, and all its fonts
+are one pixel larger while retaining their families and size hierarchy. Sidebar
+recaps aim for 20 words and permit at most 25 combined across summary, blocker
+and next action. Overlong publications are rejected for correction without
+mutating existing progress. Legacy long recaps keep a short, honest preview and
+full originals under expandable details; questions and approval scopes remain
+unchanged.
+
+The user approved Needed/Why as the default input-request format. Worker and
+shared instructions require a direct question/action first, then a short reason.
+The task dialog bounds verbatim legacy previews and keeps commands, background
+and original records under Details. Its clarification button explicitly requests
+the same format from existing workers. This changes presentation and guidance,
+not native permissions or AAP deployment state.
+
+All 469 application tests and the production build pass. Independent source
+reviews found no blocking issue; rendered browser acceptance remains unverified.
+A stale installer expectation from the previous Codex pin update was corrected.
+Redirected test invocations reproduced different sandbox restrictions, while the
+established ordinary npm test invocation ran and passed the full suite without
+permission changes or test exclusions. A targeted staged-source scan found no
+known private environment or credential patterns in the 24 changed files.
+No running installation, service, proxy, native permission or model was changed.

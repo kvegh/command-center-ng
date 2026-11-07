@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working version is **0.33.0**, adding a draggable vertical composer resize and
+Release version is **0.33.0**, adding a draggable vertical composer resize and
 correcting the header placement after published 0.32.0. The title/colour/status strip now belongs to the composer above its
 input box and below scrolling history. Upper-right branding is retained.
 The history/input divider resizes the whole composer, supports pointer and
@@ -21,7 +21,8 @@ The release also corrects a stale installer fixture that still expected the old
 Codex package pin after the 0.32.0 version update. All 469 application tests
 and the production build pass after combined integration. Independent reviews
 found no blocking issue; rendered browser acceptance remains unverified.
-Source publication is in progress. The new first-login password-change request
+Implementation: `fad77316cde9e30c5bbf237694b7b8a8562d22c0`. Check current remote refs for publication.
+The new first-login password-change request
 is separate work awaiting the user's initial-access choice; no authentication
 implementation is included in this UI release.
 
