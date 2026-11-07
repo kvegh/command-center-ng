@@ -80,7 +80,15 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.33.1
+## Current development version: 0.34.0
+
+Automatic startup binds exactly the one default-route IPv4 address and
+127.0.0.1 on the configured port, sharing one runtime. Explicit --host binds only
+that address. Roll back all listeners if startup fails; shut down both cleanly.
+Direct native HTTPS on the local listener accepts the exact matching loopback
+browser Origin/Host (including port) alongside the configured public origin.
+Require actual TLS and local socket endpoints; retain CSRF, Host, cookie and
+certificate protections and reject HTTP downgrade or forwarded-header claims.
 
 Keep a compact header inside the composer, directly above the input box and
 below the scrolling history. This strip belongs to the chat input area. Put the chat title

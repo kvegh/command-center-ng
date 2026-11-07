@@ -5,23 +5,18 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
-Version 0.33.1 keeps native approval button labels on one line at their existing
-shorter height. Whole choices wrap on narrow cards, keeping Allow once and
-Allow always at their natural widths. The 26 existing approval checks
-and production build pass; rendered browser verification remains pending.
+Version 0.34.0 restores direct HTTPS login through a localhost SSH tunnel when
+a public proxy origin is configured. Local access keeps exact origin checks,
+real TLS and loopback listener/socket requirements. Default startup listens on
+exactly the selected default-route IPv4 address plus 127.0.0.1; explicit --host
+keeps a single selected address. Both listeners share one application process.
+All 480 application tests and the production build pass, including actual TLS
+tunnel login/logout, shared two-listener sessions and failed-start cleanup.
+Running installations are not changed automatically.
 
-Version 0.33.0 adds a draggable divider between chat history and the input area.
-The chat title, colour and status strip now belongs to the input area, directly
-above its text box. Drag the divider up to enlarge the input or down to shrink it;
-its height is saved in browser preferences. Double-click resets automatic sizing.
-The overview starts with the project name, uses fonts one pixel larger, and keeps
-Coordinator recaps near 20 words (maximum 25). Input dialogs lead with short
-Needed/Why summaries and keep steps and background in expandable Details.
-All 469 application tests and the production build pass; independent source
-reviews found no blocking issue. Rendered browser acceptance remains unverified.
-Source publication does not update or restart a running installation.
+The published 0.33.1 approval-button height correction is preserved.
 
-**Version 0.33.1** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.34.0** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The classic dark graphite theme uses cyan controls,
@@ -344,7 +339,7 @@ readable certificate paths; configuration is read on foreground/systemd startup.
 Updates preserve this file and existing certificates. The format is simple literal
 `key: value` text with full-line comments, without YAML or shell expansion.
 Explicit CLI/environment values override file settings. An omitted host selects
-the Linux default-route IPv4 interface and reports its address at startup; use
+the Linux default-route IPv4 address and 127.0.0.1, reporting both at startup; use
 `--host 127.0.0.1` for localhost only. See the
 [listener and TLS options](docs/installation.md#listening-address-and-https).
 

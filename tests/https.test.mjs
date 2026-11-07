@@ -14,23 +14,24 @@ import { setPassword } from '../server/auth.mjs';
 import { Workspace } from '../server/workspace.mjs';
 
 const run = promisify(execFile);
-async function fixture(tlsEnabled = true, overrides = {}) {
+async function fixture(tlsEnabled = true, overrides = {}, selection) {
   const directory = await mkdtemp(join(tmpdir(), 'ccng-real-tls-'));
   const certPath = join(directory, 'cert.pem'); const keyPath = join(directory, 'key.pem');
   let app;
   try {
-    await run('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', keyPath, '-out', certPath, '-days', '2', '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost,IP:127.0.0.1,IP:2001:db8::15'], { timeout: 10000 });
+    await run('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', keyPath, '-out', certPath, '-days', '2', '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost,DNS:command-center.example,IP:127.0.0.1,IP:2001:db8::15'], { timeout: 10000 });
     const ca = await readFile(certPath);
     const password = randomBytes(24).toString('base64url'); const authFile = join(directory, 'auth.json');
     await setPassword(password, authFile);
     const rpc = new EventEmitter(); rpc.ready = false; rpc.close = () => {};
     const workspace = new Workspace(rpc, { beads: null });
     app = await createApp({ rpc, workspace, authFile, config: { host: '127.0.0.1', protocol: tlsEnabled ? 'https' : 'http', tlsCert: certPath, tlsKey: keyPath, ...overrides } });
-    await new Promise((resolve, reject) => { app.server.once('error', reject); app.server.listen(0, '127.0.0.1', resolve); });
+    if (selection) await app.listen(selection, 0);
+    else await new Promise((resolve, reject) => { app.server.once('error', reject); app.server.listen(0, '127.0.0.1', resolve); });
     const port = app.server.address().port; const origin = `${tlsEnabled ? 'https' : 'http'}://127.0.0.1:${port}`;
-    const request = (path, data, headers = {}, trust = true) => new Promise((resolve, reject) => {
+    const request = (path, data, headers = {}, trust = true, address = '127.0.0.1') => new Promise((resolve, reject) => {
       // Keep TLS identity fixed while independently testing the HTTP Host header.
-      const client = (tlsEnabled ? https : http).request({ hostname: '127.0.0.1', port, path, method: data === undefined ? 'GET' : 'POST', ...(tlsEnabled ? { servername: 'localhost', ...(trust ? { ca } : {}) } : {}),
+      const client = (tlsEnabled ? https : http).request({ hostname: address, port, path, method: data === undefined ? 'GET' : 'POST', ...(tlsEnabled ? { servername: 'localhost', ...(trust ? { ca } : {}) } : {}),
         headers: { ...(data === undefined ? {} : { 'Content-Type': 'application/json', Origin: origin }), ...headers } }, response => {
         let body = ''; response.setEncoding('utf8'); response.on('data', chunk => { body += chunk; });
         response.on('end', () => resolve({ status: response.statusCode, headers: response.headers, body }));
@@ -94,6 +95,44 @@ test('explicit HTTP remains usable for local/proxy debugging without forcing sec
     assert.equal(f.app.settings.https, false);
     const login = await f.request('/api/login', { password: f.password }); assert.equal(login.status, 200);
     assert.doesNotMatch(login.headers['set-cookie'][0], /; Secure/);
+  } finally { await f.close(); }
+});
+
+test('HTTPS tunnel login and authenticated writes coexist with an exact configured public origin', async () => {
+  const publicOrigin = 'https://command-center.example';
+  const f = await fixture(true, { publicOrigin });
+  try {
+    const host = `localhost:${f.port}`; const origin = `https://${host}`;
+    const headers = { Host: host, Origin: origin };
+    assert.equal((await f.request('/api/state', undefined, { Host: host })).status, 401);
+    assert.equal((await f.request('/api/login', { password: 'incorrect-password' }, headers)).status, 401);
+    assert.equal((await f.request('/api/login', { password: f.password }, { ...headers, Origin: `https://localhost:${f.port + 1}` })).status, 403);
+    assert.equal((await f.request('/api/login', { password: f.password }, { ...headers, Origin: `http://${host}` })).status, 403);
+    assert.equal((await f.request('/api/login', { password: f.password }, { ...headers, Origin: 'https://unrelated.example' })).status, 403);
+    const login = await f.request('/api/login', { password: f.password }, headers);
+    assert.equal(login.status, 200);
+    const cookie = login.headers['set-cookie'][0];
+    assert.match(cookie, /; Secure/); assert.match(cookie, /HttpOnly/); assert.match(cookie, /SameSite=Strict/);
+    assert.equal((await f.request('/api/state', undefined, { Host: host, Cookie: cookie })).status, 200);
+    assert.equal((await f.request('/api/logout', {}, { ...headers, Cookie: cookie })).status, 200);
+    assert.equal((await f.request('/api/state', undefined, { Host: host, Cookie: cookie })).status, 401);
+    assert.equal((await f.request('/api/login', { password: f.password }, { Host: 'command-center.example', Origin: publicOrigin })).status, 200);
+  } finally { await f.close(); }
+});
+
+test('dual HTTPS listeners share authentication and retain listener-specific tunnel origin checks', async () => {
+  const publicOrigin = 'https://command-center.example';
+  const f = await fixture(true, { host: '127.0.0.2', publicOrigin }, { host: '127.0.0.2', automatic: true, interfaceName: 'fixture' });
+  try {
+    const localHeaders = { Host: `localhost:${f.port}`, Origin: `https://localhost:${f.port}` };
+    const login = await f.request('/api/login', { password: f.password }, localHeaders);
+    assert.equal(login.status, 200);
+    const cookie = login.headers['set-cookie'][0]; assert.match(cookie, /; Secure/);
+    const publicHeaders = { Host: 'command-center.example', Origin: publicOrigin, Cookie: cookie };
+    assert.equal((await f.request('/api/state', undefined, publicHeaders, true, '127.0.0.2')).status, 200);
+    assert.equal((await f.request('/api/login', { password: f.password }, localHeaders, true, '127.0.0.2')).status, 403);
+    assert.equal((await f.request('/api/logout', {}, publicHeaders, true, '127.0.0.2')).status, 200);
+    assert.equal((await f.request('/api/state', undefined, { ...localHeaders, Cookie: cookie })).status, 401);
   } finally { await f.close(); }
 });
 

@@ -9,6 +9,10 @@ const usableIPv4 = address => typeof address === 'string' && isIP(address) === 4
   && Number(address.split('.')[0]) > 0 && Number(address.split('.')[0]) < 224 && !address.startsWith('127.');
 const defaultRunIp = async argv => (await execute('ip', argv, { encoding: 'utf8', timeout: 3000, maxBuffer: 1024 * 1024 })).stdout;
 
+export function listenAddresses(selection) {
+  return selection.automatic ? [...new Set([selection.host, '127.0.0.1'])] : [selection.host];
+}
+
 async function ipRows(runIp, argv) {
   let output;
   try { output = await runIp(argv); }

@@ -5,16 +5,29 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Release version is **0.33.1**. Native approval choices wrap as whole groups and
-keep button labels on one line at their existing shorter height. The change is
-scoped to approval layout; native answers, confirmation and disabled controls
-are preserved. All 26 existing approval checks and the production build pass.
-Rendered browser verification remains pending because no browser binary was
-available. Source publication does not update or restart a running installation.
-Implementation: `35469d671416b4a11c4d58c65898cdb0bcd6e46e`.
+Release version 0.34.0 prioritizes the SSH HTTPS login failure and dual-address
+startup. Installed config can pin a public origin while an existing explicit
+loopback service is accessed through a localhost SSH tunnel. The strict single
+origin check rejected login before password verification. The focused fix keeps
+exact public-origin validation and permits matching local HTTPS only on a
+loopback listener with actual encrypted loopback socket endpoints.
 
-Previous release **0.33.0** added a draggable vertical composer resize and
-corrected the header placement after published 0.32.0. The title/colour/status strip now belongs to the composer above its
+The user approved default startup on exactly the one selected default-route
+IPv4 address plus 127.0.0.1; explicit --host remains single-address. Both share
+one application/auth/workspace process. Listener rollback/shutdown, public-proxy
+behavior and TLS tunnel login receive targeted regression checks. Certificate
+name/trust requirements and live restart ownership are unchanged. All 480 tests
+and the build pass after integration of the published approval-button fix.
+Publication is in progress; actual installed tunnel login needs user retest. Password setup and native Goals are not part
+of this priority release.
+
+The published 0.33.1 approval-button correction is included unchanged:
+implementation35469d671416b4a11c4d58c65898cdb0bcd6e46e, remote head
+0ac4b4e413ced237abe11333ecce7d2418dfdcbf. Labels remain on one line and whole
+choices wrap at the existing shorter height.
+
+Previous release **0.33.0**, adding a draggable vertical composer resize and
+correcting the header placement after published 0.32.0. The title/colour/status strip now belongs to the composer above its
 input box and below scrolling history. Upper-right branding is retained.
 The history/input divider resizes the whole composer, supports pointer and
 keyboard input, cancel/reset, and restores one browser-local height preference.

@@ -10,7 +10,7 @@ import { CodexRpc } from './rpc.mjs';
 import { Workspace } from './workspace.mjs';
 import { defaultAuthFile, loadPassword, Sessions } from './auth.mjs';
 import { VERSION } from './version.mjs';
-import { resolveListenAddress } from './listen-address.mjs';
+import { resolveListenAddress, listenAddresses } from './listen-address.mjs';
 import { loadTlsSettings, certificateInfo } from './tls-settings.mjs';
 import { readRuntimeConfig, runtimeConfigFile } from './runtime-config.mjs';
 import { ensureCodexQuestions } from './codex-setup.mjs';
@@ -21,6 +21,29 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.ico': 'image/x-icon' };
 const failure = (message, status = 400) => Object.assign(new Error(message), { status });
 const normalizeHost = host => host?.replace(/^\[|\]$/g, '').toLowerCase();
+const loopbackAddress = address => ['127.0.0.1', '::1'].includes(address?.replace(/^::ffff:/, ''));
+
+export function requestOriginAllowed(request, settings, listenerHost = settings.host) {
+  const origin = request.headers.origin;
+  if (typeof origin !== 'string') return false;
+  // The configured proxy origin remains authoritative for its normal route.
+  if (settings.publicOrigin && origin === settings.publicOrigin) return true;
+  try {
+    const parsed = new URL(origin);
+    if (parsed.origin !== origin) return false;
+    if (!settings.publicOrigin) return (settings.https ? parsed.protocol === 'https:' : ['http:', 'https:'].includes(parsed.protocol)) && parsed.host === request.headers.host;
+
+    // A direct HTTPS connection on an explicitly local listener also supports
+    // SSH forwarding. Require real TLS and loopback socket endpoints; neither
+    // Origin alone nor forwarded headers establish that this is a local route.
+    if (!settings.https || !request.socket.encrypted
+      || !['localhost', '127.0.0.1', '::1'].includes(normalizeHost(listenerHost))
+      || !loopbackAddress(request.socket.localAddress) || !loopbackAddress(request.socket.remoteAddress)) return false;
+    const target = new URL('https://' + request.headers.host);
+    return !target.username && !target.password && ['localhost', '127.0.0.1', '::1'].includes(normalizeHost(target.hostname))
+      && parsed.protocol === 'https:' && parsed.origin === target.origin;
+  } catch { return false; }
+}
 async function body(request, limit = 65_536) {
   const chunks = []; let length = 0;
   for await (const chunk of request) { length += chunk.length; if (length > limit) throw failure('Request is too large.', 413); chunks.push(chunk); }
@@ -70,7 +93,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
     }, 80);
   };
   workspace.on('change', publish);
-  const serve = async (request, response) => {
+  const serve = async (request, response, listenerHost = settings.host) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Referrer-Policy', 'same-origin');
     response.setHeader('X-Frame-Options', 'DENY');
@@ -78,14 +101,11 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
     try {
       const host = normalizeHost(new URL('http://' + request.headers.host).hostname);
       const localAddress = request.socket.localAddress?.replace(/^::ffff:/, '');
-      const allowedHosts = new Set([settings.host, localAddress, new URL(settings.publicOrigin || 'http://localhost').hostname]);
-      if (['127.0.0.1', '::1'].includes(settings.host)) ['localhost', '127.0.0.1', '[::1]'].forEach(value => allowedHosts.add(value));
+      const allowedHosts = new Set([listenerHost, localAddress, new URL(settings.publicOrigin || 'http://localhost').hostname]);
+      if (['localhost', '127.0.0.1', '::1'].includes(normalizeHost(listenerHost))) ['localhost', '127.0.0.1', '[::1]'].forEach(value => allowedHosts.add(value));
       if (![...allowedHosts].some(allowed => normalizeHost(allowed) === host)) throw failure('Unrecognized host. Configure --public-origin for reverse-proxy access.', 403);
       if (!['GET', 'HEAD'].includes(request.method)) {
-        const origin = request.headers.origin;
-        let valid = false;
-        try { valid = settings.publicOrigin ? origin === settings.publicOrigin : (tls ? new URL(origin).protocol === 'https:' : ['http:', 'https:'].includes(new URL(origin).protocol)) && new URL(origin).host === request.headers.host; } catch {}
-        if (!valid) throw failure('Request origin is not allowed.', 403);
+        if (!requestOriginAllowed(request, settings, listenerHost)) throw failure('Request origin is not allowed.', 403);
         if (!request.headers['content-type']?.startsWith('application/json')) throw failure('Send application/json.', 415);
       }
       const url = new URL(request.url, 'http://' + request.headers.host);
@@ -191,13 +211,49 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
       else json(response, { error: error.message || 'Request failed.' }, error.status || 500);
     }
   };
-  const server = tls ? https.createServer(tls, serve) : http.createServer(serve);
+  const createListener = host => {
+    const handler = (request, response) => serve(request, response, host);
+    return { host, server: tls ? https.createServer(tls, handler) : http.createServer(handler) };
+  };
+  const listeners = [createListener(settings.host)];
+  const server = listeners[0].server;
   if (settings.dev) {
     const { createServer } = await import('vite');
     vite = await createServer({ root, server: { middlewareMode: true, hmr: { server } }, appType: 'spa' });
   }
-  const close = async () => { await workspace.coordinator?.shutdown(); await workspace.claude?.shutdown(); clearInterval(taskTimer); clearTimeout(broadcastTimer); for (const client of clients) client.response.end(); clients.clear(); workspace.off('change', publish); rpc.close(); await vite?.close(); await new Promise(resolve => server.close(resolve)); await persistence.close(); };
-  return { server, workspace, rpc, close, settings, persistence };
+  let closing;
+  const close = () => closing ||= (async () => {
+    await workspace.coordinator?.shutdown(); await workspace.claude?.shutdown();
+    clearInterval(taskTimer); clearTimeout(broadcastTimer);
+    for (const client of clients) client.response.end();
+    clients.clear(); workspace.off('change', publish); rpc.close(); await vite?.close();
+    await Promise.all(listeners.map(listener => new Promise(resolve => listener.server.close(resolve))));
+    await persistence.close();
+  })();
+  const listen = async (selection, port = settings.port) => {
+    if (closing || listeners.some(listener => listener.server.listening)) throw new Error('The application listener has already started or closed.');
+    if (selection.host !== settings.host) throw new Error('The listening selection must match the configured host.');
+    try {
+      let sharedPort = port;
+      for (const [index, host] of listenAddresses(selection).entries()) {
+        const listener = index === 0 ? listeners[0] : createListener(host);
+        if (index > 0) listeners.push(listener);
+        await new Promise((resolve, reject) => {
+          const failed = error => { listener.server.off('error', failed); reject(error); };
+          listener.server.once('error', failed);
+          listener.server.listen(sharedPort, host, () => { listener.server.off('error', failed); resolve(); });
+        });
+        // Tests can request an ephemeral port; the second listener must use the
+        // primary listener's actual port, never allocate a different one.
+        sharedPort = listener.server.address().port;
+      }
+      return listeners.map(listener => ({ ...listener, port: listener.server.address().port }));
+    } catch (error) {
+      await close();
+      throw error;
+    }
+  };
+  return { server, listen, workspace, rpc, close, settings, persistence };
 }
 
 export function runtimeOptions(args = process.argv.slice(2), env = process.env, fileValues = {}) {
@@ -227,7 +283,9 @@ Usage: command-center-ng [--host ADDRESS] [--port PORT] [--protocol https|http] 
                          [--tls-cert CERTIFICATE_CHAIN_FILE --tls-key PRIVATE_KEY_FILE]
 
   --host ADDRESS        Optional listening-address override. Without --host or
-                        CCNG_HOST, select the Linux default-route IPv4 interface.
+                        CCNG_HOST, select the Linux default-route IPv4 interface
+                        plus 127.0.0.1 on the same port. An explicit host selects
+                        one listening address.
                         127.0.0.1: local only; 0.0.0.0: all IPv4 interfaces.
                         Explicit IPv6 addresses are also supported.
   --port PORT           Listening port (default: 4242).
@@ -253,7 +311,7 @@ Certificates must be readable, in date, and match the key and browser hostname.
 Use --public-origin https://YOUR_HOSTNAME for DNS certificates or wildcard binds.
 CCNG does not obtain or renew certificates; load renewed files by restarting it.
 Automatic selection requires Linux and the existing ip command (iproute).
-Startup prints the selected interface and HTTP address; systemd records stdout
+Startup prints both automatic listener addresses; systemd records stdout
 in its journal. If selection is unavailable or ambiguous, use --host ADDRESS.
 The default-route address can be network/public-facing; use --host 127.0.0.1
 for local-only access. This does not configure firewall or proxy access.
@@ -264,8 +322,10 @@ User service controls: command-center-ng service help`;
 
 export function listeningMessage(selection, port, boundAddress = selection.host, protocol = 'http') {
   const host = boundAddress.includes(':') ? '[' + boundAddress + ']' : boundAddress;
-  const target = selection.interfaceName || (selection.host === '0.0.0.0' ? 'all IPv4 interfaces' : selection.host === '::' ? 'IPv6 wildcard' : 'explicit address');
-  return `Command Center NG ${VERSION} listening on ${protocol}://${host}:${port} (interface: ${target}; ${selection.automatic ? 'automatic default IPv4 route' : 'explicit --host/CCNG_HOST'}).`;
+  const companion = selection.automatic && boundAddress === '127.0.0.1' && selection.host !== boundAddress;
+  const target = companion ? 'loopback' : selection.interfaceName || (selection.host === '0.0.0.0' ? 'all IPv4 interfaces' : selection.host === '::' ? 'IPv6 wildcard' : 'explicit address');
+  const reason = companion ? 'automatic loopback companion' : selection.automatic ? 'automatic default IPv4 route' : 'explicit --host/CCNG_HOST/configuration';
+  return `Command Center NG ${VERSION} listening on ${protocol}://${host}:${port} (interface: ${target}; ${reason}).`;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -280,11 +340,12 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       // Startup observes the native setup without changing a shared Codex profile.
       const codexSetup = await ensureCodexQuestions({ enable: false });
       for (const warning of codexSetup.warnings) console.warn('Codex setup warning: ' + warning);
-      app.server.once('error', error => { console.error(`Cannot listen: ${error.message}`); process.exitCode = 1; app.rpc.close(); });
-      app.server.listen(port, selection.host, () => {
-        console.log(listeningMessage(selection, port, app.server.address().address, app.settings.https ? 'https' : 'http'));
-        if (app.settings.certificate) console.log('TLS certificate: ' + JSON.stringify(app.settings.certificate));
-      });
+      const bound = await app.listen(selection, port);
+      for (const listener of bound) {
+        console.log(listeningMessage(selection, listener.port, listener.server.address().address, app.settings.https ? 'https' : 'http'));
+        listener.server.once('error', error => { console.error(`Cannot listen: ${error.message}`); process.exitCode = 1; void app.close(); });
+      }
+      if (app.settings.certificate) console.log('TLS certificate: ' + JSON.stringify(app.settings.certificate));
       app.rpc.connect().catch(error => { app.workspace.error = error.message; app.workspace.changed(); });
       for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { app.close().then(() => process.exit(0)); });
     }

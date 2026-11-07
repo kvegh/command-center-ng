@@ -529,3 +529,11 @@ fonts are one pixel larger than their previous sizes, with font families and
 size differences preserved. Coordinator sidebar recaps aim for20 words and must
 not exceed 25 words total across summary/blocker/next action; this does not limit
 full task or native-question details or change review authority.
+
+The user approved default startup on exactly the one selected default-route
+IPv4 address plus 127.0.0.1, using the same port and process. Other external IPs
+remain unbound; explicit --host selects only its address. Share workspace/auth
+state, roll back partial starts and close both listeners on shutdown. Preserve
+strict public-origin checks while permitting exact same-origin native HTTPS on
+the local listener only with loopback socket endpoints. This fixes SSH tunnel
+login; it does not grant HTTP/proxy-header exceptions or certificate trust.

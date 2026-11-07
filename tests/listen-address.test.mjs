@@ -1,9 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveListenAddress } from '../server/listen-address.mjs';
+import { resolveListenAddress, listenAddresses } from '../server/listen-address.mjs';
 
 const ipv4 = address => ({ address, family: 'IPv4', internal: false });
 const route = changes => ({ dst: 'default', gateway: '192.0.2.1', dev: 'eth0', metric: 100, ...changes });
+
+test('automatic selection adds only IPv4 loopback while explicit hosts select one address', () => {
+  assert.deepEqual(listenAddresses({ host: '192.0.2.10', automatic: true }), ['192.0.2.10', '127.0.0.1']);
+  for (const host of ['192.0.2.10', '127.0.0.1', '0.0.0.0', '::1', '::', 'localhost']) {
+    assert.deepEqual(listenAddresses({ host, automatic: false }), [host]);
+  }
+  assert.deepEqual(listenAddresses({ host: '127.0.0.1', automatic: true }), ['127.0.0.1']);
+});
 function fixture(routes, interfaces = { eth0: [ipv4('192.0.2.10')] }, lookup = []) {
   const calls = [];
   return { calls, options: { platform: 'linux', interfaces: () => interfaces, runIp: async argv => {

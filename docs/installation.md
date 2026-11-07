@@ -139,17 +139,24 @@ clients, so the native setting can affect those clients too. See the
 
 `command-center-ng --help` (or `-h`) prints all runtime controls without reading
 authentication, detecting routes, starting services or creating a workspace.
-Without a configured `host`, `--host` or `CCNG_HOST`, Linux selects the usable
-lowest-metric default
-IPv4 route and its interface address. Startup prints that interface, IP, port and
-protocol; systemd captures the same stdout in its journal. The existing `ip`
-command from iproute is required only for automatic selection. Ambiguous or
-unavailable routes fail with guidance to select `--host ADDRESS`; no wildcard
-or loopback fallback is inferred. An address changing later requires a restart.
+Without a configured `host`, `--host` or `CCNG_HOST`, CCNG listens on exactly two
+addresses: the interface address selected from Linux's usable lowest-metric
+default IPv4 route, and `127.0.0.1`. It does not bind other external interface
+addresses. Both listeners use the same port, process, workspace and application
+authentication. Startup prints both addresses, the selected route interface,
+port and protocol; systemd captures the same stdout in its journal. Help also
+describes this two-address default. The existing `ip` command from iproute is
+required only for automatic selection. Ambiguous or unavailable routes fail
+with guidance to select `--host ADDRESS`; there is no wildcard or loopback-only
+fallback. If either listener cannot bind, startup closes any listener already
+opened and fails. Normal shutdown closes both. An address changing later requires
+a restart.
 
 Use `--host 127.0.0.1` for localhost, a specific local IP for one address, or
 `--host 0.0.0.0` deliberately for all IPv4 interfaces. Explicit saved service
 arguments/environment remain effective; updating code does not replace them.
+An explicit host selects only that bind address; it does not add a second
+loopback listener.
 
 HTTP is the launcher default. To enable HTTPS in `etc/config.conf`, set
 `connection_type: https` and provide both `tls_certificate` (PEM certificate
@@ -177,6 +184,21 @@ proxy or debugging use. Explicit HTTP ignores TLS file settings. It does not
 enable TLS, remove the application login or configure external access.
 The Ansible playbook writes its selected protocol and certificate paths into
 the same application config; its default is HTTP and its HTTPS mode is explicit.
+
+### Local HTTPS through an SSH tunnel
+
+An SSH tunnel forwards connections; it does not change the browser's Origin.
+When CCNG itself uses HTTPS, a configured `public_origin` can coexist with local
+access through its loopback listener at `https://localhost:4242` or
+`https://127.0.0.1:4242` (or `https://[::1]:4242` with an explicit IPv6 loopback
+bind). The browser Origin must match
+the request's Host and port, and both ends of CCNG's actual connection must be
+loopback. Requests on wildcard/non-loopback listeners, a different origin or
+port, HTTP access and forwarded headers do not enable this additional local
+origin. The configured
+public origin remains accepted as before. The browser must still trust the
+presented certificate and validate the hostname used; tunneling adds no
+certificate-trust or hostname exceptions. The application login remains required.
 
 ### Existing nginx proxy settings
 
@@ -236,13 +258,18 @@ commands, then register it with the same runtime options as your foreground app:
 
 ```sh
 "$HOME/commandcenter-ng/command-center-ng" service install -- \
-  --host 127.0.0.1 --cwd "$HOME/projects/WORKSPACE"
+  --cwd "$HOME/projects/WORKSPACE"
 ```
 
-Replace the installation/workspace placeholders and retain your existing host,
-port, public origin and socket options. The example deliberately saves only the
-host/workspace overrides so `etc/config.conf` continues to select the protocol
-and certificate files. Registration writes an owner-only
+Replace the installation/workspace placeholders and retain required port, public
+origin and socket options. With no host override in the config file, environment
+or saved arguments, this example uses the default route address plus loopback.
+Add `--host 127.0.0.1` for a local-only service. Existing units with an explicit
+`--host` keep that single bind address after updates. To adopt the two-address
+default, deliberately register the service again without that option and remove
+any other host override; apply the change with a restart when safe. Registration
+alone does not restart the running service. The example leaves `etc/config.conf`
+to select the protocol and certificate files. Registration writes an owner-only
 `${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/command-center-ng.service`
 and reloads the user manager. It does not start, restart or enable the app.
 It preserves the current PATH and explicitly configured Codex/Claude/CCNG profile

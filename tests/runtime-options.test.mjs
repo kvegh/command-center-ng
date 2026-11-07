@@ -39,13 +39,16 @@ test('startup stdout identifies the resolved interface, actual address and selec
   const automatic = listeningMessage({ host: '192.0.2.15', interfaceName: 'example0', automatic: true }, 4242);
   assert.match(automatic, /http:\/\/192\.0\.2\.15:4242/);
   assert.match(automatic, /interface: example0; automatic default IPv4 route/);
+  const companion = listeningMessage({ host: '192.0.2.15', interfaceName: 'example0', automatic: true }, 4242, '127.0.0.1');
+  assert.match(companion, /http:\/\/127\.0\.0\.1:4242/);
+  assert.match(companion, /interface: loopback; automatic loopback companion/);
   assert.match(listeningMessage({ host: '0.0.0.0', interfaceName: null, automatic: false }, 4545), /all IPv4 interfaces; explicit --host\/CCNG_HOST/);
   assert.match(listeningMessage({ host: 'localhost', interfaceName: null, automatic: false }, 4242, '::1'), /http:\/\/\[::1\]:4242/);
 });
 
 test('usage documents automatic defaults, optional overrides, environment and systemd logging', () => {
   const help = runtimeHelp();
-  for (const pattern of [/\[--host ADDRESS\]/, /default-route IPv4 interface/, /127\.0\.0\.1: local only/, /0\.0\.0\.0: all IPv4 interfaces/, /CCNG_HOST/, /CLI options take precedence/, /systemd records stdout/, /does not configure firewall/, /service help/]) assert.match(help, pattern);
+  for (const pattern of [/\[--host ADDRESS\]/, /default-route IPv4 interface/, /127\.0\.0\.1 on the same port/, /one listening address/, /127\.0\.0\.1: local only/, /0\.0\.0\.0: all IPv4 interfaces/, /CCNG_HOST/, /CLI options take precedence/, /systemd records stdout/, /does not configure firewall/, /service help/]) assert.match(help, pattern);
 });
 
 test('real long and short help run without routing, authentication or workspace initialization', async () => {
