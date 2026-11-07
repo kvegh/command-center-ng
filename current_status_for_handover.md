@@ -18,7 +18,8 @@ one application/auth/workspace process. Listener rollback/shutdown, public-proxy
 behavior and TLS tunnel login receive targeted regression checks. Certificate
 name/trust requirements and live restart ownership are unchanged. All 480 tests
 and the build pass after integration of the published approval-button fix.
-Publication is in progress; actual installed tunnel login needs user retest. Password setup and native Goals are not part
+Implementation: `03a4fef944856dd4f75f3c788c73229f3403eb3a`.
+Check remote refs for publication; installed tunnel login needs user retest. Password setup and native Goals are not part
 of this priority release.
 
 The published 0.33.1 approval-button correction is included unchanged:

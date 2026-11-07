@@ -1848,3 +1848,38 @@ dependency symlink. Package, lockfile and runtime versions agree; diff checks
 pass. Primary source review accepted the scoped CSS correction. No browser
 binary was available, so rendered desktop/mobile verification remains pending.
 No live installation, native approval or service was changed for verification.
+
+
+## 2026-11-07 — Restore HTTPS tunnel login and two-address startup (0.34.0)
+
+Implementation: `03a4fef944856dd4f75f3c788c73229f3403eb3a`.
+
+A user accessing the app through a localhost HTTPS SSH tunnel could not log in
+when installed configuration specified the public proxy origin. The request was
+rejected before password verification. Keep that public origin exact, while
+also accepting a canonical matching HTTPS Origin/Host and port on an explicitly
+local listener with native TLS and both actual socket endpoints on loopback.
+The same check covers login, logout and authenticated mutations. No HTTP
+downgrade, forwarded-header trust, certificate exception or authentication
+bypass was added.
+
+The user explicitly approved default startup on exactly the one IPv4 address
+chosen for the default route plus 127.0.0.1 at the same port. Explicit host settings
+continue selecting one address. Both listeners share the same Node process,
+authentication, sessions and workspace; failed partial startup rolls back the
+listeners and shutdown closes both. Startup logs/help and installation guidance
+explain the two addresses and preserved explicit host overrides.
+
+The concurrently published approval-button height fix is preserved unchanged
+from 35469d671416b4a11c4d58c65898cdb0bcd6e46e / head 0ac4b4e. All 480 application tests
+and the build pass after integration. Actual TLS tests cover tunnel login,
+public-origin login, shared sessions, logout and origin rejection; listener
+checks cover exact address selection, an unused third address, explicit single
+binding, shutdown and second-bind rollback. A fixture was corrected to make
+fresh HTTP connections when checking post-shutdown refusal rather than reusing
+a closing pooled connection. Independent source review found no origin-control
+blocker. A targeted scan found no known private values in 14 changed files.
+
+No live configuration, service, certificate, password or proxy was changed.
+Installed-browser login awaits the user's update/restart and retest. Password
+initialization remains a separate pending decision and is not part of this fix.
