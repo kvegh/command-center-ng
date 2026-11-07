@@ -1827,3 +1827,24 @@ established ordinary npm test invocation ran and passed the full suite without
 permission changes or test exclusions. A targeted staged-source scan found no
 known private environment or credential patterns in the 24 changed files.
 No running installation, service, proxy, native permission or model was changed.
+
+## 2026-11-07 — Keep native approval buttons at their shorter height (0.33.1)
+
+Implementation: `35469d671416b4a11c4d58c65898cdb0bcd6e46e`.
+
+The user reported Allow once wrapping onto two lines and becoming taller than
+Allow always. Source inspection found a non-wrapping flex row squeezing the
+scope-free choice beside a longer saved-rule scope. Approval choices now wrap
+as whole groups, retain their minimum content width and keep button labels on
+one line. Existing button padding, typography and the shorter single-line height
+are retained. The scope text can still wrap. All changes are confined to native
+approval layout; decisions, saved rules, click handlers and disabled/read-only
+guards remain unchanged.
+
+The 26 existing approval-control and approval-choice checks pass. The production
+type check and build pass at 0.33.1 using Vite's existing native config loader,
+which avoids writing bundled-config temporary files through the preserved
+dependency symlink. Package, lockfile and runtime versions agree; diff checks
+pass. Primary source review accepted the scoped CSS correction. No browser
+binary was available, so rendered desktop/mobile verification remains pending.
+No live installation, native approval or service was changed for verification.

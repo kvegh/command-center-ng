@@ -11,6 +11,7 @@ scoped to approval layout; native answers, confirmation and disabled controls
 are preserved. All 26 existing approval checks and the production build pass.
 Rendered browser verification remains pending because no browser binary was
 available. Source publication does not update or restart a running installation.
+Implementation: `35469d671416b4a11c4d58c65898cdb0bcd6e46e`.
 
 Previous release **0.33.0** added a draggable vertical composer resize and
 corrected the header placement after published 0.32.0. The title/colour/status strip now belongs to the composer above its
