@@ -1744,3 +1744,50 @@ build. The delegated fixture uses distinct target and localhost addresses/ports,
 writes the target pin and preserves unrelated trust. Actual AAP import/deployment,
 initial app authentication and native Codex sign-in remain separate acceptance
 steps; no installed app was started or changed by these checks.
+
+
+## 2026-11-07 — Installed configuration, optional TLS and clear worker activity
+
+Implementation: `283692d29b8a8bdc4580f5cac0673701929431c2` (0.32.0).
+
+The user selected HTTP as the ordinary installation/runtime default and a small
+plain-text config under INSTALLDIR/etc. This supersedes the earlier HTTPS-default
+and separate private-home config proposal. The installer creates commented HTTPS
+certificate examples before active HTTP, accepts --prefix with a home-directory
+default, and preserves existing settings, certificates and tools on updates.
+Foreground and systemd startup read the same file; explicit CLI/environment
+settings retain priority. Full YAML was deferred, so no parser dependency was
+added. Unsupported files fail safely, including nonblocking FIFO rejection.
+
+Optional native HTTPS validates certificate format, dates, matching private key
+and browser identity, with no silent HTTP fallback. An omitted listening host
+selects the Linux default-route IPv4 interface, reports the interface/address and
+allows explicit overrides. The CaC-style app playbook can create/reuse a
+self-signed backend pair under INSTALLDIR/etc/certs, verify all configured
+backend/browser/health identities and write HTTPS settings. All actual deployment
+settings remain in the encrypted private companion. Nginx is owned/completed in
+the other conversation; duplicate draft proxy work was excluded from this release.
+Live deployment acceptance belongs there and was not performed here.
+
+The user ultimately required native Codex setup in both installer and deployment,
+with read-only startup checks. Native commands own feature persistence. Missing,
+unsupported or unsuccessful setup warns and continues; the development-feature
+caveat is retained. Deployment may provide the pinned CLI locally when absent.
+No direct native TOML edits, warning suppression or automatic daemon/worker
+restarts were added. Existing logs remain stdout/stderr and systemd journals.
+
+A compact fixed chat header identifies the current chat and its browser-local
+four-colour choice on the left, with Codex receipt/activity/connection information
+on the right. Receipt is confirmed only after native acknowledgement. Real worker
+updates and transport heartbeats remain separate; disconnected/delayed activity
+is last-known and silence never invents a stuck diagnosis. This addresses input
+uncertainty and mistaken chat selection without additional worker pings.
+
+All449 application checks,24 isolated native Ansible checks, strict production
+lint and the production build pass. Independent reviews prompted concrete fixes
+to non-file handling, exact comment ordering, safe warning visibility and complete
+SAN coverage. A targeted scan of159 intended files found no known private
+environment or credential patterns; normal public project/Git identities remain.
+These checks establish source behavior, not rendered phone/desktop acceptance
+or a live deployment. No running installation, service, proxy, native permission
+or model execution was changed for verification.

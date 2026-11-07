@@ -5,7 +5,8 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Release version is **0.32.0** in package.json and the lockfile. It builds on the
+Release version is **0.32.0** in package.json and the lockfile.
+Implementation: `283692d29b8a8bdc4580f5cac0673701929431c2`. It builds on the
 published 0.31.3 source at428cc0041861b6d8bb88af2b1e4ed2faefb2b53a. The earlier
 four deployment design choices were explicitly approved in the owning AAP
 conversation; the previous review hold is resolved. See current Git refs and the
