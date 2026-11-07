@@ -80,7 +80,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.33.0
+## Current development version: 0.33.1
 
 Keep a compact header inside the composer, directly above the input box and
 below the scrolling history. This strip belongs to the chat input area. Put the chat title
@@ -158,6 +158,9 @@ Session choices are not permanent; file and request-permission limitations stay
 explicit. Preserve ordinary forms, native confirmation, and coordinator limits.
 Surface native save warnings without claiming resolved means saved. Claude
 permission controls remain postponed with all other Claude work.
+
+Native approval labels stay on one line at the existing shorter button height.
+On narrow cards, wrap whole choices while keeping their exact scopes readable.
 
 Coordinator project cards place the saved report cadence beside the project
 name. When the worker's current tracker has Needs input tasks, their titles

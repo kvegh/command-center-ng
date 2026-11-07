@@ -5,8 +5,15 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Release version is **0.33.0**, adding a draggable vertical composer resize and
-correcting the header placement after published 0.32.0. The title/colour/status strip now belongs to the composer above its
+Release version is **0.33.1**. Native approval choices wrap as whole groups and
+keep button labels on one line at their existing shorter height. The change is
+scoped to approval layout; native answers, confirmation and disabled controls
+are preserved. All 26 existing approval checks and the production build pass.
+Rendered browser verification remains pending because no browser binary was
+available. Source publication does not update or restart a running installation.
+
+Previous release **0.33.0** added a draggable vertical composer resize and
+corrected the header placement after published 0.32.0. The title/colour/status strip now belongs to the composer above its
 input box and below scrolling history. Upper-right branding is retained.
 The history/input divider resizes the whole composer, supports pointer and
 keyboard input, cancel/reset, and restores one browser-local height preference.

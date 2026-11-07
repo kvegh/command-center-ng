@@ -5,6 +5,11 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
+Version 0.33.1 keeps native approval button labels on one line at their existing
+shorter height. Whole choices wrap on narrow cards, keeping Allow once and
+Allow always at their natural widths. The 26 existing approval checks
+and production build pass; rendered browser verification remains pending.
+
 Version 0.33.0 adds a draggable divider between chat history and the input area.
 The chat title, colour and status strip now belongs to the input area, directly
 above its text box. Drag the divider up to enlarge the input or down to shrink it;
@@ -16,7 +21,7 @@ All 469 application tests and the production build pass; independent source
 reviews found no blocking issue. Rendered browser acceptance remains unverified.
 Source publication does not update or restart a running installation.
 
-**Version 0.33.0** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.33.1** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The classic dark graphite theme uses cyan controls,

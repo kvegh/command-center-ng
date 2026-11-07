@@ -915,8 +915,9 @@ kbd { font-family: inherit; }
 .coordinator-worker-summary .coordinator-input-task { display: block; color: var(--amber); }
 .coordinator-worker-summary .coordinator-input-label { font-weight: 600; }
 
-.native-approval-choices { align-items: flex-end; }
-.native-approval-choice { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 100%; min-width: 0; }
+.native-approval-choices { align-items: flex-end; flex-wrap: wrap; }
+.native-approval-choice { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 100%; min-width: min-content; }
+.native-approval-choice > .button { white-space: nowrap; }
 .native-approval-choice .native-approval-scope { margin: 0; max-width: 440px; overflow-wrap: anywhere; white-space: pre-wrap; }
 
 /* Increase overview text by one pixel, preserving its font hierarchy and families.
