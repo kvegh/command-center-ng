@@ -1716,3 +1716,31 @@ source/spec cause. Browser tooling was unavailable: the reported layout was
 not reproduced or verified after the fix, so this remains a strong source-level
 diagnosis rather than confirmed rendered acceptance. No installed application
 was updated or restarted during implementation.
+
+
+## 2026-11-07 — Repair the existing selected AAP deployment path
+
+Implementation: `d2b94227cde6ab43f35f5d094f45d3813d8681be` (0.31.3).
+
+The shared CaC importer supplies one selected instance's whole-file runtime
+ciphertext to the existing application job. Native Ansible loads only documented
+inputs and removes its temporary file. Inventory-supplied approved SSH keys are
+prepared through delegated `known_hosts` before minimal facts and the existing
+RHEL guard; original host variables are selected explicitly during delegation.
+The separate base bootstrap owns the existing Git/Vault credentials.
+
+Two observed bootstrap failures are corrected: native home telemetry alone no
+longer masquerades as an existing Beads tracker, and the application PATH includes
+the maintained installer's Dolt directory. Actual tracker/configuration and path
+protections remain. The VM checkout also accepts credential-free HTTPS with normal
+Git TLS, correcting an SSH rule that applies to agent-side Git operations. Existing
+SSH checkout remains supported. No new Git identity or authentication source is
+created. The app owner reserved its next minor release for separate feature work,
+so this existing-capability repair is published first as a patch.
+
+Validation passed 367 Node checks, 11 native deployment fixtures, strict production
+lint for all 18 Ansible files, syntax/diff checks and the optimized production
+build. The delegated fixture uses distinct target and localhost addresses/ports,
+writes the target pin and preserves unrelated trust. Actual AAP import/deployment,
+initial app authentication and native Codex sign-in remain separate acceptance
+steps; no installed app was started or changed by these checks.
