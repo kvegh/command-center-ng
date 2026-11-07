@@ -383,6 +383,9 @@ Typing during a pending send acknowledgment preserves the newer draft.
 
 ## Ansible deployment on RHEL 9
 
+Version 0.31.3 repairs the existing AAP deployment/bootstrap path, including
+encrypted runtime delivery, SSH pin preparation and target-local tool lookup.
+
 [`ansible/deploy_command_center.yml`](ansible/deploy_command_center.yml) deploys
 through the maintained installer and enables `command-center-ng.service`, whose
 process runs as an existing unprivileged account. A first preflight rejects
@@ -396,6 +399,17 @@ in private `command-center-ng-secrets`; no encrypted payload belongs here.
 See the [deployment guide](docs/ansible-deployment.md) for inputs, AAP integration,
 password preservation, upgrade behavior and validation limits. Local checks do
 not constitute a real RHEL 9 deployment or a configured AAP Job Template.
+
+The shared AAP CaC importer can save whole-file runtime ciphertext on the
+application Job Template. Native Ansible tasks select its expected instance,
+bind only documented deployment inputs, and remove the temporary ciphertext.
+Direct inventory/extra-variable deployment remains supported. The selected
+account's native login, daemon, tracker, source Git access and initial app password
+remain prerequisites; importing CaC does not provide those credentials.
+
+The 0.31.3 repair passed 367 Node checks, 11 native deployment fixtures, strict
+Ansible lint, syntax checks and a production build. Actual AAP deployment and
+the selected account's authentication remain separate acceptance steps.
 
 ## Open questions
 

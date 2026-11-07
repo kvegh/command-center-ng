@@ -1,0 +1,79 @@
+---
+- name: Load the selected instance's whole-file encrypted Command Center settings
+  delegate_to: localhost
+  become: false
+  no_log: true
+  vars:
+    ansible_connection: local
+  block:
+    - name: Require ciphertext and an explicit selected instance
+      ansible.builtin.assert:
+        that:
+          - command_center_runtime_settings_vault is string
+          - command_center_runtime_settings_vault is match('^\$ANSIBLE_VAULT;1\.[12];AES256(?:;[^\n]+)?\n')
+          - command_center_runtime_expected_instance is defined
+          - command_center_runtime_expected_instance is string
+          - command_center_runtime_expected_instance | length > 0
+        quiet: true
+        fail_msg: Supply the selected instance's encrypted runtime settings and its existing CaC Vault credential.
+
+    - name: Allocate private ciphertext in the execution environment
+      ansible.builtin.tempfile:
+        state: file
+        prefix: command-center-runtime-vault-
+      register: ccng_runtime_temporary_file
+      check_mode: false
+
+    - name: Preserve ciphertext without automatic copy-module decryption
+      ansible.builtin.copy:
+        content: "{{ command_center_runtime_settings_vault }}"
+        dest: "{{ ccng_runtime_temporary_file.path }}"
+        mode: '0600'
+        decrypt: false
+      diff: false
+      check_mode: false
+
+    - name: Decrypt through the native variables loader and existing Vault credential
+      ansible.builtin.include_vars:
+        file: "{{ ccng_runtime_temporary_file.path }}"
+        name: ccng_runtime_file
+
+    - name: Require settings for the selected instance only
+      ansible.builtin.assert:
+        that:
+          - ccng_runtime_file is mapping
+          - ccng_runtime_file.keys() | list == ['instances']
+          - ccng_runtime_file.instances is mapping
+          - command_center_runtime_expected_instance in ccng_runtime_file.instances
+          - ccng_runtime_file.instances[command_center_runtime_expected_instance] is mapping
+        quiet: true
+        fail_msg: The encrypted runtime file does not contain the selected instance.
+
+    - name: Refuse settings outside the documented deployment inputs
+      ansible.builtin.assert:
+        that:
+          - >-
+            ccng_runtime_file.instances[command_center_runtime_expected_instance].keys() |
+            difference(['command_center_user', 'command_center_project_dir',
+              'command_center_repository', 'command_center_revision',
+              'command_center_source_dir', 'command_center_install_dir',
+              'command_center_config_dir', 'command_center_codex_home',
+              'command_center_path', 'command_center_bind_address',
+              'command_center_port', 'command_center_public_origin',
+              'command_center_password', 'command_center_manage_packages',
+              'command_center_force_install']) | length == 0
+        quiet: true
+        fail_msg: Runtime settings may contain only documented Command Center deployment inputs.
+
+    - name: Bind the selected instance's deployment inputs
+      ansible.builtin.set_fact:
+        "{{ item.key }}": "{{ item.value }}"
+      loop: "{{ ccng_runtime_file.instances[command_center_runtime_expected_instance] | dict2items }}"
+
+  always:
+    - name: Remove the execution environment's private ciphertext file
+      ansible.builtin.file:
+        path: "{{ ccng_runtime_temporary_file.path }}"
+        state: absent
+      when: ccng_runtime_temporary_file.path is defined
+      check_mode: false

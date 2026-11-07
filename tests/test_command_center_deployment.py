@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import yaml
 
@@ -29,12 +30,13 @@ class CommandCenterDeploymentTests(unittest.TestCase):
         self.work = Path(self.temp.name)
         self.sequence = 0
 
-    def run_tasks(self, tasks, variables=None, environment=None, success=True):
+    def run_tasks(self, tasks, variables=None, environment=None, success=True,
+                  inventory=None, hosts="all"):
         self.sequence += 1
         fixture = self.work / f"fixture-{self.sequence}.yml"
         play = {
             "name": "Validate isolated Command Center fixtures",
-            "hosts": "all",
+            "hosts": hosts,
             "gather_facts": False,
             "become": False,
             "no_log": True,
@@ -52,7 +54,7 @@ class CommandCenterDeploymentTests(unittest.TestCase):
             "ANSIBLE_NOCOLOR": "1",
         })
         result = subprocess.run(
-            ["ansible-playbook", "-i", "localhost,", "--connection", "local",
+            ["ansible-playbook", "-i", str(inventory or "localhost,"), "--connection", "local",
              "-e", f"ansible_python_interpreter={sys.executable}", str(fixture)],
             env=env, capture_output=True, text=True, timeout=90, check=False,
         )
@@ -69,7 +71,11 @@ class CommandCenterDeploymentTests(unittest.TestCase):
 
     def test_rhel9_guard_precedes_every_target_change(self):
         play = yaml.safe_load((ANSIBLE / "deploy_command_center.yml").read_text())[0]
-        self.assertEqual(play["pre_tasks"][0]["ansible.builtin.import_tasks"],
+        self.assertIs(play["gather_facts"], False)
+        self.assertEqual(play["pre_tasks"][0]["ansible.builtin.include_tasks"],
+                         "tasks/command_center_ssh.yml")
+        self.assertIn("ansible.builtin.setup", play["pre_tasks"][1])
+        self.assertEqual(play["pre_tasks"][2]["ansible.builtin.import_tasks"],
                          "tasks/command_center_platform.yml")
         self.assertIs(play["no_log"], True)
         for distribution, major, supported in [
@@ -88,6 +94,36 @@ class CommandCenterDeploymentTests(unittest.TestCase):
                 }}, success=supported)
                 self.assertEqual(sentinel.exists(), supported)
 
+    def test_native_delegated_ssh_pin_uses_original_host_and_preserves_other_entries(self):
+        home = self.work / "fixture-home"
+        ssh = home / ".ssh"
+        ssh.mkdir(parents=True)
+        key = self.work / "fixture-ssh-key"
+        generated = subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(key)],
+                                   capture_output=True, text=True, timeout=15, check=False)
+        self.assertEqual(generated.returncode, 0, generated.stderr)
+        public_key = " ".join(key.with_suffix(".pub").read_text().split()[:2])
+        unrelated = "unrelated.example.invalid " + public_key
+        (ssh / "known_hosts").write_text(unrelated + "\n")
+        inventory = self.work / "ssh-inventory.yml"
+        inventory.write_text(yaml.safe_dump({"all": {
+            "hosts": {"localhost": {"ansible_connection": "local", "ansible_host": "127.0.0.1",
+                                      "ansible_port": 22, "ansible_ssh_host_key_checking": False}},
+            "children": {"command_center": {"hosts": {"selected-fixture": {
+                "ansible_connection": "ssh", "ansible_host": "selected.example.invalid",
+                "ansible_port": 2207, "ansible_ssh_host_key_checking": True,
+                "command_center_ssh_known_hosts": ["[selected.example.invalid]:2207 " + public_key],
+            }}}},
+        }}))
+        with patch.dict(os.environ, {"HOME": str(home)}):
+            result = self.run_tasks([self.include("command_center_ssh.yml")],
+                                    inventory=inventory, hosts="command_center")
+        saved = (ssh / "known_hosts").read_text()
+        self.assertIn(unrelated, saved)
+        self.assertIn("[selected.example.invalid]:2207 " + public_key, saved)
+        self.assertNotIn("127.0.0.1 " + public_key, saved)
+        self.assertIn("selected-fixture -> localhost", result.stdout)
+
     def test_inventory_overrides_survive_default_resolution(self):
         tasks = [
             {"name": "Load internal defaults", "ansible.builtin.include_vars":
@@ -98,6 +134,8 @@ class CommandCenterDeploymentTests(unittest.TestCase):
                 "not (command_center_manage_packages | bool)",
                 "command_center_install_dir == ccng_user_home ~ '/custom-app'",
                 "command_center_path.startswith(command_center_install_dir ~ '/tools/')",
+                "(command_center_install_dir ~ '/tools/bin') in command_center_path.split(':')",
+                "(command_center_install_dir ~ '/tools/node_modules/.bin') in command_center_path.split(':')",
             ]}},
         ]
         self.run_tasks(tasks, {"ccng_user_home": str(self.work),
@@ -105,6 +143,85 @@ class CommandCenterDeploymentTests(unittest.TestCase):
                                "command_center_revision": "selected-ref",
                                "command_center_manage_packages": False,
                                "command_center_install_dir": str(self.work / "custom-app")})
+
+    def test_source_repository_accepts_existing_ssh_or_credential_free_https(self):
+        play = yaml.safe_load((ANSIBLE / "deploy_command_center.yml").read_text())[0]
+        tasks = [task for task in play["pre_tasks"] if task["name"] in (
+            "Require the account, project and supported source repository inputs",
+            "Require credential-free HTTPS source URLs when using public Git access",
+        )]
+        for repository, accepted in [
+            ("git@code.example.invalid:team/command-center-ng.git", True),
+            ("ssh://git@code.example.invalid/team/command-center-ng.git", True),
+            ("https://code.example.invalid/team/command-center-ng.git", True),
+            ("http://code.example.invalid/team/project.git", False),
+            ("https://user:secret@code.example.invalid/team/project.git", False),
+            ("https://code.example.invalid/team/project.git?token=secret", False),
+            ("https://code.example.invalid/team/project.git#revision", False),
+            ("https:///team/project.git", False),
+        ]:
+            with self.subTest(repository=repository):
+                self.run_tasks(tasks, {"command_center_user": "fixture_operator",
+                                      "command_center_project_dir": str(self.work),
+                                      "command_center_repository": repository}, success=accepted)
+
+    def runtime_ciphertext(self, instances):
+        password = self.work / "runtime-vault-password"
+        password.write_text("synthetic-runtime-vault-password\n")
+        password.chmod(0o600)
+        payload = self.work / "runtime.yml"
+        payload.write_text(yaml.safe_dump({"instances": instances}))
+        payload.chmod(0o600)
+        result = subprocess.run(
+            ["ansible-vault", "encrypt", "--vault-password-file", str(password), str(payload)],
+            env={**os.environ, "ANSIBLE_LOCAL_TEMP": str(self.work / "vault-tmp")},
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return payload.read_text(), password
+
+    def test_native_runtime_loader_selects_one_instance_and_removes_ciphertext(self):
+        ciphertext, password = self.runtime_ciphertext({
+            "selected-fixture": {"command_center_user": "fixture_operator",
+                                 "command_center_port": 8181,
+                                 "command_center_password": "synthetic-runtime-canary"},
+            "other-fixture": {"command_center_user": "must_not_select", "command_center_port": 9999},
+        })
+        with patch.dict(os.environ, {"ANSIBLE_VAULT_PASSWORD_FILE": str(password)}):
+            result = self.run_tasks([
+                self.include("command_center_runtime.yml"),
+                {"name": "Check selected inputs", "ansible.builtin.assert": {"that": [
+                    "command_center_user == 'fixture_operator'", "command_center_port | int == 8181",
+                    "command_center_password == 'synthetic-runtime-canary'",
+                ]}},
+                {"name": "Inspect temporary ciphertext cleanup", "ansible.builtin.stat": {
+                    "path": "{{ ccng_runtime_temporary_file.path }}"}, "register": "runtime_cleanup"},
+                {"name": "Require cleanup", "ansible.builtin.assert": {
+                    "that": ["not runtime_cleanup.stat.exists"]}},
+            ], {"command_center_runtime_settings_vault": ciphertext,
+                "command_center_runtime_expected_instance": "selected-fixture"})
+        self.assertNotIn("synthetic-runtime-canary", result.stdout + result.stderr)
+
+    def test_native_runtime_loader_refuses_wrong_instance_and_connection_overrides(self):
+        for values, selected in [
+            ({"selected-fixture": {"command_center_user": "fixture_operator"}}, "wrong-fixture"),
+            ({"selected-fixture": {"ansible_host": "other.example.invalid"}}, "selected-fixture"),
+        ]:
+            with self.subTest(selected=selected, values=values):
+                ciphertext, password = self.runtime_ciphertext(values)
+                with patch.dict(os.environ, {"ANSIBLE_VAULT_PASSWORD_FILE": str(password)}):
+                    self.run_tasks([
+                        {"name": "Exercise the protected runtime refusal",
+                         "block": [self.include("command_center_runtime.yml")],
+                         "rescue": [{"name": "Remember the expected refusal", "ansible.builtin.set_fact": {
+                             "runtime_refused": True}}]},
+                        {"name": "Require refusal", "ansible.builtin.assert": {"that": ["runtime_refused | default(false)"]}},
+                        {"name": "Inspect refused payload cleanup", "ansible.builtin.stat": {
+                            "path": "{{ ccng_runtime_temporary_file.path }}"}, "register": "runtime_cleanup"},
+                        {"name": "Require cleanup after refusal", "ansible.builtin.assert": {
+                            "that": ["not runtime_cleanup.stat.exists"]}},
+                    ], {"command_center_runtime_settings_vault": ciphertext,
+                        "command_center_runtime_expected_instance": selected})
 
     def test_path_guards_protect_profile_and_refuse_overlaps(self):
         valid = {"ccng_home": str(self.work),

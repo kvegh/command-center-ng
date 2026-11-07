@@ -4,10 +4,7 @@
 # service. Codex/Beads services, login, permissions and project data are preserved.
 - name: Deploy Command Center NG on RHEL 9 using an existing account
   hosts: command_center
-  gather_facts: true
-  gather_subset:
-    - "!all"
-    - min
+  gather_facts: false
   become: true
   no_log: true
   vars_files:
@@ -16,8 +13,22 @@
     ccng_deployment_version: "{{ (lookup('ansible.builtin.file', playbook_dir ~ '/../package.json') | from_json).version }}"
 
   pre_tasks:
+    - name: Prepare supplied SSH host pins in the execution environment before connecting
+      ansible.builtin.include_tasks: tasks/command_center_ssh.yml
+      when: command_center_ssh_known_hosts is defined
+
+    - name: Read minimal operating system facts without changing the target
+      ansible.builtin.setup:
+        gather_subset:
+          - "!all"
+          - min
+
     - name: Validate the supported operating system before changes
       ansible.builtin.import_tasks: tasks/command_center_platform.yml
+
+    - name: Load optional encrypted settings supplied by the shared CaC importer
+      ansible.builtin.include_tasks: tasks/command_center_runtime.yml
+      when: command_center_runtime_settings_vault is defined
 
     - name: Require deployment mode for the stateful installer
       ansible.builtin.assert:
@@ -25,15 +36,30 @@
         fail_msg: Use syntax checks and the isolated fixture suite locally; installer deployment requires normal mode.
         quiet: true
 
-    - name: Require the account, project and SSH source repository inputs
+    - name: Require the account, project and supported source repository inputs
       ansible.builtin.assert:
         that:
           - command_center_user is defined and command_center_user is string
           - command_center_user is match('^[a-z_][a-z0-9_-]{0,31}$')
           - command_center_project_dir is defined and command_center_project_dir is string
           - command_center_repository is defined and command_center_repository is string
-          - command_center_repository is match('^(git@[^\s]+:|ssh://)[^\s]+$')
+          - command_center_repository is match('^(git@[^\s]+:|ssh://|https://)[^\s]+$')
         quiet: true
+
+    - name: Require credential-free HTTPS source URLs when using public Git access
+      ansible.builtin.assert:
+        that:
+          - ccng_repository_url.scheme == 'https'
+          - ccng_repository_url.hostname | default('', true) | length > 0
+          - ccng_repository_url.username is none
+          - ccng_repository_url.password is none
+          - ccng_repository_url.query == ''
+          - ccng_repository_url.fragment == ''
+        quiet: true
+        fail_msg: Public HTTPS Git URLs must not contain credentials, a query or a fragment.
+      vars:
+        ccng_repository_url: "{{ command_center_repository | ansible.builtin.urlsplit }}"
+      when: command_center_repository is match('^https://')
 
     - name: Look up the existing application account
       ansible.builtin.getent:
@@ -137,6 +163,10 @@
         CODEX_HOME: "{{ command_center_codex_home }}"
         CCNG_CONFIG_DIR: "{{ command_center_config_dir }}"
         GIT_TERMINAL_PROMPT: "0"
+        GIT_SSL_NO_VERIFY: "false"
+        GIT_CONFIG_COUNT: "1"
+        GIT_CONFIG_KEY_0: http.sslVerify
+        GIT_CONFIG_VALUE_0: "true"
       block:
         - name: Validate path syntax before resolving remote locations
           ansible.builtin.assert:

@@ -11,4 +11,7 @@ ccng_default_bind_address: 127.0.0.1
 ccng_default_port: 4242
 ccng_default_public_origin: ""
 ccng_default_path: >-
-  {{ command_center_install_dir }}/tools/node_modules/.bin:{{ ccng_user_home }}/.local/bin:{{ ccng_user_home }}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+  {{ [command_center_install_dir ~ '/tools/bin',
+      command_center_install_dir ~ '/tools/node_modules/.bin',
+      ccng_user_home ~ '/.local/bin', ccng_user_home ~ '/.npm-global/bin',
+      '/usr/local/bin', '/usr/bin', '/bin'] | join(':') }}

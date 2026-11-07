@@ -55,6 +55,21 @@ test('existing trackers and redirected or partial configurations never initializ
   } finally { await f.close(); }
 });
 
+test('native home telemetry alone preserves its files and permits the selected fresh workspace', async () => {
+  const f = await fixture();
+  try {
+    const telemetry = join(f.dir, '.beads');
+    await mkdir(join(telemetry, 'eventsData'), { recursive: true });
+    await writeFile(join(telemetry, 'machine-id'), 'synthetic telemetry identity');
+    await writeFile(join(telemetry, 'eventsData', 'pending.evtq'), 'synthetic event');
+    await f.run('ccng_confirm() { return 0; }; ccng_beads_setup');
+    assert.equal(await readFile(join(f.workspace, '.beads/metadata.json'), 'utf8'), 'synthetic native metadata');
+    assert.equal(await readFile(join(telemetry, 'machine-id'), 'utf8'), 'synthetic telemetry identity');
+    assert.equal(await readFile(join(telemetry, 'eventsData', 'pending.evtq'), 'utf8'), 'synthetic event');
+    assert.equal((await f.calls()).filter(call => call.startsWith('init --shared-server')).length, 1);
+  } finally { await f.close(); }
+});
+
 test('ambient connection selection, declined setup and check-only do not initialize a tracker', async () => {
   const f = await fixture();
   try {

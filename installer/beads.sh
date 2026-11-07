@@ -9,7 +9,18 @@ ccng_beads_custom_configuration() {
     # redirect, parent tracker, or an existing connection/credential selection.
     CCNG_BEADS_PARENT=$1
     while :; do
-        { [ ! -e "$CCNG_BEADS_PARENT/.beads" ] && [ ! -L "$CCNG_BEADS_PARENT/.beads" ]; } || return 0
+        if [ -e "$CCNG_BEADS_PARENT/.beads" ] || [ -L "$CCNG_BEADS_PARENT/.beads" ]; then
+            # Native bd creates home telemetry before a tracker exists. Preserve
+            # that exact layout without mistaking it for workspace routing.
+            # Rationale: ../docs/ansible-deployment.md#existing-target-prerequisites
+            [ "$CCNG_BEADS_PARENT" = "$HOME" ] &&
+                [ ! -L "$HOME/.beads" ] &&
+                [ -f "$HOME/.beads/machine-id" ] && [ ! -L "$HOME/.beads/machine-id" ] &&
+                [ -d "$HOME/.beads/eventsData" ] && [ ! -L "$HOME/.beads/eventsData" ] || return 0
+            CCNG_BEADS_OTHER=$(find "$HOME/.beads" -mindepth 1 -maxdepth 1 \
+                ! -name machine-id ! -name eventsData -print -quit) || return 0
+            [ -z "$CCNG_BEADS_OTHER" ] || return 0
+        fi
         [ "$CCNG_BEADS_PARENT" != / ] || break
         CCNG_BEADS_PARENT=$(dirname "$CCNG_BEADS_PARENT")
     done

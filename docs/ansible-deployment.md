@@ -12,9 +12,17 @@ The approved mode reuses an existing unprivileged Linux account, its home,
 signed-in Codex CLI/profile, running native Codex daemon, existing project and
 working Beads tracker. It checks these without initializing a tracker, migrating
 data, creating an account or managing a Codex/Dolt service. This is not a fresh
-agent-environment bootstrap. The existing account needs SSH Git access and
-trusted host keys for the selected source repository; no automatic trust
-acceptance or authentication exception is used.
+agent-environment bootstrap. The application checkout accepts the existing SSH
+mode or credential-free HTTPS for a public repository. SSH needs existing Git
+access and trusted host keys; HTTPS uses normal certificate verification. No
+automatic trust acceptance or authentication exception is used.
+
+The maintained installer distinguishes native home telemetry from a workspace
+tracker: only the exact real `~/.beads/machine-id` plus `eventsData/` layout may
+be ignored when checking whether a selected fresh workspace already has routing.
+Actual trackers, configuration, redirects, unexpected files and symlinks retain
+their existing protection. The Ansible PATH includes both target-local
+`tools/bin` (Dolt) and `tools/node_modules/.bin` (Codex/Beads).
 
 Ansible connects using an existing Machine credential with become permission.
 The playbook can install `acl`, `ca-certificates`, `coreutils`, `git`, `gzip` and
@@ -29,11 +37,20 @@ Inventory must contain the approved VM in group `command_center`. Synthetic
 examples live in `ansible/examples/`; never replace them with real environment
 values in this public repository.
 
+For the CaC-managed target, inventory holds its already verified
+`command_center_ssh_known_hosts` entries and enables SSH host-key checking.
+Native delegated tasks preserve other execution-environment `known_hosts`
+entries while installing this target's pins before the first SSH connection.
+Minimal facts and the existing RHEL guard then run before any target change.
+Direct deployments without this supplied pin list retain their existing SSH
+trust configuration. The encrypted runtime loader cannot override connection
+variables.
+
 | Variable | Meaning/default |
 | --- | --- |
 | `command_center_user` | Required existing non-root application account |
 | `command_center_project_dir` | Required existing project used by the native agent and Beads |
-| `command_center_repository` | Required SSH URL of the application source |
+| `command_center_repository` | Required SSH or credential-free HTTPS application source URL |
 | `command_center_revision` | Git revision to deploy; default `main`; pin a reviewed revision for reproducibility |
 | `command_center_source_dir` | Default `<account-home>/.local/src/command-center-ng` |
 | `command_center_install_dir` | Default `<account-home>/apps/command-center-ng` |
@@ -82,17 +99,26 @@ Native authentication and Beads/Dolt setup remain independent prerequisites.
 ## AAP integration
 
 AAP synchronizes public code using an HTTPS SCM URL. Agent-side Git operations
-and the existing-account application checkout use SSH, per workspace policy.
+use SSH, per workspace policy; the VM checkout may also use credential-free
+HTTPS for the public source. That choice does not create or copy a Git identity.
 The project-specific private CaC capture follows the existing shared
 `deploy-cac-project.yml` importer format; its intended canonical path is
-`vaults/cac/command-center-ng-cac-vault.yml`. The shared importer currently needs
-this project's catalog entry and actual credential bindings before that capture
-can be imported. No second importer or wrapper is introduced here.
+`vaults/cac/command-center-ng-cac-vault.yml`. The shared importer uses project ID
+`command-center-ng` and its dedicated repository-reader/CaC-Vault pair. No second
+importer or wrapper is introduced.
 
 The application Job Template selects `ansible/deploy_command_center.yml`, the
 approved target inventory and existing Machine/become access. Protected runtime
 inputs must be supplied through the established AAP configuration process; merely
 attaching a Vault credential does not load a file from another repository.
+The CaC capture saves `command_center_runtime_settings_vault` as whole-file
+ciphertext and `command_center_runtime_expected_instance` as the selected
+instance key. The private runtime file uses the existing `instances` mapping:
+each instance contains only the deployment inputs documented above. After the
+RHEL platform guard, native tasks decrypt the ciphertext using the attached
+Vault credential, reject a missing instance or unsupported variables, bind the
+selected settings and always remove the temporary file. Without the ciphertext
+variable, existing direct-input deployment is unchanged.
 The server playbook deliberately does not clone the secrets repository onto the
 VM. CaC import creates platform definitions; application deployment is a separate
 job. Capture every actual AAP change in encrypted CaC before calling it complete.
@@ -125,3 +151,7 @@ Passing local checks does not prove a real RHEL 9 startup, an AAP execution
 environment's dependencies, browser access or a successful live deployment.
 Those require running the approved Job Template against the selected VM and
 checking its final result, service identity, health and a preservation rerun.
+Native-loader fixtures verify real Vault decryption, instance selection,
+connection-override refusal and temporary-file cleanup. They do not establish
+that the target account has signed in, that Git access works, or that the app
+has started; those remain live acceptance checks.

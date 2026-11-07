@@ -1,0 +1,38 @@
+---
+- name: Prepare the approved SSH host pins only in the execution environment
+  delegate_to: localhost
+  become: false
+  no_log: true
+  vars:
+    ansible_connection: local
+    ccng_ssh_target: "{{ hostvars[inventory_hostname] }}"
+    ccng_ssh_host: "{{ ccng_ssh_target.ansible_host | default(inventory_hostname) }}"
+    ccng_ssh_port: "{{ ccng_ssh_target.ansible_port | default(22) }}"
+    ccng_ssh_host_name: >-
+      {{ ('[' ~ ccng_ssh_host ~ ']:' ~ (ccng_ssh_port | string))
+         if ccng_ssh_port | int != 22 else ccng_ssh_host }}
+    ccng_ssh_directory: "{{ lookup('ansible.builtin.env', 'HOME') }}/.ssh"
+  block:
+    - name: Require supplied host keys and enabled SSH host verification
+      ansible.builtin.assert:
+        that:
+          - ccng_ssh_target.command_center_ssh_known_hosts is sequence
+          - ccng_ssh_target.command_center_ssh_known_hosts is not string
+          - ccng_ssh_target.command_center_ssh_known_hosts | length > 0
+          - ccng_ssh_target.ansible_ssh_host_key_checking | default(ccng_ssh_target.ansible_host_key_checking | default(false)) | bool
+        quiet: true
+        fail_msg: Supply the selected host's verified SSH keys and enable host-key checking.
+
+    - name: Ensure the execution environment has its SSH trust directory
+      ansible.builtin.file:
+        path: "{{ ccng_ssh_directory }}"
+        state: directory
+        mode: '0700'
+
+    - name: Maintain only the supplied host entries without replacing other SSH trust
+      ansible.builtin.known_hosts:
+        path: "{{ ccng_ssh_directory }}/known_hosts"
+        name: "{{ ccng_ssh_host_name }}"
+        key: "{{ item }}"
+        state: present
+      loop: "{{ ccng_ssh_target.command_center_ssh_known_hosts }}"
