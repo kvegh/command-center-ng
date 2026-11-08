@@ -1883,3 +1883,35 @@ blocker. A targeted scan found no known private values in 14 changed files.
 No live configuration, service, certificate, password or proxy was changed.
 Installed-browser login awaits the user's update/restart and retest. Password
 initialization remains a separate pending decision and is not part of this fix.
+
+
+## 2026-11-07 — Persistent colour on the input header tab (0.34.1)
+
+Implementation: `acb3293875432387f3d864a58b6908731005dd5b`.
+
+The selected chat colour previously affected a small marker and the colour
+selector's focus outline, making identification unclear after moving focus into
+the input. The user clarified that only the background of the tab directly above
+the input should be coloured. Its existing per-chat value now supplies a
+persistent theme-compatible background tint and matching border. The composer
+frame and top agent tabs retain their existing styling; text sizes, status,
+wrapping, drafts, persistence and resizing are unchanged.
+
+All 481 application tests and the production build pass. Static palette/cascade
+checks cover four colours across three themes and preserve readable text; actual
+rendered browser acceptance remains unverified. No live service or configuration
+was changed.
+
+A first-time walkthrough was added to the installation guide after checking the
+current installer. It explains separate source/install directories, confirmed
+prerequisites/native setup, the application password, optional Beads/local Dolt,
+native Codex startup, browser access and user-systemd management. The current
+installer still asks for a chosen password; mandatory first-login password change
+remains separate unfinished work. The user's supplied installer update command
+is supported with its positional destination. Earlier advice passing --update to
+the installed application launcher was incorrect; no historical launcher
+regression was established.
+
+The earlier login task was closed after attributed actual user confirmation that
+both external and localhost access work. That outcome does not establish broader
+application/mobile acceptance or reverse the rejected production-setting removal.

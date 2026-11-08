@@ -8,8 +8,9 @@ task source of truth; do not use this file as a second backlog.
 Release version 0.34.1 makes the selected per-chat colour persistently tint only
 the header tab above the input. This follows the user's correction: colour its
 background, not the composer frame or top agent tabs. All 481 tests and the
-build pass, including palette/cascade contrast checks. Source publication is
-in progress; rendered browser verification remains unperformed.
+build pass, including palette/cascade contrast checks. Implementation:
+`acb3293875432387f3d864a58b6908731005dd5b`. Check remote refs for publication;
+rendered browser verification remains unperformed.
 
 The 0.34.0 login task is now CLOSED after the coordinator relayed actual user
 verification that both external and localhost access work. This is attributed
