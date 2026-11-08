@@ -141,6 +141,10 @@ Keep README.md current with design changes. Record the change, reason, and real
 implementation commit ID in design_decisions_history.md. If that ID is not yet
 known, commit the implementation first and add its ID in a documentation commit.
 Distinguish implemented behavior from requirements and proposals.
+Keep the main README focused on what CCNG is, why it exists, its principal
+features, requirements and installation. Put version-by-version changes in
+release notes and detailed operation in separate usage documentation. Link to
+those records instead of appending release narratives to the product README.
 
 Use SSH for agent-side Git network operations. Keep commits focused and use
 concise, imperative subjects. Validate relevant behavior and inspect command
