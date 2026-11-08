@@ -5,6 +5,14 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
+Version 0.36.0 makes only the mobile overview more compact so chat starts sooner:
+smaller gaps/padding, a wrapping task heading, no empty question sections, and a
+single Worker settings row with the current cadence and Report now. One tap
+reveals cadence/model controls; queued status and errors stay visible. Desktop
+layout, saved sizes and fonts are unchanged. All 498 tests and the production
+build pass; independent review found no concrete issue. Actual phone rendering,
+keyboard and rotation acceptance remain separate.
+
 Version 0.35.1 aligns application password creation, stdin setup and login at
 4,096 characters, including an optional final LF/CRLF in stdin. Oversized input
 fails before replacing an existing authentication file. All 489 application
@@ -12,7 +20,9 @@ tests, two focused Ansible password fixtures and the production build pass.
 
 Fresh setup uses a user-chosen password and updates preserve an existing login.
 The shared-default/forced-first-login-change proposal was withdrawn; it is not
-pending implementation. No production password, service or native permission was
+pending implementation. First-browser password creation without a deployment-supplied
+password is separate unfinished work; current startup still requires valid auth.
+No production password, service or native permission was
 changed by this patch. Installed-app acceptance remains separate.
 
 Version 0.35.0 makes mobile one naturally scrolling page, with wrapped worker
@@ -49,7 +59,7 @@ Running installations are not changed automatically.
 
 The published 0.33.1 approval-button height correction is preserved.
 
-**Version 0.35.1** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.36.0** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The classic dark graphite theme uses cyan controls,
@@ -120,6 +130,19 @@ Mobile omits resizing controls and ignores saved desktop sidebar, section and
 composer sizes without erasing them. It hides the worker's Coordinator recap;
 the actual coordinator dashboard remains available. Desktop layout is unchanged.
 Mobile notifications remain postponed.
+
+The compact mobile overview uses less padding and spacing, with task totals and
+Link tasks sharing a wrapping header row. Empty Open questions sections are
+omitted only when no request or attention state exists, in both worker and
+coordinator views. One **Worker settings** row shows the current cadence and an
+adjacent **Report now** button. Expanding it reveals the interval choices and
+model/effort controls. Queued/pending status and errors remain outside the
+collapsed body. Desktop keeps the original open controls, including Report now
+after Never. Controls stay mounted when the layout changes, preserving their
+state. Coordinator guidance text is hidden on mobile and project cards are
+tighter, retaining dashboard actions and input needs. Font sizes and desktop
+sizing remain unchanged. All 498 tests and the production build pass for this
+compact-overview refinement; rendered phone acceptance is unverified.
 
 ## Frontend
 

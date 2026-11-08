@@ -474,6 +474,8 @@ kbd { font-family: inherit; }
 .task-totals .tasks-need-input { color: var(--amber); }
 .worker-settings { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
 .worker-settings h3 { margin: 0 0 12px; }
+.worker-settings-summary { display: none; }
+.worker-report-mobile { display: none; }
 .worker-settings fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .worker-settings legend { color: #c1d0e3; font-size: 12px; margin-bottom: 9px; }
 .report-options { display: flex; flex-wrap: wrap; gap: 9px 12px; }
@@ -994,10 +996,31 @@ kbd { font-family: inherit; }
   .workspace { flex: none; padding: 0 8px 8px; }
   .workspace-frame { flex: none; overflow: visible; }
   .workspace-frame .agent-panel { display: flex; flex-direction: column; height: auto; min-height: 0; max-height: none; }
-  .context { flex: none; width: 100%; max-height: none; overflow: visible; border-left: 0; border-bottom: 1px solid var(--line); padding: 14px 12px; }
-  .overview-sections { gap: 20px; }
+  .context { flex: none; width: 100%; max-height: none; overflow: visible; border-left: 0; border-bottom: 1px solid var(--line); padding: 8px 12px; }
+  .overview-sections { gap: 8px; }
   .overview-section-body.sized { height: auto; overflow: visible; }
-  .task-summary { flex-direction: column; gap: 8px; }
+  .goal-row { display: flex; gap: 8px; }
+  .task-summary { flex-direction: column; gap: 4px; }
+  .task-summary > .task-heading { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+  .task-heading .context-label { width: auto; }
+  .task-heading .task-totals { flex: 1 1 auto; }
+  .task-heading .task-link-button { align-self: baseline; }
+  .coordinator-guidance { display: none; }
+  .coordinator-context h2 { margin-bottom: 6px; }
+  .coordinator-worker { padding: 6px 0; gap: 4px 8px; }
+  .context .coordinator-worker > span:last-child { line-height: 1.4; }
+  .worker-settings.compact { position: relative; }
+  .worker-settings.compact h3, .worker-settings.compact .worker-report-desktop { display: none; }
+  .worker-settings.compact legend { margin-bottom: 4px; }
+  .worker-settings.compact .report-options { gap: 6px 8px; align-items: center; }
+  .worker-settings.compact .field-note, .worker-settings.compact .error-text { margin: 6px 0 0; }
+  .worker-settings.compact .worker-settings-disclosure { margin-top: 0; }
+  .worker-settings.compact .worker-settings-summary { display: list-item; min-height: 36px; padding: 7px 96px 7px 0; cursor: pointer; color: var(--ink); font-size: 13px; line-height: 1.6; }
+  .worker-settings-cadence { color: var(--muted); white-space: nowrap; }
+  .worker-settings.compact .worker-report-mobile { display: inline-flex; position: absolute; top: 0; right: 0; z-index: 1; }
+  .worker-settings.compact .worker-settings-disclosure[open] > fieldset { margin-top: 6px; }
+  .worker-settings.compact .worker-settings-summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .worker-settings.compact .worker-model-settings { margin-top: 6px; padding-top: 6px; }
   .overview-section[data-section="tasks"] .overview-section-body.sized > .task-summary { height: auto; }
   .overview-section[data-section="tasks"] .overview-section-body.sized .task-scroll { max-height: var(--task-viewport-height); flex: none; }
   .overview-section[data-section="recap"], .sidebar-divider, .overview-section-divider, .composer-divider { display: none; }

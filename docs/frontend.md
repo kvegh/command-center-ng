@@ -50,6 +50,22 @@ phone keyboard, rotation and rendered verification remain pending. Finger
 gestures scroll naturally; mouse/pen dragging and arrow controls still reorder
 tabs. The compact layout includes wide landscape coarse-pointer devices.
 
+The mobile overview reduces vertical padding and section gaps to eight pixels;
+task labels, totals and Link tasks share a wrapping row. Worker and coordinator
+views omit Open questions only when there are no requests and no attention
+state. Pending requests and attention without loaded details remain visible.
+Mobile starts with one Worker settings disclosure row showing the current
+cadence and an always-visible Report now sibling button. One expansion reveals
+both cadence radio choices and model/effort controls. Queued/pending state and
+report errors stay outside the collapsed body. Controls remain mounted across
+rotation and layout changes. Desktop keeps the body open, hides the disclosure
+summary and retains Report now after Never in the original control row. Mobile
+also hides coordinator guidance prose and tightens project-card spacing while
+retaining the dashboard, input-needed titles and controls. This refinement does
+not change fonts, desktop widths/preferences, the roughly 30-line chat history
+or six-line input. All 498 tests and the production build pass; rendered phone behavior remains
+unverified.
+
 Version 0.6.0 uses dark graphite surfaces with cyan controls, green running
 states, amber attention states, and violet branch navigation. Status labels and
 icons accompany color. The goal and up to three task summaries remain above

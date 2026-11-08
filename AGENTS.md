@@ -563,3 +563,13 @@ resize handles on mobile, including landscape phones. Ignore stored desktop
 dimensions without erasing them; retain desktop controls and the actual
 coordinator dashboard. Touch scrolling must not reorder tabs. Keep phone
 keyboard/rotation acceptance distinct from source/build checks.
+
+
+The user explicitly scoped overview compaction to MOBILE ONLY. Keep the mobile
+settings row collapsed by default with current report cadence and Report now
+visible; interval and model controls stay mounted and accessible on expansion.
+Keep queued/pending/error feedback visible, and retain question sections for
+actual requests or attention/recovery even without request details. Empty
+questions and static coordinator guidance may be omitted on mobile; tasks,
+input-needed titles and dashboard controls remain available. Preserve desktop
+layout, fonts, saved dimensions, three-task viewport and history/input bounds.

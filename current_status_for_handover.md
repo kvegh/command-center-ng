@@ -1,9 +1,26 @@
 # Current status for handover
 
-Updated: 2026-11-07. This is a development handover snapshot. Beads remains the
+Updated: 2026-11-08. This is a development handover snapshot. Beads remains the
 task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
+
+Version 0.36.0 implements the user's MOBILE ONLY overview compaction. Padding
+and section gaps shrink to eight pixels; task heading/totals wrap together.
+Empty question sections are omitted only without requests or attention in both
+worker and coordinator views. One Worker settings row shows cadence and Report
+now; native disclosure reveals cadence/model controls without unmounting them.
+Queued/pending/error feedback stays visible. Desktop controls, fonts and saved
+sizes remain unchanged, as do the three-task viewport and history/input bounds.
+All 498 tests and the build pass; independent source review found no issue.
+Actual phone rendering/keyboard/rotation remains unverified. Check remote refs
+for publication; source work does not install or restart a running instance.
+
+The old shared-default/forced-change proposal remains withdrawn. A separately
+clarified first-browser password-creation flow (without an initial deployment
+password) is not implemented: current startup still requires an auth profile.
+Do not claim fresh password-free unattended deployment is ready. Mobile is the
+current implementation focus; no authentication redesign is selected here.
 
 Version 0.35.1 fixes the existing password-length mismatch: creation, protected
 stdin and HTTP login support up to 4,096 actual password characters. A final
@@ -16,8 +33,8 @@ no installed application/service/password was changed by this source patch.
 The user withdrew the shared default password and first-login forced-change
 proposal. Existing setup requires a user-chosen password before startup and
 preserves configured authentication. The former first-access choice is closed
-as withdrawn; do not keep reporting it as pending input. Compact-overview screen
-scope remains an existing separate structured question, with no UI change yet.
+as withdrawn; do not keep reporting it as pending input. The later overview
+scope was answered mobile-only and is implemented above.
 
 Release 0.35.0 implements the approved continuous mobile page: wrapped tabs,
 full-width overview above about 30 lines of internally scrolling chat history,

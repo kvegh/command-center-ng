@@ -37,9 +37,12 @@ function properties(selector, names, media) {
 test('mobile CSS and composer share the width/coarse-pointer query and responsive state', () => {
   assert.equal(compactQuery, '(max-width: 900px), (hover: none) and (pointer: coarse)');
   assert.equal(sheet.nodes.filter(node => node.type === 'atrule' && node.name === 'media' && node.params === compactQuery).length, 1);
-  const composer = findNodes(node => ts.isJsxOpeningElement(node) && node.tagName.getText(main) === 'ResizableComposer')[0];
-  const compact = composer?.attributes.properties.find(attribute => ts.isJsxAttribute(attribute) && attribute.name.text === 'compact');
-  assert.equal(compact?.initializer?.expression?.getText(main), 'compactLayout');
+  for (const name of ['ResizableComposer', 'WorkerSettings', 'CoordinatorContext']) {
+    const elements = findNodes(node => (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(main) === name);
+    assert.equal(elements.length, 1, `${name} has one responsive entry point`);
+    const compact = elements[0].attributes.properties.find(attribute => ts.isJsxAttribute(attribute) && attribute.name.text === 'compact');
+    assert.equal(compact?.initializer?.expression?.getText(main), 'compactLayout', `${name} uses the shared responsive state`);
+  }
   const matchingQueries = findNodes(node => ts.isCallExpression(node) && node.expression.getText(main) === 'window.matchMedia'
     && node.arguments[0]?.getText(main) === 'compactLayoutQuery');
   assert.equal(matchingQueries.length, 2, 'initial state and responsive updates use the same query');
@@ -98,4 +101,66 @@ test('wide coarse phones override saved section sizes while desktop sizing remai
     assert.deepEqual(properties(tasks, ['max-height', 'flex'], media), { 'max-height': 'var(--task-viewport-height)', flex: 'none' });
   }
   assert.equal(declarations('.task-summary > .task-scroll')['overflow-y'], 'auto', 'the existing measured three-task viewport keeps its own scrolling');
+});
+
+test('mobile overview reduces spacing while desktop retains its existing layout', () => {
+  assert.equal(declarations('.context', [desktopQuery]).padding, '22px 18px');
+  assert.equal(declarations('.goal-row', [desktopQuery]).display, 'grid');
+  assert.equal(declarations('.task-summary > .task-heading', [desktopQuery])['flex-direction'], 'column');
+  assert.equal(declarations('.coordinator-worker', [desktopQuery]).padding, '12px 0');
+  assert.equal(declarations('.worker-settings-summary', [desktopQuery]).display, 'none');
+  for (const media of [[compactQuery], [desktopQuery, compactQuery]]) {
+    assert.equal(declarations('.context', media).padding, '8px 12px');
+    assert.equal(declarations('.overview-sections', media).gap, '8px');
+    assert.equal(declarations('.goal-row', media).display, 'flex');
+    assert.deepEqual(properties('.task-summary > .task-heading', ['flex-direction', 'flex-wrap'], media), { 'flex-direction': 'row', 'flex-wrap': 'wrap' });
+    assert.equal(declarations('.coordinator-worker', media).padding, '6px 0');
+    assert.equal(declarations('.coordinator-guidance', media).display, 'none');
+    assert.equal(declarations('.worker-settings.compact .worker-settings-summary', media).display, 'list-item');
+  }
+  for (const selector of ['.coordinator-worker-summary .coordinator-input-label', '.coordinator-worker-summary .coordinator-input-task']) {
+    assert.equal(declarations(selector, [desktopQuery, compactQuery]).display, 'block', 'input needs remain visible when coordinator cards are compacted');
+  }
+});
+
+test('responsive settings expose one Report now button and a focusable mobile disclosure', () => {
+  assert.equal(declarations('.worker-report-mobile', [desktopQuery]).display, 'none', 'desktop hides the duplicate mobile button from layout and keyboard navigation');
+  assert.equal(declarations('.button', [desktopQuery]).display, 'inline-flex');
+  assert.notEqual(declarations('.worker-settings.compact .worker-report-desktop', [desktopQuery]).display, 'none');
+  for (const media of [[compactQuery], [desktopQuery, compactQuery]]) {
+    assert.equal(declarations('.worker-settings.compact .worker-report-desktop', media).display, 'none', 'opening mobile settings does not reveal a second Report now button');
+    assert.deepEqual(properties('.worker-settings.compact .worker-report-mobile', ['display', 'position', 'top', 'right'], media), {
+      display: 'inline-flex', position: 'absolute', top: '0', right: '0',
+    });
+    assert.equal(declarations('.worker-settings.compact', media).position, 'relative');
+    const summary = declarations('.worker-settings.compact .worker-settings-summary', media);
+    assert.equal(summary.display, 'list-item');
+    assert.equal(summary['min-height'], '36px');
+    assert.equal(summary.padding, '7px 96px 7px 0', 'disclosure text leaves room for the separate report action');
+    assert.ok(declarations('.worker-settings.compact .worker-settings-summary:focus-visible', media).outline, 'keyboard focus remains visible on the disclosure');
+  }
+});
+
+test('empty native questions disappear only on mobile; pending and undelivered attention remain visible', () => {
+  for (const id of ['questions', 'coordinator-questions']) {
+    const sections = findNodes(node => ts.isObjectLiteralExpression(node) && node.properties.some(property =>
+      ts.isPropertyAssignment(property) && property.name.getText(main) === 'id' && property.initializer.text === id));
+    assert.equal(sections.length, 1, `one ${id} section`);
+    const visible = sections[0].properties.find(property => ts.isPropertyAssignment(property) && property.name.getText(main) === 'visible');
+    assert.ok(visible, `${id} has a visibility condition`);
+    // Evaluate the actual bounded JSX condition rather than copying its logic.
+    const evaluate = new Function('compact', 'compactLayout', 'agent', 'active', `return (${visible.initializer.getText(main)});`);
+    for (const compact of [false, true]) {
+      for (const [status, questions, mobileVisible] of [
+        ['idle', [], false], ['running', [], false],
+        ['attention', [], true], ['idle', [{ id: 'pending-question' }], true],
+        ['attention', [{ id: 'pending-question' }], true],
+      ]) {
+        const worker = { status, questions };
+        assert.equal(evaluate(compact, compact, worker, worker), !compact || mobileVisible,
+          `${id}: compact=${compact}, status=${status}, requests=${questions.length}`);
+      }
+      if (id === 'coordinator-questions') assert.equal(evaluate(compact, compact, undefined, undefined), false, 'missing coordinator does not create a questions section');
+    }
+  }
 });

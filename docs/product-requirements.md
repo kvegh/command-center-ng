@@ -47,6 +47,19 @@ and restore its preferences when returning to desktop. Mobile notifications
 remain postponed. Version 0.35.0 implements this approved layout; rendered phone
 acceptance has not been established.
 
+Compact the overview on mobile only: reduce padding and gaps and put task labels,
+totals and Link tasks in a wrapping row. Omit empty native Open questions only
+when neither requests nor attention are present, for workers and coordinator.
+Use one collapsed Worker settings row showing the current cadence with a visible
+Report now sibling. Expanding it reveals cadence radios and model/effort
+controls. Keep queued/pending state and errors outside the body, and keep its
+controls mounted across layout changes. Desktop retains the open original
+controls, with Report now after Never and no disclosure summary. Hide mobile
+coordinator guidance prose and tighten project
+cards without removing dashboard controls or input-needed titles. Preserve
+fonts, desktop widths/saved sizes, 30-line history and six-line input. All 498 tests and the production
+build pass for this refinement; no rendered phone acceptance is claimed.
+
 ## Dashboard and project context
 
 The dashboard provides easy switching between projects and agents. Each project
