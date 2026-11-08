@@ -1960,3 +1960,28 @@ behavior, not real browser layout. Phone keyboard, rotation, long-paste renderin
 and saved desktop-size acceptance remain unverified. No production service,
 proxy, native settings or installation was changed; mobile notifications remain
 postponed.
+
+
+## 2026-11-08 — Retain user-chosen setup passwords and align supported lengths
+
+The user withdrew the proposed shared initial password and forced first-login
+change. Fresh setup uses a user-chosen password and updates preserve configured
+authentication. The interactive installer already prompts for absent auth;
+headless staging is possible, but startup refuses to listen without valid auth.
+The existing Ansible password task requires protected input for first creation
+and preserves an existing private owned profile. No first-access channel choice
+or bootstrap-password implementation remains pending.
+
+Verification found an existing mismatch: setup accepted up to 4,096 characters
+but login rejected more than 1,024. Implementation `71fa8572193901028245475fca101d85f4fc0eb3` (0.35.1) aligns
+creation/login at 4,096 actual characters and allows one final LF/CRLF in bounded
+stdin input. Oversized replacements fail before modifying a stored profile.
+Existing scrypt format, ownership checks, origin protection, sessions, throttling
+and cookies are retained; no password is reset by this patch.
+
+All 489 application tests and the production build pass, including real CLI and
+HTTP regressions. Two existing real Ansible password fixtures also pass,
+confirming first creation, preservation and symlink refusal. Independent source
+review found no concrete issue. These checks do not establish installed-app
+acceptance or change any production authentication/service. The withdrawn
+proposal is recorded as withdrawn rather than completed implementation.

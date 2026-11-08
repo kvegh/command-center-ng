@@ -9,7 +9,8 @@ Version 0.35.1 fixes the existing password-length mismatch: creation, protected
 stdin and HTTP login support up to 4,096 actual password characters. A final
 LF/CRLF is allowed by stdin without enlarging the password limit; oversized
 replacements preserve the prior profile. All 489 application tests, two focused
-Ansible password fixtures and the build pass. Check remote refs for publication;
+Ansible password fixtures and the build pass. Implementation: `71fa8572193901028245475fca101d85f4fc0eb3`.
+Check remote refs for publication;
 no installed application/service/password was changed by this source patch.
 
 The user withdrew the shared default password and first-login forced-change
