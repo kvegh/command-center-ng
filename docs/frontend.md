@@ -203,3 +203,8 @@ brief reason). New agent-authored requests use these concise sections by default
 Exact commands, steps and original context/notes stay in expandable Details.
 Legacy records retain full information and use bounded previews without claiming
 an automatic semantic summary; native permission controls remain unchanged.
+
+The input header tab uses its selected chat colour as a persistent background
+tint and border over the current theme surface. Input focus does not remove or
+replace the tint. Only this header strip is coloured; the input frame and top
+agent tabs keep their existing styling. Text sizes and wrapping remain unchanged.

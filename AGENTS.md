@@ -537,3 +537,8 @@ state, roll back partial starts and close both listeners on shutdown. Preserve
 strict public-origin checks while permitting exact same-origin native HTTPS on
 the local listener only with loopback socket endpoints. This fixes SSH tunnel
 login; it does not grant HTTP/proxy-header exceptions or certificate trust.
+
+The user clarified chat colour applies only to the background of the title/colour/
+status tab directly above the input. Keep its saved per-chat tint visible while
+typing, without colouring the input frame or top agent tabs. Preserve theme
+contrast, small text and existing responsive status wrapping.

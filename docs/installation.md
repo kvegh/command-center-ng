@@ -47,6 +47,52 @@ The installer builds the frontend, prunes build-only dependencies, and creates
 `command-center-ng` inside the selected target. On the first interactive install, it prompts
 for an application password of at least 12 characters.
 
+## First-time walkthrough
+
+1. Use a normal Linux account. RHEL 9 is the supported automatic-prerequisite
+   target; Git must be available to download the source.
+2. Clone the public repository into a source directory, separate from the final
+   installation, then run the installer:
+
+   ```sh
+   git clone https://github.com/kvegh/command-center-ng.git "$HOME/command-center-ng-src"
+   cd "$HOME/command-center-ng-src"
+   ./install.sh
+   ```
+
+3. Follow the prompts for missing prerequisites, the application password,
+   optional native Codex sign-in and the existing project directory for Beads.
+   The installer asks before installing packages/tools or initializing a tracker.
+   It builds CCNG into `~/commandcenter-ng`; `--prefix DIRECTORY` changes that
+   destination. The application password and Codex sign-in are separate.
+4. Run the tool PATH export printed by the installer, then start the native
+   Codex runtime with `codex app-server daemon start`. CCNG connects to it;
+   starting the web application alone does not start a replacement runtime.
+5. Start `"$HOME/commandcenter-ng/command-center-ng"`. On that machine, open
+   `http://localhost:4242` and sign in. Fresh installations use HTTP and, without
+   explicit host overrides, listen on the selected default-route IPv4 address
+   and 127.0.0.1. The startup message prints the actual addresses.
+6. To use a background user service, stop the foreground app, then run:
+
+   ```sh
+   "$HOME/commandcenter-ng/command-center-ng" service install
+   "$HOME/commandcenter-ng/command-center-ng" service enable
+   "$HOME/commandcenter-ng/command-center-ng" service start
+   ```
+
+   The same launcher supports `service stop`, `restart`, `status` and `logs`.
+7. Connection settings are in `~/commandcenter-ng/etc/config.conf`. HTTPS is
+   optional and needs readable certificate/key files supplied by the operator.
+   The basic installer does not generate certificates or configure nginx or
+   firewall rules. The current installer asks for a password of at least 12
+   characters; a shared initial password with a mandatory first-login change
+   remains a separate unfinished feature.
+
+The supported source-checkout update command is `./install.sh --update`, with
+`--prefix` pointing to the existing destination when it is nondefault. Restart
+the app after updating. Existing configuration, certificates, login hash and
+saved workspace are preserved.
+
 ## Application connection settings
 
 After a successful build, the installer prepares `INSTALLDIR/etc/config.conf`

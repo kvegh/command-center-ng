@@ -155,7 +155,7 @@ a { color: var(--accent); }
 .conversation { flex: 1; min-height: 0; margin-top: 12px; overflow: auto; overscroll-behavior: contain; padding: 20px 27px 26px; scrollbar-width: thin; scrollbar-color: #3a4c65 transparent; }
 .conversation-top { display: flex; justify-content: space-between; color: #7086a7; font: 9px var(--mono); letter-spacing: 1px; margin-bottom: 25px; }
 .conversation-top > span:last-child { color: #8096b6; letter-spacing: 0; }
-.chat-header { --chat-colour: var(--accent); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; flex-shrink: 0; gap: 7px 16px; min-width: 0; padding: 0 0 9px; background: transparent; }
+.chat-header { --chat-colour: var(--accent); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; flex-shrink: 0; gap: 7px 16px; min-width: 0; padding: 6px 8px; margin-bottom: 8px; border: 1px solid var(--chat-colour); border-radius: 6px; background: var(--surface); background: color-mix(in srgb, var(--chat-colour) 12%, var(--surface)); }
 .chat-header[data-chat-colour="violet"] { --chat-colour: var(--violet); }
 .chat-header[data-chat-colour="green"] { --chat-colour: var(--green); }
 .chat-header[data-chat-colour="amber"] { --chat-colour: var(--amber); }

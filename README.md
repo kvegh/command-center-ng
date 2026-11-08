@@ -5,6 +5,13 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
+Version 0.34.1 makes the chosen chat colour persistently tint the title/colour/
+status tab directly above the input. Typing or moving focus no longer hides that
+colour; the input frame and top agent tabs retain their normal styling.
+All 481 tests and the build pass, including four-colour/three-theme contrast
+checks. Actual rendered browser verification remains pending. See the
+[first-time installation walkthrough](docs/installation.md#first-time-walkthrough).
+
 Version 0.34.0 restores direct HTTPS login through a localhost SSH tunnel when
 a public proxy origin is configured. Local access keeps exact origin checks,
 real TLS and loopback listener/socket requirements. Default startup listens on
@@ -16,7 +23,7 @@ Running installations are not changed automatically.
 
 The published 0.33.1 approval-button height correction is preserved.
 
-**Version 0.34.0** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.34.1** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The classic dark graphite theme uses cyan controls,

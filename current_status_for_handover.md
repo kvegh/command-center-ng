@@ -5,6 +5,18 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Release version 0.34.1 makes the selected per-chat colour persistently tint only
+the header tab above the input. This follows the user's correction: colour its
+background, not the composer frame or top agent tabs. All 481 tests and the
+build pass, including palette/cascade contrast checks. Source publication is
+in progress; rendered browser verification remains unperformed.
+
+The 0.34.0 login task is now CLOSED after the coordinator relayed actual user
+verification that both external and localhost access work. This is attributed
+access verification; broader application/mobile acceptance remains open. The
+user's rejection of agent-side host-setting removal remains in force, and no
+further production configuration or restart is authorized by that verification.
+
 Release version 0.34.0 prioritizes the SSH HTTPS login failure and dual-address
 startup. Installed config can pin a public origin while an existing explicit
 loopback service is accessed through a localhost SSH tunnel. The strict single
@@ -19,7 +31,7 @@ behavior and TLS tunnel login receive targeted regression checks. Certificate
 name/trust requirements and live restart ownership are unchanged. All 480 tests
 and the build pass after integration of the published approval-button fix.
 Implementation: `03a4fef944856dd4f75f3c788c73229f3403eb3a`.
-Check remote refs for publication; installed tunnel login needs user retest. Password setup and native Goals are not part
+Source publication is verified; the later attributed user report confirms both access paths. Password setup and native Goals are not part
 of this priority release.
 
 The published 0.33.1 approval-button correction is included unchanged:
@@ -1003,3 +1015,10 @@ protected with htpasswd. That public nginx/htpasswd setup belongs to the other
 AAP/infrastructure conversation; this chat tracks only CCNG UI acceptance. The
 new mobile acceptance record is open, not a new unanswered deployment question.
 Mobile notifications remain deferred and no native mobile app is selected.
+
+The first-time walkthrough is in docs/installation.md. The user supplied their
+actual update command, install.sh --update ./targetdir/, confirming the supported
+installer update path with positional destination compatibility. Earlier advice
+using the installed app launcher with --update was incorrect. The source wrapper
+and installer entry points must be distinguished; do not request more logs merely
+to establish the command already supplied.

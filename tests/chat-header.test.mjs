@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
+import postcss from 'postcss';
 
 const require = createRequire(import.meta.url);
 async function component(name) {
@@ -40,6 +41,49 @@ test('colour changes stay bound to the originating chat and reject arbitrary val
   second.props.onChange({ target: { value: 'green' } });
   first.props.onChange({ target: { value: 'arbitrary-css' } });
   assert.deepEqual(changed, [['one', 'amber'], ['two', 'green']]);
+});
+
+test('chat colours tint only the title strip persistently, with readable text in all three themes', async () => {
+  const sheet = postcss.parse(await readFile(new URL('../src/style.css', import.meta.url), 'utf8'));
+  const header = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === '.chat-header');
+  const declaration = (rule, property) => rule.nodes.filter(node => node.type === 'decl' && node.prop === property).at(-1)?.value;
+  const background = declaration(header, 'background');
+  const mix = /^color-mix\(in srgb, var\(--chat-colour\) (\d+)%, var\(--surface\)\)$/.exec(background);
+  assert.ok(mix, 'the unfocused strip itself carries its selected-colour background');
+  const channels = hex => [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16));
+  const luminance = rgb => rgb.map(value => value / 255).map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4)
+    .reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
+  for (const theme of ['classic', 'contrastful', 'light']) {
+    const palette = {};
+    sheet.walkRules(rule => {
+      if (rule.selectors.includes(':root') || rule.selectors.includes(`:root[data-theme="${theme}"]`)) {
+        rule.walkDecls(decl => { palette[decl.prop] = decl.value; });
+      }
+      if (rule.selectors.some(selector => selector.includes('.chat-header'))) {
+        if (declaration(rule, 'background')) assert.equal(rule.selector, '.chat-header', 'focus and theme rules must not erase the persistent strip background');
+      }
+      if (rule.selectors.some(selector => /\.composer(?:\b|-box)/.test(selector))) {
+        assert.ok(!rule.nodes.some(node => node.type === 'decl' && node.value.includes('--chat-colour')), 'chat colouring stays outside the composer/input frame');
+      }
+    });
+    const backgrounds = new Set();
+    for (const colour of ['cyan', 'violet', 'green', 'amber']) {
+      const rule = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === `.chat-header[data-chat-colour="${colour}"]`);
+      const selected = declaration(rule || header, '--chat-colour');
+      const variable = /^var\((--[a-z-]+)\)$/.exec(selected)?.[1];
+      assert.ok(variable && palette[variable], `${theme}/${colour}: selected colour resolves through the current theme`);
+      const fraction = Number(mix[1]) / 100;
+      const surface = channels(palette['--surface']);
+      const tinted = channels(palette[variable]).map((value, index) => value * fraction + surface[index] * (1 - fraction));
+      backgrounds.add(JSON.stringify(tinted));
+      for (const text of ['--ink', '--muted', '--green', '--amber']) {
+        const [light, dark] = [luminance(channels(palette[text])), luminance(tinted)].sort((a, b) => b - a);
+        const ratio = (light + .05) / (dark + .05);
+        assert.ok(ratio >= 4.5, `${theme}/${colour}/${text}: text contrast ${ratio.toFixed(2)} must remain readable`);
+      }
+    }
+    assert.equal(backgrounds.size, 4, `${theme}: all four choices produce distinct persistent backgrounds`);
+  }
 });
 
 test('input receipt waits for native-backed acknowledgement and stays with its worker across selection changes', async () => {
