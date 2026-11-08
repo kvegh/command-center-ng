@@ -2012,3 +2012,27 @@ concrete issue. Tests cover actual visibility conditions, responsive source
 rules and component delivery/state behavior. They do not establish rendered
 phone geometry, keyboard or rotation acceptance, which remain unverified. This
 source release does not update or restart installed software.
+
+
+## 2026-11-08 — Validate pasted working-directory paths before agent creation
+
+A trailing space in the new-agent directory made creation fail because it was
+passed literally to the filesystem. Implementation
+`64c8b2376a3a552cff6129219f86ecebed877a1f` (0.36.1) trims surrounding whitespace in
+the form and backend while retaining spaces within directory names. The backend
+requires an existing absolute directory and gives useful validation errors for
+missing paths, file components, embedded control characters, excessive length
+and permission denial before calling either native provider. Symlink spelling
+is preserved. This does not expand shell expressions, create directories,
+change access controls or override native agent settings.
+
+Seven new regression tests exercise normalized paths, rejection without native
+side effects, existing symlinks and real permission denial. Their temporary
+permission fixture restores access before cleanup. The full run also revealed
+an existing startup-report assertion that assumed ordering between independent
+worker deliveries; it now checks the exact worker list without assuming order,
+still rejecting duplicates or omissions. Runtime report behavior is unchanged.
+
+All 505 application tests and the production build pass. Independent source
+review found no concrete issue. Actual installed-browser acceptance remains
+unverified; source publication does not install or restart a running instance.

@@ -5,7 +5,8 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Version 0.36.1 corrects new-agent path validation: the form and backend trim
+Version 0.36.1 (implementation `64c8b2376a3a552cff6129219f86ecebed877a1f`)
+corrects new-agent path validation: the form and backend trim
 surrounding whitespace, preserving spaces within directory names. Both provider
 creation paths check existing absolute directories and reject malformed/missing/
 inaccessible paths with a status-400 validation message before native creation.
