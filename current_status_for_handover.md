@@ -13,6 +13,7 @@ now; native disclosure reveals cadence/model controls without unmounting them.
 Queued/pending/error feedback stays visible. Desktop controls, fonts and saved
 sizes remain unchanged, as do the three-task viewport and history/input bounds.
 All 498 tests and the build pass; independent source review found no issue.
+Implementation: `02a8f79e4330474dc58ef81ff3f02cb21e84237c`.
 Actual phone rendering/keyboard/rotation remains unverified. Check remote refs
 for publication; source work does not install or restart a running instance.
 

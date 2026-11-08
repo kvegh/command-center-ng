@@ -1985,3 +1985,30 @@ confirming first creation, preservation and symlink refusal. Independent source
 review found no concrete issue. These checks do not establish installed-app
 acceptance or change any production authentication/service. The withdrawn
 proposal is recorded as withdrawn rather than completed implementation.
+
+
+## 2026-11-08 — Give mobile chat more space with a compact overview
+
+The user explicitly chose mobile only after requesting a substantially smaller
+overview than the earlier layout. Desktop defaults and saved sizes are retained.
+Implementation `02a8f79e4330474dc58ef81ff3f02cb21e84237c` (0.36.0) reduces mobile padding/section gaps,
+puts task totals in a wrapping heading row and omits empty question sections only
+when no requests or attention/recovery state exists. The same checks cover
+worker and coordinator views; actual requests and input-needed titles remain
+visible. Static coordinator guidance and excess project-card spacing are reduced.
+
+Mobile worker settings start as one native disclosure row with the current
+cadence and an always-visible Report now. One expansion exposes cadence radios
+and model/effort controls. They stay mounted across layout changes; report
+queue/pending/error feedback stays outside the collapsed body. Desktop retains
+the original open controls, Report now after Never and feedback order. Both
+responsive Report now buttons share delivery/disabled state, with only one
+visible and keyboard reachable in each layout. No new store, scheduler or
+framework is introduced. Font sizes, three-task viewport, history/input bounds,
+drafts and native approval handling are retained.
+
+All 498 tests and the production build pass; independent source review found no
+concrete issue. Tests cover actual visibility conditions, responsive source
+rules and component delivery/state behavior. They do not establish rendered
+phone geometry, keyboard or rotation acceptance, which remain unverified. This
+source release does not update or restart installed software.
