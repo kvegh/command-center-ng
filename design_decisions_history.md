@@ -1937,3 +1937,26 @@ correction; a repeated full backend/network suite was unnecessary. Actual
 rendered browser acceptance remains unperformed, and no running installation or
 configuration was changed. The persistent header background fix and first-time
 walkthrough from 0.34.1 remain included.
+
+
+## 2026-11-07 — Make mobile a continuous page with bounded text areas
+
+The user approved natural page scrolling instead of retaining the desktop's
+viewport-height workspace on a phone. Worker tabs wrap, the full-width overview
+comes before chat, and history/input retain their own scroll areas after about
+30 and six text lines respectively. These limits keep long conversations and
+pastes manageable without clipping controls to a phone's viewport.
+
+Implementation `bcf49e16ed80582b674c3583cc336aee3e87b8ce` (0.35.0) hides mobile resize handles and the
+worker Coordinator recap, retaining the actual coordinator dashboard and stored
+desktop dimensions. The same layout applies to wide landscape coarse-pointer
+devices. Finger gestures no longer enter tab reorder capture; mouse/pen dragging
+and explicit arrow controls remain. A measured CSS variable lets the three-task
+viewport return on mobile even when desktop overview sections have saved sizes.
+
+The existing 483-test suite, four new mobile layout checks and production build
+pass. These cover gestures, compact composer markup and responsive source/cascade
+behavior, not real browser layout. Phone keyboard, rotation, long-paste rendering
+and saved desktop-size acceptance remain unverified. No production service,
+proxy, native settings or installation was changed; mobile notifications remain
+postponed.

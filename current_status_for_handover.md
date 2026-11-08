@@ -14,7 +14,8 @@ mouse/pen dragging and arrow reordering remain available. The existing 483-test
 suite, four new mobile layout checks and build pass. Actual phone keyboard,
 rotation, long-paste rendering and desktop-size restoration acceptance remain
 unverified. No running installation, proxy, native configuration or service was
-changed. Check remote refs for publication; Beads retains phone acceptance open.
+changed. Implementation: `bcf49e16ed80582b674c3583cc336aee3e87b8ce`.
+Check remote refs for publication; Beads retains phone acceptance open.
 
 Release version 0.34.2 preserves user-message soft line breaks and whitespace
 in Markdown paragraphs/list items. Data and clipboard text were already retained;
