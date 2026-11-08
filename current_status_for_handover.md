@@ -5,6 +5,13 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+The README is now a 148-line product/onboarding guide. Current operation lives
+in `docs/usage.md`; chronological changes live in `docs/release-notes.md`, with
+archived details linked. Documentation commit:
+`a0bb7b590c17f752ad6029935c15c089cb7fcebd`. All three parse as GFM; 28 local links
+and five anchors resolve. No executable/version change or additional deployment
+occurred for this cleanup. Keep future release narratives out of the README.
+
 Version 0.37.0 (implementation `e3a01ba6fefa45ee6e6fcacbcf444b1a7126f96e`)
 completes the transferred mobile image picker with existing
 per-chat in-memory drafts, limits and native delivery. It also repairs three

@@ -2090,3 +2090,25 @@ triggering sequence of the historical report remains unverified, as do actual
 Android Firefox and affected-runtime acceptance. At this checkpoint the selected
 AAP deployment login still failed the sudo preflight; no installation, restart
 or access-control change occurred.
+
+
+## 2026-11-08 — Keep the README focused on the product and first use
+
+The user rejected the main README's accumulated version narratives and asked
+for what CCNG is, why it exists, main features, requirements and installation.
+Documentation commit `a0bb7b590c17f752ad6029935c15c089cb7fcebd` reduces the README
+from 1,344 to 148 lines. Current detailed workflows live in `docs/usage.md` and
+concise chronological changes in `docs/release-notes.md`. The decision history
+and a pinned archive link retain the original detailed release evidence, without
+presenting superseded behaviour as current onboarding guidance.
+
+The contributor instructions now require this separation so later releases do
+not append new narratives to the product README. Current limits remain explicit:
+local-only management, unfinished Claude/Goals/rewind and first-browser password
+work, and the distinction between test evidence and live browser acceptance.
+
+All three documents parse as GitHub-flavoured Markdown; all 28 local links and
+five destination anchors resolve, and whitespace checks pass. No executable
+code or version changed, so application tests/build were not repeated. The
+previous 0.37.0 executable baseline still has 520 passing tests and build. No
+installation, service or access change accompanied this documentation cleanup.
