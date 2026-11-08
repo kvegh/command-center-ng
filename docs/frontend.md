@@ -32,6 +32,24 @@ The approved local Node.js service uses the existing Codex daemon.
 - Respect reduced-motion preferences and avoid animation that distracts from work.
 - Use synthetic data for public demos and interface examples.
 
+## Approved mobile layout
+
+Use one naturally scrolling, full-width page on mobile. Worker tabs wrap, and
+the overview sits above a bounded chat history showing about 30 text lines.
+The composer textarea shows six lines; longer input, including pasted text,
+scrolls inside it. Hide the worker's Coordinator recap on mobile while retaining
+the actual coordinator dashboard.
+
+Mobile exposes no resizing controls and ignores desktop sidebar widths, overview
+section heights and composer heights without erasing those saved preferences.
+Returning to desktop retains its existing layout and sizing controls. This
+supersedes the historical mobile tab-scrolling and constrained-overview layout
+descriptions below. Mobile notifications remain postponed. Version 0.35.0 implements this layout;
+the existing 483-test suite, four mobile layout checks and build pass. Actual
+phone keyboard, rotation and rendered verification remain pending. Finger
+gestures scroll naturally; mouse/pen dragging and arrow controls still reorder
+tabs. The compact layout includes wide landscape coarse-pointer devices.
+
 Version 0.6.0 uses dark graphite surfaces with cyan controls, green running
 states, amber attention states, and violet branch navigation. Status labels and
 icons accompany color. The goal and up to three task summaries remain above
@@ -170,8 +188,8 @@ overview divider spans both. The top-right Command Center branding is retained.
 
 ## Resizing the composer
 
-A horizontal divider between the scrolling chat history and the whole composer
-resizes the composer area, including its header, input and footer. Dragging the
+On desktop, a horizontal divider between the scrolling chat history and the
+whole composer resizes its area, including its header, input and footer. Dragging the
 divider up enlarges the input area; dragging down shrinks it. The divider is
 keyboard accessible: Up enlarges, Down shrinks, and Shift uses larger steps.
 Home selects the minimum height and End the maximum. Double-click returns to
@@ -179,8 +197,8 @@ automatic sizing. Escape during a resize or a canceled pointer interaction
 restores the size from before that resize.
 
 One composer-height preference is stored in the existing browser workspace and
-restored after refresh. It applies across chats and is clamped to the available
-vertical space so the history remains usable. This changes browser layout only;
+restored on desktop after refresh. It applies across chats and is clamped to the
+available vertical space so the history remains usable. This changes browser layout only;
 it does not change draft contents, agent settings, server configuration or
 network behavior. The composer header stays attached directly above the input.
 

@@ -39,11 +39,21 @@ test('ordinary clicks, small pointer movement and keyboard activation do not reo
   assert.equal(f.drag.consumeClick(0), false);
 });
 
-test('touch and pen use the same drag path and can move a worker left', () => {
-  for (const pointerType of ['touch', 'pen']) {
-    const f = fixture(); f.drag.down(f.event(350, 10, { pointerType }), 'gamma');
-    f.target('alpha'); f.drag.move(f.event(12, 10, { pointerType })); f.drag.up(f.event(12, 10, { pointerType }));
-    assert.deepEqual(f.order(), ['gamma', 'alpha', 'beta']); assert.equal(f.capture(), null);
+test('pen dragging can still move a worker left', () => {
+  const f = fixture(); f.drag.down(f.event(350, 10, { pointerType: 'pen' }), 'gamma');
+  f.target('alpha'); f.drag.move(f.event(12, 10, { pointerType: 'pen' })); f.drag.up(f.event(12, 10, { pointerType: 'pen' }));
+  assert.deepEqual(f.order(), ['gamma', 'alpha', 'beta']); assert.equal(f.capture(), null);
+});
+
+test('finger taps and diagonal swipes retain native scrolling and never reorder tabs', () => {
+  for (const [x, y] of [[350, 10], [12, 14], [100, 140]]) {
+    const f = fixture(); const touch = (x, y) => f.event(x, y, { pointerType: 'touch' });
+    f.drag.down(touch(350, 10), 'gamma');
+    assert.equal(f.capture(), null, 'a finger must not be captured even before it moves');
+    f.target('alpha'); f.drag.move(touch(x, y)); f.drag.up(touch(x, y));
+    assert.deepEqual(f.order(), ['alpha', 'beta', 'gamma']);
+    assert.deepEqual(f.commits, []); assert.deepEqual(f.prevented, []);
+    assert.equal(f.drag.consumeClick(1), false, 'tapping can still select a tab');
   }
 });
 

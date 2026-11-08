@@ -11,17 +11,27 @@ export function composerSize(value: number, available: number) {
   return Math.round(Math.max(min, Math.min(max, value)));
 }
 
-export function ResizableComposer({ workerId, height, change, onSubmit, children }: {
+export function ResizableComposer({ workerId, height, compact = false, change, onSubmit, children }: {
   workerId: string;
   height?: number;
+  compact?: boolean;
   change: (height: number | undefined) => void;
   onSubmit: React.FormEventHandler<HTMLFormElement>;
   children: React.ReactNode;
 }) {
   const form = useRef<HTMLFormElement>(null);
-  const drag = useRef<{ pointer: number; y: number; initial: number; preference?: number } | null>(null);
+  const drag = useRef<{ pointer: number; y: number; initial: number; restore: () => void } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [available, setAvailable] = useState(600);
+  const cancel = () => {
+    const previous = drag.current; drag.current = null; setDragging(false);
+    if (previous) previous.restore();
+  };
+  useLayoutEffect(() => {
+    // Rotation can remove the handle midway through a drag. Restore the saved
+    // desktop preference rather than keeping that unfinished resize.
+    if (compact) cancel();
+  }, [compact]);
   const measureAvailable = () => {
     const panel = form.current?.parentElement;
     if (!panel) return 600;
@@ -30,6 +40,7 @@ export function ResizableComposer({ workerId, height, change, onSubmit, children
     return Math.max(0, panel.clientHeight - (stacked ? overview?.getBoundingClientRect().height || 0 : 0));
   };
   useLayoutEffect(() => {
+    if (compact) return;
     const node = form.current; const panel = node?.parentElement;
     if (!node || !panel) return;
     const measure = () => setAvailable(measureAvailable());
@@ -40,18 +51,14 @@ export function ResizableComposer({ workerId, height, change, onSubmit, children
     if (overview) observer.observe(overview);
     window.addEventListener('resize', measure);
     return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
-  }, [workerId]);
+  }, [workerId, compact]);
   const limits = composerLimits(available);
   const measuredHeight = () => form.current?.getBoundingClientRect().height || height || limits.min;
-  const cancel = () => {
-    const previous = drag.current; drag.current = null; setDragging(false);
-    if (previous) change(previous.preference);
-  };
-  return <form ref={form} id="chat-composer" className={`composer${height === undefined ? '' : ' sized'}`} style={{
+  return <form ref={form} id="chat-composer" className={`composer${compact || height === undefined ? '' : ' sized'}`} style={compact ? undefined : {
     height: height === undefined ? undefined : composerSize(height, available),
     maxHeight: limits.max,
   }} onSubmit={onSubmit}>
-    <div role="separator" tabIndex={0} aria-label="Resize chat input and history" aria-orientation="horizontal" aria-controls="chat-composer"
+    {!compact && <div role="separator" tabIndex={0} aria-label="Resize chat input and history" aria-orientation="horizontal" aria-controls="chat-composer"
       aria-valuemin={limits.min} aria-valuemax={limits.max} aria-valuenow={height === undefined ? undefined : composerSize(height, available)}
       aria-valuetext={height === undefined ? 'Automatic height' : `${composerSize(height, available)} pixels`}
       className={`composer-divider${dragging ? ' resizing' : ''}`}
@@ -60,7 +67,7 @@ export function ResizableComposer({ workerId, height, change, onSubmit, children
         if (event.button !== 0 || !event.isPrimary) return;
         try { event.currentTarget.setPointerCapture(event.pointerId); } catch { return; }
         event.preventDefault(); event.currentTarget.focus({ preventScroll: true });
-        drag.current = { pointer: event.pointerId, y: event.clientY, initial: measuredHeight(), preference: height };
+        drag.current = { pointer: event.pointerId, y: event.clientY, initial: measuredHeight(), restore: () => change(height) };
         setDragging(true);
       }}
       onPointerMove={event => {
@@ -81,7 +88,7 @@ export function ResizableComposer({ workerId, height, change, onSubmit, children
           : event.key === 'Home' ? bounds.min : event.key === 'End' ? bounds.max : null;
         if (value === null) return;
         event.preventDefault(); change(composerSize(value, measureAvailable()));
-      }} />
+      }} />}
     {children}
   </form>;
 }

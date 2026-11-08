@@ -21,5 +21,5 @@ export function TaskListViewport({ children }: { children: React.ReactNode }) {
     const observer = new ResizeObserver(measure); observer.observe(node); rows.forEach(row => observer.observe(row));
     return () => observer.disconnect();
   }, [children]);
-  return <div ref={viewport} className="task-scroll" role="region" aria-label="Linked tasks" tabIndex={0} style={height === undefined ? undefined : { maxHeight: height }}>{children}</div>;
+  return <div ref={viewport} className="task-scroll" role="region" aria-label="Linked tasks" tabIndex={0} style={height === undefined ? undefined : { '--task-viewport-height': `${height}px` } as React.CSSProperties}>{children}</div>;
 }

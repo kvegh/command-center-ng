@@ -547,3 +547,11 @@ Preserve soft line breaks and spacing in user-message Markdown text blocks so
 multi-line pastes remain readable. Keep Markdown/code/table support and assistant
 formatting, raw-HTML exclusion, copied source and native history unchanged. Do
 not execute, classify or rewrite pasted terminal content.
+
+The approved mobile layout is one naturally scrolling page: wrapped worker tabs,
+full-width overview above bounded chat history (about 30 text lines), then a
+six-line input with internal overflow. Hide the worker Coordinator recap and
+resize handles on mobile, including landscape phones. Ignore stored desktop
+dimensions without erasing them; retain desktop controls and the actual
+coordinator dashboard. Touch scrolling must not reorder tabs. Keep phone
+keyboard/rotation acceptance distinct from source/build checks.

@@ -5,6 +5,17 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Release 0.35.0 implements the approved continuous mobile page: wrapped tabs,
+full-width overview above about 30 lines of internally scrolling chat history,
+and a six-line textarea with internal overflow. The worker Coordinator recap
+and resize handles are hidden on narrow/wide coarse-pointer mobile devices;
+saved desktop sizes remain intact. Touch no longer enters tab drag capture;
+mouse/pen dragging and arrow reordering remain available. The existing 483-test
+suite, four new mobile layout checks and build pass. Actual phone keyboard,
+rotation, long-paste rendering and desktop-size restoration acceptance remain
+unverified. No running installation, proxy, native configuration or service was
+changed. Check remote refs for publication; Beads retains phone acceptance open.
+
 Release version 0.34.2 preserves user-message soft line breaks and whitespace
 in Markdown paragraphs/list items. Data and clipboard text were already retained;
 Markdown's normal paragraph whitespace collapsed their display. Assistant

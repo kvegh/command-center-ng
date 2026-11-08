@@ -22,11 +22,11 @@ test('composer bounds preserve history, adapt to short windows and cap saved hei
   assert.equal(composerSize(320.4, 800), 320);
 });
 
-function fixture(height, { stacked = false, panelHeight = 800, overviewHeight = 0, captureFails = false } = {}) {
+function fixture(height, { compact = false, stacked = false, panelHeight = 800, overviewHeight = 0, captureFails = false } = {}) {
   const changes = []; const captures = []; let form;
   // Capture the real React element/handlers while hooks have a valid renderer.
   function Capture() {
-    form = ResizableComposer({ workerId: 'worker', height, change: value => changes.push(value), onSubmit() {}, children: React.createElement('textarea', { defaultValue: 'Unsent draft' }) });
+    form = ResizableComposer({ workerId: 'worker', height, compact, change: value => changes.push(value), onSubmit() {}, children: React.createElement('textarea', { defaultValue: 'Unsent draft' }) });
     return null;
   }
   renderToStaticMarkup(React.createElement(Capture));
@@ -102,4 +102,23 @@ test('composer separator is keyboard accessible and keeps its form and automatic
   assert.match(html, /aria-controls="chat-composer"/);
   assert.match(html, /aria-valuetext="Automatic height"/);
   assert.match(html, /<textarea>Draft<\/textarea>/);
+});
+
+test('compact mode ignores desktop height without changing the saved preference or draft', () => {
+  for (const height of [undefined, 360, 1100]) {
+    const desktop = fixture(height);
+    const compact = fixture(height, { compact: true, panelHeight: 250 });
+    const restored = fixture(height);
+    assert.equal(compact.form.props.className, 'composer');
+    assert.equal(compact.form.props.style, undefined, 'mobile page flow has no inline height or maximum');
+    assert.equal(compact.divider, false, 'mobile has no resize interaction');
+    assert.deepEqual(compact.changes, [], 'entering compact mode does not clear a saved desktop height');
+    assert.equal(compact.form.props.children[1].props.defaultValue, 'Unsent draft');
+    assert.deepEqual(restored.form.props.style, desktop.form.props.style);
+    assert.equal(restored.form.props.className, desktop.form.props.className);
+    assert.equal(restored.divider.props.role, 'separator');
+    const html = renderToStaticMarkup(compact.form);
+    assert.doesNotMatch(html, /role="separator"|class="composer sized"|style=/);
+    assert.match(html, /<textarea>Unsent draft<\/textarea>/);
+  }
 });

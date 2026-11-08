@@ -23,6 +23,20 @@ a task backlog or a claim that the application exists.
 The frontend direction is React, TypeScript, Vite, and plain CSS. Browser access
 does not imply any selected public hosting or remote-access arrangement.
 
+### Approved mobile layout
+
+Use a single naturally scrolling, full-width page with wrapping worker tabs.
+Place the overview above a bounded chat history of approximately 30 text lines,
+then a composer textarea with six visible lines. Longer input and pasted text
+scroll within the textarea. Hide worker Coordinator recaps on mobile; retain
+the actual coordinator dashboard.
+
+Disable mobile resizing and ignore saved desktop sidebar widths, section heights
+and composer heights without erasing them. Preserve the existing desktop layout
+and restore its preferences when returning to desktop. Mobile notifications
+remain postponed. Version 0.35.0 implements this approved layout; rendered phone
+acceptance has not been established.
+
 ## Dashboard and project context
 
 The dashboard provides easy switching between projects and agents. Each project
@@ -111,8 +125,8 @@ from model activity, and transport heartbeats from real worker updates. Mark
 unconfirmed connections and last-known activity truthfully; no guessed stuck
 diagnosis, automatic resend, interruption, worker ping or restart.
 
-Place a draggable horizontal divider between the chat history and the whole
-composer, including its header, input and footer. Dragging up enlarges the
+On desktop, place a draggable horizontal divider between the chat history and
+the whole composer, including its header, input and footer. Dragging up enlarges the
 composer/input area and dragging down shrinks it. Support Up/Down keys, Shift
 for larger steps, Home for the minimum height and End for the maximum.
 Double-click resets automatic sizing. Escape during resizing or pointer
@@ -120,8 +134,8 @@ cancellation restores the prior size. Preserve draft contents and the header's
 position directly above the input.
 
 Save one composer-height preference in the existing browser-local workspace and
-restore it after refresh. Clamp it to the available vertical space while leaving
-chat history usable. This layout preference must not alter agent settings,
+restore it on desktop after refresh. Clamp it to the available vertical space
+while leaving chat history usable. This layout preference must not alter agent settings,
 server configuration or network behavior.
 
 The overview starts with the project/chat name, without a GOAL label. Increase

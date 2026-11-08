@@ -4,7 +4,7 @@ type CaptureTarget = {
   hasPointerCapture(id: number): boolean;
 };
 type Pointer = {
-  pointerId: number; button: number; isPrimary: boolean; clientX: number; clientY: number;
+  pointerId: number; pointerType?: string; button: number; isPrimary: boolean; clientX: number; clientY: number;
   currentTarget: CaptureTarget; preventDefault(): void;
 };
 export type TabDragState = { source: string; target: string | null } | null;
@@ -27,7 +27,9 @@ export class TabReorder {
   }) {}
   get dragging() { return !!this.session?.dragging; }
   down(event: Pointer, source: string) {
-    if (!event.isPrimary || event.button !== 0) return;
+    // Finger gestures scroll the page. Arrow controls still let touch users
+    // reorder deliberately, without capturing a swipe on a tab.
+    if (event.pointerType === 'touch' || !event.isPrimary || event.button !== 0) return;
     this.cancel(); this.blockClickUntil = 0;
     try { event.currentTarget.setPointerCapture(event.pointerId); }
     catch { return; }

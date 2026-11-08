@@ -5,6 +5,15 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
+Version 0.35.0 makes mobile one naturally scrolling page, with wrapped worker
+tabs and the full-width overview above chat. History is bounded to roughly
+30 text lines; the input shows six lines and scrolls longer pasted text inside.
+Mobile omits resize handles and the worker Coordinator recap, preserving desktop
+sizes and the actual coordinator dashboard. Finger scrolling no longer reorders
+tabs; mouse/pen dragging and arrow controls remain. The existing 483-test suite,
+four focused mobile layout checks and production build pass. Actual phone
+keyboard, rotation and rendered layout verification remain pending.
+
 Version 0.34.2 preserves soft line breaks and spacing in user-message Markdown
 paragraphs and list items, so pasted multi-line output does not collapse into a
 single paragraph. Existing Markdown, fenced code, copy text and assistant
@@ -30,7 +39,7 @@ Running installations are not changed automatically.
 
 The published 0.33.1 approval-button height correction is preserved.
 
-**Version 0.34.2** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.35.0** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The classic dark graphite theme uses cyan controls,
@@ -88,6 +97,19 @@ remain in their dots and top edges; the selected tab keeps its larger bold treat
 Linux is the first and primary platform for installation and operation. The
 interface must work well in a Linux desktop browser and a smartphone browser;
 mobile may present a simpler layout without losing the core workflows.
+
+## Approved mobile layout
+
+Version 0.35.0 implements the approved mobile layout; rendered phone
+verification remains pending. It uses one naturally scrolling,
+full-width page with wrapping worker tabs. The overview appears above a bounded
+chat history of about 30 text lines, followed by a six-line input. Longer pasted
+input scrolls inside the textarea.
+
+Mobile omits resizing controls and ignores saved desktop sidebar, section and
+composer sizes without erasing them. It hides the worker's Coordinator recap;
+the actual coordinator dashboard remains available. Desktop layout is unchanged.
+Mobile notifications remain postponed.
 
 ## Frontend
 
