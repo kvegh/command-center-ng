@@ -208,3 +208,10 @@ The input header tab uses its selected chat colour as a persistent background
 tint and border over the current theme surface. Input focus does not remove or
 replace the tint. Only this header strip is coloured; the input frame and top
 agent tabs keep their existing styling. Text sizes and wrapping remain unchanged.
+
+User-message Markdown paragraphs and list items preserve soft line breaks and
+spacing with pre-wrap. The renderer's retained newline text nodes no longer
+collapse visually. This is display-only; normal Markdown still applies, while
+fenced code remains the way to preserve literal syntax/monospaced columns.
+Assistant Markdown, tables/code, copying, input and native message storage are
+unchanged.

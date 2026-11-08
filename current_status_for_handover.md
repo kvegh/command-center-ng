@@ -5,7 +5,15 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Release version 0.34.1 makes the selected per-chat colour persistently tint only
+Release version 0.34.2 preserves user-message soft line breaks and whitespace
+in Markdown paragraphs/list items. Data and clipboard text were already retained;
+Markdown's normal paragraph whitespace collapsed their display. Assistant
+formatting, tables/fenced code and copying stay unchanged. This is a focused
+CSS correction, without content classification or command execution. Targeted
+checks (32 UI cases) and the build pass. Publication is in progress; actual
+rendered browser verification remains unperformed.
+
+Previous release 0.34.1 makes the selected per-chat colour persistently tint only
 the header tab above the input. This follows the user's correction: colour its
 background, not the composer frame or top agent tabs. All 481 tests and the
 build pass, including palette/cascade contrast checks. Implementation:

@@ -542,3 +542,8 @@ The user clarified chat colour applies only to the background of the title/colou
 status tab directly above the input. Keep its saved per-chat tint visible while
 typing, without colouring the input frame or top agent tabs. Preserve theme
 contrast, small text and existing responsive status wrapping.
+
+Preserve soft line breaks and spacing in user-message Markdown text blocks so
+multi-line pastes remain readable. Keep Markdown/code/table support and assistant
+formatting, raw-HTML exclusion, copied source and native history unchanged. Do
+not execute, classify or rewrite pasted terminal content.

@@ -488,6 +488,8 @@ kbd { font-family: inherit; }
 .task-detail-body p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .task-discussion textarea { width: 100%; box-sizing: border-box; margin-top: 8px; }
 .markdown.prose { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+.message.user .markdown p,
+.message.user .markdown li { white-space: pre-wrap; }
 .markdown > :first-child { margin-top: 0; }
 .markdown > :last-child { margin-bottom: 0; }
 .markdown p { margin: 0 0 12px; }

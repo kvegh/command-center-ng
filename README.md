@@ -5,6 +5,13 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
+Version 0.34.2 preserves soft line breaks and spacing in user-message Markdown
+paragraphs and list items, so pasted multi-line output does not collapse into a
+single paragraph. Existing Markdown, fenced code, copy text and assistant
+formatting are retained. All 32 targeted UI checks and the production build
+pass. The full 481-test suite passed for the preceding 0.34.1 header release;
+actual browser rendering remains unverified.
+
 Version 0.34.1 makes the chosen chat colour persistently tint the title/colour/
 status tab directly above the input. Typing or moving focus no longer hides that
 colour; the input frame and top agent tabs retain their normal styling.
@@ -23,7 +30,7 @@ Running installations are not changed automatically.
 
 The published 0.33.1 approval-button height correction is preserved.
 
-**Version 0.34.1** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.34.2** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The classic dark graphite theme uses cyan controls,

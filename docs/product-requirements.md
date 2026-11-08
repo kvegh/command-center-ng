@@ -80,7 +80,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.34.1
+## Current development version: 0.34.2
 
 Automatic startup binds exactly the one default-route IPv4 address and
 127.0.0.1 on the configured port, sharing one runtime. Explicit --host binds only
@@ -89,6 +89,12 @@ Direct native HTTPS on the local listener accepts the exact matching loopback
 browser Origin/Host (including port) alongside the configured public origin.
 Require actual TLS and local socket endpoints; retain CSRF, Host, cookie and
 certificate protections and reject HTTP downgrade or forwarded-header claims.
+
+Preserve user-message Markdown soft line breaks and spacing in paragraphs and
+list items. Pasted multi-line output stays readable without requiring manual
+code fences. Retain normal Markdown parsing, fenced code/table behavior, exact
+copy source and assistant formatting; do not rewrite clipboard text or infer
+terminal commands from content.
 
 Apply the saved chat colour as a persistent theme-compatible background tint
 on the title/colour/status tab directly above the input. It must remain visible
