@@ -5,7 +5,8 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Version 0.37.0 completes the transferred mobile image picker with existing
+Version 0.37.0 (implementation `e3a01ba6fefa45ee6e6fcacbcf444b1a7126f96e`)
+completes the transferred mobile image picker with existing
 per-chat in-memory drafts, limits and native delivery. It also repairs three
 request visibility defects: reconnect clearing replayed cards while retaining
 their map records, indefinitely postponed snapshots during continuous changes,

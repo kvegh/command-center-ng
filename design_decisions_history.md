@@ -2056,3 +2056,37 @@ credential change was attempted. A structured question requests an existing
 credential with suitable access; deployment remains blocked on that input.
 The code and dependency baseline are unchanged from the passing 505-test/build
 release. Documentation whitespace checks pass; deployment success is not claimed.
+
+
+## 2026-11-08 — Add image selection and repair pending-request visibility in 0.37.0
+
+The user transferred mobile Firefox image attachment and missing-request work
+to this project conversation. Implementation
+`e3a01ba6fefa45ee6e6fcacbcf444b1a7126f96e` completes the partial Attach image control
+using the existing in-memory drafts, validation, previews and native image
+delivery. A native multiple-file picker avoids dependence on clipboard image
+availability. Its target is captured when opened so a later tab switch cannot
+redirect the selected images. Cancellation and same-file retries are supported;
+a native cancel listener uses React 19 ref cleanup rather than an unsupported
+input event prop. No dependency, upload service or image store was added.
+Pending requests still block sending while permitting draft attachments.
+
+Investigation and deterministic failing tests identified three independent
+request-visibility defects. Reconnect erased replayed cards after native resume
+while retaining their pending-map entries, so duplicate replay could not restore
+them. Reconnect now keeps the cards, and explicit recovery publishes exact
+records already held by the current connection without another resume. Native
+resolution/disconnection still invalidate records; no history-derived questions,
+new identities or automatic answers are introduced. Continuous worker updates
+also restarted the browser broadcast delay indefinitely; coalescing now delivers
+the latest snapshot at bounded intervals. Finally, a slow initial browser read
+or old-login callbacks could overwrite newer streamed state; cleaned-up effects
+and superseded initial reads are ignored.
+
+All 520 application tests and the production build pass, including new image
+picker, authenticated handler and actual frontend-effect regressions. Independent
+review found no concrete issue in the recovery and state-order fixes. The exact
+triggering sequence of the historical report remains unverified, as do actual
+Android Firefox and affected-runtime acceptance. At this checkpoint the selected
+AAP deployment login still failed the sudo preflight; no installation, restart
+or access-control change occurred.
