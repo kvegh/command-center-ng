@@ -83,8 +83,10 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
   let vite; let broadcastTimer;
   const json = (response, value, status = 200) => { response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(value)); };
   const publish = () => {
-    clearTimeout(broadcastTimer);
+    // Coalesce bursts without letting continuous worker updates postpone delivery indefinitely.
+    if (broadcastTimer) return;
     broadcastTimer = setTimeout(() => {
+      broadcastTimer = null;
       const message = `data: ${JSON.stringify(workspace.snapshot())}\n\n`;
       for (const client of clients) {
         if (client.response.writableLength > 4 * 1024 * 1024 || !sessions.valid(client.request)) { client.response.destroy(); clients.delete(client); }
@@ -144,7 +146,8 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
             if (agent.observingOnly) { await workspace.refreshObserved(agent.id); continue; }
             if (agent.role === 'coordinator') { agent.observingOnly = true; await workspace.activate(agent.id); }
             else { const { thread } = await rpc.call('thread/resume', { threadId: agent.id, excludeTurns: true }); agent.thread = thread; }
-            agent.questions = []; await workspace.history(agent.id);
+            // Resume can replay pending requests before it returns. Keep those exact records visible.
+            await workspace.history(agent.id);
           }
           workspace.changed(); return json(response, { connected: true });
         }

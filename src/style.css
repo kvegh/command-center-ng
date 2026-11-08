@@ -592,6 +592,10 @@ kbd { font-family: inherit; }
 .coordinator-worker .coordinator-report-cadence { display: block; color: #9dcee8; font-size: 11px; }
 
 .image-drafts { margin-bottom: 10px; }
+.image-attach { position: relative; overflow: hidden; cursor: pointer; min-height: 36px; }
+.image-attach input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: inherit; margin: 0; padding: 0; }
+.image-attach:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.image-attach:has(input:disabled) { opacity: .5; cursor: not-allowed; }
 .image-draft-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
 .image-draft { position: relative; flex: 0 0 108px; min-width: 0; padding: 5px; background: #0d1420; border: 1px solid #3b4c65; border-radius: 6px; }
 .image-draft > img, .image-reading { display: block; width: 96px; height: 72px; object-fit: contain; }

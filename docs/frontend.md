@@ -34,6 +34,13 @@ The approved local Node.js service uses the existing Codex daemon.
 
 ## Approved mobile layout
 
+The composer offers Attach image through a native multiple-file input as well
+as clipboard paste. It shares existing draft validation/previews and pins a
+selection to its originating chat across tab changes. Keep visible keyboard
+focus and touch-friendly controls, cancellation and same-file retry. Browser
+refresh still discards unsent images; no upload store is added. Actual Android
+Firefox interaction is distinct from component and protocol tests.
+
 Use one naturally scrolling, full-width page on mobile. Worker tabs wrap, and
 the overview sits above a bounded chat history showing about 30 text lines.
 The composer textarea shows six lines; longer input, including pasted text,

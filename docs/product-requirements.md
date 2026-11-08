@@ -564,6 +564,12 @@ provider does not expose it. No timestamp inference from history loading.
 ## Clipboard image input
 
 Users can copy an image/screenshot and paste it directly into the chat input.
+Also provide an accessible Attach image native file picker, including mobile
+Firefox, using the same validation, previews, limits and in-memory drafts.
+Capture the target chat when opening the picker; later selection must not land
+in another chat after switching tabs. Support cancellation and same-file
+reselection. Draft attachments remain editable while native requests block
+sending; branch handoff locks continue to apply. No new upload service or store.
 Show removable previews before sending, support image-only or captioned sends
 through native Codex and the official Claude Agent SDK, and retain exact
 conversation/request ownership and send protections. Pending questions allow
@@ -571,6 +577,14 @@ draft editing but still block sending. Unsent image drafts survive chat-tab
 switches in memory only; refreshing/closing the page discards them. Sent images
 remain in native provider history. Do not add image draft persistence, remote
 image fetching or a separate attachment database.
+
+Preserve exact pending-request records replayed during reconnect. Recover a
+missing visible list from current-connection pending records before asking the
+native runtime to replay; never reconstruct questions from history or restore
+resolved/disconnected requests. Coalesce browser updates with a bounded delay
+even during continuous worker activity. A delayed initial read or an old login's
+callbacks must not overwrite newer streamed state. Loading never submits answers
+or changes native permissions.
 
 A saved report interval remains the selected cadence after browser refresh and
 is supplied in runtime instructions when a worker starts/resumes its next turn.

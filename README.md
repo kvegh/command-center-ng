@@ -5,6 +5,17 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
+Version 0.37.0 adds an **Attach image** picker beside the composer controls,
+using the existing per-chat image drafts and limits. This provides an option
+when a mobile browser does not supply an image through clipboard paste.
+It also preserves pending request cards across native reconnects, restores
+details already held by the current connection, and prevents continuous worker
+activity or a delayed initial browser read from hiding newer request state.
+Exact native request IDs, review tokens and manual answer controls are retained.
+Actual Android Firefox and affected-runtime acceptance remain separate.
+All 520 application tests and the production build pass. The picker, reconnect,
+snapshot delivery and initial-read ordering have focused regression coverage.
+
 Version 0.36.1 trims surrounding whitespace from new-agent working directories,
 preserves spaces inside directory names, and checks that the path is an existing
 absolute directory before starting an agent. Invalid, missing or inaccessible
@@ -67,7 +78,7 @@ Running installations are not changed automatically.
 
 The published 0.33.1 approval-button height correction is preserved.
 
-**Version 0.36.1** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.37.0** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The classic dark graphite theme uses cyan controls,
@@ -569,7 +580,11 @@ answered or dismissed by opening it. With no pending request, the panel says so.
 If Codex reports a pending request but its details are missing, choose **Load
 pending request** in the conversation. This explicitly rejoins that selected,
 already-active conversation and retrieves native requests with their original
-IDs. Loading submits no decision, starts no worker turn and does not change
+IDs. If the current native connection already holds the exact pending details,
+loading restores and publishes them without another native rejoin. Reconnect
+preserves requests replayed before its response; continuous worker activity
+cannot indefinitely delay browser snapshots. A delayed initial browser read
+does not replace a newer streamed snapshot. Loading submits no decision, starts no worker turn and does not change
 worker permissions. Ordinary chat sends wait until the request is available or
 resolved. A failed load keeps the waiting state and shows a retryable error in
 that conversation. Existing coordinator review behavior still applies; pause the
@@ -1233,10 +1248,16 @@ your saved explicit runtime options, then restart when ready. A no-option
 registration deliberately preserves the old unit. See
 [service configuration](docs/installation.md#user-level-systemd-service).
 
-## Paste images into chat in 0.25.0
+## Attach or paste images into chat
 
 Copy an image or screenshot, focus the chat input and press **Ctrl+V** (or the
 browser/platform paste shortcut). A removable preview appears before sending.
+Alternatively, choose **Attach image** and select one or more images with the
+browser's native picker. This is available on mobile and desktop; it avoids
+depending on clipboard image support. Selection stays with the chat where the
+picker opened, even if the visible tab changes. Canceling attaches nothing, and
+the same file can be selected again after removal or a read error. Actual
+Android Firefox rendering and phone interaction remain unverified.
 Send images alone or with a text caption to local Codex or managed Claude.
 Ordinary text paste, IME and Shift+Enter remain unchanged. Native pending
 questions still block sending while allowing draft editing.

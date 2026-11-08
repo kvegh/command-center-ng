@@ -5,6 +5,22 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Version 0.37.0 completes the transferred mobile image picker with existing
+per-chat in-memory drafts, limits and native delivery. It also repairs three
+request visibility defects: reconnect clearing replayed cards while retaining
+their map records, indefinitely postponed snapshots during continuous changes,
+and a delayed initial browser read overwriting newer SSE state. Recovery reuses
+only exact current pending records; resolution/disconnection still invalidate
+them. Original native IDs/tokens and manual-answer protections remain intact.
+The historical RHEL incident's exact triggering sequence is not established.
+Actual Android Firefox and affected-runtime verification remain separate.
+All 520 application tests and the production build pass. Independent review
+found no concrete issue in the recovery or browser state fixes. Native cancel
+uses a cleanup ref listener because React's input props do not offer onCancel.
+The existing AAP deployment credential was retried at the user's request;
+its elevated preflight still failed with a sudo denial before any update.
+The credential choice is answered; no replacement credential selection is pending.
+
 Version 0.36.1 (implementation `64c8b2376a3a552cff6129219f86ecebed877a1f`)
 corrects new-agent path validation: the form and backend trim
 surrounding whitespace, preserving spaces within directory names. Both provider
@@ -18,9 +34,10 @@ Installed/browser acceptance remains unverified; no service was changed.
 
 The user now requires production deployment after minor releases through AAP
 ad hoc, including the normal update/restart and outcome verification. The
-current 0.36.1 deployment attempt is blocked because the selected Machine login
+initial 0.36.1 deployment attempt was blocked because the selected Machine login
 has no sudo rights and cannot access the installation. No update/restart or
-security change occurred; an existing credential with suitable access is needed.
+security change occurred. The user subsequently confirmed the existing
+credential; deployment remains blocked on that login's authorized sudo access.
 Preserve configuration/auth/certificates/native profiles and native permissions.
 
 Version 0.36.0 implements the user's MOBILE ONLY overview compaction. Padding

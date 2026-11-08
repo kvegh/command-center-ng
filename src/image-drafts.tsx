@@ -9,8 +9,8 @@ let nextImageId = 0;
 export function prepareImageDrafts(existing: DraftImage[], files: File[]): DraftImage[] {
   if (existing.length + files.length > imageLimits.maxImages) throw new Error(`Attach up to ${imageLimits.maxImages} images per message.`);
   for (const file of files) {
-    if (!imageLimits.mimeTypes.includes(file.type)) throw new Error('Paste a PNG, JPEG, GIF or WebP image.');
-    if (!file.size) throw new Error('This image is empty. Copy the image again and retry.');
+    if (!imageLimits.mimeTypes.includes(file.type)) throw new Error('Choose or paste a PNG, JPEG, GIF or WebP image.');
+    if (!file.size) throw new Error('This image is empty. Choose or paste the image again.');
     if (file.size > imageLimits.maxImageBytes) throw new Error(`Each image must be ${imageLimits.maxImageBytes / 1024 / 1024} MiB or smaller.`);
   }
   if ([...existing, ...files].reduce((sum, file) => sum + file.size, 0) > imageLimits.maxTotalImageBytes) throw new Error(`Images in one message must total ${imageLimits.maxTotalImageBytes / 1024 / 1024} MiB or less.`);
@@ -20,8 +20,8 @@ export function prepareImageDrafts(existing: DraftImage[], files: File[]): Draft
 export function readImageFile(file: File, reader: FileReader = new FileReader()): Promise<string> {
   return new Promise((resolve, reject) => {
     reader.onload = () => typeof reader.result === 'string' && reader.result.startsWith(`data:${file.type};base64,`)
-      ? resolve(reader.result) : reject(new Error('This image could not be read. Copy the image again and retry.'));
-    reader.onerror = reader.onabort = () => reject(new Error('This image could not be read. Copy the image again and retry.'));
+      ? resolve(reader.result) : reject(new Error('This image could not be read. Choose or paste the image again.'));
+    reader.onerror = reader.onabort = () => reject(new Error('This image could not be read. Choose or paste the image again.'));
     reader.readAsDataURL(file);
   });
 }
@@ -38,6 +38,30 @@ export function removeImageDrafts(drafts: ImageDrafts, agentId: string, ids: str
 
 export function hasReadyDraft(text: string, images: DraftImage[]): boolean {
   return (!!text.trim() || !!images.length) && images.every(image => !!image.dataUrl);
+}
+
+export function ImageAttachmentPicker({ agentId, name, disabled, attach }: { agentId: string; name: string; disabled: boolean; attach: (files: File[], agentId: string) => void }) {
+  // A native picker also works when the mobile browser supplies no clipboard image.
+  return <label className="button subtle small image-attach">Attach image
+    <input type="file" accept={imageLimits.mimeTypes.join(',')} multiple disabled={disabled}
+      aria-label={`Attach images to ${name}`} ref={picker => {
+        if (!picker) return;
+        // File-input cancellation is a native event, not a React input event prop.
+        const cancel = () => { delete picker.dataset.attachmentAgentId; picker.value = ''; };
+        picker.addEventListener('cancel', cancel);
+        return () => picker.removeEventListener('cancel', cancel);
+      }} onClick={event => {
+        // Keep the destination on the input while its native picker is open, even if React switches chats.
+        if (!disabled) event.currentTarget.dataset.attachmentAgentId = agentId;
+      }} onChange={event => {
+        const picker = event.currentTarget;
+        const target = picker.dataset.attachmentAgentId || agentId;
+        const files = Array.from(picker.files || []);
+        delete picker.dataset.attachmentAgentId;
+        picker.value = ''; // The same file can be selected again after removal or a read failure.
+        if (!disabled && files.length) attach(files, target);
+      }} />
+  </label>;
 }
 
 export function ImageDraftPreviews({ images, error, disabled, remove }: { images: DraftImage[]; error?: string; disabled: boolean; remove: (id: string) => void }) {

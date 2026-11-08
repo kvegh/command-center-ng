@@ -150,7 +150,11 @@ export class Workspace extends EventEmitter {
     if (this.requestJobs.has(id)) return this.requestJobs.get(id);
     const agent = this.agent(id);
     if (agent.provider === 'claude') { await this.claude.refresh(agent); return { requests: agent.questions.length }; }
-    if (agent.questions.length) return { requests: agent.questions.length };
+    if (!agent.questions.length) {
+      // Recover a cleared view from current-connection requests, never from history or guessed IDs.
+      agent.questions = [...this.pending.values()].filter(question => question.params.threadId === id);
+    }
+    if (agent.questions.length) { agent.requestError = null; this.changed(); return { requests: agent.questions.length }; }
     agent.requestError = null;
     const job = (async () => {
       const { thread } = await this.rpc.call('thread/read', { threadId: id });
