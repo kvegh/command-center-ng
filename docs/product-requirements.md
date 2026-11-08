@@ -23,6 +23,16 @@ a task backlog or a claim that the application exists.
 The frontend direction is React, TypeScript, Vite, and plain CSS. Browser access
 does not imply any selected public hosting or remote-access arrangement.
 
+### Application password setup
+
+Fresh setup uses a user-chosen application password and preserves existing
+configured passwords. The shared bootstrap-password/forced-first-login-change
+proposal is withdrawn. Interactive installation prompts when authentication is
+absent. Headless installation may stage files without creating a password, but
+the server must refuse startup without valid authentication. Ansible deployment
+requires a protected initial password of 12–4096 characters only when the auth
+file is absent; it does not rotate an existing password.
+
 ### Approved mobile layout
 
 Use a single naturally scrolling, full-width page with wrapping worker tabs.

@@ -116,7 +116,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
       if (path === '/api/login' && request.method === 'POST') {
         if (!sessions.allowAttempt(request.socket.remoteAddress)) throw failure('Too many login attempts. Try again in five minutes.', 429);
         const data = await body(request);
-        if (typeof data.password !== 'string' || data.password.length > 1024 || !verify(data.password)) throw failure('Incorrect password.', 401);
+        if (typeof data.password !== 'string' || data.password.length > 4096 || !verify(data.password)) throw failure('Incorrect password.', 401);
         response.setHeader('Set-Cookie', sessions.cookie(sessions.create(), secure)); return json(response, { authenticated: true });
       }
       if (path.startsWith('/api/')) {

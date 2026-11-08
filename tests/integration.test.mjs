@@ -2,9 +2,11 @@ import limits from '../server/limits.json' with { type: 'json' };
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import { spawnSync } from 'node:child_process';
 import { mkdtemp, mkdir, rm, chmod, stat, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { setPassword, loadPassword } from '../server/auth.mjs';
@@ -866,8 +868,47 @@ test('native MCP and permission answers retain exact identity and wait for confi
   } finally { await f.close(); }
 });
 
-test('password stays hashed/private; HTTP login protects controls, rejects cross-origin writes, and logout revokes sessions', async () => {
-  const f = await fixture(); const authFile = join(f.dir, 'auth.json'); const password = randomBytes(24).toString('base64url');
+test('password length bounds preserve existing authentication on rejected replacement', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'ccng-password-bounds-'));
+  const authFile = join(dir, 'auth.json'); const password = randomBytes(3072).toString('base64url');
+  try {
+    assert.equal(password.length, 4096);
+    await setPassword(password, authFile);
+    const profile = await readFile(authFile);
+    await assert.rejects(setPassword(password + 'x', authFile), /at most 4096 characters/);
+    assert.deepEqual(await readFile(authFile), profile, 'oversized replacement leaves the existing profile unchanged');
+    await assert.rejects(setPassword('short', authFile), /at least 12 characters/);
+    assert.deepEqual(await readFile(authFile), profile);
+    assert.equal((await loadPassword(authFile))(password), true);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('password CLI accepts the maximum length with LF or CRLF and preserves authentication on oversized input', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'ccng-password-stdin-'));
+  const authFile = join(dir, 'auth.json'); const password = randomBytes(3072).toString('base64url');
+  const run = input => spawnSync(process.execPath, [fileURLToPath(new URL('../server/password.mjs', import.meta.url)), '--stdin'], {
+    input, encoding: 'utf8', env: { ...process.env, CCNG_CONFIG_DIR: dir }, timeout: 10000, maxBuffer: 8192,
+  });
+  try {
+    for (const ending of ['\n', '\r\n']) {
+      const accepted = run(password + ending);
+      assert.ifError(accepted.error);
+      assert.equal(accepted.status, 0, accepted.stderr);
+      assert.equal((await loadPassword(authFile))(password), true);
+      const profile = await readFile(authFile);
+      const rejected = run(password + 'x' + ending);
+      assert.ifError(rejected.error);
+      assert.equal(rejected.status, 1);
+      assert.match(rejected.stderr, /too long|at most 4096/);
+      assert.deepEqual(await readFile(authFile), profile, 'oversized stdin preserves the existing authentication profile');
+      assert.ok(!accepted.stdout.includes(password) && !rejected.stderr.includes(password));
+    }
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('long password stays hashed/private; HTTP login protects controls, rejects cross-origin writes, and logout revokes sessions', async () => {
+  const f = await fixture(); const authFile = join(f.dir, 'auth.json'); const password = randomBytes(1536).toString('base64url');
+  assert.equal(password.length, 2048);
   const linkCalls = [];
   f.workspace.beads = {
     checkAvailable: async () => 'bd version fixture',
@@ -892,6 +933,9 @@ test('password stays hashed/private; HTTP login protects controls, rejects cross
     assert.equal((await request('/api/agents/existing/tasks', { ids: [] })).status, 401);
     for (const action of ['fork', 'parent', 'summary', 'return', 'answer', 'review', 'requests']) assert.equal((await request('/api/agents/existing/' + action, {})).status, 401);
     assert.equal((await request('/api/login', { password }, undefined, 'https://unrelated.example')).status, 403);
+    const oversizedLogin = await request('/api/login', { password: 'x'.repeat(4097) });
+    assert.equal(oversizedLogin.status, 401);
+    assert.equal(oversizedLogin.headers.get('set-cookie'), null);
     const login = await request('/api/login', { password }); assert.equal(login.status, 200);
     const cookie = login.headers.get('set-cookie'); assert.match(cookie, /HttpOnly/); assert.match(cookie, /SameSite=Strict/);
     assert.equal((await request('/api/state', undefined, cookie)).status, 200);

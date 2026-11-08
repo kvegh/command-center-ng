@@ -44,8 +44,9 @@ Older positional directory arguments remain accepted for existing update scripts
 new commands should use `--prefix`. Updating a nondefault installation requires
 its existing path explicitly; the installer does not discover, move or delete it.
 The installer builds the frontend, prunes build-only dependencies, and creates
-`command-center-ng` inside the selected target. On the first interactive install, it prompts
-for an application password of at least 12 characters.
+`command-center-ng` inside the selected target. When no login is configured, an
+interactive install prompts for a user-chosen application password of at least
+12 and at most 4,096 characters. Existing configured passwords are preserved.
 
 ## First-time walkthrough
 
@@ -84,9 +85,8 @@ for an application password of at least 12 characters.
 7. Connection settings are in `~/commandcenter-ng/etc/config.conf`. HTTPS is
    optional and needs readable certificate/key files supplied by the operator.
    The basic installer does not generate certificates or configure nginx or
-   firewall rules. The current installer asks for a password of at least 12
-   characters; a shared initial password with a mandatory first-login change
-   remains a separate unfinished feature.
+   firewall rules. Fresh interactive setup uses your chosen application password;
+   there is no shared default or forced first-login password change.
 
 The supported source-checkout update command is `./install.sh --update`, with
 `--prefix` pointing to the existing destination when it is nondefault. Restart
@@ -136,9 +136,15 @@ directory described below, rather than this connection file.
 Passwords are stored only as salted scrypt hashes in
 `${XDG_CONFIG_HOME:-$HOME/.config}/command-center-ng/auth.json`, with owner-only
 permissions. Set `CCNG_CONFIG_DIR` to select another private directory outside
-the checkout. Reinstalling preserves this file. For noninteractive installs or
-password changes, run the installed `server/password.mjs` with Node in a terminal,
-then restart the app. Sessions are invalidated when the app restarts.
+the checkout. Reinstalling preserves this file and the existing password. Fresh
+interactive setup asks you to choose a password; no shared bootstrap password
+or forced first-login password change is used. Without a terminal, the installer
+can stage application files without creating a password, but the server refuses
+to start without valid configured authentication. To complete that setup or
+deliberately change a password, run the installed `server/password.mjs` with Node
+in a terminal, then start or restart the app. Sessions are invalidated when the
+app restarts. Ansible deployment supplies protected initial-password input only
+when no auth file exists, as described in the [deployment guide](ansible-deployment.md#inputs-and-private-configuration).
 
 The same configuration directory holds private `workspace.json` (mode 600):
 open conversation IDs, coordinator ID and pause state. It is written by the

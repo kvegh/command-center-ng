@@ -72,7 +72,7 @@ variables.
 | `command_center_tls_days` | New self-signed certificate lifetime; default `365` days, from 1 to 3650 |
 | `command_center_codex_package` | Default `@openai/codex@0.167.0`; used only for a missing local CLI |
 | `command_center_manage_packages` | Default `true`; set `false` when system and CLI prerequisites are managed separately |
-| `command_center_password` | Initial password, 12–4096 characters; required only when no private auth file exists |
+| `command_center_password` | User-chosen initial password from protected input, 12–4096 characters; required only when no private auth file exists |
 | `command_center_force_install` | Default `false`; rebuild the selected revision explicitly |
 
 All actual settings, inventory data and AAP configuration belong as whole-file
@@ -81,7 +81,8 @@ password source outside both repositories and select it with the user. Existing
 auth files are validated and preserved; supplying a different password does not
 rotate an existing login. Initial password creation uses the maintained password
 helper's stdin interface, with protected logging, never a password command-line
-argument. Service environment files contain no password.
+argument. There is no shared default password or forced first-login password
+change. Service environment files contain no password.
 
 ## Behavior and boundaries
 

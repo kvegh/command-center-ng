@@ -9,6 +9,7 @@ const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 export async function setPassword(password, file = defaultAuthFile()) {
   if (password.length < 12) throw new Error('Use a password with at least 12 characters.');
+  if (password.length > 4096) throw new Error('Use a password with at most 4096 characters.');
   if (resolve(file).startsWith(sourceRoot + sep)) throw new Error('Store authentication outside the application checkout.');
   const salt = randomBytes(24).toString('hex');
   const hash = scryptSync(password, salt, 64).toString('hex');

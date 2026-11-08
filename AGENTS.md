@@ -21,6 +21,14 @@ nginx. The user approved nginx access restrictions plus a local application
 password stored only as a secure hash in private home configuration. The Linux
 installer accepts a target directory or prompts for it before installing.
 
+The user withdrew the shared bootstrap-password and forced-first-login-change
+proposal. Fresh authentication uses a user-chosen password; preserve existing
+configured passwords. Interactive installation prompts when auth is absent.
+Headless installation may stage files without auth, but server startup requires
+valid authentication. Deployment requires protected 12–4096-character initial
+password input only when no auth file exists; it preserves an existing login.
+Do not restore a shared default or forced-change mechanism as pending work.
+
 The user requested a target-local launcher and installer update mode, explicitly
 selecting automatic fetching of latest code. Version 0.1.0 uses the same local
 service and native Codex thread/fork support for completed-reply branching with

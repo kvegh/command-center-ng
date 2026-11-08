@@ -21,7 +21,9 @@ async function hidden(prompt) {
 try {
   let password;
   if (process.argv.includes('--stdin')) {
-    let input = ''; for await (const chunk of process.stdin) { input += chunk; if (input.length > 4096) throw new Error('Password input is too long.'); }
+    // Allow the optional final CRLF within the bounded read; setPassword checks
+    // the effective password length after removing that one line ending.
+    let input = ''; for await (const chunk of process.stdin) { input += chunk; if (input.length > 4098) throw new Error('Password input is too long.'); }
     password = input.replace(/\r?\n$/, '');
   } else {
     if (!process.stdin.isTTY) throw new Error('Use an interactive terminal or --stdin.');

@@ -5,6 +5,19 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Version 0.35.1 fixes the existing password-length mismatch: creation, protected
+stdin and HTTP login support up to 4,096 actual password characters. A final
+LF/CRLF is allowed by stdin without enlarging the password limit; oversized
+replacements preserve the prior profile. All 489 application tests, two focused
+Ansible password fixtures and the build pass. Check remote refs for publication;
+no installed application/service/password was changed by this source patch.
+
+The user withdrew the shared default password and first-login forced-change
+proposal. Existing setup requires a user-chosen password before startup and
+preserves configured authentication. The former first-access choice is closed
+as withdrawn; do not keep reporting it as pending input. Compact-overview screen
+scope remains an existing separate structured question, with no UI change yet.
+
 Release 0.35.0 implements the approved continuous mobile page: wrapped tabs,
 full-width overview above about 30 lines of internally scrolling chat history,
 and a six-line textarea with internal overflow. The worker Coordinator recap
@@ -78,9 +91,14 @@ Codex package pin after the 0.32.0 version update. All 469 application tests
 and the production build pass after combined integration. Independent reviews
 found no blocking issue; rendered browser acceptance remains unverified.
 Implementation: `fad77316cde9e30c5bbf237694b7b8a8562d22c0`. Check current remote refs for publication.
-The new first-login password-change request
-is separate work awaiting the user's initial-access choice; no authentication
-implementation is included in this UI release.
+The shared bootstrap-password/forced-first-login-change proposal was withdrawn.
+Keep the existing user-chosen password flow and preserve configured passwords;
+no authentication code change is needed for that decision. Interactive setup
+prompts if auth is absent. Headless installation may stage files without a
+password, but the server refuses startup without valid authentication. Deployment
+requires protected 12–4096-character initial input only when the auth file is
+absent and does not rotate an existing password. No initial-access choice remains
+pending for the withdrawn proposal.
 
 Previous release version was **0.32.0** in package.json and the lockfile.
 Implementation: `283692d29b8a8bdc4580f5cac0673701929431c2`. It builds on the

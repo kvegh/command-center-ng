@@ -5,6 +5,16 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
+Version 0.35.1 aligns application password creation, stdin setup and login at
+4,096 characters, including an optional final LF/CRLF in stdin. Oversized input
+fails before replacing an existing authentication file. All 489 application
+tests, two focused Ansible password fixtures and the production build pass.
+
+Fresh setup uses a user-chosen password and updates preserve an existing login.
+The shared-default/forced-first-login-change proposal was withdrawn; it is not
+pending implementation. No production password, service or native permission was
+changed by this patch. Installed-app acceptance remains separate.
+
 Version 0.35.0 makes mobile one naturally scrolling page, with wrapped worker
 tabs and the full-width overview above chat. History is bounded to roughly
 30 text lines; the input shows six lines and scrolls longer pasted text inside.
@@ -39,7 +49,7 @@ Running installations are not changed automatically.
 
 The published 0.33.1 approval-button height correction is preserved.
 
-**Version 0.35.0** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.35.1** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The classic dark graphite theme uses cyan controls,
@@ -357,8 +367,10 @@ It defaults to `~/commandcenter-ng`. Use `--prefix "$HOME/apps/commandcenter-ng"
 to choose another directory inside your home. Existing installations at another
 path need that explicit prefix for updates; they are not moved automatically. The script
 builds the app, removes build-only dependencies, and creates the launcher
-`command-center-ng` inside that target directory. The first interactive install also prompts for
-an application password; its hash stays outside the repository.
+`command-center-ng` inside that target directory. When no login is configured,
+the interactive installer prompts for a user-chosen application password of at
+least 12 characters; its hash stays outside the repository. Existing passwords
+are preserved. There is no shared default password or forced first-login change.
 
 If the installer added CLIs locally, first add them to the terminal PATH. Start
 the native Codex daemon from that terminal, then the application:
@@ -383,9 +395,10 @@ Installer and deployment attempt to enable native Codex structured questions;
 startup checks them without changing settings. Missing Codex or unsuccessful
 setup is a warning and CCNG continues. The feature is under development, so its
 warning remains visible and existing workers are not automatically restarted.
-Installation does not add a service
-or boot autostart. If installed noninteractively, first run the installed
-`server/password.mjs` with Node to set a password.
+Installation does not add a service or boot autostart. A noninteractive installer
+can stage the application without a password, but the server refuses to start
+without valid configured authentication. If none exists, run the installed
+`server/password.mjs` with Node in a terminal to choose a password before startup.
 
 For a VM behind nginx, set the internal interface and browser-facing origin:
 
