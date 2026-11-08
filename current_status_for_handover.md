@@ -5,6 +5,16 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Version 0.36.1 corrects new-agent path validation: the form and backend trim
+surrounding whitespace, preserving spaces within directory names. Both provider
+creation paths check existing absolute directories and reject malformed/missing/
+inaccessible paths with a status-400 validation message before native creation.
+No directory creation, shell expansion or permission changes are performed.
+All 505 tests and the production build pass; independent source review found no
+concrete issue. The existing startup-report test now compares exact worker IDs
+without assuming delivery order across independent asynchronous workers.
+Installed/browser acceptance remains unverified; no service was changed.
+
 Version 0.36.0 implements the user's MOBILE ONLY overview compaction. Padding
 and section gaps shrink to eight pixels; task heading/totals wrap together.
 Empty question sections are omitted only without requests or attention in both

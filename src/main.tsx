@@ -153,12 +153,13 @@ function AgentDialog({ state, dismiss, act, select }: { state: Snapshot; dismiss
       </div>{cursor && <button className="button subtle" disabled={busy || loading || !ready} onClick={() => void load(cursor)}>Load more conversations</button>}
     </> : <form className="new-agent" onSubmit={async event => {
       event.preventDefault(); if (!ready || busy) return; setBusy(true); setError('');
-      try { const result = await api('agents', { goal, cwd, provider }); select(result.id); dismiss(); }
+      const directory = cwd.trim(); setCwd(directory);
+      try { const result = await api('agents', { goal, cwd: directory, provider }); select(result.id); dismiss(); }
       catch (problem) { setError((problem as Error).message); } finally { setBusy(false); }
     }}>
       <label htmlFor="goal">What should this agent achieve?</label><input id="goal" placeholder="A clear, single-line goal" value={goal} maxLength={2000} onChange={event => setGoal(event.target.value)} required />
       <label htmlFor="cwd">Working directory on the Linux host</label><input id="cwd" className="mono" placeholder="/path/to/your/project" value={cwd} onChange={event => setCwd(event.target.value)} required />
-      <p className="field-note">Choose the project directory explicitly. Uses the existing local {provider === 'claude' ? 'Claude' : 'Codex'} sign-in, project instructions and permission settings.</p>
+      <p className="field-note">Choose an existing absolute project directory. Surrounding whitespace is ignored; spaces inside directory names are kept. Uses the existing local {provider === 'claude' ? 'Claude' : 'Codex'} sign-in, project instructions and permission settings.</p>
       <button className="button primary" disabled={!ready || busy || state.agents.filter(agent => agent.role !== 'coordinator').length >= limits.maxWorkers}>{busy ? 'Starting…' : 'Start agent'}<Icon name="arrow" /></button>
     </form>}
   </dialog>;

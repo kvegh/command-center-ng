@@ -669,7 +669,8 @@ test('startup reads saved intervals and queues one initial report without replay
     f.coordinator.reconcileReportSchedules({ startup: true });
     f.coordinator.reconcileReportSchedules({ startup: true });
     await delivered(f, 2);
-    assert.deepEqual(f.rpc.calls.filter(call => call.method === 'turn/start').map(call => call.params.threadId), ['worker', 'second']);
+    // Workers load instructions and deliver independently; startup guarantees one report each, not cross-worker order.
+    assert.deepEqual(f.rpc.calls.filter(call => call.method === 'turn/start').map(call => call.params.threadId).sort(), ['second', 'worker']);
     const request = f.rpc.calls.find(call => call.method === 'turn/start' && call.params.threadId === 'worker');
     assert.match(request.params.input[0].text, /Scheduled task report/);
     assert.match(request.params.clientUserMessageId, /^ccng-report-/);

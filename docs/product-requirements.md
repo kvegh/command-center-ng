@@ -62,6 +62,13 @@ build pass for this refinement; no rendered phone acceptance is claimed.
 
 ## Dashboard and project context
 
+Starting a new agent requires an existing absolute directory on the backend
+host. Ignore accidental surrounding whitespace while preserving spaces inside
+directory names. Validate the path before native agent creation and display
+clear errors for missing paths, files, embedded control characters and access
+failures. Do not create directories, expand shell expressions or change access
+permissions on the user's behalf.
+
 The dashboard provides easy switching between projects and agents. Each project
 keeps a short version of its goal readily visible together with:
 

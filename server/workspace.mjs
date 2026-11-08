@@ -324,7 +324,25 @@ export class Workspace extends EventEmitter {
     if (this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error(`All ${limits.maxWorkers} worker tabs are already open.`), { status: 409 });
     if (typeof goal !== 'string' || !goal.trim() || goal.length > 2000) throw Object.assign(new Error('Enter a goal of 1–2000 characters.'), { status: 400 });
     if (goal.trim().split('\n')[0].slice(0, 120) === COORDINATOR_NAME) throw Object.assign(new Error('This name is reserved for the coordinator. Enter a worker goal.'), { status: 400 });
-    if (typeof cwd !== 'string' || !isAbsolute(cwd) || !(await stat(cwd)).isDirectory()) throw Object.assign(new Error('Choose an existing absolute working-directory path.'), { status: 400 });
+    if (typeof cwd !== 'string') throw Object.assign(new Error('Enter an absolute working-directory path.'), { status: 400 });
+    // A pasted path often includes surrounding whitespace; spaces inside a directory name are significant.
+    cwd = cwd.trim();
+    if (!cwd || !isAbsolute(cwd)) throw Object.assign(new Error('Enter an absolute working-directory path, such as /path/to/your/project.'), { status: 400 });
+    if (/[\x00-\x1f\x7f]/.test(cwd)) throw Object.assign(new Error('The working-directory path must not contain control characters or embedded line breaks.'), { status: 400 });
+    let directory;
+    try { directory = await stat(cwd); }
+    catch (error) {
+      const message = ({
+        ENOENT: 'The working directory does not exist. Check the path on the Linux host.',
+        ENOTDIR: 'The working-directory path contains a file where a directory is needed.',
+        EACCES: 'CCNG cannot access the working directory. Choose a directory accessible to the account running CCNG.',
+        EPERM: 'CCNG cannot access the working directory. Choose a directory accessible to the account running CCNG.',
+        ENAMETOOLONG: 'The working-directory path is too long.',
+      })[error.code];
+      if (message) throw Object.assign(new Error(message), { status: 400 });
+      throw error;
+    }
+    if (!directory.isDirectory()) throw Object.assign(new Error('The working-directory path points to a file, not a directory.'), { status: 400 });
     if (this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error(`All ${limits.maxWorkers} worker tabs are already open.`), { status: 409 });
     this.creating++; let reserved = true;
     try {

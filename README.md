@@ -5,6 +5,13 @@ conversations. Switch between work without having to reconstruct the context.
 
 ## Project status
 
+Version 0.36.1 trims surrounding whitespace from new-agent working directories,
+preserves spaces inside directory names, and checks that the path is an existing
+absolute directory before starting an agent. Invalid, missing or inaccessible
+paths produce a clear validation message in the Add agent dialog.
+All 505 tests and the production build pass; actual installed-browser acceptance
+remains separate. No running installation or service is changed by publication.
+
 Version 0.36.0 makes only the mobile overview more compact so chat starts sooner:
 smaller gaps/padding, a wrapping task heading, no empty question sections, and a
 single Worker settings row with the current cadence and Report now. One tap
@@ -59,7 +66,7 @@ Running installations are not changed automatically.
 
 The published 0.33.1 approval-button height correction is preserved.
 
-**Version 0.36.0** includes local Codex and Claude workspaces and the Linux installer. It supports
+**Version 0.36.1** includes local Codex and Claude workspaces and the Linux installer. It supports
 up to sixteen worker tabs plus a separate coordinator, live running/idle/attention state, existing conversations, new
 agents, conversation branches, a scrollable list of linked Beads tasks, chat, steering,
 interruption, and questions. The classic dark graphite theme uses cyan controls,
