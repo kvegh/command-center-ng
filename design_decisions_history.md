@@ -1915,3 +1915,25 @@ regression was established.
 The earlier login task was closed after attributed actual user confirmation that
 both external and localhost access work. That outcome does not establish broader
 application/mobile acceptance or reverse the rejected production-setting removal.
+
+
+## 2026-11-07 — Preserve line breaks in pasted user text (0.34.2)
+
+Implementation: `37a88f337b58033504c37c3ddd20546083ecdf63`.
+
+A user's pasted terminal output displayed as a single paragraph. The message
+source and Markdown renderer retained newline text nodes, but normal paragraph
+whitespace collapsed them in the browser. User-message paragraphs and list items
+now use pre-wrap, preserving soft line breaks and spacing. This display-only
+correction keeps normal Markdown interpretation, fenced code/tables, exact copied
+source, assistant formatting and stored native history. It does not classify,
+execute or rewrite clipboard content. Literal syntax and column alignment can
+still use the existing fenced-code support.
+
+All 32 focused UI checks and the production build pass, alongside synthetic
+renderer checks confirming retained newlines. The preceding 0.34.1 release passed
+the full 481-test suite. No backend or dependency changed for this two-line CSS
+correction; a repeated full backend/network suite was unnecessary. Actual
+rendered browser acceptance remains unperformed, and no running installation or
+configuration was changed. The persistent header background fix and first-time
+walkthrough from 0.34.1 remain included.

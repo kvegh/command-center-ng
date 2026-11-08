@@ -10,8 +10,9 @@ in Markdown paragraphs/list items. Data and clipboard text were already retained
 Markdown's normal paragraph whitespace collapsed their display. Assistant
 formatting, tables/fenced code and copying stay unchanged. This is a focused
 CSS correction, without content classification or command execution. Targeted
-checks (32 UI cases) and the build pass. Publication is in progress; actual
-rendered browser verification remains unperformed.
+checks (32 UI cases) and the build pass. Implementation:
+`37a88f337b58033504c37c3ddd20546083ecdf63`. Check remote refs for publication;
+actual rendered browser verification remains unperformed.
 
 Previous release 0.34.1 makes the selected per-chat colour persistently tint only
 the header tab above the input. This follows the user's correction: colour its
