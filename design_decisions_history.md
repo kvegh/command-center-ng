@@ -2036,3 +2036,23 @@ still rejecting duplicates or omissions. Runtime report behavior is unchanged.
 All 505 application tests and the production build pass. Independent source
 review found no concrete issue. Actual installed-browser acceptance remains
 unverified; source publication does not install or restart a running instance.
+
+
+## 2026-11-08 — Deploy published minor CCNG releases through AAP ad hoc
+
+The user explicitly requested production deployment after minor releases through
+AAP ad hoc. Instruction/documentation commit
+`ca877ad2ecf28bec7c56b648305f89a8a81332a1` saves that maintainer workflow: update the
+existing installation, restart its service only after update success, and verify
+actual installed/running results with relevant functional checks. Preserve
+configuration, authentication, certificates and native profiles. This does not
+introduce application self-updating, new services, infrastructure changes or
+authority to bypass native permissions.
+
+Applied to current 0.36.1, the AAP preflight completed with a sudo denial. A
+second read-only operation confirmed the selected Machine login cannot access
+the application directory. No installation or restart occurred, and no sudo or
+credential change was attempted. A structured question requests an existing
+credential with suitable access; deployment remains blocked on that input.
+The code and dependency baseline are unchanged from the passing 505-test/build
+release. Documentation whitespace checks pass; deployment success is not claimed.
