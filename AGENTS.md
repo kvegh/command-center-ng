@@ -147,6 +147,16 @@ concise, imperative subjects. Validate relevant behavior and inspect command
 outcomes. Ask before installing missing tools or dependencies. Do not select a
 license or accept legal terms on the user's behalf.
 
+After publishing a minor CCNG release, deploy it to the existing authorized
+production installation through AAP ad hoc commands. Update the installation,
+restart its existing service after a successful update, and verify the actual
+installed version and running result. Preserve configuration, authentication,
+certificates and native agent profiles. Publication alone is not deployment;
+report actual outcomes and any unperformed functional or browser checks.
+This is a maintainer release workflow, not application self-updating. Native
+permission gates remain in force; this instruction does not authorize unrelated
+infrastructure, credential or security changes.
+
 ## Interface
 
 Keep workspace branding at the right of the full-width navigation bar, with

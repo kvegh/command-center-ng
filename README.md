@@ -10,7 +10,8 @@ preserves spaces inside directory names, and checks that the path is an existing
 absolute directory before starting an agent. Invalid, missing or inaccessible
 paths produce a clear validation message in the Add agent dialog.
 All 505 tests and the production build pass; actual installed-browser acceptance
-remains separate. No running installation or service is changed by publication.
+remains separate. Publication alone does not update a running installation;
+deployment is a separate maintainer step described below.
 
 Version 0.36.0 makes only the mobile overview more compact so chat starts sooner:
 smaller gaps/padding, a wrapping task heading, no empty question sections, and a
@@ -506,6 +507,21 @@ You can keep typing a draft while a native question or approval is displayed.
 Sending remains unavailable until that request resolves. Enter adds a newline
 while sending is unavailable; normal Enter-to-send resumes when ready.
 Typing during a pending send acknowledgment preserves the newer draft.
+
+## Maintainer release deployment
+
+After publishing a minor CCNG release, maintainers deploy it to the existing
+authorized production installation through AAP ad hoc commands: update the
+installation, restart its existing service only after the update succeeds,
+then verify the actual installed version and running result. Preserve existing
+configuration, authentication, certificates and native agent profiles. Run the
+applicable functional checks and report any browser or functional verification
+that remains unperformed; a successful job launch alone does not prove delivery.
+
+This is the project's maintainer workflow, not an automatic updater in CCNG.
+Existing native permission requests still require their actual answers. Release
+deployment does not imply changes to infrastructure, credentials or security
+settings. Keep real targets and connection details in protected configuration.
 
 ## Ansible deployment on RHEL 9
 

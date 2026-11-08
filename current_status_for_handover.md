@@ -16,6 +16,13 @@ concrete issue. The existing startup-report test now compares exact worker IDs
 without assuming delivery order across independent asynchronous workers.
 Installed/browser acceptance remains unverified; no service was changed.
 
+The user now requires production deployment after minor releases through AAP
+ad hoc, including the normal update/restart and outcome verification. The
+current 0.36.1 deployment attempt is blocked because the selected Machine login
+has no sudo rights and cannot access the installation. No update/restart or
+security change occurred; an existing credential with suitable access is needed.
+Preserve configuration/auth/certificates/native profiles and native permissions.
+
 Version 0.36.0 implements the user's MOBILE ONLY overview compaction. Padding
 and section gaps shrink to eight pixels; task heading/totals wrap together.
 Empty question sections are omitted only without requests or attention in both
