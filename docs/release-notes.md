@@ -56,8 +56,15 @@ Private decision append/reload/failure and graceful shutdown checks also pass.
 Independent source reviews found no remaining blockers. Ansible syntax and strict
 production lint pass across 26 files; 32 of 33 native Ansible fixtures pass. The
 remaining protected-frontend TLS fixture cannot create its local test socket
-under the current permissions; no assertion was relaxed. Publication/deployment
-are pending at this checkpoint. No actual native conversation was rewound;
+under the current permissions; no assertion was relaxed. Source is SSH-published
+and production update/restart succeeded (AAP3433), preserving eight protected
+files. AAP3434 verified 105 installed source files, actual HTTPS health0.44.0,
+served assets, both listeners and application-auth403 behavior. Installed session
+restart/clear-logins and decision reload passed in isolated temporary profiles.
+That job failed at its final public-proxy probe; read-only3435 confirmed TCP
+connection refusal from the application host, so public access is not verified
+by these checks. No proxy or connection settings were changed.
+No actual native conversation was rewound;
 browser login retention and the original pending RHEL body remain unverified.
 Optional installed/native browser exercises remain deferred.
 

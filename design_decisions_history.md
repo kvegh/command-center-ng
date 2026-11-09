@@ -2546,3 +2546,21 @@ blocked by execution permissions. Assertions and security controls were preserve
 Publication/deployment are pending at this checkpoint. No real native conversation
 was rewound or native approval submitted for testing; optional native/browser
 exercises remain deferred.
+
+### Production update and bounded installed verification
+
+SSH publication and independent remote readback matched payload
+`d2f270d7d01aa5079f89e7236d2a84719fdf3bbf`. Authorized AAP3433 installed0.44.0
+and restarted the existing user service after successful installation, with
+eight protected files unchanged. AAP3434 verified 105 source-file matches,
+actual process/version, trusted backend HTTPS, served assets, both listeners and
+application authentication403 without a Basic challenge. The installed modules
+passed session restart/clear-logins and decision reload checks in temporary
+private profiles; actual user sessions/passwords were not modified for testing.
+
+The final public-proxy check failed with TCP connection refused. Follow-up
+read-only3435 confirmed resolution of the configured public HTTPS origin but the
+same refused connection from the application host. This is a separate unverified
+public network path, not evidence that application installation failed. No
+proxy, DNS, firewall, trust or saved connection setting was changed. Actual
+browser login continuity and native rewind/request recovery remain unverified.

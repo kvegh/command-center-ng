@@ -5,20 +5,20 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working version 0.44.0 integrates the approved whole-turn Codex Edit & rewind.
+Published and installed version 0.44.0 integrates the approved whole-turn Codex Edit & rewind.
 Preview full affected turns/inputs, require confirmation, use native revert and
 refresh retained history before returning original text to the normal composer.
 Do not auto-send or undo files/tasks/commands/permissions. Selected images are
 blocked; stale, busy, pending/uncertain and handoff cases fail safely. Existing
 queues/schedules/drafts remain. Native cross-client atomicity is unavailable.
-Automated verification is recorded below; publication/deployment are pending.
+Publication, deployment and verification evidence is recorded below.
 No real native history was rewound.
 The same release integrates approved private decision-file persistence: new
 coordinator summaries reload at startup, retain older disk rows and never replay
 approvals/authority. Storage state/errors remain separate from native outcomes;
 normal shutdown flushes queued records. Older native history is not imported.
 Final combined verification passed all 738 application tests and the production
-build. Publication/deployment pending. Individual-message rewind and
+build. Individual-message rewind and
 optional installed/native/browser exercises remain deferred. Public screenshots
 are now explicitly approved unchanged and placed in the README gallery with
 historical-UI captions; their original SHA256 values match.
@@ -31,7 +31,7 @@ An independently found managed-provider early-acknowledgement compatibility edge
 was corrected and reviewed; correlation with the reported AAP warning remains
 unverified. No duplicate report or native answer was submitted.
 The user approved login persistence and --clear-logins. Backend and frontend
-implementation/tests/review are complete; no production restart is underway.
+implementation/tests/review are complete and the production update/restart succeeded.
 The user supplied a current RHEL file-approval example containing identifiers but
 no paths/diff/reason. Exact native file-change projection and read-only detail
 loading are implemented for cards and coordinator reads, with full-content review
@@ -47,7 +47,26 @@ from application-auth403. Ansible syntax/strict production lint pass (26 files);
 32 of33 native Ansible fixtures pass. One TLS fixture is blocked by local socket
 permissions, with assertions unchanged. No source-review blockers remain.
 
-Published/deployed version 0.43.0 implements the user's explicit correction: Never also
+Implementation `85517d8b3d461f1cdaea9d80fb0f85a90ec6b365`, integration
+`af453b2c1b6f11b15f0e0661312af63dc57445cc` and installed payload
+`d2f270d7d01aa5079f89e7236d2a84719fdf3bbf` are SSH-published and independently
+readback-verified. Authorized AAP job3433 updated/restarted the existing service;
+eight protected files are unchanged. Job3434 verified 105 exact source files,
+active process and actual HTTPS health0.44.0, matching index/two assets, both
+listeners and application-auth403 without a Basic challenge. Installed session
+restart/clear-logins and decision reload passed in isolated private temporary
+profiles; no real login was revoked for testing. Private runtime storage modes
+also passed inspection. One final app login is needed for the RAM-session migration.
+
+Job3434 failed only at its final public-proxy probe: connection refused from the
+application host. Follow-up read-only job3435 confirmed the configured HTTPS
+origin resolves but refuses its TCP connection. Public proxy/TLS/Basic Auth and
+authenticated browser retention are therefore not verified by these jobs; no
+proxy, DNS, firewall, credential or listener setting was changed. This network
+observation does not negate the completed application checks above. No actual
+native rewind, approval or original missing-request recovery was exercised.
+
+Earlier published/deployed version 0.43.0 implements the user's explicit correction: Never also
 excludes automatic startup reports. Keep manual Report now, stored dashboard
 summary/task reads, enabled cadence/coalescing and separate task checks.
 Unsent automatic startup reports can be cancelled without dropping manual,
