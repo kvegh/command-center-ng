@@ -158,6 +158,16 @@ truthfully update Beads and parallelize independent authorized work without
 conflicting with other tasks. It does not grant new scope or resume deferred,
 blocked or explicitly stopped work. No replacement task-execution engine is added.
 
+An in-progress task label or launched call is not sufficient evidence of attention.
+Require checks of outstanding subagents, tool calls and external jobs using exact
+available IDs, start/last-progress times, returned results and current status.
+Investigate stale/unknown waits with bounded authorized checks or follow-up;
+distinguish evidenced running, awaiting approval/input, completed, failed and
+unknown without guessing from elapsed time. Collect outcomes and update tasks,
+or surface the exact blocker and next action. Preserve approvals and forbid blind
+cancellation, duplication or retries. The prompt cannot guarantee recovery when
+the worker cannot reach a safe checkpoint.
+
 Expose “Next chat task-ping to send” and the next scheduled time in the
 coordinator overview. Backend startup begins a fresh cycle with no missed-check
 burst. Coalesce outstanding worker checks and retain existing pause, ownership,

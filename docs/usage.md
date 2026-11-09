@@ -71,6 +71,13 @@ perform in parallel without conflicts. The request is silent in both chats;
 useful agent findings and work remain visible. This is separate from task reports,
 so **Never** stops recurring reports but does not disable task checks.
 
+The check also asks the worker to inspect outstanding subagents, tool calls and
+external jobs, including work already marked in progress. It must check available
+IDs, timing, returned results and actual progress, investigate unexplained waits,
+and collect results or identify the exact blocker and next action. Age alone does
+not prove execution started, an approval is pending, or a call is stuck. The
+reminder never authorizes blind retries/cancellation or answering approvals.
+
 The coordinator overview shows **Next chat task-ping to send** with the next
 scheduled local time. It is a schedule, not a guarantee of immediate delivery:
 a pending question, paused coordinator, disconnected session, unknown active
@@ -78,6 +85,8 @@ turn or branch handoff can defer it. Known active Codex turns receive the check
 through supported steering for their next safe checkpoint; no tool is interrupted. Checks coalesce and do not replay missed intervals
 when CCNG restarts. Explicit user stops and project permissions remain in force;
 the reminder does not authorize an arbitrary backlog task or native Goal.
+This is an instruction at a safe checkpoint, not a watchdog that can recover a
+worker unable to reach that checkpoint or guarantee model compliance.
 
 ## Branch and return a summary
 

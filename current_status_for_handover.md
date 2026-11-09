@@ -5,6 +5,20 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Working version0.46.0 strengthens silent task checks for outstanding delegated
+work, tool calls and external jobs. Inspect actual timing/progress and status,
+investigate stale/unknown waits, collect results or surface a precise blocker;
+a launch or in_progress label alone is insufficient. Preserve exact approvals,
+scope, user stops, silence and the existing fifteen-minute schedule. Guidance
+cannot guarantee recovery before a worker reaches its safe checkpoint. The
+current Coordinator received this user-requested guidance through its exact
+native thread. Six focused test files and production build pass. The broader
+run passes71 of76 files; restricted socket listening/home writes prevent the
+remaining five. Native SSH refuses system-config ownership in this environment,
+so publication and the authorized production update remain pending. Existing
+production0.45.1 is unchanged; no security/access workaround was attempted.
+
+
 Published and installed correction0.45.1 adds the single-decision question rule to worker/shared
 guidance and two approved mobile README screenshots. Exact original JPEG pixels,
 compressed scan data and non-EXIF segments are preserved; Android build, capture

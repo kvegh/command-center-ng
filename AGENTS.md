@@ -604,6 +604,14 @@ The user approved a fixed fifteen-minute backend cadence for silent worker task
 checks. Reuse the existing coordinator clock/queue and native input path.
 Ask each open Codex worker to inspect neglected Beads work and reassess independent
 authorized tasks that can run in parallel without conflicting writes or resources.
+Also inspect outstanding subagents, tool calls and external jobs using available
+exact IDs, start times, last returned results, last evidenced progress and current
+status. An in_progress label or launch acknowledgement is not proof of progress.
+Investigate stale/unknown waits promptly with bounded authorized checks or
+targeted follow-up; identify approval/input waits, evidenced running, completion,
+failure or unknown state without inferring them from age alone. Collect results
+and update tasks or surface the exact blocker/next action. Do not blindly cancel,
+duplicate/retry uncertain operations, answer approvals or change permissions.
 This is a reminder to the agent, not a dispatcher selecting or executing tasks.
 Do not echo triggers/acknowledgements in either chat history. Show the coordinator
 counter “Next chat task-ping to send” with the next scheduled local time.

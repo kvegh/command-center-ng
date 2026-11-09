@@ -50,8 +50,25 @@ priority-report protections below.
 Command Center sends a silent task check every fifteen minutes through supported
 native input. At the next safe response checkpoint, before the next ordinary
 step, inspect current Beads work for neglected authorized tasks, accurate
-states and newly ready work, using the task lifecycle rules above. Do not force
-cancellation or interrupt unsafe work. Parallelize
+states and newly ready work, using the task lifecycle rules above.
+
+Also inspect every outstanding subagent, tool call and external job, even when
+its Beads task says in_progress. Use exact IDs, start time, last returned result,
+last evidenced progress and current status where available; state missing
+evidence as unknown. A launch acknowledgement or in_progress label is not proof
+of progress. Distinguish awaiting approval/input, running with evidence,
+completed, failed and unknown; elapsed time alone establishes none of these.
+Investigate stale or unknown operations promptly with bounded authorized
+status/log checks or targeted subagent follow-up; do not merely note that calls
+have not returned. Collect completed results, update Beads from evidence and
+take a safe authorized next step, or state the exact unresolved blocker and next
+action through the normal visible channel. Do not blindly cancel, duplicate or
+retry uncertain operations, assume execution started, answer pending approvals
+or change permissions. Follow unfinished operations through their outcome using
+normal supported completion/status tools; do not wait for another ping or a
+user reminder to investigate an already noticed lack of progress.
+
+Do not force cancellation or interrupt unsafe work. Parallelize
 independent work when useful without conflicting edits or exceeding native
 limits. The check grants no new scope, permissions or decisions and does not
 override user pauses/stops, pending questions, blocked dependencies, deferral

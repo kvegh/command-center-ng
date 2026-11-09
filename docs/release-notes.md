@@ -9,6 +9,26 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 0.46.0 — Check progress of outstanding delegated work
+
+- Silent task checks now explicitly inspect outstanding subagents, tool calls and
+  external jobs, including tasks already marked in progress. Workers must check
+  available IDs, timing, last returned results and last evidenced progress.
+- Investigate unexplained waits promptly, distinguish approval/input waits from
+  evidenced running, completion, failure or unknown state, and collect results or
+  explain the exact blocker and next action. Elapsed time alone proves no state.
+- Preserve the existing fifteen-minute cadence, silent delivery, safe checkpoints,
+  native permissions and stops. No blind retry/cancellation, extra watchdog,
+  dispatcher or timer is introduced.
+
+**Validation:** six focused test files covering coordinator/task-ping delivery,
+silence, cadence and native approval guards pass; the production build passes.
+The broader run passes71 of76 test files; five files encounter restricted socket
+listening or home-directory writes. Publication/deployment remain pending after
+SSH refuses the system configuration ownership. This is stronger worker guidance,
+not proof that every future model response complies or a recovery mechanism for
+a worker unable to reach a safe checkpoint.
+
 ## 0.45.1 — Separate independent questions and show mobile screenshots
 
 - Worker guidance asks for one independent decision or action per structured
