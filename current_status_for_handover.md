@@ -21,7 +21,7 @@ The combined suite passed761 tests and the production build;
 independent review found and verified corrections for UI projection, exact detail
 reload IDs, nullable bindings, stale ownership and delayed status reads. Installer
 login/defer/Beads fixtures pass without real authentication or tracker changes.
-Candidate source is not yet published or
+Implementation `c76502dfb01070fbfda7672c3bf06043332278c2` is committed; source is not yet published or
 installed; verified0.46.1 below remains the production baseline. Synthetic/native
 protocol fixtures do not establish real provider event delivery or rendered phone
 acceptance. No live native approval was created or answered for testing.

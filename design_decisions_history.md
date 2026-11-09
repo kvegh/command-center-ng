@@ -2749,3 +2749,55 @@ The usage guide clarifies that Report now is the user's command to the selected
 agent, delivered by the backend queue without a Coordinator-model decision.
 Queueing preserves duplicates, exact delivery status and existing native gates;
 it does not wait for all ordinary project work to finish.
+
+
+## 2026-11-09 — Keep delegated native requests with their parent
+
+Implementation `c76502dfb01070fbfda7672c3bf06043332278c2` (0.47.0) follows the user's selected behavior:
+show known native Codex child requests and truthful waiting state under the main
+chat using the same cards and Coordinator review path. Opening every child tab
+must not be required. The source previously ignored requests from never-opened
+children; native metadata now verifies lineage before actions become available.
+
+Retain original child thread/typed request IDs, tokens, native turn/item bindings
+and confirmation. Preserve exact native choices and existing manual permission
+limits; a parent instruction is usable only after verified child ownership. Keep
+parent input available during child-only waits. No new approval store, tab, worker
+slot, schedule, automatic child resume or model call is introduced. Read-only
+recovery cannot replace newer events or authorize a stale relationship.
+
+Independent review found and verified fixes for generic activity rows without
+request fields, missing child IDs on detail reload, explicit-null bindings, stale
+separately opened ownership and delayed recovery snapshots. All761 tests and the
+production build pass. Synthetic transport/HTTP/Coordinator/UI fixtures establish
+these paths, not actual provider event arrival or rendered browser acceptance.
+Requests never delivered, including those predating all child discovery, are not
+fabricated or replayed; live delivery and actual phone workflows remain unverified.
+
+## 2026-11-09 — Explain prerequisite and sign-in choices before setup
+
+The same implementation `c76502dfb01070fbfda7672c3bf06043332278c2` corrects onboarding after user-reported
+Git bootstrapping, disabled device login, mistaken workspace input and missing
+terminal PATH. Keep the existing source installer and installation layout. Show
+sudo-plus-RHEL-repository and administrator-prepared prerequisite paths before
+cloning. Beads and Dolt remain consent-based upstream local tools.
+
+Offer normal native browser Codex login by default after consent, device-code
+login only as an explicit policy-permitted alternative, and deferral. Explain
+separate OpenAI/app authentication and the native SSH callback. Never collect
+credentials, silently fall back between login methods, alter existing sign-in or
+write a shell profile in this release. Print the exact local tool PATH beside
+login/start instructions because child installers cannot change their caller.
+
+A workspace path is not a yes/no answer. Explain how to create an intended
+directory and rerun with the existing workspace/prefix options and separate
+initialization consent. Retain configuration, passwords and existing trackers.
+Focused mocked tests cover consent, deferral, login failure, state preservation
+and shell-quoted custom paths. No real account login or fresh system bootstrap
+was performed for validation.
+
+Native daemon boot startup remains separate and unconfigured by CCNG. The user
+subsequently requested a separate per-user Codex installation and persistent
+Bash PATH; its exact location is still being clarified. That later change is not
+implemented or implied by this release. Publication and installed verification
+are recorded separately after their actual outcomes.
