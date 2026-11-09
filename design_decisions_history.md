@@ -2414,3 +2414,39 @@ Node CLI/unit check after correcting the initially empty test checkout's
 dependency setup. Strict lint passed across sixteen Ansible files. No production
 application or native daemon was restarted, and fresh target acceptance remains
 open, including the separate browser-first authentication requirement.
+
+## 2026-11-09 — Respect Never during startup dashboard refresh
+
+The user observed a report in a Never worker. Native history confirmed the
+trigger was the previously selected one-off startup dashboard report, not the
+recurring timer. The user explicitly changed that choice: Never now excludes
+all automatic reports, including startup. Report now stays a manual one-off;
+stored summaries, tasks, input needs and schedule information still populate
+the dashboard without requesting a worker report. Separate task-attention
+checks remain unchanged.
+
+Implementation marks startup reports with the existing automatic provenance so
+selecting Never can cancel unsent automatic rows while retaining explicit manual
+requests, uncertain/error rows and in-flight work. Enabled startup/cadence
+coalescing remains. Review found interval changes could erase the visible reason
+for a retained uncertain startup delivery; that reason now remains in both worker
+and dashboard state. No native cancellation, new timer/store or automatic retry
+was added. Already delivered report requests cannot be withdrawn by this setting.
+
+Implementation: `ea9d91719f1faca8e308e266e648bfa19060f798` (0.43.0).
+All 618 application tests and the production build pass, including Never stored
+input needs, manual promotion, automatic cancellation, uncertainty preservation,
+enabled startup and separate task-check regressions. Source review found no
+remaining concrete blocker. Optional installed native/browser workflow exercises
+were explicitly deferred by the user; no browser tooling or live permission
+exercise was added. Publication/deployment are recorded after actual outcomes.
+
+Prior 0.42.0 payload `1aea82fc4a65852bd175fa34495ecd300118045c` was
+SSH-published/readback-verified, installed/restarted through the authorized
+production workflow and independently checked: 96 exact source files, two served
+assets, trusted HTTPS health0.42.0, mandatory login and both listeners, with eight
+protected files unchanged. It preserves the independently published0.41.1
+Ansible bootstrap changes; all17 disposable native-Ansible fixtures pass on the
+combined source. Fresh browser/proxy first enrollment remains unverified and
+belongs to the selected fresh deployment's acceptance, not this existing-login
+preservation check.
