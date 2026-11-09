@@ -31,9 +31,16 @@ is retrievable in the [README before this reorganization](https://github.com/kve
 The native0.167.0 source contract is verified. The final combined suite ran827
 cases:826 passed, one unavailable alternate-group case skipped, none failed.
 The production build is clean, with no browser Node-module warning; independent
-source/UI/provenance review is clear. Publication and installed verification
-will be recorded from actual outcomes. Real native/browser acceptance remains
-unverified;1.0.0 stays the installed release until the authorized update.
+source/UI/provenance review is clear.
+
+Implementation115cf9a and payloadbbd8a2b are SSH-published/readback verified.
+AAP3460 updated/restarted production in20.634s, preserving nine protected files
+and unrelated Bash bytes/uid/gid/mode. Independent3461 passed in5.439s:106 source
+files matched, running1.1.0 trusted HTTPS/assets/both listeners/auth gates,
+21 installed backend reply/authority/queue/handoff regressions passed, and the
+served answer/retained-draft/detailed-report controls matched without a browser
+Node-module shim. These installed tests use isolated synthetic native transport;
+actual browser/provider reply delivery and full phone workflows remain unverified.
 
 ## 1.0.0 — Optional detailed task reports
 

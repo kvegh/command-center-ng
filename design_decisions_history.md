@@ -2950,3 +2950,14 @@ browser-module, draft-switch and handoff safety corrections. These source/transp
 fixtures do not prove actual browser/native-provider answer delivery. Publication
 and installed verification will be recorded from their outcomes. The separate
 YAML approval-reader boundary is unchanged by this release.
+
+1.1.0 publication and installed verification: implementation
+`115cf9a36449b8acac3ebec21da3569b6b99d296` and payload
+`bbd8a2b7d3c95563ed62287b33657c1cc5e2f551` were SSH-published/readback
+verified. AAP3460 completed update/restart in20.634s with nine protected files
+and unrelated Bash content/metadata retained. Independent3461 passed in5.439s:
+106 exact files, actual running1.1.0 trusted HTTPS/assets/listeners/auth gates,
+21 installed backend regressions and served answer/draft/report controls.
+Functional cases use isolated synthetic native transport and temporary test
+authentication; no real provider/model/approval call was created. Full actual
+browser/provider answer delivery and phone acceptance remain unverified.

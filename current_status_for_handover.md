@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working candidate **1.1.0** implements manual replies to eligible current
+Published and installed **1.1.0** implements manual replies to eligible current
 Codex assistant-message questions from a completed message within the same
 known active turn. Restored/history-only metadata cannot restart a turn.
 Server-derived original native message IDs/zero-based indices bind per-
@@ -31,11 +31,18 @@ before CR/LF normalization to spaces. Native async `accepted: true` is
 emission, not an answer. The final combined827-test suite has826 passes, one
 alternate-group skip and no failure; the clean production build and independent
 review pass. Canonical replies authorize only through actual human answer text,
-never model-written framing. Publication and installed verification remain
-pending; real native/browser acceptance is unverified. Version1.0.0 below remains
-the live verified release.
+never model-written framing.
 
-Published and installed **1.0.0** adds a one-off Detailed report checkbox beside
+Implementation115cf9a and payloadbbd8a2b are SSH-published/readback verified.
+AAP3460 updated/restarted production in20.634s, preserving nine protected files
+and unrelated Bash bytes/uid/gid/mode. Independent3461 passed in5.439s:106 source
+files matched, running1.1.0 trusted HTTPS/assets/both listeners/auth gates,
+21 installed backend reply/authority/queue/handoff regressions passed, and the
+served answer/retained-draft/detailed-report controls matched without a browser
+Node-module shim. These installed tests use isolated synthetic native transport;
+actual browser/provider reply delivery and full phone workflows remain unverified.
+
+Previously verified **1.0.0** adds a one-off Detailed report checkbox beside
 Report now. Give the normal overview first, then every linked actual in-progress
 Beads task by title/ID with up to ten recent attributable timestamp/action/outcome
 entries. Missing/fewer/unknown evidence must be explicit. Only this request may
