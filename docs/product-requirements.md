@@ -735,6 +735,18 @@ session scope, not a permanent grant. Preserve current identity, confirmation,
 explicit restrictions and coordinator limits. CCNG does not create its own
 permission store or change native configuration directly.
 
+Known native Codex children must expose delivered current requests and status to
+CCNG and the Coordinator under their parent, using the existing question cards
+with source-child labels and native answer choices. Require verified parent
+lineage from native metadata. Keep pending requests bound to the child's original
+thread ID and type-preserved native request ID; never fabricate IDs or replay approvals.
+Parent/child context is transient, not a new store, timer, tab or worker slot.
+Keep manual/Coordinator approval limits and native permissions unchanged. A
+child-only wait must not block otherwise-available parent input. Do not resume a
+child for discovery or claim other-provider support. Events before discovery or
+details not delivered are not proved recoverable: expose unknown/missing details
+rather than inventing a complete request set.
+
 ### Never includes startup reports
 
 Never disables all automatic Standard Task Report requests, including startup

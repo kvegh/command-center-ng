@@ -12,16 +12,27 @@ function safeExternalUrl(value: unknown) {
 
 type RequestCardProps = {
   question: Question; agentId: string; workerName: string;
+  requestThreadId?: string;
   readOnlyCoordinator?: boolean;
   prepareApprovalFocus?: () => () => void;
   act: (path: string, data: unknown) => Promise<boolean>;
 };
 
 export function NativeRequestCard(props: RequestCardProps) {
-  const key = JSON.stringify([props.agentId, props.question.id, props.question.method]);
+  const key = JSON.stringify([props.agentId, props.requestThreadId || props.agentId, props.question.id, props.question.method,
+    props.question.reviewToken || null, props.question.params.turnId || null, props.question.params.itemId || null]);
   return ['claude/tool/requestApproval', 'claude/tool/requestUserInput'].includes(props.question.method)
     ? <ClaudeRequestCard key={key} {...props} />
     : <NativeRequestFields key={key} {...props} />;
+}
+
+export function childRequestBinding(question: Question, requestThreadId?: string) {
+  if (!requestThreadId) return {};
+  return { requestThreadId,
+    ...(typeof question.reviewToken === 'string' ? { reviewToken: question.reviewToken } : {}),
+    ...(question.params.turnId !== undefined ? { turnId: question.params.turnId } : {}),
+    ...(question.params.itemId !== undefined ? { itemId: question.params.itemId } : {})
+  };
 }
 
 export function NativeApprovalControls({ question, busy, readOnlyCoordinator = false, submit, review, prepareApprovalFocus }: {
@@ -96,7 +107,9 @@ export function NativeFileChanges({ question, agentId, busy, load }: { question:
   </div>;
 }
 
-function NativeRequestFields({ question, agentId, workerName, readOnlyCoordinator = false, act, prepareApprovalFocus }: RequestCardProps) {
+function NativeRequestFields({ question, agentId, requestThreadId, workerName, readOnlyCoordinator = false, act, prepareApprovalFocus }: RequestCardProps) {
+  const nativeThreadId = requestThreadId || agentId;
+  const binding = childRequestBinding(question, requestThreadId);
   const toolApproval = isNativeToolApproval(question);
   const approval = [COMMAND_APPROVAL, FILE_APPROVAL].includes(question.method) || toolApproval;
   const clarification = question.method === CLARIFICATION;
@@ -112,12 +125,12 @@ function NativeRequestFields({ question, agentId, workerName, readOnlyCoordinato
   const submit = async (answer: Record<string, any>) => {
     if (busy) return false; setSending(true); setError('');
     try {
-      const confirmed = await act(`agents/${agentId}/answer`, { requestId: question.id, ...answer });
+      const confirmed = await act(`agents/${agentId}/answer`, { ...answer, requestId: question.id, ...binding });
       if (!confirmed) setError('The answer was not confirmed. Your input is retained.');
       return confirmed;
     } catch (problem) { setError((problem as Error).message); return false; } finally { setSending(false); }
   };
-  return <section id={questionTarget(agentId, question.id)} className="question-card native-request" tabIndex={-1} aria-label={`${requestKind(question)} for ${workerName}`}>
+  return <section id={questionTarget(nativeThreadId, question.id)} className="question-card native-request" tabIndex={-1} aria-label={`${requestKind(question)} for ${workerName}`}>
     <div className="eyebrow">{requestKind(question)} · {workerName}{question.params.serverName ? ` · ${question.params.serverName}` : ''}</div>
     {question.params.message && <p className="native-request-message">{question.params.message}</p>}
     {question.params.reason && <p>{question.params.reason}</p>}
@@ -132,8 +145,8 @@ function NativeRequestFields({ question, agentId, workerName, readOnlyCoordinato
     </form> : approval ? <>
       {question.params.command && <pre><code>{typeof question.params.command === 'string' ? question.params.command : JSON.stringify(question.params.command)}</code></pre>}
       {question.params.grantRoot && <p>Requested change root: {question.params.grantRoot}</p>}
-      {question.method === FILE_APPROVAL && <NativeFileChanges question={question} agentId={agentId} busy={busy} load={() => void act(`agents/${agentId}/requests`, {})} />}
-      <NativeApprovalControls question={question} busy={busy} readOnlyCoordinator={readOnlyCoordinator} submit={submit} prepareApprovalFocus={prepareApprovalFocus} review={toolApproval ? undefined : () => void act(`agents/${agentId}/review`, { requestId: question.id })} />
+      {question.method === FILE_APPROVAL && <NativeFileChanges question={question} agentId={nativeThreadId} busy={busy} load={() => void act(`agents/${agentId}/requests`, requestThreadId ? { requestId: question.id, ...binding } : {})} />}
+      <NativeApprovalControls question={question} busy={busy} readOnlyCoordinator={readOnlyCoordinator} submit={submit} prepareApprovalFocus={prepareApprovalFocus} review={toolApproval ? undefined : () => void act(`agents/${agentId}/review`, { requestId: question.id, ...binding })} />
     </> : permissions ? <NativePermissionControls question={question} busy={busy} readOnlyCoordinator={readOnlyCoordinator} submit={submit} prepareApprovalFocus={prepareApprovalFocus} /> : mcp ? <>
       {fields !== null ? <form onSubmit={event => { event.preventDefault(); void submit({ decision: 'accept', content }); }}>
         <fieldset disabled={busy} className="native-form-fields">{fields.map(field => <label key={field.name}><span>{field.label}{field.required ? ' *' : ''}</span>{field.description && <small>{field.description}</small>}

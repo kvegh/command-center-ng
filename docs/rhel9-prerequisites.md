@@ -19,21 +19,73 @@ installer action, not an application startup or tab-viewing side effect.
 | System certificate trust | `ca-certificates` | Verify HTTPS package/download connections |
 | sudo and DNF | Existing administrator-provided access | Optional installation of missing system prerequisites |
 | Beads CLI | Existing compatible `bd`, or approved target-local `@beads/bd@1.3.2` | Read and maintain project tasks |
-| Codex CLI and sign-in | Existing compatible Codex, or approved target-local `@openai/codex@0.166.0` | Native agent conversations and daemon |
+| Codex CLI and sign-in | Existing compatible Codex, or approved target-local `@openai/codex@0.167.0` | Native agent conversations and daemon |
 | Dolt server binary | Existing Dolt, or confirmed target-local Dolt 2.2.0 prebuilt archive | Native shared-server task database access |
 | curl | `curl`, only if a fresh Dolt binary must be downloaded | HTTPS download with certificate verification |
+
+Beads and Dolt are upstream tools, not packages supplied by the
+[RHEL 9 package manifest](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/package_manifest/repositories).
+The installer obtains Beads through npm and Dolt from its upstream release;
+both are user-local, consent-based installations, not `dnf install beads dolt`.
 
 No Go compiler, C/C++ compiler, Python, ICU headers or Beads MCP server is needed
 for the prebuilt CLI installation path. Source-build requirements are separate.
 The [Beads installation guide](https://github.com/gastownhall/beads/blob/v1.3.2/docs/getting-started/installation.md)
 describes the supported npm/prebuilt methods and source-build dependencies.
 
+## Two setup paths
+
+Git must be available before cloning the installer. A normal Linux shell and
+basic coreutils (`id`, `uname`, `dirname`) must also already work: the installer
+uses them before it can offer package installation.
+
+### 1. Sudo and RHEL repository access
+
+With administrator-approved sudo and normal RHEL repositories available, install
+Git first if it is missing:
+
+```sh
+sudo dnf install git
+```
+
+Then follow the [first-time walkthrough](installation.md#first-time-walkthrough)
+as your ordinary account. The installer detects remaining missing base packages,
+Node.js 22.12+ and npm and offers the applicable DNF commands with explicit
+confirmation. DNF also shows its transaction. Do not run `sudo ./install.sh`;
+only the separately confirmed system-package commands need elevation.
+
+### 2. No sudo: administrator prepares prerequisites
+
+Give your administrator this checklist before cloning or running the installer:
+
+- **A. Base system:** provide an ordinary account with a writable home, Git,
+  Bash, coreutils, tar/gzip and the system CA trust package listed above. These
+  tools must be on that account's PATH; the installer cannot repair missing
+  initial shell/coreutils commands by itself.
+- **B. Node/npm:** provide a compatible Node.js **22.12 or newer** and working
+  npm on that same PATH. The documented RHEL 9 profile is `nodejs:22/common`.
+  Review an unsuitable existing module stream deliberately rather than resetting
+  it or replacing a compatible installation automatically.
+- **C. Access and optional downloads:** make normal RHEL repositories available
+  for administrator package preparation, and arrange trusted access to the source
+  repository and npm package registry or their existing configured mirrors. Fresh
+  Dolt setup also downloads its release archive and requires `curl`; have the
+  administrator provide it (`sudo dnf install curl`) when needed, or reuse an
+  existing compatible Dolt. Do not disable TLS/GPG verification to gain access.
+
+The administrator can use the [package preparation commands](#prepare-rhel-repositories-and-node)
+below for missing components. You then clone and run the installer as your own
+account, without sudo. No sudo is needed for the supported user-local Beads/Codex
+packages or Dolt/tracker setup once their system/download prerequisites exist;
+each still needs installer consent. Other distributions remain unverified and
+must provide their prerequisites without assisted package setup.
+
 ## Prepare RHEL repositories and Node
 
 RHEL BaseOS and AppStream repositories must be accessible through the machine's
 normal subscription or managed mirror. The installer does not register systems,
 enable third-party repositories or bypass TLS/GPG checks. An administrator can
-install the missing base packages:
+install missing base packages and, when needed, the documented Node profile:
 
 ```sh
 sudo dnf install bash coreutils git tar gzip ca-certificates
@@ -53,7 +105,8 @@ If PATH still selects an older user-managed Node, correct PATH before retrying.
 
 ## Check and install
 
-From the source checkout:
+After either setup path, continue as the ordinary account with a writable home
+and approved source/package/download access. From the source checkout:
 
 ```sh
 ./install.sh --check
@@ -70,6 +123,8 @@ Interactive installation lists the exact RPM command and asks before sudo. DNF
 also presents its transaction. Missing Beads/Codex CLIs can be installed under
 `TARGET_DIR/tools` through pinned npm packages after separate confirmation;
 their upstream installation scripts are part of that approved CLI installation.
+Fresh Dolt/tracker setup remains a separate consent step; choose an existing
+writable task workspace first, or [finish Beads setup later](installation.md#finish-beads-setup-later).
 Compatible global tools are reused. No global npm prefix, shell profile or
 existing tool is overwritten. Noninteractive runs never treat supplied text,
 elapsed time or a default selection as approval for missing prerequisites.
@@ -79,13 +134,20 @@ keeps the previous installation. Approved system RPM transactions remain install
 even if a later build fails. An incompatible existing Beads version is reported
 for deliberate upgrade review; existing databases are not migrated automatically.
 
+Apply the printed tool PATH, complete native Codex sign-in if deferred, and start
+its daemon before using agents; see [Codex and native agent PATH](#codex-and-native-agent-path).
+Choose the separate application password and protect browser access before
+exposure, as described in the [first-start guide](installation.md#protect-access-before-first-start).
+The installer does not configure that external protection.
+
 ## Codex and native agent PATH
 
 Use the target you selected:
 
 ```sh
 export PATH="$HOME/apps/command-center-ng/tools/bin:$HOME/apps/command-center-ng/tools/node_modules/.bin:$PATH"
-codex login --device-auth
+codex login
+# Only if the native daemon is not already running for this account:
 codex app-server daemon start
 "$HOME/apps/command-center-ng/command-center-ng" --cwd "$HOME/projects/PROJECT"
 ```
@@ -94,13 +156,19 @@ The `--cwd` option sets the application's startup context. In **Start new**, ent
 the intended project's directory explicitly so that worker loads its own project
 instructions. Existing conversations keep their saved native working directory.
 
-Replace PROJECT with an existing task workspace. Native Codex supports browser
-sign-in and device-code sign-in; `codex login status` reports credential presence.
-The installer suppresses its authentication output and never collects tokens.
-If sign-in is deferred, installation can finish but clearly reports agent setup
-pending. See the official [Codex CLI](https://learn.chatgpt.com/docs/codex/cli)
-and [login commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli).
+Replace PROJECT with an existing task workspace. Codex is currently the supported
+runtime and needs your own OpenAI authentication, separate from the CCNG password.
+Use normal browser sign-in by default; device-code sign-in is optional when your
+account/workspace enables it. `codex login status` reports credential presence. If
+sign-in is deferred, installation can finish with agent setup pending; it must
+be completed before agent work. See the detailed
+[native authentication and SSH browser-login steps](installation.md#native-codex-authentication)
+and [official authentication guide](https://learn.chatgpt.com/docs/auth?surface=cli).
 
+CCNG only connects to the native daemon; it does not start it. Start it once if
+not already running under the same Linux account. It runs in the background,
+so its starting terminal can close. Start it again after reboot if needed;
+the installer/CCNG service does not configure or verify native boot autostart.
 The launcher exports its local CLI directory for the backend. The Codex daemon
 also needs that PATH so its agent shells and hooks can find Beads. Existing
 daemons retain their original environment; restart one only when existing work

@@ -77,7 +77,7 @@ test('correction drafts remain editable while native questions block sending', (
   input.props.onChange({ target: { value: 'A clearer follow-up correction' } });
   input.props.onKeyDown({ key: 'Enter', shiftKey: false, nativeEvent: { isComposing: false }, preventDefault() {} });
   assert.equal(changed, 'A clearer follow-up correction'); assert.equal(sent, 0);
-  assert.match(main, /!active.questions.length && active.status !== 'attention'/);
+  assert.match(main, /!active.questions.length && activeOwnStatus !== 'attention'/);
 });
 
 test('withdrawn history editing has no frontend action/dialog/state/styles while branching and native forms remain', async () => {

@@ -3,6 +3,7 @@ import { requestKind } from '../server/native-requests.mjs';
 
 export type Question = {
   id: string | number; method: string; params: Record<string, any>;
+  reviewToken?: string;
   responding?: boolean; error?: string | null;
   review?: { decision: string; rationale: string };
   nativeItem?: {

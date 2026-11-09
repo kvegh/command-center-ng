@@ -63,6 +63,10 @@ fi
 test('first default installation creates private HTTP settings and empty cert directory after building', async t => {
   const f = await fixture(t);
   const result = await f.install();
+  const toolPath = '  export PATH=\'' + f.prefix + '/tools/bin\':\'' + f.prefix + '/tools/node_modules/.bin\':"$PATH"';
+  assert.match(result.stdout, /installer cannot change your current terminal PATH/);
+  assert.ok(result.stdout.includes(toolPath + '\nIf the native daemon is not already running'), result.stdout);
+  assert.match(result.stdout, /daemon runs in the background; you do not need to keep its terminal open/);
   const config = await readFile(join(f.prefix, 'etc', 'config.conf'), 'utf8');
   assert.match(config, /^connection_type: http$/m);
   assert.match(config, /^# connection_type: https$/m);

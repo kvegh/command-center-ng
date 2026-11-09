@@ -236,14 +236,25 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           if (action === 'message') await workspace.send(id, data.text, { images: data.images });
           if (action === 'interrupt') await workspace.interrupt(id);
           if (action === 'history') await workspace.history(id, data.cursor);
-          if (action === 'requests') return json(response, await workspace.recoverRequests(id));
+          if (action === 'requests') {
+            if (data.requestThreadId !== undefined && data.requestThreadId !== id) {
+              if (data.requestId !== undefined || data.reviewToken !== undefined) {
+                const context = workspace.resolveRequestContext(workspace.agent(id), data.requestThreadId);
+                const question = context.questions.find(candidate => candidate.id === data.requestId && candidate.reviewToken === data.reviewToken);
+                if (!question || (question.params.turnId != null && data.turnId !== question.params.turnId) || (question.params.itemId != null && data.itemId !== question.params.itemId)) throw failure('Choose the exact current subagent request before loading its details.', 409);
+              }
+            }
+            return json(response, await workspace.recoverRequests(id, data.requestThreadId));
+          }
           if (action === 'report-settings') { if (!workspace.coordinator) throw failure('Reporting is unavailable.', 503); return json(response, workspace.coordinator.setReportInterval(id, data.minutes, { notifyWorker: true })); }
           if (action === 'report') { if (!workspace.coordinator) throw failure('Reporting is unavailable.', 503); return json(response, workspace.coordinator.requestUserReport(id)); }
-          if (action === 'answer') await workspace.answer(id, data.requestId, data);
+          if (action === 'answer') await workspace.answer(id, data.requestId, data, data.requestThreadId);
           if (action === 'review') {
             if (!workspace.coordinator || workspace.coordinator.paused) throw failure('Resume the coordinator before requesting a review.', 409);
-            const agent = workspace.agent(id); const question = agent.questions.find(q => q.id === data.requestId);
+            const agent = workspace.agent(id); const context = workspace.resolveRequestContext(agent, data.requestThreadId ?? id);
+            const question = context.questions.find(q => q.id === data.requestId && (context === agent || q.reviewToken === data.reviewToken));
             if (!question || !['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method)) throw failure('Choose a pending command or file approval.', 400);
+            if (context !== agent && ((question.params.turnId != null && data.turnId !== question.params.turnId) || (question.params.itemId != null && data.itemId !== question.params.itemId))) throw failure('This subagent request changed. Reload its current details.', 409);
             question.review = { decision: 'queued', rationale: 'Review requested by the user.' };
             await workspace.coordinator.ensure(); workspace.coordinator.mark(id, 'User requested approval review', true); workspace.changed();
           }

@@ -5,6 +5,27 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Working0.47.0 implements user-approved native child request/status visibility
+under the main chat and existing Coordinator. Verified native lineage, original
+child IDs/tokens/turn/item bindings and exact native confirmation remain required.
+Child attention does not lock the main composer. Recovery reads native metadata
+and preserves newer events; no automatic resume, guessed approval, new request
+store, tab, model call, worker slot or timer is added.
+
+The same candidate clarifies installation prerequisites with/without sudo,
+ordinary browser Codex login versus optional device-code login, and later Beads
+setup using the existing source installer and installation prefix. Existing
+installation layout, authentication and trackers remain protected.
+
+The combined suite passed761 tests and the production build;
+independent review found and verified corrections for UI projection, exact detail
+reload IDs, nullable bindings, stale ownership and delayed status reads. Installer
+login/defer/Beads fixtures pass without real authentication or tracker changes.
+Candidate source is not yet published or
+installed; verified0.46.1 below remains the production baseline. Synthetic/native
+protocol fixtures do not establish real provider event delivery or rendered phone
+acceptance. No live native approval was created or answered for testing.
+
 Published and installed0.46.1 adds the user-requested conditional recovery
 sequence to the fifteen-minute main-agent ping and coordinator/base guidance.
 Check every child's actual wait/external-job state; safely interrupt only a

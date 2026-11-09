@@ -93,6 +93,36 @@ test('a failed native initialization is reported without a readiness check or de
   } finally { await f.close(); }
 });
 
+test('blank workspace selection explains how to finish later in the same custom installation without creating a tracker', async () => {
+  const f = await fixture();
+  try {
+    const result = await f.run('CCNG_TASK_WORKSPACE=""; CCNG_SOURCE_DIR=$CCNG_INITIAL_WORK_DIR; ccng_beads_setup; [ "$CCNG_BEADS_SETUP_PENDING" = 1 ]');
+    assert.match(result.stdout, /application is installed/);
+    assert.match(result.stdout, /same ordinary account \(no sudo\)/);
+    assert.ok(result.stdout.includes('mkdir -p "$HOME/ccng-wd"'), result.stdout);
+    assert.ok(result.stdout.includes("sh '" + f.workspace + "/install.sh' --workspace \"$HOME/ccng-wd\" --prefix '" + f.target + "'"));
+    assert.ok(result.stdout.includes("export PATH='" + f.target + "/tools/bin':'" + f.target + '/tools/node_modules/.bin\':"$PATH"'));
+    assert.ok((await f.calls()).every(call => call === '--readonly where --json'));
+    await assert.rejects(stat(join(f.workspace, '.beads')), { code: 'ENOENT' });
+    await assert.rejects(stat(join(f.dir, 'ccng-wd')), { code: 'ENOENT' });
+  } finally { await f.close(); }
+});
+
+test('an accidental yes response is rejected as a path and gives safe retry instructions without creating it', async () => {
+  const f = await fixture();
+  try {
+    await assert.rejects(f.run('CCNG_TASK_WORKSPACE=y; CCNG_INSTALL_DIR="${CCNG_INSTALL_DIR}/owner\'s folder"; ccng_beads_setup'), error => {
+      assert.equal(error.code, 1); assert.match(error.stderr, /existing directory path, not yes\/no/);
+      assert.match(error.stdout, /setup state was preserved/);
+      assert.ok(error.stdout.includes('--workspace "$HOME/ccng-wd" --prefix '), error.stdout);
+      assert.ok(error.stdout.includes("owner'\\''s folder'"), 'printed shell arguments escape apostrophes');
+      return true;
+    });
+    await assert.rejects(stat(join(f.workspace, 'y')), { code: 'ENOENT' });
+    await assert.rejects(stat(join(f.workspace, '.beads')), { code: 'ENOENT' });
+  } finally { await f.close(); }
+});
+
 test('missing Dolt download is pinned and verified before copying; a bad checksum leaves no installed binary', async () => {
   const f = await fixture();
   try {

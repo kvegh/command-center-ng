@@ -116,5 +116,5 @@ test('composer shares its per-chat image callback and draft-only lock with paste
   assert.equal(attach.agentId, 'active.id'); assert.equal(paste.agentId, attach.agentId);
   assert.equal(attach.attach, paste.onPasteImages);
   assert.equal(attach.disabled, 'draftLocked'); assert.equal(paste.disabled, attach.disabled);
-  assert.match(main, /const readyToSend =[^\n]*!active\.questions\.length && active\.status !== 'attention'/, 'drafting attachments cannot bypass pending-request send gates');
+  assert.match(main, /const readyToSend =[^\n]*!active\.questions\.length && activeOwnStatus !== 'attention'/, 'drafting attachments cannot bypass pending-request send gates');
 });

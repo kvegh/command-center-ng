@@ -9,6 +9,28 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 0.47.0 — Show delegated approvals under their parent
+
+- Delivered native Codex child requests and waiting states appear under their
+  parent chat, using the existing request cards and Coordinator review path.
+  Child names identify their source; parent input stays available during a
+  child-only wait. No extra tabs, worker slots or schedules are created.
+- Verify native parentage before offering actions. Preserve original child
+  thread, typed request ID, review token, turn/item bindings and native resolution
+  confirmation. Unrelated collaboration targets and stale ownership cannot
+  supply approval authority. Existing manual-only permissions remain manual.
+- Child request refresh is read-only and preserves newer live updates. Requests
+  never delivered to this client, or predating all native child discovery, are
+  not fabricated or replayed. Actual native/browser delivery remains unverified.
+- Explain first-time RHEL prerequisites with and without sudo before cloning.
+  Offer normal browser Codex sign-in, optional policy-permitted device-code login
+  and deferral. Explain later Beads workspace setup using the existing installer.
+
+Validation: all761 application tests and the production build pass. Independent
+source review found no remaining blocking issue. Source publication and production
+update are being completed; real native approval delivery, browser interaction
+and an organization-managed sign-in were not exercised for this release.
+
 ## 0.46.1 — Guide safe recovery of stalled subagent waits
 
 The existing fifteen-minute ping tells the main agent to check every child's

@@ -67,6 +67,22 @@ ccng_dolt_install() {
     dolt version && dolt sql-server --help >/dev/null 2>&1
 }
 
+ccng_beads_setup_later() {
+    echo 'The application is installed; existing Beads/Dolt setup state was preserved.'
+    echo 'To finish task setup later, use the same ordinary account (no sudo). Choose your intended workspace directory; this is an example:'
+    # Match the installer's shell-quoted commands; this only prints guidance.
+    node --input-type=module - "${CCNG_SOURCE_DIR:-.}/install.sh" "$CCNG_INSTALL_DIR" <<'JS'
+import { writeSync } from 'node:fs';
+const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
+writeSync(1, [
+    '  export PATH=' + quote(process.argv[3] + '/tools/bin') + ':' + quote(process.argv[3] + '/tools/node_modules/.bin') + ':"$PATH"',
+    '  mkdir -p "$HOME/ccng-wd"',
+    '  sh ' + quote(process.argv[2]) + ' --workspace "$HOME/ccng-wd" --prefix ' + quote(process.argv[3]),
+].join('\n') + '\n');
+JS
+    echo 'Rerunning the existing installer offers tracker initialization for confirmation. It preserves this installation directory and existing tracker/server settings.'
+}
+
 ccng_beads_setup() {
     [ "$CCNG_CHECK_ONLY" -eq 0 ] || return 0
     if [ -z "${CCNG_TASK_WORKSPACE:-}" ]; then
@@ -75,17 +91,18 @@ ccng_beads_setup() {
             return 0
         fi
         if [ -t 0 ]; then
-            printf 'Beads task workspace directory (existing directory; blank to set up later): '
+            printf 'Enter an existing workspace DIRECTORY PATH (not yes/no; e.g. /home/your-user/ccng-wd; blank to set up later): '
             IFS= read -r CCNG_TASK_WORKSPACE || CCNG_TASK_WORKSPACE=''
         fi
     fi
     if [ -z "${CCNG_TASK_WORKSPACE:-}" ]; then
         CCNG_BEADS_SETUP_PENDING=1
         echo 'Beads setup pending: rerun the installer with --workspace DIRECTORY to select a task workspace.'
+        ccng_beads_setup_later
         return 0
     fi
-    CCNG_TASK_WORKSPACE=$(realpath "$CCNG_TASK_WORKSPACE") || return 1
-    [ -d "$CCNG_TASK_WORKSPACE" ] || { echo 'The Beads task workspace must be an existing directory.' >&2; return 1; }
+    CCNG_TASK_WORKSPACE=$(realpath "$CCNG_TASK_WORKSPACE") || { echo 'Enter an existing directory path, not yes/no. Create the intended workspace first, then rerun with --workspace.' >&2; ccng_beads_setup_later; return 1; }
+    [ -d "$CCNG_TASK_WORKSPACE" ] || { echo 'The Beads task workspace must be an existing directory path, not yes/no. Create the intended directory first, then rerun with --workspace.' >&2; ccng_beads_setup_later; return 1; }
     if ccng_beads_existing "$CCNG_TASK_WORKSPACE"; then
         echo 'Existing Beads tracker found; no initialization, migration, server restart or configuration change was performed.'
         return 0
@@ -100,6 +117,7 @@ ccng_beads_setup() {
     if ! ccng_confirm 'Initialize this task workspace and start the native local Dolt server?'; then
         CCNG_BEADS_SETUP_PENDING=1
         echo 'Fresh Beads/Dolt setup was not approved; the application installation is available.'
+        ccng_beads_setup_later
         return 0
     fi
     CCNG_BEADS_INIT_HELP=$(bd init --help) || return 1

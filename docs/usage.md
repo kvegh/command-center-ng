@@ -32,8 +32,9 @@ preferences. They do not synchronize across browsers or devices.
 ## Chat, activity and interruption
 
 **Enter** sends when sending is available; **Shift+Enter** inserts a newline.
-You can keep editing a draft while a question or approval is pending. Sending
-waits for resolution; Enter inserts a newline while sending is unavailable.
+You can keep editing a draft while a question or approval is pending. A parent's
+own blocking request holds sending; a child-only wait does not. Enter inserts a
+newline while sending is unavailable.
 New text entered during an earlier send acknowledgement is preserved.
 
 The input header distinguishes **Sending**, native-acknowledged **Input received**,
@@ -158,9 +159,22 @@ sends a summary, archives a branch or answers a question.
 
 ## Questions and approvals
 
-**Open questions** lists current native requests for the selected conversation.
+**Open questions** lists delivered current native requests for the selected conversation.
 Open one to reach its existing answer card. A request with several questions
 shows each question. Opening a card does not answer or dismiss it.
+
+Known native Codex child runs show their status and delivered requests under
+their parent, including in Coordinator readback, without separate child tabs.
+Native metadata must verify the parent lineage. Existing cards identify the
+source child and retain its original thread/request IDs and native answer choices;
+manual and Coordinator approval limits remain unchanged. Child-only waiting does
+not prevent input to a parent that can otherwise accept it.
+
+This child context is temporary, reusing the existing pending-request map without
+another store, timer or worker slot. Discovery does not resume a child or replay
+approvals. Events received before discovery, or request details never delivered
+to this connection, are not guaranteed recoverable. Unknown status or missing
+details stay explicit; a displayed count is not proof of every native request.
 
 Some newer Codex questions arrive as assistant-message metadata rather than a
 pending native request. Their titles/options remain visible even when the native

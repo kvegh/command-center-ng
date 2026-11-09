@@ -52,6 +52,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Open existing Codex conversations or start new agents in explicit project directories.
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
 - Chat, steer active work, interrupt a turn and answer native questions or approvals.
+- Review delivered requests from known native Codex children in their parent chat, without child tabs.
 - Branch a Codex conversation, then hand tasks and a summary back to its parent.
 - See linked Beads tasks, input needs, progress and optional task notifications.
 - Request task reports immediately or choose a saved interval; Never disables automatic startup and recurring reports.
@@ -75,6 +76,11 @@ installation target; other Linux distributions have not been verified.
 - **Beads (`bd`)** on PATH for both CCNG and agents, with a tracker for the project.
 - A modern desktop or smartphone browser.
 - User-level systemd if you choose background service management.
+
+Codex is currently the supported agent runtime. It needs your own OpenAI
+authentication: ChatGPT sign-in with Codex access or OpenAI API-key authentication.
+This is separate from the CCNG application password; an API key is not mandatory.
+See [native Codex authentication](https://learn.chatgpt.com/docs/auth?surface=cli).
 
 The installer can offer missing RHEL packages, local Codex/Beads tools and fresh
 Beads/Dolt setup after confirmation. Existing compatible tools and trackers are
@@ -100,8 +106,21 @@ installer does not create external protection. Read the
 
 ## Install
 
-Use an ordinary Linux account and keep the source checkout separate from the
-installation directory:
+Choose a RHEL 9 setup path:
+
+- **Sudo and normal RHEL repository access:** install Git first if missing, then
+  let the installer offer remaining prerequisites with confirmation.
+- **No sudo:** ask an administrator to prepare the base packages and Node/npm
+  first. Follow the [administrator checklist](docs/rhel9-prerequisites.md#2-no-sudo-administrator-prepares-prerequisites).
+
+For the first path, before cloning:
+
+```sh
+sudo dnf install git
+```
+
+In either path, use an ordinary Linux account and keep the source checkout
+separate from the installation directory. Never run the whole installer with sudo:
 
 ```sh
 git clone https://github.com/kvegh/command-center-ng.git "$HOME/command-center-ng-src"
@@ -113,6 +132,7 @@ cd "$HOME/command-center-ng-src"
 The default installation directory is `~/commandcenter-ng`. To choose another
 location inside your home, use `./install.sh --prefix "$HOME/apps/commandcenter-ng"`.
 The installer asks before installing missing tools or initializing a tracker.
+If you defer the tracker, [finish Beads setup later](docs/installation.md#finish-beads-setup-later).
 
 Existing application passwords are preserved; no default password is created.
 For local use, choose a password of **12–4,096 characters** with
@@ -125,13 +145,24 @@ The application password and your Codex sign-in are separate.
 
 If the installer provided local tools, use its printed PATH export. For the
 default installation, run the following commands. If you are not signed in
-already, run `codex login` once before starting its daemon.
+already, run `codex login` for normal browser sign-in before starting its daemon.
+Device-code login is optional when your account/workspace enables it; sign-in may be
+deferred during installation, but must finish before agent work.
+Start the native daemon once if it is not already running, under the same Linux
+account and tool PATH as CCNG. CCNG connects to it; it does not start it for you.
 
 ```sh
 export PATH="$HOME/commandcenter-ng/tools/bin:$HOME/commandcenter-ng/tools/node_modules/.bin:$PATH"
+# Only if the native daemon is not already running:
 codex app-server daemon start
 "$HOME/commandcenter-ng/command-center-ng"
 ```
+
+The native daemon runs in the background, so its starting terminal can close.
+Reuse a running daemon; do not restart it while agents are working.
+After a reboot, start it again if it is not already running. The installer and
+CCNG service do not configure or verify native daemon boot autostart; saved
+native login/history remain separate from the running process.
 
 Open `http://localhost:4242` on the backend machine and sign in with your chosen
 application password. The startup output prints the actual listening addresses.

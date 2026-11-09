@@ -36,6 +36,28 @@ Codex readiness and native question setup are advisory: missing or incompatible
 Codex produces a warning while CCNG installation continues. Node.js, npm and
 Beads prerequisites remain required.
 
+## Choose a setup path before cloning
+
+**With sudo and normal RHEL repository access:** install Git first if missing,
+then run the installer as your ordinary account. It offers remaining missing
+RHEL packages, including a suitable Node/npm setup, with explicit confirmation:
+
+```sh
+sudo dnf install git
+```
+
+**Without sudo:** an administrator must prepare all required system packages
+and a working Node.js 22.12+ with npm before you run the installer, not only Git.
+Use the [A/B/C administrator checklist](rhel9-prerequisites.md#2-no-sudo-administrator-prepares-prerequisites)
+for base tools, Node and network/optional download prerequisites. The initial
+shell/coreutils commands must already exist to start the installer. Other Linux
+distributions retain the unverified preinstalled-prerequisite path above.
+
+Both paths require a writable home and access to the source, npm registry and
+selected tool downloads through normal certificate trust. User-local Beads,
+Codex and fresh Dolt/tracker setup can still be offered with consent without
+sudo once those system prerequisites are ready. Never use `sudo ./install.sh`.
+Then clone as an ordinary user using the [first-time walkthrough](#first-time-walkthrough).
 From the cloned repository:
 
 ```sh
@@ -85,8 +107,16 @@ explicit opt-in and [Ansible deployment](ansible-deployment.md) for its guard.
 
 ## First-time walkthrough
 
-1. Use a normal Linux account. RHEL 9 is the supported automatic-prerequisite
-   target; Git must be available to download the source.
+1. Complete your [setup path](#choose-a-setup-path-before-cloning) before cloning.
+   With sudo and normal RHEL repositories, install Git first if missing:
+
+   ```sh
+   sudo dnf install git
+   ```
+
+   Without sudo, have an administrator complete the linked A/B/C checklist,
+   including base tools, Node/npm and required download access. Continue as your
+   ordinary account; do not run the whole installer with sudo.
 2. Clone the public repository into a source directory, separate from the final
    installation, then run the installer:
 
@@ -100,11 +130,18 @@ explicit opt-in and [Ansible deployment](ansible-deployment.md) for its guard.
    optional native Codex sign-in and the existing project directory for Beads.
    The installer asks before installing packages/tools or initializing a tracker.
    It builds CCNG into `~/commandcenter-ng`; `--prefix DIRECTORY` changes that
-   destination. The application password and Codex sign-in are separate.
-4. Run the tool PATH export printed by the installer, then start the native
-   Codex runtime with `codex app-server daemon start`. CCNG connects to it;
-   starting the web application alone does not start a replacement runtime.
-5. For local use, first run `node "$HOME/commandcenter-ng/server/password.mjs"`
+   destination. Prepare an existing writable task workspace before selecting it;
+   tracker setup may be deferred. The application password and Codex sign-in are separate.
+4. Apply the tool PATH printed by the installer and complete `codex login` if
+   sign-in was deferred. Under the same Linux account, run
+   `codex app-server daemon start` once if the native daemon is not already running.
+   It runs in the background; its starting terminal can close. CCNG only connects
+   to the existing daemon and never starts a replacement. Reuse a running daemon;
+   do not restart it while agents are working. After reboot, start it again if
+   not already running; the installer does not configure native boot autostart.
+5. Apply the [external access protection](#protect-access-before-first-start)
+   appropriate for your listener before exposing CCNG. For local use, first run
+   `node "$HOME/commandcenter-ng/server/password.mjs"`
    to choose your password. Then start `"$HOME/commandcenter-ng/command-center-ng"`. On that machine, open
    `http://localhost:4242` and sign in. Fresh installations use HTTP and, without
    explicit host overrides, listen on the selected default-route IPv4 address
@@ -128,6 +165,65 @@ The supported source-checkout update command is `./install.sh --update`, with
 `--prefix` pointing to the existing destination when it is nondefault. Restart
 the app after updating. Existing configuration, certificates, login hash and
 saved workspace are preserved.
+
+## Finish Beads setup later
+
+At the Beads workspace prompt, enter an existing directory path, or leave it
+blank to defer setup. This prompt is not a yes/no confirmation: `y` is treated
+as a directory name. A separate confirmation follows when fresh initialization
+is proposed. Leaving the path blank keeps CCNG installed, with task-tracker
+setup pending.
+
+To finish later, prepare a writable workspace and rerun the maintained installer
+from the original source checkout:
+
+```sh
+mkdir -p "$HOME/ccng-wd"
+cd "$HOME/command-center-ng-src"
+./install.sh --workspace "$HOME/ccng-wd"
+```
+
+For a custom installation, add the same `--prefix DIRECTORY` used originally.
+Existing application settings, password and usable trackers are preserved.
+Fresh native Beads/Dolt initialization still requires confirmation; declining
+does not turn it into an automatic setup action. Use the matching directory for
+that project's agent work after setup.
+
+## Native Codex authentication
+
+Codex is currently the supported agent runtime. Authenticate under your own
+OpenAI identity: ChatGPT sign-in with eligible workspace access/seats for Codex,
+or OpenAI API-key authentication with usage-based access. An API key is optional,
+not required for every user. Normal `codex login` uses
+browser sign-in; `codex login --device-auth` is an optional beta alternative only
+when enabled in personal settings or by the workspace administrator. You may defer
+sign-in during installation, but must complete it before using agents.
+The CCNG password is separate. Never
+paste authentication values into chat or copy another account's managed credentials.
+See [native authentication](https://learn.chatgpt.com/docs/auth?surface=cli).
+
+### Browser sign-in from an SSH session
+
+If CCNG/Codex runs on another machine, normal browser sign-in can still use your
+local browser. On your local computer, open the SSH session with the native login
+callback port forwarded (replace the example account and host):
+
+```sh
+ssh -L 1455:localhost:1455 operator@server.example.invalid
+```
+
+Keep that session open. In its remote shell, with the installed tool PATH set,
+run:
+
+```sh
+codex login
+```
+
+Open the printed sign-in URL in your local browser; the SSH tunnel carries its
+localhost callback to the remote Codex login. This authenticates Codex on the
+backend host, not a remote CCNG agent-monitoring feature. Follow your organization's
+authentication rules; do not copy another account's auth files or paste tokens
+into CCNG. Device-code login is an optional alternative only when enabled.
 
 ## Login management
 
@@ -258,7 +354,8 @@ existing Command Center backend on port 4242; that workspace file does not need
 another service or database. Optional Beads setup is separate, as described below.
 Installer updates preserve the workspace file outside the target, along
 with the password file. Browser drafts/order/positions stay in local browser
-storage. On restart, sign in again to see restored tabs. Restoring reads existing
+storage. After restart, an unexpired application session can remain signed in;
+sign in again when needed to see restored tabs. Restoring reads existing
 history without starting worker work; already-running Codex tasks remain native.
 See [workspace restore and recovery](workspace-restore.md).
 
@@ -267,8 +364,8 @@ If CLIs were installed under the target, export its
 can also find Beads. An already-running daemon retains its original PATH; after
 adding Beads, restart it only when existing work is idle.
 
-For native agent operation, start `codex app-server daemon start` using the same
-account and Codex home as
+For native agent operation, use `codex app-server daemon start` if it is not
+already running, with the same account and Codex home as
 the conversations to manage, then run `"$HOME/commandcenter-ng/command-center-ng"`
 (adjusting the destination to your installation). The
 listening address is selected as described below; use an explicit loopback host
@@ -409,6 +506,13 @@ conversation preserves that conversation's saved native directory.
 for the listening options. Stop the foreground app with Ctrl+C.
 
 ## User-level systemd service
+
+This service starts CCNG only; it does not start or enable the native Codex
+daemon. A daemon process does not survive reboot. This installer does not enable
+native bootstrap or verify separately configured native boot autostart.
+After reboot, start the daemon separately if it is not already running, using
+the same account/tool PATH. Saved native login and history are not erased by
+the process stopping.
 
 The installed launcher can manage Command Center as a user service. No sudo is
 needed. Update the installation first so its launcher includes the service

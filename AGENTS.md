@@ -433,6 +433,18 @@ persisted in workspace data.
 Report now after Never queues/coalesces one existing report without changing
 cadence, interrupting work or answering a pending request.
 
+Surface known native Codex child status and delivered current requests under
+their parent through the existing cards and Coordinator readback, with source-child
+labels and original native choices. Verify parent lineage from native metadata;
+keep the existing pending map keyed by original child thread ID and typed native
+request ID. Parent/child context stays transient: no new store, timer, child tab
+or worker slot. Preserve native permissions and manual/Coordinator review limits.
+Keep parent input available when only a child waits and the parent's own gates
+allow it. Never fabricate IDs, replay approvals or resume a child for discovery.
+Events before child discovery and details never delivered are not guaranteed
+recoverable; expose unknown/missing details instead of inferring a complete set.
+This Codex-specific work does not authorize another provider's implementation.
+
 
 ## Approved worker controls and layout
 

@@ -330,8 +330,14 @@ export class Coordinator {
     }
     this.workspace.changed();
   }
+  requestContexts(agent) { return this.workspace.requestContexts?.(agent) || [agent]; }
+  requestEntries(agent) { return this.requestContexts(agent).flatMap(context => context.questions.map(question => ({ context, question }))); }
+  requestCurrent(agent, context, question) {
+    return this.workspace.agents.get(agent.id) === agent && this.requestContexts(agent).includes(context)
+      && context.questions.includes(question) && question.params.threadId === context.id;
+  }
   pendingRequests(agent) {
-    const questions = agent.questions.map(q => ({ id: q.id, method: q.method, params: q.params, reviewToken: q.reviewToken, review: q.review || null, responding: !!q.responding, error: q.error || null, ...(q.method === 'item/fileChange/requestApproval' ? { nativeItem: this.workspace.requestView(agent, q).nativeItem } : {}) }));
+    const questions = this.requestEntries(agent).map(({ context, question: q }) => ({ id: q.id, method: q.method, params: q.params, reviewToken: q.reviewToken, review: q.review || null, responding: !!q.responding, error: q.error || null, ...(context !== agent ? { requestThreadId: context.id, subagentName: context.name } : {}), ...(q.method === 'item/fileChange/requestApproval' ? { nativeItem: this.workspace.requestView(context, q).nativeItem } : {}) }));
     const clarifications = questions.filter(isClarification);
     return {
       requestSummary: {
@@ -353,7 +359,7 @@ export class Coordinator {
     // Browser snapshots and internal list() calls must never count as model reads.
     for (const row of Array.isArray(result) ? result : [result]) for (const exposed of row?.questions || []) {
       const context = exposed.nativeItem; if (!context) continue;
-      const agent = this.workspace.agents.get(context.threadId);
+      const agent = this.workers().flatMap(parent => this.requestContexts(parent)).find(candidate => candidate.id === context.threadId);
       const question = agent?.questions.find(candidate => candidate.id === exposed.id && candidate.reviewToken === exposed.reviewToken && candidate.params.turnId === context.turnId && candidate.params.itemId === context.itemId);
       if (!question) continue;
       const fingerprint = JSON.stringify([context.threadId, context.turnId, context.itemId, context.state, context.contentSha256 || null]);
@@ -363,7 +369,7 @@ export class Coordinator {
   }
   markRemainingApprovals(id) {
     const agent = this.workspace.agents.get(id);
-    if (agent?.role !== 'coordinator' && agent?.questions.some(isUnreviewedApproval)) this.mark(id, 'Other approvals remain unreviewed', true);
+    if (agent && agent.role !== 'coordinator' && this.requestEntries(agent).some(({ question }) => isUnreviewedApproval(question))) this.mark(id, 'Other approvals remain unreviewed', true);
   }
   list() {
     return this.workers().map(agent => {
@@ -372,6 +378,7 @@ export class Coordinator {
         id: agent.id, provider: agent.provider || 'codex', name: agent.name, goal: agent.goal, cwd: agent.cwd, status: agent.thread.status,
         tasks: agent.tracker?.status === 'ready' ? agent.tracker.tasks.slice(0, 30) : [], taskCount: agent.tracker?.tasks.length || 0, trackerError: agent.tracker?.error || null, progress: agent.progress || null,
         ...this.pendingRequests(agent), chatQuestions, chatQuestionCount: chatQuestions.length,
+        subagents: this.requestContexts(agent).filter(context => context !== agent).map(context => ({ id: context.id, name: context.name, cwd: context.cwd, status: context.thread.status, pendingRequests: context.questions.length })),
         managementNotice: agent.managementNotice || null, runError: agent.runError || null, observeError: agent.observeError || null,
         queuedMessages: this.deliveries.get(agent.id)?.length || 0,
         reportIntervalMinutes: agent.reportIntervalMinutes || 0,
@@ -426,15 +433,16 @@ export class Coordinator {
   async readFile(agent, path, startLine = 1) {
     if (typeof path !== 'string' || path.length > 1000 || path.split(/[\\/]/).some(part => part.startsWith('.') || /secret|credential|password|token|vault|auth/i.test(part))) throw fail('Read only ordinary project source files; hidden and sensitive paths need user review.', 400);
     if (!Number.isInteger(startLine) || startLine < 1) throw fail('Choose a valid starting line.', 400);
-    const approvals = agent.questions.filter(question => question.method === 'item/commandExecution/requestApproval' && !question.responding && referencesApprovalSource(approvalWorkingDirectory(question, agent.cwd), approvalCommand(question), path));
+    const entries = this.requestEntries(agent).filter(({ context, question }) => question.method === 'item/commandExecution/requestApproval' && !question.responding && referencesApprovalSource(approvalWorkingDirectory(question, context.cwd), approvalCommand(question), path));
+    const approvals = entries.map(entry => entry.question);
     if (approvals.length) {
-      const directories = approvals.map(question => approvalWorkingDirectory(question, agent.cwd));
+      const directories = entries.map(({ context, question }) => approvalWorkingDirectory(question, context.cwd));
       const commands = approvals.map(approvalCommand);
       if (directories.some(cwd => cwd !== directories[0])) throw fail('Matching approvals use different working directories. Inspect each exact request with ccng_read_approval_source and its current reviewToken.');
       const sources = [];
       for (const question of approvals) sources.push(await this.readApprovalSource(agent, { reviewToken: question.reviewToken, path, startLine }));
-      if (sources.some(source => source.path !== sources[0].path || source.sha256 !== sources[0].sha256 || source.workingDirectory !== directories[0]) || approvals.some((question, index) => !agent.questions.includes(question) || question.responding || approvalWorkingDirectory(question, agent.cwd) !== directories[0] || approvalCommand(question) !== commands[index])) throw fail('The helper or its pending approvals changed during inspection. Read the current source again.');
-      return { ...sources[0], approvalBindings: approvals.map(question => ({ requestId: question.id, reviewToken: question.reviewToken })) };
+      if (sources.some(source => source.path !== sources[0].path || source.sha256 !== sources[0].sha256 || source.workingDirectory !== directories[0]) || entries.some(({ context, question }, index) => !this.requestCurrent(agent, context, question) || question.responding || approvalWorkingDirectory(question, context.cwd) !== directories[0] || approvalCommand(question) !== commands[index])) throw fail('The helper or its pending approvals changed during inspection. Read the current source again.');
+      return { ...sources[0], approvalBindings: entries.map(({ context, question }) => ({ requestId: question.id, reviewToken: question.reviewToken, ...(context !== agent ? { requestThreadId: context.id } : {}) })) };
     }
     const root = await realpath(agent.cwd); const file = await realpath(resolve(root, path)); const local = relative(root, file);
     if (local.startsWith('..') || local.startsWith('/')) throw fail('The file must be project source inside this worker directory or a helper referenced by a current command approval. For a specific approval, use ccng_read_approval_source with its current reviewToken.', 400);
@@ -444,16 +452,17 @@ export class Coordinator {
     const lines = content.split('\n'); return { path, startLine, text: lines.slice(startLine - 1, startLine + 159).join('\n').slice(0, 16000), totalLines: lines.length };
   }
   pruneApprovalSources() {
-    const live = new Set(this.workers().flatMap(agent => agent.questions.map(question => question.reviewToken)));
+    const live = new Set(this.workers().flatMap(agent => this.requestEntries(agent).map(({ question }) => question.reviewToken)));
     for (const token of this.approvalSources.keys()) if (!live.has(token)) this.approvalSources.delete(token);
   }
   async readApprovalSource(agent, args) {
     this.pruneApprovalSources();
-    const question = agent.questions.find(question => question.reviewToken === args.reviewToken);
+    const entry = this.requestEntries(agent).find(({ question }) => question.reviewToken === args.reviewToken);
+    const { context, question } = entry || {};
     if (!question || question.responding || question.method !== 'item/commandExecution/requestApproval') throw fail('Choose an exact current command approval before inspecting its helper source.');
-    const cwd = approvalWorkingDirectory(question, agent.cwd); const command = approvalCommand(question);
+    const cwd = approvalWorkingDirectory(question, context.cwd); const command = approvalCommand(question);
     const source = await inspectApprovalSource(cwd, command, args.path, args.startLine);
-    if (this.workspace.agents.get(agent.id) !== agent || !agent.questions.includes(question) || question.responding || approvalWorkingDirectory(question, agent.cwd) !== cwd || approvalCommand(question) !== command) throw fail('This approval changed or resolved during inspection.');
+    if (!this.requestCurrent(agent, context, question) || question.responding || approvalWorkingDirectory(question, context.cwd) !== cwd || approvalCommand(question) !== command) throw fail('This approval changed or resolved during inspection.');
     const files = this.approvalSources.get(question.reviewToken) || new Map();
     if (!files.has(source.path) && files.size >= 16) throw fail('This request already has sixteen helper files under review. Refer broader inspection to the user.');
     files.set(source.path, { sha256: source.sha256, commandSha256: source.commandSha256, workingDirectory: cwd }); this.approvalSources.set(question.reviewToken, files);
@@ -550,9 +559,10 @@ export class Coordinator {
     finally { agent.coordinatorSending = false; this.workspace.changed(); if (['report', 'report-setting', 'task-ping'].includes(this.deliveries.get(id)?.[0]?.kind) && !this.deliveries.get(id)[0].error) void this.flush(id); }
   }
   async review(agent, args) {
-    const question = agent.questions.find(q => q.reviewToken === args.reviewToken);
+    const pending = this.requestEntries(agent).find(({ question }) => question.reviewToken === args.reviewToken);
+    const { context, question } = pending || {};
     if (!question || question.responding) throw fail('This approval is no longer available for review.');
-    const contextFingerprint = this.workspace.requestContextFingerprint(agent, question);
+    const contextFingerprint = this.workspace.requestContextFingerprint(context, question);
     const reason = typeof args.rationale === 'string' ? args.rationale.trim() : ''; if (!reason || reason.length > 1200) throw fail('Give a concise review rationale.', 400);
     if (!['approve', 'decline', 'ask'].includes(args.decision)) throw fail('Choose approve, decline or ask.', 400);
     if (!['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method)) throw fail('The coordinator cannot answer user preferences or broad permission grants.', 400);
@@ -560,30 +570,30 @@ export class Coordinator {
     let evidence;
     if (args.decision === 'approve') {
       evidence = await this.authorizationMessage(agent, args.authorizationMessageId);
-      if (this.workspace.requestContextFingerprint(agent, question) !== contextFingerprint) throw fail('Native file-change details changed while the request was reviewed. Read the current request again.');
-      if (this.workspace.agents.get(agent.id) !== agent || !agent.questions.includes(question) || question.responding || question.reviewToken !== args.reviewToken) throw fail('This approval changed or resolved while its user instruction was checked.');
+      if (this.workspace.requestContextFingerprint(context, question) !== contextFingerprint) throw fail('Native file-change details changed while the request was reviewed. Read the current request again.');
+      if (!this.requestCurrent(agent, context, question) || question.responding || question.reviewToken !== args.reviewToken) throw fail('This approval changed or resolved while its user instruction was checked.');
       if (!evidence || typeof args.authorizationQuote !== 'string' || args.authorizationQuote.trim().length < 8 || args.authorizationQuote.length > 500 || !evidence.text.includes(args.authorizationQuote)) throw fail('Approval requires an exact reference to an actual user instruction in this worker conversation.', 400);
       if (Array.isArray(question.params.availableDecisions) && !question.params.availableDecisions.includes('accept')) throw fail('This request does not offer an approve-once decision.', 400);
-      const cwd = question.method === 'item/commandExecution/requestApproval' ? approvalWorkingDirectory(question, agent.cwd) : null; const command = approvalCommand(question);
+      const cwd = question.method === 'item/commandExecution/requestApproval' ? approvalWorkingDirectory(question, context.cwd) : null; const command = approvalCommand(question);
       for (const [path, previous] of this.approvalSources.get(question.reviewToken) || []) {
         if (cwd !== previous.workingDirectory) throw fail('The approval working directory changed. Read the current helper and review the exact action again.');
         const current = await inspectApprovalSource(cwd, command, path);
         if (current.sha256 !== previous.sha256 || current.commandSha256 !== previous.commandSha256) throw fail('Inspected helper source or the command changed. Read the current helper and review the exact action again.');
       }
-      if (this.workspace.requestContextFingerprint(agent, question) !== contextFingerprint) throw fail('Native file-change details changed while the request was reviewed. Read the current request again.');
-      if (this.workspace.agents.get(agent.id) !== agent || !agent.questions.includes(question) || question.responding || question.reviewToken !== args.reviewToken || (cwd && approvalWorkingDirectory(question, agent.cwd) !== cwd) || approvalCommand(question) !== command) throw fail('This approval changed or resolved while its source was checked.');
+      if (this.workspace.requestContextFingerprint(context, question) !== contextFingerprint) throw fail('Native file-change details changed while the request was reviewed. Read the current request again.');
+      if (!this.requestCurrent(agent, context, question) || question.responding || question.reviewToken !== args.reviewToken || (cwd && approvalWorkingDirectory(question, context.cwd) !== cwd) || approvalCommand(question) !== command) throw fail('This approval changed or resolved while its source was checked.');
     }
     const requestLine = reason.match(/^[ \t]*Request:[ \t]*(.+)$/im)?.[1];
     const requestSummary = (requestLine || (question.method === 'item/fileChange/requestApproval' ? 'Review the proposed file changes.' : 'Review the proposed command.')).slice(0, 240);
-    const projectDirectory = typeof question.params.cwd === 'string' && question.params.cwd ? question.params.cwd : agent.cwd;
+    const projectDirectory = typeof question.params.cwd === 'string' && question.params.cwd ? question.params.cwd : context.cwd;
     const entry = {
-      agentId: agent.id, workerName: agent.name || agent.id, projectName: basename(projectDirectory || '') || 'Project',
+      agentId: context.id, workerName: context === agent ? agent.name || agent.id : `${agent.name} / ${context.name}`, projectName: basename(projectDirectory || '') || 'Project',
       requestSummary, requestId: question.id, turnId: question.params.turnId || null, itemId: question.params.itemId || null,
       coordinatorId: this.id, decision: args.decision, rationale: reason, authorizationMessageId: evidence?.id || null,
     };
     question.review = { decision: args.decision, rationale: reason }; this.workspace.changed();
     if (args.decision === 'ask') { this.record({ ...entry, outcome: 'needs_user' }); this.markRemainingApprovals(agent.id); return { outcome: 'needs_user', rationale: reason, ...this.pendingRequests(agent) }; }
-    try { await this.workspace.answer(agent.id, question.id, { decision: args.decision === 'approve' ? 'accept' : 'decline' }); this.record({ ...entry, outcome: 'resolved' }); this.markRemainingApprovals(agent.id); return { outcome: 'resolved', rationale: reason, ...this.pendingRequests(agent) }; }
+    try { await this.workspace.answer(agent.id, question.id, { decision: args.decision === 'approve' ? 'accept' : 'decline', ...(context !== agent ? { reviewToken: question.reviewToken, turnId: question.params.turnId, itemId: question.params.itemId } : {}) }, context.id); this.record({ ...entry, outcome: 'resolved' }); this.markRemainingApprovals(agent.id); return { outcome: 'resolved', rationale: reason, ...this.pendingRequests(agent) }; }
     catch (error) { this.record({ ...entry, outcome: 'unconfirmed', rationale: reason + ' ' + error.message }, { persistenceRationale: reason }); throw error; }
   }
   async call(params) {

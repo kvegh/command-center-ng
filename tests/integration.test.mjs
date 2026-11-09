@@ -399,7 +399,7 @@ test('missing parent request details identify the parent without claiming anothe
 test('native subAgentActivity records populate multiple task rows and update completion without losing their goals', async () => {
   const f = await fixture();
   try {
-    for (let n = 1; n <= 3; n++) f.threads.set('child-' + n, { id: 'child-' + n, name: `Review area ${n}`, status: { type: 'idle' } });
+    for (let n = 1; n <= 3; n++) f.threads.set('child-' + n, { id: 'child-' + n, parentThreadId: 'existing', name: `Review area ${n}`, status: { type: 'idle' } });
     f.histories.set('existing', [{ id: 'workers', status: 'completed', items: Array.from({ length: 3 }, (_, n) => ({ id: 'activity-' + n, type: 'subAgentActivity', kind: 'started', agentThreadId: 'child-' + (n + 1), agentPath: '/root/reviewer_' + (n + 1) })) }]);
     await f.workspace.open('existing');
     await waitFor(() => f.workspace.agent('existing').workers.every(worker => worker.task.startsWith('Review area')));

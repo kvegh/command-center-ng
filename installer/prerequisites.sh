@@ -90,11 +90,27 @@ ccng_agent_prerequisites() {
         return 0
     fi
     if ! codex login status >/dev/null 2>&1; then
-        echo 'Codex is not signed in. The native device-code login can be completed from another browser.'
-        if ccng_confirm 'Run codex login --device-auth now?'; then codex login --device-auth || echo 'Codex login did not complete; it can be retried after installation.' >&2; fi
+        echo 'Codex is not signed in. This is separate from your Command Center application password.'
+        echo 'Browser sign-in (codex login) is recommended. Device-code login is optional and may be disabled by your organization.'
+        echo 'For browser sign-in on an SSH/headless host, first forward the callback from your computer (default port 1455):'
+        echo '  ssh -L 1455:localhost:1455 user@remote'
+        echo 'Open the URL printed by codex login in your local browser. You can skip now and sign in later.'
+        if ccng_confirm 'Sign in to Codex now?'; then
+            echo '1) Browser (recommended, default): codex login'
+            echo '2) Device code (beta; requires permission in your personal/workspace settings): codex login --device-auth'
+            echo '3) Skip for now'
+            printf 'Choose [1/2/3, default 1]: '
+            IFS= read -r CCNG_LOGIN_CHOICE || CCNG_LOGIN_CHOICE=3
+            case "$CCNG_LOGIN_CHOICE" in
+                ''|1) codex login || echo 'Codex browser login did not complete; retry codex login after installation.' >&2 ;;
+                2) codex login --device-auth || echo 'Codex device-code login did not complete; your organization may disallow it. Retry codex login after installation.' >&2 ;;
+                3) : ;;
+                *) echo 'Unrecognized sign-in choice; sign-in was skipped.' >&2 ;;
+            esac
+        fi
         if ! codex login status >/dev/null 2>&1; then
             CCNG_LOGIN_PENDING=1
-            echo 'Application installation can finish, but agent operation still requires codex login --device-auth.' >&2
+            echo 'Application installation can finish, but agent operation still requires codex login.' >&2
             return 0
         fi
     fi
@@ -115,7 +131,7 @@ ccng_environment_report() {
     if command -v codex >/dev/null 2>&1; then
         echo '[available] codex'
         codex app-server daemon --help >/dev/null 2>&1 || echo '[warning] Codex lacks the native app-server daemon; upgrade it before using Codex agents.'
-        codex login status >/dev/null 2>&1 || echo '[warning] Codex is not signed in; run codex login or codex login --device-auth before using Codex agents.'
+        codex login status >/dev/null 2>&1 || echo '[warning] Codex is not signed in; run codex login before using Codex agents. Optional device-code login requires permission in your personal/workspace settings.'
     else
         echo '[warning] Codex is missing; installation can continue, but Codex agents need a compatible Codex installation.'
     fi

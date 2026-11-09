@@ -165,19 +165,6 @@ if ! ccng_beads_setup; then
     echo 'The Command Center application was installed, but Beads task setup failed. Existing setup state was preserved for inspection.' >&2
     exit 1
 fi
-node --input-type=module - "$CCNG_INSTALL_DIR" "$CCNG_USER_HOME/.local/bin/command-center-ng" <<'JS'
-import { readFileSync, lstatSync, unlinkSync } from 'node:fs';
-const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
-try {
-  const info = lstatSync(process.argv[3]);
-  const expected = '#!/bin/sh\n# Command Center NG launcher\nexec node ' + quote(process.argv[2] + '/server/main.mjs') + ' "$@"\n';
-  if (info.isFile() && !info.isSymbolicLink() && info.uid === process.getuid() && readFileSync(process.argv[3], 'utf8') === expected) {
-    unlinkSync(process.argv[3]); console.log('Removed the old PATH shortcut for this installation.');
-  }
-} catch (error) { if (error.code !== 'ENOENT') console.log('Existing PATH shortcut left untouched.'); }
-console.log('For native CLI commands in this terminal:');
-console.log('  export PATH=' + quote(process.argv[2] + '/tools/bin') + ':' + quote(process.argv[2] + '/tools/node_modules/.bin') + ':"$PATH"');
-JS
 CCNG_VERSION=$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1])).version' "$CCNG_INSTALL_DIR/package.json")
 echo "Installed Command Center NG $CCNG_VERSION into $CCNG_INSTALL_DIR"
 echo "Launcher: $CCNG_INSTALL_DIR/command-center-ng"
@@ -193,7 +180,21 @@ echo "Explicit localhost HTTP: '$CCNG_INSTALL_DIR/command-center-ng' --protocol 
 echo "Optional user service: '$CCNG_INSTALL_DIR/command-center-ng' service install -- [your existing runtime options]"
 echo 'For updates, run ./install.sh --update from the source checkout, then restart the app.'
 echo 'For an existing custom directory, include --prefix YOUR_INSTALL_DIRECTORY; installations are not moved automatically.'
-if [ "${CCNG_LOGIN_PENDING:-0}" -eq 1 ]; then echo 'Setup pending: run codex login --device-auth using the tool PATH shown above.'; fi
+node --input-type=module - "$CCNG_INSTALL_DIR" "$CCNG_USER_HOME/.local/bin/command-center-ng" <<'JS'
+import { readFileSync, lstatSync, unlinkSync, writeSync } from 'node:fs';
+const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
+try {
+  const info = lstatSync(process.argv[3]);
+  const expected = '#!/bin/sh\n# Command Center NG launcher\nexec node ' + quote(process.argv[2] + '/server/main.mjs') + ' "$@"\n';
+  if (info.isFile() && !info.isSymbolicLink() && info.uid === process.getuid() && readFileSync(process.argv[3], 'utf8') === expected) {
+    unlinkSync(process.argv[3]); console.log('Removed the old PATH shortcut for this installation.');
+  }
+} catch (error) { if (error.code !== 'ENOENT') console.log('Existing PATH shortcut left untouched.'); }
+writeSync(1, 'The installer cannot change your current terminal PATH. Run this as the same user before Codex/Beads commands:\n'
+  + '  export PATH=' + quote(process.argv[2] + '/tools/bin') + ':' + quote(process.argv[2] + '/tools/node_modules/.bin') + ':"$PATH"\n');
+JS
+if [ "${CCNG_LOGIN_PENDING:-0}" -eq 1 ]; then echo 'Setup pending: run codex login using the tool PATH shown above. On SSH/headless hosts, forward its localhost callback (default port 1455) before browser sign-in.'; fi
 if [ "${CCNG_CODEX_PENDING:-0}" -eq 1 ]; then echo 'Setup pending: install or upgrade Codex, then rerun the installer before using Codex agents.'; fi
-echo 'Start the native daemon from a terminal with that tool PATH: codex app-server daemon start'
+echo 'If the native daemon is not already running, start it as the same user with that tool PATH: codex app-server daemon start'
+echo 'The native daemon runs in the background; you do not need to keep its terminal open.'
 echo 'Existing daemons keep their original PATH. If Beads was just added, restart the daemon when existing work is idle before starting new agents.'

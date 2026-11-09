@@ -172,6 +172,8 @@ test('responsive settings expose one Report now button and a focusable mobile di
 });
 
 test('empty native questions disappear only on mobile; pending and undelivered attention remain visible', () => {
+  const ownStatus = findNodes(node => ts.isVariableDeclaration(node) && node.name.getText(main) === 'activeOwnStatus')[0];
+  const evaluateOwnStatus = new Function('active', `return (${ownStatus.initializer.getText(main)});`);
   for (const id of ['questions', 'coordinator-questions']) {
     const sections = findNodes(node => ts.isObjectLiteralExpression(node) && node.properties.some(property =>
       ts.isPropertyAssignment(property) && property.name.getText(main) === 'id' && property.initializer.text === id));
@@ -179,7 +181,7 @@ test('empty native questions disappear only on mobile; pending and undelivered a
     const visible = sections[0].properties.find(property => ts.isPropertyAssignment(property) && property.name.getText(main) === 'visible');
     assert.ok(visible, `${id} has a visibility condition`);
     // Evaluate the actual bounded JSX condition rather than copying its logic.
-    const evaluate = new Function('compact', 'compactLayout', 'agent', 'active', `return (${visible.initializer.getText(main)});`);
+    const evaluate = new Function('compact', 'compactLayout', 'agent', 'active', 'activeOwnStatus', `return (${visible.initializer.getText(main)});`);
     for (const compact of [false, true]) {
       for (const [status, questions, mobileVisible] of [
         ['idle', [], false], ['running', [], false],
@@ -187,10 +189,15 @@ test('empty native questions disappear only on mobile; pending and undelivered a
         ['attention', [{ id: 'pending-question' }], true],
       ]) {
         const worker = { status, questions };
-        assert.equal(evaluate(compact, compact, worker, worker), !compact || mobileVisible,
+        assert.equal(evaluate(compact, compact, worker, worker, evaluateOwnStatus(worker)), !compact || mobileVisible,
           `${id}: compact=${compact}, status=${status}, requests=${questions.length}`);
       }
       if (id === 'coordinator-questions') assert.equal(evaluate(compact, compact, undefined, undefined), false, 'missing coordinator does not create a questions section');
+      if (id === 'questions') {
+        const worker = { status: 'attention', ownStatus: 'idle', questions: [] };
+        assert.equal(evaluate(compact, compact, worker, worker, evaluateOwnStatus(worker)), !compact,
+          'child-only attention does not create a missing parent request on mobile');
+      }
     }
   }
 });
