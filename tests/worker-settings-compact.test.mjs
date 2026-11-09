@@ -65,7 +65,7 @@ test('queued, generating, setting updates and report errors remain outside colla
   for (const [props, expected] of [
     [{ reportState: 'queued' }, /Report queued for the next safe checkpoint/],
     [{ reportState: 'queued', paused: true }, /Report queued\. Delivery is paused/],
-    [{ reportState: 'generating' }, /Generating task report/],
+    [{ reportState: 'generating' }, /Report requested; waiting for response/],
     [{ settingPending: true }, /Reporting update queued for this agent/],
     [{ settingPending: true, paused: true }, /Reporting update queued\. Delivery is paused/],
     [{ error: 'Delivery failed.' }, /role="alert">Delivery failed\./],

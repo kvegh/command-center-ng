@@ -54,6 +54,29 @@ export function NativeApprovalControls({ question, busy, readOnlyCoordinator = f
   </>;
 }
 
+export function NativePermissionControls({ question, busy, readOnlyCoordinator = false, submit, prepareApprovalFocus }: {
+  question: Question;
+  busy: boolean;
+  readOnlyCoordinator?: boolean;
+  submit: (answer: Record<string, unknown>) => void | boolean | Promise<boolean>;
+  prepareApprovalFocus?: () => () => void;
+}) {
+  const disabled = busy || readOnlyCoordinator || !question.params.permissions;
+  return <>
+    <p>Review the exact requested access. Allow once grants it for this turn; Allow for this session grants it within this native session. Neither changes global settings.</p>
+    <pre><code>{JSON.stringify(question.params.permissions, null, 2)}</code></pre>
+    {readOnlyCoordinator && <p className="field-note">Coordinator access restrictions stay in place; additional permissions cannot be granted here.</p>}
+    <div className="button-row">
+      {(['turn', 'session'] as const).map(scope => <button key={scope} type="button" className="button amber" disabled={disabled} onClick={async () => {
+        if (disabled) return;
+        const restoreFocus = prepareApprovalFocus?.();
+        if (await submit({ decision: 'accept', scope }) === true) restoreFocus?.();
+      }}>{scope === 'turn' ? 'Allow once' : 'Allow for this session'}</button>)}
+      <button type="button" className="button subtle" disabled={busy} onClick={() => { if (!busy) void submit({ decision: 'decline' }); }}>Decline</button>
+    </div>
+  </>;
+}
+
 function NativeRequestFields({ question, agentId, workerName, readOnlyCoordinator = false, act, prepareApprovalFocus }: RequestCardProps) {
   const toolApproval = isNativeToolApproval(question);
   const approval = [COMMAND_APPROVAL, FILE_APPROVAL].includes(question.method) || toolApproval;
@@ -91,12 +114,7 @@ function NativeRequestFields({ question, agentId, workerName, readOnlyCoordinato
       {question.params.command && <pre><code>{typeof question.params.command === 'string' ? question.params.command : JSON.stringify(question.params.command)}</code></pre>}
       {question.params.grantRoot && <p>Requested change root: {question.params.grantRoot}</p>}
       <NativeApprovalControls question={question} busy={busy} readOnlyCoordinator={readOnlyCoordinator} submit={submit} prepareApprovalFocus={prepareApprovalFocus} review={toolApproval ? undefined : () => void act(`agents/${agentId}/review`, { requestId: question.id })} />
-    </> : permissions ? <>
-      <p>Review the exact requested access. Allowing applies only to the current turn; it does not change global settings.</p>
-      <pre><code>{JSON.stringify(question.params.permissions, null, 2)}</code></pre>
-      {readOnlyCoordinator && <p className="field-note">Coordinator access restrictions stay in place; additional permissions cannot be granted here.</p>}
-      <div className="button-row"><button className="button amber" disabled={busy || readOnlyCoordinator || !question.params.permissions} onClick={() => void submit({ decision: 'accept' })}>Allow requested access for this turn</button><button className="button subtle" disabled={busy} onClick={() => void submit({ decision: 'decline' })}>Decline</button></div>
-    </> : mcp ? <>
+    </> : permissions ? <NativePermissionControls question={question} busy={busy} readOnlyCoordinator={readOnlyCoordinator} submit={submit} prepareApprovalFocus={prepareApprovalFocus} /> : mcp ? <>
       {fields !== null ? <form onSubmit={event => { event.preventDefault(); void submit({ decision: 'accept', content }); }}>
         <fieldset disabled={busy} className="native-form-fields">{fields.map(field => <label key={field.name}><span>{field.label}{field.required ? ' *' : ''}</span>{field.description && <small>{field.description}</small>}
           {field.type === 'boolean' ? <select required={field.required} aria-label={field.label} value={content[field.name] === undefined ? '' : String(content[field.name])} onChange={event => setContent({ ...content, [field.name]: event.target.value === '' ? undefined : event.target.value === 'true' })}><option value="">Choose…</option><option value="true">Yes</option><option value="false">No</option></select>

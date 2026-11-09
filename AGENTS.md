@@ -21,18 +21,17 @@ nginx. The user approved nginx access restrictions plus a local application
 password stored only as a secure hash in private home configuration. The Linux
 installer accepts a target directory or prompts for it before installing.
 
-The user withdrew the shared bootstrap-password and forced-first-login-change
-proposal. Fresh authentication uses a user-chosen password; preserve existing
-configured passwords. Interactive installation prompts when auth is absent.
-Headless installation may stage files without auth, but server startup requires
-valid authentication. Deployment requires protected 12–4096-character initial
-password input only when no auth file exists; it preserves an existing login.
-Do not restore a shared default or forced-change mechanism as pending work.
-The later user-selected browser-first password creation flow is separate and
-still unfinished: fresh opening should let the user choose the password without
-a predeployment/default application password. The installation/startup behaviour
-above describes current code, not acceptance of that future flow. Preserve its
-open record and do not recreate the withdrawn shared-password question.
+The user withdrew shared/default passwords and forced first-login changes.
+Preserve existing valid app passwords. For fresh browser creation, the user
+selected enforced htpasswd protection with NO temporary setup code. Enable only
+through explicit first_password_setup: htpasswd-proxy and an exact HTTPS
+public_origin, with htpasswd on all proxy routes and restricted direct backend
+access. CCNG does not validate proxy credentials or infer protection from headers.
+Generic installer configuration leaves setup disabled; local operators may use
+the existing password CLI. Unconfigured missing auth still refuses startup.
+Create the initial hash atomically without replacing an existing file; corrupt
+or unsafe auth must fail closed. Preserve login, origin/Host checks, rate limits
+and secure sessions. Infrastructure/Ansible integration belongs to its owner.
 
 The user requested a target-local launcher and installer update mode, explicitly
 selecting automatic fetching of latest code. Version 0.1.0 uses the same local
@@ -375,7 +374,8 @@ including clarification, command/file approvals, MCP forms/external steps and
 filesystem/network grants. Unsupported human answer formats remain visible with
 an exact next action; do not automatically refuse or silently discard them.
 Internal token/attestation exchanges are not user questions. Request-permission
-filesystem/network answers remain exact and turn-only. A manual user may select
+filesystem/network answers remain exact and may use native turn or session scope
+when selected by the manual user; no permanent grant is invented. A manual user may select
 a currently offered native Codex command-prefix, network-host or MCP tool saved
 rule; Codex owns persistence and scope, with no CCNG allow-list/config writer.
 Session grants are not permanent. Show exact scopes and native warnings; request

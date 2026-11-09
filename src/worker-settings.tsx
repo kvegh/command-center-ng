@@ -14,7 +14,7 @@ export function WorkerSettings({ agentId, minutes = 0, compact = false, disabled
   const reportDisabled = disabled || saving || requesting || !!reportState;
   const cadence = minutes === 60 ? '1h' : minutes > 0 ? `${minutes}min` : 'Never';
   const feedback = <>
-    {((!compact && minutes > 0) || reportState || settingPending) && <p className="field-note" role="status">{reportState === 'queued' ? paused ? 'Report queued. Delivery is paused with the coordinator.' : 'Report queued for the next safe checkpoint. Pending questions stay open.' : reportState === 'generating' ? 'Generating task report…' : settingPending ? paused ? 'Reporting update queued. Delivery is paused with the coordinator.' : 'Reporting update queued for this agent.' : 'Command Center schedules reports at this interval. Request prompts stay hidden.'}</p>}
+    {((!compact && minutes > 0) || reportState || settingPending) && <p className="field-note" role="status">{reportState === 'queued' ? paused ? 'Report queued. Delivery is paused with the coordinator.' : 'Report queued for the next safe checkpoint. Pending questions stay open.' : reportState === 'generating' ? 'Report requested; waiting for response.' : settingPending ? paused ? 'Reporting update queued. Delivery is paused with the coordinator.' : 'Reporting update queued for this agent.' : 'Command Center schedules reports at this interval. Request prompts stay hidden.'}</p>}
     {error && <p className="error-text" role="alert">{error} Check the agent before requesting another report.</p>}
   </>;
   return <section className={`worker-settings${compact ? ' compact' : ''}`} aria-label="Worker specific settings">

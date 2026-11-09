@@ -137,9 +137,12 @@ waiting state and an error rather than inventing an approval card.
 Alongside **Allow once**, an offered Codex rule can expose **Allow always**.
 Review the displayed command-prefix, network-host or MCP-tool scope. Codex owns
 rule saving; CCNG has no separate permission allowlist or native-config writer.
-A session choice remains session-only. File approvals have no permanent option
-through this interface; filesystem/network permission grants remain exact and
-turn-only. Unoffered or changed rules are rejected.
+**Allow for this session** grants only the native session scope. File-change
+requests expose that supported session choice even when the protocol does not
+include an explicit decision list; they have no permanent option. Filesystem/network
+permission requests offer once (turn) or session for exactly the requested profile,
+never an invented permanent permission. Coordinator permission grants remain
+unavailable. Unoffered or changed rules are rejected.
 
 Native save warnings remain visible. Request resolution alone does not prove
 that a rule was saved to disk; shared native settings can affect other sessions.
@@ -274,3 +277,9 @@ history permits later resume. No separate Claude daemon has been introduced.
 See [workspace restore](workspace-restore.md) for persistence and recovery,
 [coordinator guidance](coordinator.md) for review boundaries, and
 [release notes](release-notes.md) for historical implementation evidence.
+
+Report feedback distinguishes queuing from a confirmed request waiting for a
+response; it does not claim the worker has started writing. If the turn ends
+without a recognized Standard Task Report, a visible error replaces a false ready
+announcement. Pending permissions and unsafe work are not interrupted, and
+unconfirmed delivery is not automatically retried.

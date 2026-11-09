@@ -25,19 +25,18 @@ does not imply any selected public hosting or remote-access arrangement.
 
 ### Application password setup
 
-Fresh setup uses a user-chosen application password and preserves existing
-configured passwords. The shared bootstrap-password/forced-first-login-change
-proposal is withdrawn. The user subsequently selected password creation on the
-first browser opening for a fresh setup, without a default or predeployment
-application password. That browser-first flow remains unimplemented; keep its
-existing work record open.
-
-Current implemented behaviour: interactive installation prompts when
-authentication is absent. Headless installation may stage files without creating
-a password, but the server refuses startup without valid authentication. The
-current Ansible playbook requires protected initial input of 12–4096 characters
-when the auth file is absent. These are present constraints, not completion of
-the browser-first requirement; an existing password is always preserved.
+Fresh setups use a user-chosen application password; preserve existing passwords.
+No shared/default password, forced first-login change or temporary setup code.
+The user selected htpasswd-protected first-browser creation: operators explicitly
+set `first_password_setup: htpasswd-proxy` with an HTTPS `public_origin`, enforce
+htpasswd on every proxy route and restrict direct backend access. The app only
+permits setup at that exact origin/Host, requires matching 12–4096-character
+inputs, and atomically creates one private hash plus a normal secure session.
+Ordinary APIs remain authenticated. Existing, corrupt or unsafe auth cannot be
+replaced through browser setup. The generic installer leaves this mode disabled;
+local setup uses the existing password CLI. Missing authentication without the
+protected-proxy opt-in still refuses startup. Proxy enforcement and Ansible
+integration remain separately owned; tests do not prove infrastructure protection.
 
 ### Approved mobile layout
 
@@ -674,3 +673,13 @@ document or push settings outside the pane. Preserve user resizing/reset and
 keyboard access, natural task row reflow, native request controls and all themes.
 Keep long settings feedback reachable on short windows with internal overflow.
 The approved mobile continuous-page layout remains unchanged.
+
+### Native approval choices
+
+Manual Codex approval cards must expose the exact native choices: Allow once,
+Allow for this session, and Allow always where supported/offered. A native file
+request need not contain an explicit choice list: its fixed response schema
+supports session approval. Exact filesystem/network requests support turn or
+session scope, not a permanent grant. Preserve current identity, confirmation,
+explicit restrictions and coordinator limits. CCNG does not create its own
+permission store or change native configuration directly.

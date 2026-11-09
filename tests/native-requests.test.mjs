@@ -20,14 +20,22 @@ test('MCP primitive forms preserve false, numbers, titled choices, multiselects 
   assert.equal(formFields({ ...schema, allOf: [] }), null);
 });
 
-test('manual permission grants return only the native requested access and current-turn scope', () => {
+test('manual permission grants preserve exactly the current native requested profile with turn or session scope', () => {
   const permissions = { fileSystem: { read: ['/example/project'], write: null }, network: null };
   const question = { method: 'item/permissions/requestApproval', params: { permissions } };
-  const answer = manualRequestAnswer(question, { decision: 'accept', permissions: { network: { enabled: true }, fileSystem: { write: ['/'] } }, scope: 'session' });
-  assert.deepEqual(answer, { permissions: { fileSystem: permissions.fileSystem }, scope: 'turn' });
+  for (const scope of ['turn', 'session']) {
+    const answer = manualRequestAnswer(question, { decision: 'accept', scope });
+    assert.deepEqual(answer, { permissions: { fileSystem: permissions.fileSystem }, scope });
+    answer.permissions.fileSystem.read.push('/other');
+    assert.deepEqual(permissions.fileSystem.read, ['/example/project'], 'responses do not mutate the pending native profile');
+  }
+  assert.deepEqual(manualRequestAnswer(question, { decision: 'accept' }), { permissions: { fileSystem: permissions.fileSystem }, scope: 'turn' });
   assert.deepEqual(manualRequestAnswer(question, { decision: 'decline' }), { permissions: {}, scope: 'turn' });
   assert.throws(() => manualRequestAnswer(question, { decision: 'acceptForSession' }));
   assert.throws(() => manualRequestAnswer({ ...question, params: { permissions: { futurePrivilege: true } } }, { decision: 'accept' }));
+  for (const answer of [null, [], { decision: 'accept', permissions: { network: { enabled: true }, fileSystem: { write: ['/'] } } }, { decision: 'accept', scope: 'always' }, { decision: 'accept', scope: undefined }, { decision: 'decline', scope: 'session' }, { decision: 'accept', persistence: 'session' }, { decision: 'accept', strictAutoReview: false }]) assert.throws(() => manualRequestAnswer(question, answer));
+  assert.deepEqual(manualRequestAnswer({ ...question, id: 7 }, { requestId: 7, decision: 'accept', scope: 'session' }).scope, 'session');
+  assert.throws(() => manualRequestAnswer({ ...question, id: 7 }, { requestId: '7', decision: 'accept', scope: 'session' }));
 });
 
 test('MCP actions match native response shape and unsupported schemas cannot be accepted', () => {
@@ -42,6 +50,12 @@ test('MCP actions match native response shape and unsupported schemas cannot be 
   assert.throws(() => manualRequestAnswer(unknown, { decision: 'accept' }), /native client/);
   assert.deepEqual(manualRequestAnswer(unknown, { decision: 'decline' }), { action: 'decline', content: null, _meta: null });
   assert.deepEqual(manualRequestAnswer({ ...unknown, params: { mode: 'url' } }, { decision: 'accept' }), { action: 'accept', content: null, _meta: null });
+});
+
+test('session network grants copy only the exact network access requested by the native worker', () => {
+  const question = { method: 'item/permissions/requestApproval', params: { permissions: { network: { enabled: true }, fileSystem: null } } };
+  assert.deepEqual(manualRequestAnswer(question, { decision: 'accept', scope: 'session' }), { permissions: { network: { enabled: true } }, scope: 'session' });
+  assert.throws(() => manualRequestAnswer(question, { decision: 'accept', scope: 'session', permissions: { fileSystem: { write: ['/'] } } }));
 });
 
 test('human blocking requests include unknown approval variants but exclude internal protocol exchanges', () => {

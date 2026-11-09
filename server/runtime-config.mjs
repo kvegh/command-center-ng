@@ -10,6 +10,7 @@ const options = {
   host: 'host',
   port: 'port',
   public_origin: 'public-origin',
+  first_password_setup: 'first-password-setup',
 };
 
 export const runtimeConfigFile = appDir => join(appDir, 'etc', 'config.conf');
@@ -27,6 +28,7 @@ export function parseRuntimeConfig(text, directory) {
     if (seen.has(key)) throw invalid('duplicate setting.');
     if (!value || /[\x00-\x1f\x7f]/.test(value)) throw invalid('a nonempty value without control characters is required.');
     if (key === 'connection_type' && !['http', 'https'].includes(value)) throw invalid('connection_type must be http or https.');
+    if (key === 'first_password_setup' && !['disabled', 'htpasswd-proxy'].includes(value)) throw invalid('first_password_setup must be disabled or htpasswd-proxy.');
     if (key === 'port' && (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 65535)) throw invalid('port must be from 1 to 65535.');
     seen.add(key);
     // This is a literal settings format, not YAML or shell input. Only a line

@@ -11,19 +11,25 @@ async function compiledModule(source) {
 const main = await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8');
 const ast = ts.createSourceFile('main.tsx', main, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const effects = [];
+let sessionApplier;
 function hasInitialStateRead(node) {
   if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'api'
     && ts.isStringLiteral(node.arguments[0]) && node.arguments[0].text === 'state') return true;
   return ts.forEachChild(node, hasInitialStateRead) || false;
 }
 function visit(node) {
+  if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'applySession') sessionApplier = node.initializer;
   if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'useEffect'
     && ts.isArrowFunction(node.arguments[0]) && hasInitialStateRead(node.arguments[0])) effects.push(node.arguments[0]);
   ts.forEachChild(node, visit);
 }
 visit(ast);
 assert.equal(effects.length, 1, 'test the actual authenticated workspace initialization effect');
-const { makeEffect } = await compiledModule(`export function makeEffect({ authenticated, api, EventSource, observeWorkspaceStream, setState, setError, setStreamHealth, setAuthenticated }) { return ${effects[0].getText(ast)}; }`);
+assert.ok(sessionApplier, 'test the actual session state application too');
+const { makeEffect, makeSessionApplier } = await compiledModule(`
+export function makeEffect({ authenticated, api, EventSource, observeWorkspaceStream, setState, setError, setStreamHealth, applySession }) { return ${effects[0].getText(ast)}; }
+export function makeSessionApplier({ setLoginSession, setAuthenticated }) { return ${sessionApplier.getText(ast)}; }
+`);
 
 const statusSource = await readFile(new URL('../src/worker-status.tsx', import.meta.url), 'utf8');
 const statusAst = ts.createSourceFile('worker-status.tsx', statusSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -32,7 +38,7 @@ const { observeWorkspaceStream } = await compiledModule(observer.getText(statusA
 
 const snapshot = (name, questionIds = []) => ({ name, connected: true, agents: [{ id: 'worker', questions: questionIds.map(id => ({ id })) }] });
 const checkpoint = () => new Promise(resolve => setImmediate(resolve));
-function fixture({ authenticated = true, state = { value: null, writes: [], errors: [], health: [], authentication: [] }, session = Promise.resolve({ authenticated: true }) } = {}) {
+function fixture({ authenticated = true, state = { value: null, writes: [], errors: [], health: [], authentication: [], setup: [] }, session = Promise.resolve({ authenticated: true }) } = {}) {
   let resolveInitial, rejectInitial;
   const initial = new Promise((resolve, reject) => { resolveInitial = resolve; rejectInitial = reject; });
   const streams = [], requests = [];
@@ -46,7 +52,7 @@ function fixture({ authenticated = true, state = { value: null, writes: [], erro
     setState: update => { state.value = typeof update === 'function' ? update(state.value) : update; state.writes.push(state.value); },
     setError: message => state.errors.push(message),
     setStreamHealth: value => state.health.push(value),
-    setAuthenticated: value => state.authentication.push(value),
+    applySession: makeSessionApplier({ setAuthenticated: value => state.authentication.push(value), setLoginSession: value => state.setup.push(value) }),
   })();
   return { state, requests, stream: streams[0], streams, cleanup, resolveInitial, rejectInitial };
 }
@@ -121,5 +127,20 @@ test('a prior login session check cannot log out a newer login after its stream 
     assert.deepEqual(current.state.value, fresh);
     current.stream.dispatchEvent(new Event('error')); await checkpoint();
     assert.deepEqual(current.state.authentication, [false], 'the current effect still detects an expired session');
+  } finally { current.cleanup(); }
+});
+
+test('old setup flags cannot replace the newer login while a current session recheck still detects first-password setup', async () => {
+  let resolveOldSession;
+  const old = fixture({ session: new Promise(resolve => { resolveOldSession = resolve; }) });
+  old.stream.dispatchEvent(new Event('error')); old.cleanup();
+  const current = fixture({ state: old.state, session: Promise.resolve({ authenticated: false, setupRequired: true, setupAllowed: true }) });
+  try {
+    resolveOldSession({ authenticated: false, setupRequired: true, setupAllowed: false }); await checkpoint();
+    assert.deepEqual(current.state.authentication, []);
+    assert.deepEqual(current.state.setup, [], 'a stale session cannot display an obsolete operator-only setup view');
+    current.stream.dispatchEvent(new Event('error')); await checkpoint();
+    assert.deepEqual(current.state.authentication, [false]);
+    assert.deepEqual(current.state.setup, [{ setupRequired: true, setupAllowed: true }], 'the current effect preserves the exact first-password mode');
   } finally { current.cleanup(); }
 });

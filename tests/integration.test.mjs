@@ -744,6 +744,7 @@ test('coordinator requests cannot grant persistent command choices or native MCP
       assert.throws(() => f.workspace.answer('existing', 'coordinator-mcp', answer), { status: 403 });
     }
     assert.throws(() => f.workspace.answer('existing', 'coordinator-permission', { decision: 'accept' }), { status: 403 });
+    assert.throws(() => f.workspace.answer('existing', 'coordinator-permission', { decision: 'accept', scope: 'session' }), { status: 403 });
     assert.equal(f.replies.length, 0); assert.equal(f.workspace.answerJobs.size, 0);
     assert.equal(agent.questions.length, 3);
     assert.equal(f.calls.some(call => /config|settings\/update/.test(call.method)), false);
@@ -838,9 +839,11 @@ test('native MCP and permission answers retain exact identity and wait for confi
     const profile = { fileSystem: { read: ['/example/project'], write: null }, network: null };
     f.request({ id: 801, method: 'item/permissions/requestApproval', params: { threadId: 'existing', turnId: 'turn-existing', permissions: profile, reason: 'Read selected source' } });
     await waitFor(() => f.workspace.agent('existing').questions.length === 1);
-    const pending = f.workspace.answer('existing', 801, { decision: 'accept', permissions: { network: { enabled: true } }, scope: 'session' });
+    assert.throws(() => f.workspace.answer('existing', 801, { decision: 'accept', permissions: { network: { enabled: true } }, scope: 'session' }), /only this current permission request/);
+    assert.equal(f.replies.length, 0, 'browser-provided permissions cannot replace the native requested profile');
+    const pending = f.workspace.answer('existing', 801, { requestId: 801, decision: 'accept', scope: 'session' });
     await waitFor(() => f.replies.some(reply => reply.id === 801));
-    assert.deepEqual(f.replies.find(reply => reply.id === 801).result, { permissions: { fileSystem: profile.fileSystem }, scope: 'turn' });
+    assert.deepEqual(f.replies.find(reply => reply.id === 801).result, { permissions: { fileSystem: profile.fileSystem }, scope: 'session' });
     assert.equal(f.workspace.agent('existing').questions.length, 1, 'sending is not native confirmation');
     f.notify('serverRequest/resolved', { threadId: 'existing', requestId: 801 }); await pending;
     assert.throws(() => f.workspace.answer('existing', 801, { decision: 'accept' }), /already been resolved/);

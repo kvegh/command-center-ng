@@ -44,9 +44,10 @@ Older positional directory arguments remain accepted for existing update scripts
 new commands should use `--prefix`. Updating a nondefault installation requires
 its existing path explicitly; the installer does not discover, move or delete it.
 The installer builds the frontend, prunes build-only dependencies, and creates
-`command-center-ng` inside the selected target. When no login is configured, an
-interactive install prompts for a user-chosen application password of at least
-12 and at most 4,096 characters. Existing configured passwords are preserved.
+`command-center-ng` inside the selected target. Existing passwords are preserved;
+no default or temporary setup code is generated. Choose a 12–4,096-character
+password using the existing CLI for local use, or explicitly enable the protected
+browser setup described below.
 
 ## First-time walkthrough
 
@@ -61,7 +62,7 @@ interactive install prompts for a user-chosen application password of at least
    ./install.sh
    ```
 
-3. Follow the prompts for missing prerequisites, the application password,
+3. Follow the prompts for missing prerequisites,
    optional native Codex sign-in and the existing project directory for Beads.
    The installer asks before installing packages/tools or initializing a tracker.
    It builds CCNG into `~/commandcenter-ng`; `--prefix DIRECTORY` changes that
@@ -69,7 +70,8 @@ interactive install prompts for a user-chosen application password of at least
 4. Run the tool PATH export printed by the installer, then start the native
    Codex runtime with `codex app-server daemon start`. CCNG connects to it;
    starting the web application alone does not start a replacement runtime.
-5. Start `"$HOME/commandcenter-ng/command-center-ng"`. On that machine, open
+5. For local use, first run `node "$HOME/commandcenter-ng/server/password.mjs"`
+   to choose your password. Then start `"$HOME/commandcenter-ng/command-center-ng"`. On that machine, open
    `http://localhost:4242` and sign in. Fresh installations use HTTP and, without
    explicit host overrides, listen on the selected default-route IPv4 address
    and 127.0.0.1. The startup message prints the actual addresses.
@@ -85,8 +87,8 @@ interactive install prompts for a user-chosen application password of at least
 7. Connection settings are in `~/commandcenter-ng/etc/config.conf`. HTTPS is
    optional and needs readable certificate/key files supplied by the operator.
    The basic installer does not generate certificates or configure nginx or
-   firewall rules. Fresh interactive setup uses your chosen application password;
-   there is no shared default or forced first-login password change.
+   firewall rules. See the protected browser setup below if you prefer to choose
+   the first application password through your existing HTTPS proxy.
 
 The supported source-checkout update command is `./install.sh --update`, with
 `--prefix` pointing to the existing destination when it is nondefault. Restart
@@ -136,15 +138,49 @@ directory described below, rather than this connection file.
 Passwords are stored only as salted scrypt hashes in
 `${XDG_CONFIG_HOME:-$HOME/.config}/command-center-ng/auth.json`, with owner-only
 permissions. Set `CCNG_CONFIG_DIR` to select another private directory outside
-the checkout. Reinstalling preserves this file and the existing password. Fresh
-interactive setup asks you to choose a password; no shared bootstrap password
-or forced first-login password change is used. Without a terminal, the installer
-can stage application files without creating a password, but the server refuses
-to start without valid configured authentication. To complete that setup or
-deliberately change a password, run the installed `server/password.mjs` with Node
-in a terminal, then start or restart the app. Sessions are invalidated when the
-app restarts. Ansible deployment supplies protected initial-password input only
-when no auth file exists, as described in the [deployment guide](ansible-deployment.md#inputs-and-private-configuration).
+the checkout. Reinstalling preserves this file and the existing password.
+The installer does not create a default password or ask for one. For local setup,
+run `node INSTALLDIR/server/password.mjs` in a terminal before starting CCNG.
+The same explicit command can deliberately reset a password; restart the app
+for the new password to take effect. Restarting invalidates current sessions.
+Without an existing password, startup requires the protected setup opt-in below.
+
+### First-browser password creation
+
+This mode is for an existing HTTPS reverse proxy with enforced htpasswd
+(Basic Auth). Before enabling it, require that login on **every route**, including
+`/api/session` and `/api/setup`, and restrict backend access so users cannot bypass
+the proxy. HTTPS, a public origin setting or forwarded headers alone do not
+provide that protection. CCNG does not inspect the proxy's password file.
+
+In `INSTALLDIR/etc/config.conf`, set your actual browser-facing origin:
+
+```text
+public_origin: https://command-center.example
+first_password_setup: htpasswd-proxy
+```
+
+Keep the existing HTTP or HTTPS backend settings appropriate for your proxy;
+this mode does not configure nginx, issue certificates or open firewall ports.
+Restart CCNG, pass the proxy's htpasswd login, then open that exact HTTPS address.
+A fresh installation asks you to enter and confirm your new CCNG password.
+Creation signs you into the application. There is no temporary code, shared
+password or need to supply the app password to deployment automation.
+
+Only the first successful setup can create the hash. A concurrent attempt cannot
+replace it; subsequent openings use normal application login. Existing passwords
+are preserved even if this mode is enabled. Corrupt, unreadable or unsafe auth
+files cause a startup error instead of being treated as fresh setup. Ordinary
+app APIs remain locked before enrollment. Generic installations keep this mode
+disabled; the commented example does not assert that a proxy is protected.
+Set `first_password_setup: disabled` to disable browser enrollment explicitly.
+The same mode is available through `--first-password-setup` or
+`CCNG_FIRST_PASSWORD_SETUP`, with the normal CLI/environment/file precedence.
+
+The app feature and its handler/UI tests are separate from deployment automation.
+The [deployment guide](ansible-deployment.md#inputs-and-private-configuration)
+describes the current playbook's password handling; migration to this opt-in is
+owned by the deployment work and must be verified separately.
 
 The same configuration directory holds private `workspace.json` (mode 600):
 open conversation IDs, coordinator ID and pause state. It is written by the

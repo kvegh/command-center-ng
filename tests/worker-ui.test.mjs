@@ -156,13 +156,14 @@ test('branch summary reviews are nonmodal, hidden outside their own tab and inde
   assert.match(other, /id="branch-findings-branch-two"/);
 });
 
-test('worker report settings expose queued and generating states without the old idle wording', () => {
+test('worker report settings distinguish queued requests from waiting for a response without claiming generation', () => {
   const props = { agentId: 'queued-worker', minutes: 5, disabled: false, paused: false, save: async () => true, reportNow: async () => true };
   const queued = renderToStaticMarkup(React.createElement(WorkerSettings, { ...props, reportState: 'queued' }));
   assert.match(queued, /Report queued/); assert.match(queued, /next safe checkpoint/); assert.match(queued, /Pending questions stay open/);
   assert.doesNotMatch(queued, /Reports wait for idle/);
   const generating = renderToStaticMarkup(React.createElement(WorkerSettings, { ...props, reportState: 'generating' }));
-  assert.match(generating, /Generating task report/);
+  assert.match(generating, /Report requested; waiting for response/);
+  assert.doesNotMatch(generating, /Generating task report/);
   const setting = renderToStaticMarkup(React.createElement(WorkerSettings, { ...props, minutes: 0, settingPending: true }));
   assert.match(setting, /Reporting update queued/);
   const selected = renderToStaticMarkup(React.createElement(WorkerSettings, props));
@@ -174,7 +175,8 @@ test('native requests identify the worker and render permission, MCP form, exter
   const render = question => renderToStaticMarkup(React.createElement(NativeRequestCard, { ...props, question }));
   const permission = render({ id: 1, method: 'item/permissions/requestApproval', params: { reason: 'Read the selected fixture', permissions: { fileSystem: { read: ['/example/project'], write: null }, network: null } } });
   assert.match(permission, /Permission request.*Example project/);
-  assert.match(permission, /Allow requested access for this turn/); assert.match(permission, /\/example\/project/);
+  assert.match(permission, />Allow once<\/button>/); assert.match(permission, />Allow for this session<\/button>/); assert.match(permission, /\/example\/project/);
+  assert.doesNotMatch(permission, />Allow always<\/button>/);
   assert.doesNotMatch(permission, /native Codex client|Ask coordinator/);
   const form = render({ id: 'mcp', method: 'mcpServer/elicitation/request', params: { mode: 'form', serverName: 'Example connector', message: 'Choose a permitted action', requestedSchema: { type: 'object', properties: { decision: { type: 'string', oneOf: [{ const: 'once', title: 'Allow once' }, { const: 'deny', title: 'Decline' }] } }, required: ['decision'] } } });
   assert.match(form, /Example connector/); assert.match(form, /<select/); assert.match(form, /Allow once/); assert.match(form, /Submit response/);

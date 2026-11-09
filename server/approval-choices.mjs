@@ -47,7 +47,7 @@ export function nativeApprovalChoices(question, { allowPersistent = true } = {})
   if (!object(question?.params)) return [];
   if (isNativeToolApproval(question)) {
     const choices = [{ key: 'accept', label: 'Allow once', scope: null, persistent: false, answer: { decision: 'accept' } }];
-    if (allowPersistent && offeredPersistence(question, 'session')) choices.push({ key: 'session', label: 'Allow for session', scope: 'This native tool for this session.', persistent: false, answer: { decision: 'accept', persistence: 'session' } });
+    if (allowPersistent && offeredPersistence(question, 'session')) choices.push({ key: 'session', label: 'Allow for this session', scope: 'This native tool for this session.', persistent: false, answer: { decision: 'accept', persistence: 'session' } });
     if (allowPersistent && offeredPersistence(question, 'always')) choices.push({ key: 'always', label: 'Allow always', scope: 'This native tool; Codex manages the saved permission.', persistent: true, answer: { decision: 'accept', persistence: 'always' } });
     return choices.concat([
       { key: 'decline', label: 'Decline', scope: null, persistent: false, answer: { decision: 'decline' } },
@@ -56,12 +56,17 @@ export function nativeApprovalChoices(question, { allowPersistent = true } = {})
   }
   const command = question.method === COMMAND_APPROVAL;
   if (!command && question.method !== FILE_APPROVAL) return [];
-  const offered = command ? commandDecisions(question.params) : question.params.availableDecisions == null ? ['accept', 'decline', 'cancel'] : Array.isArray(question.params.availableDecisions) ? question.params.availableDecisions : [];
+  // FileChangeRequestApprovalParams has no availableDecisions in the native
+  // protocol: its fixed response enum includes acceptForSession. Honor an
+  // explicit restriction when supplied, without requiring a nonexistent field
+  // to expose the ordinary native session choice. File approvals offer no
+  // permanent grant.
+  const offered = command ? commandDecisions(question.params) : question.params.availableDecisions == null ? ['accept', 'acceptForSession', 'decline', 'cancel'] : Array.isArray(question.params.availableDecisions) ? question.params.availableDecisions : [];
   const choices = [];
   for (const decision of offered) {
     let choice;
     if (['accept', 'decline', 'cancel'].includes(decision)) choice = { key: decision, label: { accept: 'Allow once', decline: 'Decline', cancel: 'Cancel turn' }[decision], scope: null, persistent: false };
-    else if (allowPersistent && decision === 'acceptForSession') choice = { key: 'session', label: 'Allow for session', scope: 'This native approval for this session.', persistent: false };
+    else if (allowPersistent && decision === 'acceptForSession') choice = { key: 'session', label: 'Allow for this session', scope: command ? 'This native approval for this session.' : question.params.grantRoot ? 'Requested write root for this session: ' + JSON.stringify(question.params.grantRoot) + '. Codex controls the effective grant.' : 'This file-change approval for this native session.', persistent: false };
     else if (allowPersistent && command && execAmendment(decision)) choice = { key: 'execpolicy', label: 'Allow always', scope: 'Commands beginning with ' + JSON.stringify(decision.acceptWithExecpolicyAmendment.execpolicy_amendment), persistent: true };
     else if (allowPersistent && command && networkAmendment(decision)) choice = { key: 'network', label: 'Allow always', scope: 'Network host: ' + decision.applyNetworkPolicyAmendment.network_policy_amendment.host, persistent: true };
     if (!choice || choices.some(existing => same(existing.answer.decision, decision))) continue;

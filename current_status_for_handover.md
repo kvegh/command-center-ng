@@ -5,6 +5,24 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Working version 0.42.0 implements the user-selected htpasswd-protected
+first-browser password setup without a temporary code. Configuration is explicit
+and disabled by default; existing passwords remain unchanged. Atomic creation,
+exact HTTPS public-origin/Host checks, normal API gates, confirmation and secure
+sessions are covered by focused backend/UI tests. The installer prints setup
+instructions without prompting or generating a password. Infrastructure and
+Ansible integration remain with their owning conversation. Native file-change
+approval controls also expose the supported session choice omitted by the earlier
+fallback; manual filesystem/network requests can use native turn or session scope,
+without inventing permanent grants or expanding coordinator permissions.
+Report status now distinguishes a delivered request from an actual recognized
+report; ending without one produces an error, not a false ready announcement.
+The original AAP delay cause remains unverified; no interrupt/retry was added.
+All 614 application tests and the production build pass, including real trusted
+HTTPS first enrollment and exact native response fixtures. Independent reviews
+found no concrete blockers. Publication and authorized production update are
+pending; real browser/proxy first-enrollment acceptance is not yet verified.
+
 Version 0.41.0 implements the user's bounded desktop overview: report/model
 settings stay at the bottom while task/question content can scroll within the
 available pane. Preserve resize/reset, saved preferences and mobile's continuous

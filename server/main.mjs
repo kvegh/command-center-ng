@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { CodexRpc } from './rpc.mjs';
 import { Workspace } from './workspace.mjs';
-import { defaultAuthFile, loadPassword, Sessions } from './auth.mjs';
+import { defaultAuthFile, loadPassword, setPassword, Sessions } from './auth.mjs';
 import { VERSION } from './version.mjs';
 import { resolveListenAddress, listenAddresses } from './listen-address.mjs';
 import { loadTlsSettings, certificateInfo } from './tls-settings.mjs';
@@ -57,6 +57,9 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
     const parsed = new URL(settings.publicOrigin);
     if (!['http:', 'https:'].includes(parsed.protocol) || parsed.origin !== settings.publicOrigin) throw new Error('--public-origin must be an HTTP(S) origin without a path.');
   }
+  if (![undefined, 'disabled', 'htpasswd-proxy'].includes(settings.firstPasswordSetup)) throw new Error('Choose first_password_setup: disabled or htpasswd-proxy.');
+  const browserSetup = settings.firstPasswordSetup === 'htpasswd-proxy';
+  if (browserSetup && !settings.publicOrigin?.startsWith('https://')) throw new Error('First-password setup through htpasswd-proxy requires an explicit HTTPS public origin and an access-restricted backend.');
   const tls = settings.protocol === 'http' ? undefined : await loadTlsSettings(settings.tlsCert, settings.tlsKey);
   if (settings.protocol === 'https' && !tls) throw new Error('HTTPS requires both a certificate and private key. Set tls_certificate and tls_private_key in etc/config.conf, or supply --tls-cert and --tls-key.');
   settings.https = !!tls;
@@ -68,7 +71,11 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
     settings.certificate = certificateInfo(tls.cert);
     if (!(isIP(name) ? certificate.checkIP(name) : certificate.checkHost(name, { subject: 'never', partialWildcards: false }))) throw new Error('The TLS certificate does not cover ' + name + ' in its subject alternative names. Set --public-origin to a covered HTTPS hostname or provide a suitable certificate. Certificate: ' + JSON.stringify(settings.certificate));
   }
-  const verify = await loadPassword(authFile);
+  let verify = await loadPassword(authFile, { allowMissing: browserSetup });
+  const refreshSetupPassword = async () => {
+    if (!verify) verify = await loadPassword(authFile, { allowMissing: true });
+  };
+  const setupHostAllowed = request => browserSetup && request.headers.host === new URL(settings.publicOrigin).host;
   const sessions = new Sessions(); const clients = new Set();
   rpc ||= new CodexRpc({ socketPath: settings.socketPath });
   workspace ||= new Workspace(rpc, { coordinator: true, claude: true });
@@ -113,11 +120,35 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
       const url = new URL(request.url, 'http://' + request.headers.host);
       const path = url.pathname;
       if (path === '/healthz' && request.method === 'GET') return json(response, { ok: true, version: VERSION });
-      if (path === '/api/session' && request.method === 'GET') return json(response, { authenticated: sessions.valid(request), version: VERSION });
+      if (path === '/api/session' && request.method === 'GET') {
+        await refreshSetupPassword();
+        return json(response, { authenticated: sessions.valid(request), version: VERSION, ...(!verify ? { setupRequired: true, setupAllowed: setupHostAllowed(request) } : {}) });
+      }
       const secure = !!tls || settings.publicOrigin?.startsWith('https://') || false;
+      if (path === '/api/setup' && request.method === 'POST') {
+        // The operator explicitly asserts htpasswd protection; forwarded headers are not proof.
+        if (!setupHostAllowed(request) || request.headers.origin !== settings.publicOrigin) throw failure('First-password setup requires the configured htpasswd-protected HTTPS address.', 403);
+        if (!sessions.allowAttempt(request.socket.remoteAddress)) throw failure('Too many setup attempts. Try again in five minutes.', 429);
+        await refreshSetupPassword();
+        if (verify) throw failure('An application password already exists. Sign in instead.', 409);
+        const data = await body(request);
+        if (!data || typeof data.password !== 'string' || typeof data.confirmation !== 'string') throw failure('Enter and confirm the new application password.');
+        if (data.password.length < 12 || data.password.length > 4096) throw failure('Use a password with 12–4096 characters.');
+        if (data.password !== data.confirmation) throw failure('Passwords do not match.');
+        try { await setPassword(data.password, authFile, { createOnly: true }); }
+        catch (error) {
+          if (error.code !== 'EEXIST') throw error;
+          await refreshSetupPassword();
+          throw failure('An application password was created by another setup. Sign in instead.', 409);
+        }
+        verify = await loadPassword(authFile);
+        response.setHeader('Set-Cookie', sessions.cookie(sessions.create(), true)); return json(response, { authenticated: true });
+      }
       if (path === '/api/login' && request.method === 'POST') {
         if (!sessions.allowAttempt(request.socket.remoteAddress)) throw failure('Too many login attempts. Try again in five minutes.', 429);
         const data = await body(request);
+        await refreshSetupPassword();
+        if (!verify) throw failure('Create the application password through the configured setup address first.', 409);
         if (typeof data.password !== 'string' || data.password.length > 4096 || !verify(data.password)) throw failure('Incorrect password.', 401);
         response.setHeader('Set-Cookie', sessions.cookie(sessions.create(), secure)); return json(response, { authenticated: true });
       }
@@ -268,6 +299,7 @@ export function runtimeOptions(args = process.argv.slice(2), env = process.env, 
     cwd: { type: 'string', default: process.cwd() },
     socket: { type: 'string' },
     'public-origin': { type: 'string', default: env.CCNG_PUBLIC_ORIGIN ?? fileValues['public-origin'] },
+    'first-password-setup': { type: 'string', default: env.CCNG_FIRST_PASSWORD_SETUP || fileValues['first-password-setup'] || 'disabled' },
     'tls-cert': { type: 'string', default: env.CCNG_TLS_CERT || fileValues['tls-cert'] || undefined },
     'tls-key': { type: 'string', default: env.CCNG_TLS_KEY || fileValues['tls-key'] || undefined },
     dev: { type: 'boolean' }, help: { type: 'boolean', short: 'h' }
@@ -296,6 +328,11 @@ Usage: command-center-ng [--host ADDRESS] [--port PORT] [--protocol https|http] 
   --protocol https|http HTTP by default; select HTTPS in the config or explicitly.
   --cwd DIRECTORY       Existing project/task working directory.
   --public-origin URL   Browser-facing origin when using an existing HTTPS proxy.
+  --first-password-setup MODE
+                        disabled (default) or htpasswd-proxy. Enable browser
+                        password creation only behind enforced Basic Auth on
+                        every route, with restricted direct backend access and
+                        an explicit HTTPS --public-origin. No setup code is used.
   --socket PATH         Existing local Codex daemon socket.
   --tls-cert FILE       PEM certificate/full-chain file for direct HTTPS.
   --tls-key FILE        Matching PEM private key; both TLS files are required.
@@ -304,10 +341,11 @@ Usage: command-center-ng [--host ADDRESS] [--port PORT] [--protocol https|http] 
 
 Configuration: INSTALLDIR/etc/config.conf is read at foreground/systemd startup.
 Use simple key: value lines and full-line # comments; this is not YAML.
-Settings: connection_type, tls_certificate, tls_private_key, host, port, public_origin.
+Settings: connection_type, tls_certificate, tls_private_key, host, port, public_origin,
+          first_password_setup.
 Certificate paths can be absolute or relative to the config file directory.
 Environment: CCNG_HOST, CCNG_PORT, CCNG_PROTOCOL, CCNG_PUBLIC_ORIGIN,
-             CCNG_TLS_CERT, CCNG_TLS_KEY. CLI options take precedence over
+             CCNG_TLS_CERT, CCNG_TLS_KEY, CCNG_FIRST_PASSWORD_SETUP. CLI options take precedence over
              environment, which takes precedence over the configuration file.
 HTTPS requires both TLS files; missing or unsuitable files never enable HTTP.
 Explicit --protocol http ignores TLS file settings and keeps plain HTTP available.
@@ -320,7 +358,8 @@ in its journal. If selection is unavailable or ambiguous, use --host ADDRESS.
 The default-route address can be network/public-facing; use --host 127.0.0.1
 for local-only access. This does not configure firewall or proxy access.
 Existing saved --host/CCNG_HOST settings remain effective.
-Set the application password first with npm run password.
+Existing passwords are preserved. For local setup without a protected proxy,
+create the application password with npm run password before signing in.
 User service controls: command-center-ng service help`;
 }
 
@@ -340,7 +379,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       const port = Number(values.port); if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Choose a port from 1 to 65535.');
       if (!['http', 'https'].includes(values.protocol)) throw new Error('Choose --protocol http or https.');
       const selection = await resolveListenAddress(values.host);
-      const app = await createApp({ config: { host: selection.host, port, protocol: values.protocol, cwd: resolve(values.cwd), socketPath: values.socket, publicOrigin: values['public-origin'], tlsCert: values['tls-cert'], tlsKey: values['tls-key'], dev: values.dev } });
+      const app = await createApp({ config: { host: selection.host, port, protocol: values.protocol, cwd: resolve(values.cwd), socketPath: values.socket, publicOrigin: values['public-origin'], firstPasswordSetup: values['first-password-setup'], tlsCert: values['tls-cert'], tlsKey: values['tls-key'], dev: values.dev } });
       // Startup observes the native setup without changing a shared Codex profile.
       const codexSetup = await ensureCodexQuestions({ enable: false });
       for (const warning of codexSetup.warnings) console.warn('Codex setup warning: ' + warning);

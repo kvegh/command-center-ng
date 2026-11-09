@@ -70,6 +70,11 @@ test('first default installation creates private HTTP settings and empty cert di
   assert.ok(config.includes('# tls_certificate: ' + join(f.prefix, 'etc', 'certs', 'server.crt')));
   assert.ok(config.includes('# tls_private_key: ' + join(f.prefix, 'etc', 'certs', 'server.key')));
   assert.match(config, /Other certificate\/key paths are supported when readable/);
+  assert.match(config, /^# first_password_setup: htpasswd-proxy$/m);
+  assert.doesNotMatch(config, /^first_password_setup:/m, 'fresh generic installation must not enable unprotected browser enrollment');
+  assert.match(config, /enforced htpasswd on every proxy route/);
+  await assert.rejects(stat(join(f.home, 'private-auth', 'auth.json')), { code: 'ENOENT' });
+  assert.match(result.stdout, /No default password is created/);
   assert.equal((await stat(join(f.prefix, 'etc'))).mode & 0o777, 0o700);
   assert.equal((await stat(join(f.prefix, 'etc', 'certs'))).mode & 0o777, 0o700);
   assert.equal((await stat(join(f.prefix, 'etc', 'config.conf'))).mode & 0o777, 0o600);

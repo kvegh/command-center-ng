@@ -1,5 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { link, lstat, mkdir, open, realpath, rename, stat, unlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,23 +8,46 @@ import { fileURLToPath } from 'node:url';
 export const defaultAuthFile = () => join(process.env.CCNG_CONFIG_DIR || join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'command-center-ng'), 'auth.json');
 const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-export async function setPassword(password, file = defaultAuthFile()) {
+export async function setPassword(password, file = defaultAuthFile(), { createOnly = false } = {}) {
+  if (typeof password !== 'string') throw new Error('Enter a password as text.');
   if (password.length < 12) throw new Error('Use a password with at least 12 characters.');
   if (password.length > 4096) throw new Error('Use a password with at most 4096 characters.');
   if (resolve(file).startsWith(sourceRoot + sep)) throw new Error('Store authentication outside the application checkout.');
   const salt = randomBytes(24).toString('hex');
   const hash = scryptSync(password, salt, 64).toString('hex');
   await mkdir(dirname(file), { recursive: true, mode: 0o700 });
+  const directory = await realpath(dirname(file));
+  if (directory === sourceRoot || directory.startsWith(sourceRoot + sep)) throw new Error('Store authentication outside the application checkout.');
+  if (createOnly) {
+    const info = await stat(directory);
+    if (info.mode & 0o022 || (process.getuid && info.uid !== process.getuid())) throw new Error('Authentication directory must belong to the current user and not be writable by other users.');
+  }
   const temporary = file + '.' + randomBytes(8).toString('hex');
-  await writeFile(temporary, JSON.stringify({ version: 1, salt, hash }) + '\n', { mode: 0o600, flag: 'wx' });
-  await rename(temporary, file);
+  let created = false;
+  try {
+    const handle = await open(temporary, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
+    created = true;
+    try { await handle.writeFile(JSON.stringify({ version: 1, salt, hash }) + '\n'); await handle.sync(); }
+    finally { await handle.close(); }
+    // Publish a complete first-password file without replacing another setup's winner.
+    if (createOnly) await link(temporary, file);
+    else await rename(temporary, file);
+  } finally { if (created) await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
 }
 
-export async function loadPassword(file = defaultAuthFile()) {
-  const info = await stat(file);
-  if (info.mode & 0o077) throw new Error('Authentication file must be private (chmod 600).');
-  if (process.getuid && info.uid !== process.getuid()) throw new Error('Authentication file must belong to the current user.');
-  const data = JSON.parse(await readFile(file, 'utf8'));
+export async function loadPassword(file = defaultAuthFile(), { allowMissing = false } = {}) {
+  let existing;
+  try { existing = await lstat(file); }
+  catch (error) { if (allowMissing && error.code === 'ENOENT') return null; throw error; }
+  if (!existing.isFile() || existing.isSymbolicLink()) throw new Error('Authentication file must be a private regular file, not a symbolic link.');
+  const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  let data;
+  try {
+    const info = await handle.stat();
+    if (!info.isFile() || info.mode & 0o077) throw new Error('Authentication file must be private (chmod 600).');
+    if (process.getuid && info.uid !== process.getuid()) throw new Error('Authentication file must belong to the current user.');
+    data = JSON.parse(await handle.readFile('utf8'));
+  } finally { await handle.close(); }
   if (data.version !== 1 || !/^[a-f0-9]{48}$/.test(data.salt) || !/^[a-f0-9]{128}$/.test(data.hash)) throw new Error('Invalid authentication file. Run npm run password.');
   return password => {
     const candidate = scryptSync(password, data.salt, 64);

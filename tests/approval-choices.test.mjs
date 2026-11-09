@@ -8,10 +8,29 @@ const mcp = meta => ({ method: 'mcpServer/elicitation/request', params: { mode: 
 const exec = prefix => ({ acceptWithExecpolicyAmendment: { execpolicy_amendment: prefix } });
 const network = (host, action = 'allow') => ({ applyNetworkPolicyAmendment: { network_policy_amendment: { host, action } } });
 
-test('older v2 command and file requests preserve ordinary explicit decisions without inventing reusable grants', () => {
-  for (const question of [command({}), file({})]) {
-    assert.deepEqual(nativeApprovalChoices(question).map(choice => choice.answer), ['accept', 'decline', 'cancel'].map(decision => ({ decision })));
-    for (const decision of ['accept', 'decline', 'cancel']) assert.deepEqual(nativeApprovalAnswer(question, { decision }), { decision });
+test('older v2 command requests preserve explicit decisions without inventing reusable grants', () => {
+  const question = command({});
+  assert.deepEqual(nativeApprovalChoices(question).map(choice => choice.answer), ['accept', 'decline', 'cancel'].map(decision => ({ decision })));
+  for (const decision of ['accept', 'decline', 'cancel']) assert.deepEqual(nativeApprovalAnswer(question, { decision }), { decision });
+  assert.throws(() => nativeApprovalAnswer(question, { decision: 'acceptForSession' }));
+});
+
+test('native file request schema exposes its session choice without an availableDecisions field', () => {
+  const question = file({ threadId: 'worker', turnId: 'turn', itemId: 'changes', startedAtMs: 1, reason: 'Apply reviewed changes', grantRoot: '/example/project' });
+  const choices = nativeApprovalChoices(question);
+  assert.deepEqual(choices.map(choice => choice.answer.decision), ['accept', 'acceptForSession', 'decline', 'cancel']);
+  const session = choices.find(choice => choice.key === 'session');
+  assert.equal(session.label, 'Allow for this session'); assert.match(session.scope, /\/example\/project/);
+  assert.equal(session.persistent, false);
+  assert.deepEqual(nativeApprovalAnswer(question, session.answer), { decision: 'acceptForSession' });
+  assert.ok(choices.every(choice => choice.label !== 'Allow always'));
+  assert.throws(() => nativeApprovalAnswer(question, session.answer, { allowPersistent: false }));
+});
+
+test('explicit file decision restrictions remain authoritative despite the static native fallback', () => {
+  for (const availableDecisions of [[], ['accept', 'cancel']]) {
+    const question = file({ availableDecisions });
+    assert.deepEqual(nativeApprovalChoices(question).map(choice => choice.answer.decision), availableDecisions);
     assert.throws(() => nativeApprovalAnswer(question, { decision: 'acceptForSession' }));
   }
 });
@@ -48,7 +67,7 @@ test('explicit native available decisions can carry exact supported amendments w
   assert.equal(nativeApprovalChoices(question).length, 4);
   for (const decision of offered) assert.deepEqual(nativeApprovalAnswer(question, { decision }), { decision });
   const session = nativeApprovalChoices(question).find(choice => choice.key === 'session');
-  assert.equal(session.label, 'Allow for session');
+  assert.equal(session.label, 'Allow for this session');
   assert.equal(session.persistent, false);
 });
 

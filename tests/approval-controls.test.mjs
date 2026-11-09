@@ -18,7 +18,7 @@ async function componentUrl(name) {
   }
   return 'data:text/javascript;base64,' + Buffer.from(compiled).toString('base64');
 }
-const { NativeApprovalControls, NativeRequestCard } = await import(await componentUrl('native-request-card'));
+const { NativeApprovalControls, NativePermissionControls, NativeRequestCard } = await import(await componentUrl('native-request-card'));
 const command = params => ({ id: 1, method: 'item/commandExecution/requestApproval', params });
 const file = params => ({ id: 2, method: 'item/fileChange/requestApproval', params });
 const exec = prefix => ({ acceptWithExecpolicyAmendment: { execpolicy_amendment: prefix } });
@@ -65,7 +65,7 @@ test('only native offered permanent choices render; session approval retains its
     assert.match(rendered, /no native permanent approval choice/);
   }
   const session = html(command({ availableDecisions: ['acceptForSession'] }));
-  assert.match(session, /Allow for session/);
+  assert.match(session, /Allow for this session/);
   assert.match(session, /This native approval for this session\./);
   assert.doesNotMatch(session, /Codex saves this rule/);
 });
@@ -102,7 +102,7 @@ test('coordinators receive no reusable choices and native MCP permission grants 
   const questions = [command({ availableDecisions: ['accept', 'acceptForSession', exec(['npm', 'test']), 'decline'] }), mcp({ codex_approval_kind: 'mcp_tool_call', persist: ['session', 'always'] })];
   for (const question of questions) {
     const rendered = html(question, { readOnlyCoordinator: true });
-    assert.doesNotMatch(rendered, />Allow always<\/button>|>Allow for session<\/button>/);
+    assert.doesNotMatch(rendered, />Allow always<\/button>|>Allow for this session<\/button>/);
     assert.match(rendered, /Coordinator restrictions stay in place/);
   }
   const toolButtons = buttons(controls(questions[1], { readOnlyCoordinator: true }));
@@ -120,18 +120,49 @@ test('busy controls and native confirmation preserve disabled actions and visibl
   assert.match(rendered, /Ask coordinator to review/);
 });
 
-test('filesystem permission requests remain turn-only and never become saved approvals', () => {
+test('filesystem/network permission requests offer exact native turn and session scopes without permanent approvals', async () => {
   const question = { id: 4, method: 'item/permissions/requestApproval', params: { permissions: { fileSystem: { write: ['<requested-path>'] } } } };
   const rendered = card(question);
-  assert.match(rendered, /Allow requested access for this turn/);
-  assert.match(rendered, /does not change global settings/);
-  assert.doesNotMatch(rendered, />Allow always<\/button>|>Allow for session<\/button>/);
+  assert.match(rendered, />Allow once<\/button>/);
+  assert.match(rendered, />Allow for this session<\/button>/);
+  assert.match(rendered, /Neither changes global settings/);
+  assert.doesNotMatch(rendered, />Allow always<\/button>/);
+  const submitted = []; let focused = 0;
+  const node = NativePermissionControls({ question, busy: false, submit: async answer => { submitted.push(answer); return true; }, prepareApprovalFocus: () => () => { focused++; } });
+  for (const button of buttons(node)) await button.props.onClick();
+  assert.deepEqual(submitted, [{ decision: 'accept', scope: 'turn' }, { decision: 'accept', scope: 'session' }, { decision: 'decline' }]);
+  assert.equal(focused, 2);
+  const coordinator = NativePermissionControls({ question, busy: false, readOnlyCoordinator: true, submit: () => assert.fail('Coordinator cannot grant permissions') });
+  assert.ok(buttons(coordinator).slice(0, 2).every(button => button.props.disabled));
+  for (const button of buttons(coordinator).slice(0, 2)) await button.props.onClick();
 });
 
 test('scope details remain escaped text', () => {
   const rendered = html(command({ proposedExecpolicyAmendment: ['echo', '<script>example()</script>'] }));
   assert.doesNotMatch(rendered, /<script>/);
   assert.match(rendered, /&lt;script&gt;/);
+});
+
+test('schema-shaped file requests show Allow once and Allow for this session without inventing Allow always', async () => {
+  const question = file({ threadId: 'worker', turnId: 'turn', itemId: 'changes', startedAtMs: 1, grantRoot: '/example/project' });
+  const rendered = card(question);
+  assert.match(rendered, />Allow once<\/button>/);
+  assert.match(rendered, />Allow for this session<\/button>/);
+  assert.doesNotMatch(rendered, />Allow always<\/button>/);
+  assert.match(rendered, /Requested write root for this session/);
+  assert.doesNotMatch(html(question, { readOnlyCoordinator: true }), />Allow for this session<\/button>/);
+  const submitted = []; let restored = false;
+  const node = controls(question, { submit: async answer => { submitted.push(answer); return true; }, prepareApprovalFocus: () => () => { restored = true; } });
+  await buttons(node).find(button => button.props.children === 'Allow for this session').props.onClick();
+  assert.deepEqual(submitted, [{ decision: 'acceptForSession' }]); assert.equal(restored, true);
+});
+
+test('command and MCP cards expose all three choices when those exact native scopes are offered', () => {
+  const questions = [command({ availableDecisions: ['accept', exec(['git', 'status']), 'acceptForSession', 'decline'] }), mcp({ codex_approval_kind: 'mcp_tool_call', persist: ['session', 'always'] })];
+  for (const question of questions) {
+    const rendered = card(question);
+    for (const label of ['Allow once', 'Allow always', 'Allow for this session']) assert.ok(rendered.includes(`>${label}</button>`));
+  }
 });
 test('manual positive approvals restore composer focus only after confirmed native success', async () => {
   const cases = [command({ availableDecisions: ['accept'] }), command({ availableDecisions: [exec(['npm', 'test'])] }), command({ availableDecisions: [network('api.example.com')] }), file({ availableDecisions: ['accept'] }), mcp({ codex_approval_kind: 'mcp_tool_call', persist: 'always' })];

@@ -10,11 +10,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { createApp } from '../server/main.mjs';
-import { setPassword } from '../server/auth.mjs';
+import { loadPassword, setPassword } from '../server/auth.mjs';
 import { Workspace } from '../server/workspace.mjs';
 
 const run = promisify(execFile);
-async function fixture(tlsEnabled = true, overrides = {}, selection) {
+async function fixture(tlsEnabled = true, overrides = {}, selection, { fresh = false } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'ccng-real-tls-'));
   const certPath = join(directory, 'cert.pem'); const keyPath = join(directory, 'key.pem');
   let app;
@@ -22,7 +22,7 @@ async function fixture(tlsEnabled = true, overrides = {}, selection) {
     await run('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', keyPath, '-out', certPath, '-days', '2', '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost,DNS:command-center.example,IP:127.0.0.1,IP:2001:db8::15'], { timeout: 10000 });
     const ca = await readFile(certPath);
     const password = randomBytes(24).toString('base64url'); const authFile = join(directory, 'auth.json');
-    await setPassword(password, authFile);
+    if (!fresh) await setPassword(password, authFile);
     const rpc = new EventEmitter(); rpc.ready = false; rpc.close = () => {};
     const workspace = new Workspace(rpc, { beads: null });
     app = await createApp({ rpc, workspace, authFile, config: { host: '127.0.0.1', protocol: tlsEnabled ? 'https' : 'http', tlsCert: certPath, tlsKey: keyPath, ...overrides } });
@@ -39,7 +39,7 @@ async function fixture(tlsEnabled = true, overrides = {}, selection) {
       client.setTimeout(5000, () => client.destroy(new Error('Fixture request timed out'))); client.on('error', reject);
       client.end(data === undefined ? undefined : JSON.stringify(data));
     });
-    return { app, ca, port, origin, password, certPath, keyPath, request, close: async () => { await app.close(); await rm(directory, { recursive: true, force: true }); } };
+    return { app, ca, port, origin, password, authFile, certPath, keyPath, request, close: async () => { await app.close(); await rm(directory, { recursive: true, force: true }); } };
   } catch (error) { await app?.close(); await rm(directory, { recursive: true, force: true }); throw error; }
 }
 
@@ -62,6 +62,51 @@ test('real HTTPS keeps certificate verification, mandatory login, secure cookies
     const logout = await f.request('/api/logout', {}, { Cookie: cookie });
     assert.equal(logout.status, 200); assert.match(logout.headers['set-cookie'][0], /; Secure/);
     assert.equal((await f.request('/api/state', undefined, { Cookie: cookie })).status, 401);
+  } finally { await f.close(); }
+});
+
+test('real trusted HTTPS first-password setup creates a session and cannot replace established authentication', async () => {
+  const publicOrigin = 'https://command-center.example';
+  const f = await fixture(true, { publicOrigin, firstPasswordSetup: 'htpasswd-proxy' }, undefined, { fresh: true });
+  try {
+    const headers = { Host: 'command-center.example', Origin: publicOrigin };
+    const chosen = randomBytes(24).toString('base64url');
+    const proposed = { password: chosen, confirmation: chosen };
+    await assert.rejects(readFile(f.authFile), { code: 'ENOENT' });
+    await assert.rejects(f.request('/api/session', undefined, headers, false), /self.signed|certificate/i);
+    const session = await f.request('/api/session', undefined, headers);
+    assert.equal(session.status, 200);
+    assert.equal(JSON.parse(session.body).setupRequired, true);
+    assert.equal(JSON.parse(session.body).setupAllowed, true);
+    assert.equal(session.headers['set-cookie'], undefined);
+    assert.equal((await f.request('/api/state', undefined, headers)).status, 401);
+    const localSetup = await f.request('/api/setup', proposed, { Host: `localhost:${f.port}`, Origin: `https://localhost:${f.port}` });
+    assert.equal(localSetup.status, 403);
+    assert.equal(localSetup.headers['set-cookie'], undefined);
+    await assert.rejects(readFile(f.authFile), { code: 'ENOENT' });
+
+    const setup = await f.request('/api/setup', proposed, headers);
+    assert.equal(setup.status, 200);
+    assert.deepEqual(JSON.parse(setup.body), { authenticated: true });
+    assert.equal(JSON.stringify(setup).includes(chosen), false, 'the chosen password is never returned');
+    const cookie = setup.headers['set-cookie'][0];
+    for (const flag of ['; Secure', 'HttpOnly', 'SameSite=Strict']) assert.ok(cookie.includes(flag));
+    const saved = await readFile(f.authFile, 'utf8');
+    assert.equal(saved.includes(chosen), false);
+    assert.equal((await loadPassword(f.authFile))(chosen), true);
+    const state = await f.request('/api/state', undefined, { ...headers, Cookie: cookie });
+    assert.equal(state.status, 200);
+    assert.equal(state.body.includes(cookie.split(';')[0].split('=')[1]), false, 'authenticated state does not expose its session token');
+    assert.equal(state.body.includes(JSON.parse(saved).hash), false, 'authenticated state does not expose the stored password hash');
+    assert.equal((await f.request('/api/state', undefined, headers)).status, 401);
+
+    const replacement = randomBytes(24).toString('base64url');
+    const repeated = await f.request('/api/setup', { password: replacement, confirmation: replacement }, headers);
+    assert.equal(repeated.status, 409);
+    assert.equal(repeated.headers['set-cookie'], undefined);
+    assert.equal(await readFile(f.authFile, 'utf8'), saved);
+    assert.equal((await f.request('/api/login', { password: replacement }, headers)).status, 401);
+    assert.equal((await f.request('/api/login', { password: chosen }, headers)).status, 200);
   } finally { await f.close(); }
 });
 

@@ -524,9 +524,11 @@ test('a requested report wakes the coordinator once, without repeated report loo
     const worker = f.workspace.agent('worker'); worker.turnId = 'original'; worker.thread.status = { type: 'active' };
     await f.call('ccng_request_report', { agentId: 'worker' });
     await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer') && !worker.coordinatorSending);
-    assert.equal(f.coordinator.reportPending.has('worker'), true, 'steered report stays outstanding until the active turn completes');
+    assert.equal(f.coordinator.reportPending.has('worker'), true, 'steered report stays outstanding until a report is observed');
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
-    f.coordinator.dirty.clear(); f.rpc.complete('worker', 'original');
+    f.coordinator.dirty.clear();
+    f.rpc.emit('notification', { method: 'item/completed', params: { threadId: 'worker', turnId: 'original', item: { id: 'requested-report', type: 'agentMessage', text: standardReport } } });
+    f.rpc.complete('worker', 'original');
     assert.equal(f.coordinator.reportPending.has('worker'), false);
     assert.ok(f.coordinator.dirty.get('worker')?.has('Requested report is ready'));
     f.coordinator.messageActions.clear();
@@ -738,7 +740,8 @@ test('paused startup reports defer safely and one pending worker cannot block pr
     assert.notEqual(marks.find(args => args[1].startsWith('Startup report'))[2], true, 'result updates use normal coordinator throttling');
     f.rpc.complete('second'); f.workspace.removeQuestion('worker', 'waiting'); await delivered(f, 2);
     f.rpc.complete('worker');
-    assert.equal(f.coordinator.startupDashboardWorkers.get('worker').status, 'finished', 'turn completion is qualified separately from a recognized fresh report');
+    assert.equal(f.coordinator.startupDashboardWorkers.get('worker').status, 'failed', 'ordinary turn completion does not establish receipt of a startup report');
+    assert.match(f.workspace.agent('worker').reportError, /without a recognized Standard Task Report/);
     assert.equal(f.workspace.agent('worker').reportIntervalMinutes, 0); assert.equal(second.reportIntervalMinutes, 0);
     assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
@@ -906,6 +909,67 @@ test('a report observed before send acknowledgement stays pending until native d
     assert.equal(f.coordinator.reportPending.has('worker'), false);
     assert.equal(worker.turnId, 'active-work'); assert.equal(f.coordinator.reportResponses.size, 0);
   } finally { await f.close(); }
+});
+
+test('native request acceptance waits for a report; ordinary turn completion reports a missing response without retrying', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'ordinary-work'; worker.thread.status = { type: 'active' };
+    worker.coordinatorDeliveryKind = 'report';
+    assert.equal(f.coordinator.reportState('worker'), null, 'a delivery-kind marker alone is not a confirmed report request');
+    worker.coordinatorDeliveryKind = null;
+    f.coordinator.requestUserReport('worker');
+    await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer') && !worker.coordinatorSending);
+    assert.equal(f.coordinator.reportState('worker'), 'generating', 'the legacy state records native acceptance only');
+    assert.equal(worker.reportError, null);
+    f.rpc.emit('notification', { method: 'item/completed', params: { threadId: 'worker', turnId: 'ordinary-work', item: { id: 'ordinary-update', type: 'agentMessage', phase: 'commentary', text: 'Still checking the deployment.' } } });
+    assert.equal(f.coordinator.reportPending.has('worker'), true, 'ordinary assistant progress is not a report');
+    f.coordinator.dirty.clear(); f.rpc.complete('worker', 'ordinary-work');
+    assert.equal(f.coordinator.reportState('worker'), null);
+    assert.equal(f.coordinator.reportPending.has('worker'), false);
+    assert.equal(f.coordinator.reportResponses.has('worker'), false);
+    assert.match(worker.reportError, /without a recognized Standard Task Report/);
+    assert.equal(f.coordinator.audit.filter(row => row.outcome === 'missing-response').length, 1);
+    assert.equal(f.coordinator.dirty.get('worker')?.has('Requested report is ready') || false, false);
+    assert.ok(f.coordinator.dirty.get('worker')?.has('Requested report was not received'));
+    const dispatched = f.rpc.calls.filter(call => ['turn/start', 'turn/steer'].includes(call.method)).length;
+    clock.advance(1000); await f.coordinator.flush('worker');
+    assert.equal(f.rpc.calls.filter(call => ['turn/start', 'turn/steer'].includes(call.method)).length, dispatched, 'no prompt or automatic retry follows a missing report');
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('turn completion before send acknowledgement settles once after confirmation, with or without a real report', async () => {
+  for (const withReport of [true, false]) {
+    const f = await fixture();
+    try {
+      const worker = f.workspace.agent('worker'); worker.turnId = 'fast-turn'; worker.thread.status = { type: 'active' };
+      const send = f.workspace.send.bind(f.workspace); let release;
+      const gate = new Promise(resolve => { release = resolve; });
+      f.workspace.send = async (...args) => { await send(...args); await gate; };
+      f.coordinator.requestUserReport('worker');
+      await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer'));
+      if (withReport) assert.equal(f.coordinator.reportMessageCompleted('worker', { id: 'fast-complete-report', type: 'assistant', state: 'completed', turnId: 'fast-turn', text: standardReport }), false);
+      f.coordinator.dirty.clear(); f.rpc.complete('worker', 'fast-turn');
+      assert.equal(f.coordinator.reportPending.has('worker'), true, 'unconfirmed delivery remains pending even after the native turn finishes');
+      assert.equal(f.coordinator.reportResponses.has('worker'), true);
+      assert.equal(worker.reportError == null, true);
+      assert.equal(f.coordinator.dirty.get('worker')?.has('Requested report is ready') || false, false);
+      release(); await waitFor(() => !worker.coordinatorSending);
+      assert.equal(f.coordinator.reportPending.has('worker'), false);
+      assert.equal(f.coordinator.reportResponses.has('worker'), false);
+      assert.equal(f.coordinator.reportState('worker'), null);
+      assert.equal(f.coordinator.audit.filter(row => row.outcome === 'missing-response').length, withReport ? 0 : 1);
+      if (withReport) {
+        assert.equal(worker.reportError, null);
+        assert.ok(f.coordinator.dirty.get('worker')?.has('Requested report is ready'));
+      } else {
+        assert.match(worker.reportError, /without a recognized Standard Task Report/);
+        assert.ok(f.coordinator.dirty.get('worker')?.has('Requested report was not received'));
+      }
+    } finally { await f.close(); }
+  }
 });
 
 test('an in-flight summary stays first and a due report then steers the active turn ahead of ordinary summaries', async () => {

@@ -55,10 +55,14 @@ export function formContent(schema, content) {
 }
 export function manualRequestAnswer(question, answer) {
   if (question.method === PERMISSIONS) {
-    if (!['accept', 'decline'].includes(answer.decision)) throw fail('Allow the exact requested permissions for this turn, or decline.');
+    if (!object(answer) || Object.keys(answer).some(key => !['decision', 'scope', 'requestId'].includes(key))
+      || (Object.hasOwn(answer, 'requestId') && answer.requestId !== question.id)) throw fail('Answer only this current permission request with its native decision and scope.');
+    if (!['accept', 'decline'].includes(answer.decision)) throw fail('Allow the exact requested permissions for this turn or session, or decline.');
+    const scope = Object.hasOwn(answer, 'scope') ? answer.scope : 'turn';
+    if (!['turn', 'session'].includes(scope) || (answer.decision === 'decline' && scope !== 'turn')) throw fail('Choose current-turn or session access; declining creates no grant.');
     const requested = question.params.permissions;
     if (answer.decision === 'accept' && (!object(requested) || Object.keys(requested).some(key => !['network', 'fileSystem'].includes(key)))) throw fail('This permission profile needs review in the native client.');
-    return { permissions: answer.decision === 'decline' ? {} : Object.fromEntries(Object.entries(requested).filter(([, value]) => value !== null)), scope: 'turn' };
+    return { permissions: answer.decision === 'decline' ? {} : structuredClone(Object.fromEntries(Object.entries(requested).filter(([, value]) => value !== null))), scope };
   }
   if (question.method === MCP_REQUEST) {
     if (!['accept', 'decline', 'cancel'].includes(answer.decision)) throw fail('Choose an explicit form action.');

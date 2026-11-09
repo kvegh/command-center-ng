@@ -58,11 +58,12 @@ The default installation directory is `~/commandcenter-ng`. To choose another
 location inside your home, use `./install.sh --prefix "$HOME/apps/commandcenter-ng"`.
 The installer asks before installing missing tools or initializing a tracker.
 
-When no application login exists, the interactive installer asks you to choose a
-password of **12–4,096 characters**. Existing passwords are preserved; there is
-no default password. Password creation on first browser opening is unfinished:
-a headless install can stage files, but the server requires configured authentication
-before it starts. The application password and your Codex sign-in are separate.
+Existing application passwords are preserved; no default password is created.
+For local use, choose a password of **12–4,096 characters** with
+`node "$HOME/commandcenter-ng/server/password.mjs"` before starting CCNG.
+For a new installation behind enforced HTTPS htpasswd protection, you can instead
+[enable password creation on first browser opening](docs/installation.md#first-browser-password-creation).
+The application password and your Codex sign-in are separate.
 
 ## Start and sign in
 

@@ -58,12 +58,26 @@ test('certificate paths alone leave HTTP selected; explicitly selected HTTPS nev
   await assert.rejects(createApp({ config: { protocol: options.protocol } }), /HTTPS requires both a certificate and private key/);
 });
 
+test('browser-first setup is disabled by default and protected-proxy opt-in retains normal override precedence', async t => {
+  const f = await fixture(t);
+  assert.equal((await loadRuntimeOptions([], {}, { appDir: f.appDir }))['first-password-setup'], 'disabled');
+  await f.write('first_password_setup: htpasswd-proxy\npublic_origin: https://command-center.example\n');
+  const options = await loadRuntimeOptions([], {}, { appDir: f.appDir });
+  assert.equal(options['first-password-setup'], 'htpasswd-proxy');
+  assert.equal(options['public-origin'], 'https://command-center.example');
+  const env = { CCNG_FIRST_PASSWORD_SETUP: 'disabled' };
+  assert.equal((await loadRuntimeOptions([], env, { appDir: f.appDir }))['first-password-setup'], 'disabled');
+  assert.equal((await loadRuntimeOptions(['--first-password-setup', 'htpasswd-proxy'], env, { appDir: f.appDir }))['first-password-setup'], 'htpasswd-proxy');
+  await f.write('first_password_setup: disabled\n');
+  assert.equal((await loadRuntimeOptions([], {}, { appDir: f.appDir }))['first-password-setup'], 'disabled');
+});
+
 test('malformed unknown duplicate and invalid settings fail safely rather than being evaluated or ignored', async t => {
   const f = await fixture(t);
   for (const text of [
     'connection_type=https', 'unknown_setting: private-value',
     'connection_type: http\nconnection_type: https', 'connection_type: unsupported-private-value',
-    'port: 0', 'port: 65536', 'port: 2e3', 'host:',
+    'port: 0', 'port: 65536', 'port: 2e3', 'host:', 'first_password_setup: automatic',
     'tls_private_key: ~/private.key', 'host: value\u0000private-value',
   ]) {
     await f.write(text);

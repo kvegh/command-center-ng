@@ -128,15 +128,15 @@ try {
       + '# tls_certificate: ' + join(prefix, 'etc', 'certs', 'server.crt') + '\n'
       + '# tls_private_key: ' + join(prefix, 'etc', 'certs', 'server.key') + '\n'
       + '# Other certificate/key paths are supported when readable by the CCNG user.\n'
+      + '# Browser-first password creation requires enforced htpasswd on every proxy route,\n'
+      + '# restricted direct backend access, and your HTTPS public_origin below.\n'
+      + '# public_origin: https://command-center.example\n'
+      + '# first_password_setup: htpasswd-proxy\n'
       + 'connection_type: http\n';
     writeFileSync(file, config, { mode: 0o600, flag: 'wx' });
   }
 } catch (error) { writeSync(2, 'Could not prepare installation settings: ' + error.message + '\n'); process.exitCode = 1; }
 JS
-CCNG_AUTH_FILE="${CCNG_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/command-center-ng}/auth.json"
-if [ -t 0 ] && [ ! -f "$CCNG_AUTH_FILE" ]; then
-    node "$CCNG_STAGE/app/server/password.mjs"
-fi
 cat > "$CCNG_STAGE/app/command-center-ng" <<'SH'
 #!/bin/sh
 # Command Center NG launcher
@@ -182,8 +182,11 @@ CCNG_VERSION=$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[
 echo "Installed Command Center NG $CCNG_VERSION into $CCNG_INSTALL_DIR"
 echo "Launcher: $CCNG_INSTALL_DIR/command-center-ng"
 echo "Connection settings: $CCNG_INSTALL_DIR/etc/config.conf (existing settings are preserved)."
-echo 'If not set during installation, set your password with:'
+echo 'Existing application passwords are preserved. No default password is created.'
+echo 'For local setup, choose your password with:'
 echo "  node '$CCNG_INSTALL_DIR/server/password.mjs'"
+echo 'For browser-first setup, first enforce htpasswd on every HTTPS proxy route, restrict direct backend access,'
+echo 'then configure public_origin and first_password_setup: htpasswd-proxy in etc/config.conf.'
 echo "Start: '$CCNG_INSTALL_DIR/command-center-ng' (new installations default to HTTP)."
 echo 'To enable HTTPS, edit etc/config.conf and supply readable certificate and private-key files.'
 echo "Explicit localhost HTTP: '$CCNG_INSTALL_DIR/command-center-ng' --protocol http --host 127.0.0.1 --port 4242"

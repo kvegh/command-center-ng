@@ -33,6 +33,7 @@ import { SidebarDivider, sidebarSize } from './sidebar-divider';
 import { OverviewSections } from './overview-sections';
 import { MessageTime } from './message-time';
 import { TaskPingSchedule } from './task-ping-schedule';
+import { Login, loginMode, type SessionInfo } from './login';
 import { CopyButton } from './copy-button';
 import { canInterrupt, handleEscapeInterrupt } from './escape-interrupt';
 import './style.css';
@@ -56,7 +57,7 @@ const labels: Record<Status, string> = { running: 'Running', attention: 'Needs y
 async function api(path: string, data?: unknown) {
   const response = await fetch('/api/' + path, { method: data === undefined ? 'GET' : 'POST', credentials: 'same-origin', ...(data === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) });
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'Request failed.');
+  if (!response.ok) throw Object.assign(new Error(result.error || 'Request failed.'), { status: response.status });
   return result;
 }
 
@@ -80,12 +81,6 @@ function Icon({ name, size = 18 }: { name: string; size?: number }) {
 function Brand() { return <div className="brand" role="img" aria-label="Command Center NG"><img className="brandmark" src={brandIcon} alt="" /><span>command center<span className="brand-ng"> NG</span></span></div>; }
 function Badge({ status }: { status: Status }) { return <span className={`status ${status}`}><span className="status-dot" />{labels[status]}</span>; }
 function Text({ value }: { value: string }) { return <Markdown value={value} />; }
-
-function Login({ onLogin }: { onLogin: () => void }) {
-  const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
-  return <main className="login-page"><div className="login-card"><Brand /><div className="eyebrow">YOUR WORK, IN FOCUS</div><h1>A little less switching.<br />A lot more clarity.</h1><p>One quiet workspace for your Codex and Claude agents.</p><form onSubmit={async event => { event.preventDefault(); setBusy(true); setError(''); try { await api('login', { password }); setPassword(''); onLogin(); } catch (error) { setError((error as Error).message); } finally { setBusy(false); } }}><label htmlFor="password">Application password</label><div className="password-input"><Icon name="lock" /><input id="password" type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" required autoFocus /></div>{error && <p className="error-text" role="alert">{error}</p>}<button className="button primary" disabled={busy}>{busy ? 'Signing in…' : 'Enter workspace'}<Icon name="chevron" /></button></form><div className="login-foot">COMMAND CENTER NG <span>v{VERSION}</span></div></div></main>;
-}
-
 
 function TaskDialog({ agent, dismiss, saved }: { agent: Agent; dismiss: () => void; saved: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -215,6 +210,17 @@ function App() {
   useEffect(() => { const resize = () => setViewportWidth(window.innerWidth); window.addEventListener('resize', resize); return () => window.removeEventListener('resize', resize); }, []);
 
   const [authenticated, setAuthenticated] = useState<boolean | null>(null); const [state, setState] = useState<Snapshot>({ connected: false, error: null, version: VERSION, agents: [] });
+  const [loginSession, setLoginSession] = useState<Pick<SessionInfo, 'setupRequired' | 'setupAllowed'>>({});
+  const [loginNotice, setLoginNotice] = useState('');
+  const applySession = (session: SessionInfo) => {
+    setLoginSession({ setupRequired: session.setupRequired === true, setupAllowed: session.setupAllowed === true });
+    setAuthenticated(session.authenticated === true);
+  };
+  const refreshLoginSession = async () => {
+    const session = await api('session');
+    setLoginNotice(session.setupRequired ? '' : session.authenticated ? '' : 'The application password is configured. Sign in with the existing password.');
+    applySession(session);
+  };
   const [streamHealth, setStreamHealth] = useState<StreamHealth>({ state: 'connecting', lastSignalAt: null });
   const [receipts, setReceipts] = useState<Record<string, InputReceipt>>({});
   const [chatColours, setChatColours] = useState<Record<string, ChatColour>>(savedBrowser.state.chatColours || {});
@@ -307,7 +313,7 @@ function App() {
     window.addEventListener('pagehide', flush); document.addEventListener('visibilitychange', hidden);
     return () => { window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', hidden); if (browserSaveTimer.current) clearTimeout(browserSaveTimer.current); };
   }, []);
-  useEffect(() => { api('session').then(result => setAuthenticated(result.authenticated)).catch(error => { setError(error.message); setAuthenticated(false); }); }, []);
+  useEffect(() => { api('session').then(applySession).catch(error => { setLoginNotice(error.message); setAuthenticated(false); }); }, []);
   useEffect(() => {
     if (!authenticated) return;
     let current = true; let receivedSnapshot = false;
@@ -317,7 +323,7 @@ function App() {
     const stream = new EventSource('/api/events');
     const stop = observeWorkspaceStream(stream, data => { receivedSnapshot = true; setState(data as Snapshot); }, setStreamHealth, () => {
       setState(previous => ({ ...previous, connected: false }));
-      api('session').then(data => { if (current && !data.authenticated) setAuthenticated(false); }).catch(() => {});
+      api('session').then(data => { if (current && !data.authenticated) applySession(data); }).catch(() => {});
     });
     return () => { current = false; stop(); };
   }, [authenticated]);
@@ -427,7 +433,7 @@ function App() {
     setBusy('');
   };
   if (authenticated === null) return <div className="loading-page"><Brand /><p>Opening your workspace…</p></div>;
-  if (!authenticated) return <Login onLogin={() => setAuthenticated(true)} />;
+  if (!authenticated) return <Login key={loginMode(loginSession)} mode={loginMode(loginSession)} brand={<Brand />} lockIcon={<Icon name="lock" />} submitIcon={<Icon name="chevron" />} version={VERSION} notice={loginNotice} request={api} refreshSession={refreshLoginSession} onLogin={() => { setLoginSession({}); setLoginNotice(''); setAuthenticated(true); }} />;
   const attention = state.agents.filter(agent => agent.status === 'attention').length;
   const workerRows = state.agents.filter(agent => agent.role !== 'coordinator');
   const ids = [...tabOrder.filter(id => workerRows.some(agent => agent.id === id)), ...workerRows.map(agent => agent.id).filter(id => !tabOrder.includes(id))];

@@ -9,6 +9,33 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 0.42.0 — Protected first-browser password setup and native approval choices
+
+- Fresh installations can create their first app password through an explicitly
+  enabled htpasswd-protected HTTPS proxy, without a default password or setup code.
+- Exact HTTPS origin/Host checks, authenticated app APIs, rate limiting, private
+  hash storage and atomic first-creation preserve the existing login safeguards.
+- Existing passwords are preserved. Generic installation leaves browser setup
+  disabled and prints local CLI/protected-proxy instructions instead of prompting.
+- File-change requests expose the native session-only approval choice; exact
+  filesystem/network permission requests also offer native turn or session scope.
+  Command and MCP permissions retain their supported/offered choices, including
+  saved rules where available. Session grants are not permanent permissions.
+
+- Report feedback says the request was accepted and is waiting for a response,
+  rather than claiming generation has begun. A turn ending without a recognized
+  report shows an error instead of a false ready announcement; no retry is added.
+
+**Validation:** all 614 application tests and the production TypeScript/Vite build
+pass. Checks include real trusted HTTPS enrollment/session/preservation, concurrent
+setup, invalid authentication, request scopes/confirmation/coordinator limits,
+installer configuration preservation and report response/acknowledgement ordering.
+Independent source review found no concrete blockers. The final normal test run
+passes; a redirected run hit known subprocess/socket environment restrictions.
+Publication/deployment outcomes are recorded separately.
+Actual browser/proxy first-enrollment acceptance remains separate from tests and
+from production preservation checks on an installation with an existing password.
+
 ## 0.41.0 — Keep overview settings at the bottom
 
 - Desktop overview fills the available browser pane without extending the page.
