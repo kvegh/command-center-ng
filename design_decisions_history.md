@@ -2283,3 +2283,14 @@ was broadened. Final complete regression results are recorded with publication.
 Final full regression run after the race fix: all581 tests pass, no skips or
 failures. Production TypeScript/Vite build passed; focused review confirms the
 identified race is corrected. Actual native/browser acceptance remains separate.
+
+
+Production update and independent verification completed at SSH-published,
+remote-readback-verified payload `5bbd5bea435448f573c2e8126178ffa81e3edbd6`.
+All95 checked source files and two served assets match; actual trusted HTTPS
+health is0.40.0, login gates and both listeners pass, and eight protected files
+are unchanged. Goal feature files are absent and the served bundle carries the
+counter. No proxy/trust/credential/native-daemon change was made. This installed
+artifact evidence does not establish real scheduled worker adoption or rendered
+browser/phone acceptance; those remain recorded separately. Later documentation
+commits do not change the tested runtime artifact.

@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working version 0.40.0 removes the Goals feature at the user's explicit
+Version 0.40.0 removes the Goals feature at the user's explicit
 request. No Goal will be assigned to kept-open tasks and the earlier batch
 approval question is withdrawn. Removed worker Goal controls, HTTP routes,
 state/events, native start/resume/clear adapter paths, automatic Goal creation
@@ -17,9 +17,19 @@ execution engine is selected. The user separately approved a fixed15-minute
 silent task-attention reminder through the existing coordinator timer/queue,
 with a next-dispatch counter and existing native/pause/stop/handoff guards.
 Codex-only for now; Claude stays deferred. All581 application tests and the
-production build pass; independent review is complete and publication/deployment
-are pending. Earlier socket/home/subprocess capture restrictions did not recur
-in the final complete run; do not retain them as an active test blocker.
+production build pass; independent review confirmed the final stop/handoff race
+fix. Implementation `43780d183436cf05d862ffe96927872ddc084c38`, race correction
+`e6871479bb475b6353eadd225ff25e8bdafb792d`, installed/published payload
+`5bbd5bea435448f573c2e8126178ffa81e3edbd6` are SSH-published and readback
+verified. Authorized production update/restart and independent verification
+succeeded: all95 checked source files and two served assets match, actual trusted
+HTTPS health reports0.40.0, login gates and both listeners work. Eight protected
+configuration/authentication/service/native-profile files are unchanged. Removed
+Goal feature files are absent and the served bundle contains the new counter.
+Real scheduled native adoption and rendered browser/phone acceptance remain
+unverified in the existing installed-workflow record; no model/request was
+started merely to test them. Earlier restricted socket/home/subprocess capture
+attempts did not recur in the final complete run and are not active test blockers.
 
 Previous 0.39.0 was published at `a0467e99efc84575081393ad135d28cbaa5f1cf6`
 (implementation `2ea1956c8ff83425e414ec8f5b92eeb6a80f97a0`). Production update

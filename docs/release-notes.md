@@ -32,6 +32,13 @@ subprocess output; the final complete run passed without changing those tests
 to bypass their checks. Actual publication/deployment is recorded separately;
 rendered browser and real scheduled worker acceptance remain distinct.
 
+Production update/restart and independent verification succeeded at payload
+`5bbd5bea435448f573c2e8126178ffa81e3edbd6`:95 source files and two served assets
+match; actual HTTPS health reports0.40.0; login gates, both listeners and eight
+unchanged protected files are verified. Removed Goal feature files are absent
+and the served bundle contains the task-ping counter. Browser interaction and
+actual scheduled worker adoption remain separate acceptance checks.
+
 ## 0.39.0 — Native Codex Goals and clarified task announcements
 
 Historical release; the Goals feature and requirement were withdrawn in 0.40.0.
