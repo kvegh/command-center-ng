@@ -1,0 +1,105 @@
+---
+- name: Inspect the selected workspace's own tracker
+  ansible.builtin.stat:
+    path: "{{ ccng_project_dir }}/.beads"
+    follow: false
+  register: ccng_workspace_tracker
+
+- name: Inspect native tracker resolution without starting a server
+  ansible.builtin.command:
+    argv: [bd, --readonly, where, --json]
+    chdir: "{{ ccng_project_dir }}"
+  environment:
+    BEADS_DOLT_AUTO_START: '0'
+  register: ccng_tracker
+  changed_when: false
+  failed_when: false
+
+- name: Refuse to reuse a parent tracker for the selected fresh workspace
+  ansible.builtin.assert:
+    that:
+      - >-
+        ccng_tracker.rc != 0 or ccng_project_dir != ccng_home ~ '/ccng-wd' or
+        (ccng_workspace_tracker.stat.isdir | default(false) and
+         not (ccng_workspace_tracker.stat.islnk | default(false)))
+    quiet: true
+    fail_msg: The default workspace resolves another tracker; existing routing was preserved.
+
+- name: Initialize only the explicitly selected fresh workspace
+  when: ccng_tracker.rc != 0
+  block:
+    - name: Inspect existing tracker and user configuration before initialization
+      ansible.builtin.stat:
+        path: "{{ item }}"
+        follow: false
+      loop:
+        - "{{ ccng_project_dir }}/.beads"
+        - "{{ ccng_home }}/.beads"
+        - "{{ ccng_home }}/.config/beads/config.yaml"
+      register: ccng_tracker_paths
+
+    - name: Inspect native home telemetry entries without reading their content
+      ansible.builtin.find:
+        paths: "{{ ccng_home }}/.beads"
+        recurse: false
+        hidden: true
+        file_type: any
+      register: ccng_home_beads
+      when:
+        - ccng_tracker_paths.results[1].stat.isdir | default(false)
+        - not (ccng_tracker_paths.results[1].stat.islnk | default(false))
+
+    - name: Preserve partial trackers routing and existing connection settings
+      ansible.builtin.assert:
+        that:
+          - ccng_project_dir == ccng_home ~ '/ccng-wd'
+          - not ccng_tracker_paths.results[0].stat.exists
+          - not ccng_tracker_paths.results[2].stat.exists
+          - >-
+            not ccng_tracker_paths.results[1].stat.exists or
+            (ccng_tracker_paths.results[1].stat.isdir | default(false) and
+             not (ccng_tracker_paths.results[1].stat.islnk | default(false)) and
+             ccng_home_beads.files | map(attribute='path') | map('basename') | sort ==
+             ['eventsData', 'machine-id'] and
+             ccng_home_beads.files | selectattr('islnk') | list | length == 0 and
+             ccng_home_beads.files | selectattr('path', 'equalto', ccng_home ~ '/.beads/machine-id') |
+               selectattr('isreg') | list | length == 1 and
+             ccng_home_beads.files | selectattr('path', 'equalto', ccng_home ~ '/.beads/eventsData') |
+               selectattr('isdir') | list | length == 1)
+        quiet: true
+        fail_msg: Fresh setup requires the default workspace with no existing tracker routing; existing configuration was preserved.
+
+    - name: Require the existing native Dolt program before first tracker setup
+      ansible.builtin.command:
+        argv: [dolt, version]
+      changed_when: false
+
+    - name: Check that native Beads supports the safe first-setup flags
+      ansible.builtin.command:
+        argv: [bd, init, --help]
+      register: ccng_beads_init_help
+      changed_when: false
+
+    - name: Require initialization that preserves agent instructions and hooks
+      ansible.builtin.assert:
+        that: item in ccng_beads_init_help.stdout
+        quiet: true
+      loop: [--shared-server, --non-interactive, --skip-agents, --skip-hooks]
+
+    # Native bd owns its tracker/server. The shell only supplies a private umask;
+    # command has no umask option. See docs/ansible-deployment.md#fresh-workspace.
+    - name: Initialize the new tracker with native Beads and a private umask
+      ansible.builtin.shell:
+        cmd: |
+          umask 077
+          exec bd init --shared-server --non-interactive --skip-agents --skip-hooks
+        chdir: "{{ ccng_project_dir }}"
+        creates: "{{ ccng_project_dir }}/.beads"
+
+- name: Verify the selected tracker can be read after preparation
+  ansible.builtin.command:
+    argv: [bd, --sandbox, --readonly, list, --json, --brief, --flat, --limit, '1']
+    chdir: "{{ ccng_project_dir }}"
+  environment:
+    BEADS_DOLT_AUTO_START: '0'
+  changed_when: false

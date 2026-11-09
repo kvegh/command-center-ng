@@ -2333,3 +2333,37 @@ unchanged. Bounded overview CSS and bottom-settings wiring are installed/served.
 No native daemon, credential, proxy, trust or permission change occurred. Actual
 browser/phone geometry is still separate acceptance. Later status-documentation
 commits do not alter this tested runtime artifact.
+
+## 2026-11-09 — Prepare a fresh agent workspace through Ansible
+
+Deployment correction 0.41.1; the implementation commit is recorded in the
+publication follow-up.
+
+The user selected the maintained default application installation directory,
+the newest application source at each deployment and a separate `~/ccng-wd`
+agent workspace. A fresh default workspace receives its own native Beads tracker;
+updates preserve the selected existing tracker and authentication. No AAP demo
+repository checkout is required. Existing explicitly configured paths remain
+supported, so an unrelated production installation is not migrated implicitly.
+
+The deployment now creates only a missing private workspace and delegates its
+first initialization to native `bd init`, preserving agent instructions and Git
+hooks. Partial trackers, inherited routing for the new default workspace and
+conflicting user configuration stop without resets. Beads retains ownership of
+its shared Dolt server; no new CCNG server wrapper or persistent ownership file
+is introduced. Compatible existing Beads and Dolt programs are retained. Missing
+target tools use the maintained installer's pinned package/archive versions
+through native package/download modules, with private temporary staging and
+cleanup. Compiler RPM prerequisites are included in approved package setup.
+Application password setup is unchanged and remains a separate dependency.
+
+The maintained Beads 1.3.2 initialization source confirms that the prefix can
+default to the directory name and native setup may create local Git metadata.
+That is distinct from requiring an AAP demo source checkout: no remote, task
+import or existing tracker is supplied. Native defaults are retained without
+adding alternate tracker routing.
+
+Local real-Ansible fixtures verified first initialization, rerun preservation,
+native home telemetry, conflicting routing, default/overridden paths and rebuild
+selection. Syntax validation passed. These controlled fixture checks do not
+establish a deployed tracker or a successful target AAP job.

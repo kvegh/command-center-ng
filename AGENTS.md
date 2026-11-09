@@ -243,6 +243,22 @@ system-managed unit with User= set. Preserve existing auth, native daemons,
 trackers, SSH trust and unrelated units. Never apply this deployment to the
 development host as a local validation method. Use isolated temporary fixtures.
 
+Explicit fresh-target Ansible exception: the user approved preparing the selected
+account's missing `~/ccng-wd` workspace, installing missing Beads/Dolt programs
+and compiler prerequisites, and initializing its first tracker with native
+`bd init --shared-server --non-interactive --skip-agents --skip-hooks`.
+Use the maintained installer's tool versions and verified archives. Native Beads
+owns the shared Dolt server; add no CCNG server wrapper. Preserve existing
+trackers, routing, authentication, native profiles and explicit installation
+paths. Native Beads may initialize local Git metadata for this fresh tracker;
+do not require a source/demo repository checkout or add a remote, task import,
+copied tracker or alternate routing to suppress that native behavior.
+This exception applies only to the authorized deployment playbook on its
+selected target. It does not authorize runtime agents, the ordinary interactive
+installer or local tests to initialize trackers or install tools without their
+existing approval requirements. Do not bootstrap a tracker on the development
+host while validating deployment code.
+
 Group consecutive tool activity under a closed native details control, retaining
 per-action details and visible running/failure counts. Keep questions and chat
 messages separate. Pending requests may block sending, but must allow local

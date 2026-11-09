@@ -3,6 +3,7 @@
 ccng_default_revision: main
 ccng_default_manage_packages: true
 ccng_default_force_install: false
+ccng_default_project_dir: "{{ ccng_user_home }}/ccng-wd"
 ccng_default_source_dir: "{{ ccng_user_home }}/.local/src/command-center-ng"
 ccng_default_install_dir: "{{ ccng_user_home }}/commandcenter-ng"
 ccng_default_config_dir: "{{ ccng_user_home }}/.config/command-center-ng"

@@ -41,6 +41,9 @@ installation target; other Linux distributions have not been verified.
 The installer can offer missing RHEL packages, local Codex/Beads tools and fresh
 Beads/Dolt setup after confirmation. Existing compatible tools and trackers are
 preserved. [Check prerequisites](docs/rhel9-prerequisites.md) for the details.
+The [Ansible deployment](docs/ansible-deployment.md#fresh-workspace) prepares a
+missing `~/ccng-wd` agent workspace and its first Beads tracker without requiring
+an application-demo repository checkout; updates retain the tracker.
 
 ## Install
 
