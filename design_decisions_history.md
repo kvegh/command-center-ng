@@ -2704,3 +2704,25 @@ configuration ownership. No permission/security workaround, new watchdog,
 dispatcher or timer was introduced. Production remains at the previously verified
 0.45.1. This instruction cannot guarantee inspection before a worker reaches its
 safe response checkpoint.
+
+## 2026-11-09 — Recover diagnosed child waits through the main agent
+
+The user supplied a successful incident-recovery sequence and requested it in
+existing fifteen-minute task pings. Implementation
+`d1bc08be75eab274aad317b48953d0c53034cb55` advances working code to0.46.1.
+The main agent checks all children and actual external-job state, safely
+interrupts only a diagnosed stalled child wait while preserving native history,
+findings and request context, verifies a pwd-only response under unchanged
+permissions, then resumes a specific authorized next step. Real external work,
+genuine pending user decisions and explicit stops remain protected. A missing
+job ID does not prove no execution, and a probe does not prove job success.
+This is conditional recovery, not blanket probing or a new timer/dispatcher.
+
+Six focused regression files and the production build pass. Independent source
+review found no blocking issue. The native message tool confirmed sending the
+requested guidance to the current Coordinator; future adoption or live recovery
+is not established by that result. The usage guide lists generated silent
+message variants, visible summaries and compatibility-only report-setting state.
+Publication/deployment remain unverified; a user-requested fresh Git SSH read
+still refused system configuration ownership in restricted execution. No SSH,
+credential, transport, approval-policy or production setting was changed.
