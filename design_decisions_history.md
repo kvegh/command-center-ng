@@ -2333,3 +2333,44 @@ unchanged. Bounded overview CSS and bottom-settings wiring are installed/served.
 No native daemon, credential, proxy, trust or permission change occurred. Actual
 browser/phone geometry is still separate acceptance. Later status-documentation
 commits do not alter this tested runtime artifact.
+
+## 2026-11-09 — Protected browser setup, native scopes and truthful report status
+
+The user selected first-browser password creation behind enforced htpasswd and
+rejected a temporary setup code. Release 0.42.0 implements that choice with an
+explicit disabled-by-default htpasswd-proxy mode and exact HTTPS public origin.
+Operators must protect all proxy routes and restrict backend access; the setting
+cannot verify infrastructure or proxy credentials. Local operators retain the
+existing password CLI. Existing valid passwords are preserved, corrupt or unsafe
+files fail closed, and atomic no-replace creation prevents concurrent setup from
+changing the first successful password. Installer output documents both paths;
+no default password, new auth service or setup token was added. Ansible/proxy
+integration remains with the separately owning deployment work.
+
+The user also requested every native approval choice. Installed Codex protocol
+supports session file approvals without an explicit availableDecisions field;
+CCNG omitted that fixed-schema choice. The fallback now includes it while honoring
+explicit restrictions. Exact filesystem/network grants offer native turn/session
+scope for manual user selection, superseding the earlier turn-only presentation.
+Allow always remains limited to actual native saved-rule choices. No permanent
+file/permission grant, local allow-list, direct settings writer or coordinator
+permission expansion was introduced; no real grants were submitted for tests.
+
+A user report of a missing AAP task report revealed two misleading states:
+delivery was labelled generation, and an ordinary completed turn could claim a
+report was ready without recognizing one. Feedback now describes waiting for a
+response, and absent recognized reports produce an explicit error. Existing
+response records also handle report/turn completion before delivery acknowledgement.
+No new retry, timeout, scheduling loop or interruption was added. This corrects
+source defects but does not establish the original live delay's cause.
+
+Implementation: `bd3212a95fbc5ed116f8630c860b9aae79b37c90`.
+All 614 application tests and the production TypeScript/Vite build pass, including
+real trusted HTTPS enrollment/session/preservation, independent concurrent setup,
+native scope/confirmation guards and report acknowledgement ordering. Independent
+reviews found no concrete blockers. A stale session-test fixture was corrected
+without weakening its old/current response assertions. An output-redirected run
+encountered known environment restrictions; the final normal full run passes.
+These checks are application verification, not a formal full-platform audit or
+actual browser/proxy first-enrollment acceptance. Publication and production
+preservation outcomes are recorded separately after they occur.
