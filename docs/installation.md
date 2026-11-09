@@ -49,6 +49,33 @@ no default or temporary setup code is generated. Choose a 12–4,096-character
 password using the existing CLI for local use, or explicitly enable the protected
 browser setup described below.
 
+## Protect access before first start
+
+**Restrict access before exposing browser-first password creation.** That
+explicitly enabled setup has no pre-existing CCNG password: the first successful
+visitor creates it. Keep it reachable only by the intended operator until that
+step is complete. With browser setup disabled, CCNG refuses startup when its
+authentication file is missing; updates preserve an existing password.
+
+The default HTTP connection is unencrypted, including login traffic. HTTPS
+encrypts traffic but does not decide who may reach the application. For example,
+an HTTPS reverse proxy can require a separate HTTP Basic Auth login, with its
+password hashes stored in an `htpasswd` file. Other ways to restrict access
+include localhost with an SSH tunnel, a VPN or firewall rules. Do not expose a
+default-route listener unintentionally; choose the listening address appropriate
+for the protection you actually configured.
+
+Those are general access-protection examples, not interchangeable setup modes.
+CCNG's existing `htpasswd-proxy` browser setup specifically requires an HTTPS
+proxy enforcing Basic Auth on every route, with direct backend access restricted
+so users cannot bypass the proxy.
+The deployment playbook additionally checks that the selected frontend returns
+HTTP **401 with a Basic challenge**, using trusted HTTPS, before managed writes.
+The app does not independently verify the proxy's password file or firewall.
+The basic installer configures none of these external protections. See
+[first-browser password creation](#first-browser-password-creation) for the
+explicit opt-in and [Ansible deployment](ansible-deployment.md) for its guard.
+
 ## First-time walkthrough
 
 1. Use a normal Linux account. RHEL 9 is the supported automatic-prerequisite
@@ -177,6 +204,11 @@ sessions; `--clear-logins` explicitly revokes them.
 Without an existing password, startup requires the protected setup opt-in below.
 
 ### First-browser password creation
+
+**Set up external access protection before enabling this mode.** Until the first
+password is created, there is no existing CCNG password protecting enrollment.
+HTTPS alone is not an access restriction; see
+[first-start protection](#protect-access-before-first-start).
 
 This mode is for an existing HTTPS reverse proxy with enforced htpasswd
 (Basic Auth). Before enabling it, require that login on **every route**, including

@@ -37,7 +37,7 @@ Paste or attach images while keeping the conversation and project tasks visible.
 
 [Full-size overview](docs/screenshots/mobile-overview.jpg) · [Full-size chat](docs/screenshots/mobile-chat-input.jpg)
 
-Mobile development screenshots from the0.44.0 era; displayed versions and task
+Mobile development screenshots from the 0.44.0 era; displayed versions and task
 states are historical. EXIF metadata was removed without changing image pixels.
 
 </details>
@@ -79,6 +79,19 @@ missing `~/ccng-wd` agent workspace and its first Beads tracker without requirin
 an application-demo repository checkout; updates retain the tracker.
 It requires an existing trusted HTTPS htpasswd frontend before target writes;
 explicit browser-first setup uses the app's existing protected-proxy mode.
+
+## Protect access before first start
+
+**Protect browser-first password setup before exposing it.** That opt-in has no
+existing application password: the first successful setup creates it. Normal
+startup refuses a missing password; existing passwords are preserved.
+
+Default HTTP is unencrypted; HTTPS encrypts traffic but does not restrict access.
+Use, for example, a Basic Auth reverse proxy with an `htpasswd` file, or restrict
+access through localhost, an SSH tunnel, VPN or firewall. The current browser-first
+mode specifically requires an HTTPS htpasswd proxy with no backend bypass. The
+installer does not create external protection. Read the
+[first-start guide](docs/installation.md#protect-access-before-first-start).
 
 ## Install
 

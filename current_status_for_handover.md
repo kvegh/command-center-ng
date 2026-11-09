@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working correction0.45.1 adds the single-decision question rule to worker/shared
+Published and installed correction0.45.1 adds the single-decision question rule to worker/shared
 guidance and two approved mobile README screenshots. Exact original JPEG pixels,
 compressed scan data and non-EXIF segments are preserved; Android build, capture
 time/timezone and unique-image EXIF identifiers are removed. No GPS tag was
@@ -14,7 +14,14 @@ Existing questions remain with their originating workers; this is instruction
 guidance, not automatic semantic splitting or answer inference. All718 tests and
 the production build pass, including existing instruction checks. EXIF absence,
 preserved compressed data and README image references are verified.
-Publication/deployment for this correction remain in progress.
+Implementation `6c79c8f367cd434d6cd0aa83dd1eaa0b69e1f4ef` and installed payload
+`1c533b191706e9d0ffb94aedb1b00dfa7b4a152d` are SSH-published/readback verified.
+AAP3438 updated/restarted the existing service with nine protected files unchanged.
+Independent3439 verified105 source matches, actual0.45.1 backend HTTPS health,
+assets, both listeners/login gates, the installed question rule and EXIF-free
+mobile gallery. The isolated installed HTTP withdrawal checks pass again without
+native calls or real user history/login changes. Actual future agent compliance,
+rendered phone interactions and the previously refused public path remain unverified.
 
 Published and installed version0.45.0 removes Edit & rewind following the user's explicit
 withdrawal. Keep communication traceable by retaining earlier messages and

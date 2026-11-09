@@ -21,11 +21,16 @@ is retrievable in the [README before this reorganization](https://github.com/kve
 - Captions mark their earlier UI/version/task state as historical. No other
   conversation's questions or task records are automatically rewritten.
 
-**Validation:** all718 application tests and the production build pass, including
+**Validation:** all 718 application tests and the production build pass, including
 the existing worker-instruction checks. JPEG inspection confirms EXIF is absent
 and the compressed image data/non-EXIF segments are preserved. README image
-references resolve. Publication/deployment are pending at this checkpoint;
-instruction guidance does not guarantee every future agent question complies.
+references resolve. Instruction guidance does not guarantee every future agent
+question complies.
+Source is SSH-published and production update/restart succeeded (AAP3438),
+preserving nine protected files. Independent3439 verified105 source files,
+actual0.45.1 trusted backend HTTPS/assets/both listeners/login gates, installed
+question guidance and the EXIF-free mobile README gallery. No actual user history
+or login was modified for testing; browser interactions remain unverified.
 
 ## 0.45.0 — Preserve traceable conversations
 
