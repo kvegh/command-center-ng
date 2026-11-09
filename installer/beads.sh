@@ -71,13 +71,16 @@ ccng_beads_setup_later() {
     echo 'The application is installed; existing Beads/Dolt setup state was preserved.'
     echo 'To finish task setup later, use the same ordinary account (no sudo). Choose your intended workspace directory; this is an example:'
     # Match the installer's shell-quoted commands; this only prints guidance.
-    node --input-type=module - "${CCNG_SOURCE_DIR:-.}/install.sh" "$CCNG_INSTALL_DIR" <<'JS'
+    node --input-type=module - "${CCNG_SOURCE_DIR:-.}/install.sh" "$CCNG_INSTALL_DIR" "${CCNG_CODEX_PREFIX:-}" "${CCNG_CODEX_BIN:-}" <<'JS'
 import { writeSync } from 'node:fs';
 const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
+const paths = [process.argv[3] + '/tools/bin', process.argv[3] + '/tools/node_modules/.bin'];
+if (process.argv[5]) paths.push(process.argv[5]);
+const codexOption = process.argv[4] ? ' --codex-prefix ' + quote(process.argv[4]) : '';
 writeSync(1, [
-    '  export PATH=' + quote(process.argv[3] + '/tools/bin') + ':' + quote(process.argv[3] + '/tools/node_modules/.bin') + ':"$PATH"',
+    '  export PATH=' + [...new Set(paths)].map(quote).join(':') + ':"$PATH"',
     '  mkdir -p "$HOME/ccng-wd"',
-    '  sh ' + quote(process.argv[2]) + ' --workspace "$HOME/ccng-wd" --prefix ' + quote(process.argv[3]),
+    '  sh ' + quote(process.argv[2]) + ' --workspace "$HOME/ccng-wd" --prefix ' + quote(process.argv[3]) + codexOption,
 ].join('\n') + '\n');
 JS
     echo 'Rerunning the existing installer offers tracker initialization for confirmation. It preserves this installation directory and existing tracker/server settings.'

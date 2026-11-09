@@ -102,6 +102,11 @@ test('blank workspace selection explains how to finish later in the same custom 
     assert.ok(result.stdout.includes('mkdir -p "$HOME/ccng-wd"'), result.stdout);
     assert.ok(result.stdout.includes("sh '" + f.workspace + "/install.sh' --workspace \"$HOME/ccng-wd\" --prefix '" + f.target + "'"));
     assert.ok(result.stdout.includes("export PATH='" + f.target + "/tools/bin':'" + f.target + '/tools/node_modules/.bin\':"$PATH"'));
+    const custom = join(f.dir, "codex's install");
+    const selected = await f.run('CCNG_TASK_WORKSPACE=""; ccng_beads_setup', { CCNG_CODEX_PREFIX: custom, CCNG_CODEX_BIN: join(custom, 'bin') });
+    assert.ok(selected.stdout.includes("--codex-prefix '" + f.dir + "/codex'\\''s install'"), selected.stdout);
+    assert.ok(selected.stdout.includes("/codex'\\''s install/bin'"), 'later setup keeps the selected Codex command directory');
+    await assert.rejects(stat(custom), { code: 'ENOENT' });
     assert.ok((await f.calls()).every(call => call === '--readonly where --json'));
     await assert.rejects(stat(join(f.workspace, '.beads')), { code: 'ENOENT' });
     await assert.rejects(stat(join(f.dir, 'ccng-wd')), { code: 'ENOENT' });

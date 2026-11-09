@@ -14,11 +14,15 @@ async function fixture(t, { featureFailure = false, nativePrerequisites = false,
   const source = join(directory, 'source'); const home = join(directory, 'user-home'); const bin = join(directory, 'bin');
   for (const path of [source, home, bin, join(source, 'installer'), join(source, 'src'), join(source, 'server'), join(source, 'docs')]) await mkdir(path);
   await cp(new URL('../install.sh', import.meta.url), join(source, 'install.sh'));
+  await cp(new URL('../installer/shell-path.mjs', import.meta.url), join(source, 'installer', 'shell-path.mjs'));
   await writeFile(join(source, 'installer', 'prerequisites.sh'), 'ccng_system_prerequisites() { :; }\nccng_agent_prerequisites() { :; }\n');
   if (nativePrerequisites) {
     await cp(new URL('../installer/prerequisites.sh', import.meta.url), join(source, 'installer', 'prerequisites.sh'));
     const content = await readFile(join(source, 'installer', 'prerequisites.sh'), 'utf8');
-    await writeFile(join(source, 'installer', 'prerequisites.sh'), content + '\nccng_system_prerequisites() { :; }\nccng_detect_platform() { CCNG_RHEL9=0; }\nccng_confirm() { [ "$CCNG_FIXTURE_APPROVE_CODEX" = 1 ]; }\n');
+    await writeFile(join(source, 'installer', 'prerequisites.sh'), content + '\nccng_system_prerequisites() { :; }\nccng_detect_platform() { CCNG_RHEL9=0; }\nccng_confirm() { [ "$CCNG_FIXTURE_APPROVE_CODEX" = 1 ]; }\n'
+      // These cases simulate absent Codex, independently of a host ~/.local/bin.
+      // Fresh installation and existing-CLI discovery have their own fixtures.
+      + 'command() { if [ "$1" = -v ] && [ "$2" = codex ]; then return 1; fi; /bin/sh -c \'command -v "$1"\' sh "$2"; }\n');
   }
   await writeFile(join(source, 'installer', 'beads.sh'), 'ccng_beads_setup() { :; }\n');
   await writeFile(join(source, 'package.json'), JSON.stringify({ name: 'command-center-ng', version: '0.0.1' }));
@@ -63,7 +67,7 @@ fi
 test('first default installation creates private HTTP settings and empty cert directory after building', async t => {
   const f = await fixture(t);
   const result = await f.install();
-  const toolPath = '  export PATH=\'' + f.prefix + '/tools/bin\':\'' + f.prefix + '/tools/node_modules/.bin\':"$PATH"';
+  const toolPath = '  export PATH=\'' + f.prefix + '/tools/bin\':\'' + f.prefix + '/tools/node_modules/.bin\':\'' + f.home + '/.local/bin\':"$PATH"';
   assert.match(result.stdout, /installer cannot change your current terminal PATH/);
   assert.ok(result.stdout.includes(toolPath + '\nIf the native daemon is not already running'), result.stdout);
   assert.match(result.stdout, /daemon runs in the background; you do not need to keep its terminal open/);
@@ -181,7 +185,7 @@ test('incompatible Beads still stops installation before native feature setup', 
 
 test('check-only reports missing Codex as a warning without installing or setting features', async t => {
   const f = await fixture(t, { nativePrerequisites: true });
-  const result = await f.install(['--check']);
+  const result = await f.install(['--check', '--codex-prefix', join(f.home, 'absent-codex')]);
   assert.match(result.stdout, /\[warning\] Codex is missing/);
   await assert.rejects(stat(f.prefix), { code: 'ENOENT' });
   await assert.rejects(stat(f.featureLog), { code: 'ENOENT' });

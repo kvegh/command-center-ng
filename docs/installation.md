@@ -26,8 +26,9 @@ Linux distributions are not yet tested; automatic package setup is RHEL 9 only.
 Run `./install.sh --check` for a read-only inventory. Full details and package
 names are in [RHEL 9 prerequisites](rhel9-prerequisites.md).
 
-The installer offers pinned Beads 1.3.2 and Codex 0.167.0 CLI packages for optional
-fresh local installation. Existing compatible CLIs are reused. The application
+The installer offers pinned Beads 1.3.2 in the app-local tools directory and
+Codex 0.167.0 under the user's `~/.local` prefix when missing. Existing compatible
+CLIs, including an older app-local Codex, are reused without migration. The application
 checks Beads JSON/read-only/brief-list support. After the application is built,
 fresh tracker/shared Dolt setup is offered for an explicitly selected task
 workspace. Existing trackers and connection settings are preserved. No system
@@ -77,6 +78,70 @@ The installer builds the frontend, prunes build-only dependencies, and creates
 no default or temporary setup code is generated. Choose a 12–4,096-character
 password using the existing CLI for local use, or explicitly enable the protected
 browser setup described below.
+
+## CLI locations and Bash PATH
+
+For a missing Codex CLI, the installer offers this pinned per-user command:
+
+```sh
+npm install --global --prefix "$HOME/.local" --no-fund --no-audit @openai/codex@0.167.0
+```
+
+Here `--global` only selects npm's `bin/` and `lib/` layout under the chosen user
+prefix; it is not system-wide installation, needs no sudo and does not make CCNG multi-user.
+
+The installer offers that command; you do not need to run it separately. It puts
+the executable at `~/.local/bin/codex`. Choose a different writable prefix with:
+
+```sh
+./install.sh --codex-prefix "$HOME/tools/codex"
+```
+
+This option is separate from the app's `--prefix`; the Codex prefix may be another
+writable location outside your home. Do not put a fresh Codex prefix inside the
+app installation, or the app inside that Codex prefix's `bin/` or `lib/` trees.
+The installer refuses those overlapping locations. Keep supplying the chosen
+prefix on subsequent installer
+runs/updates when needed. An existing compatible CLI is reused even when the
+option is provided; it is not moved, removed or reinstalled. Beads and Dolt stay
+app-local. The generated launcher includes the selected Codex bin and app tool
+directories. This changes no `CODEX_HOME`, native profile or multi-user boundary:
+one deployment remains for one Linux account/engineer.
+
+After a successful app installation, the installer maintains only its marked
+PATH block in `~/.bashrc`, preserving other content. New interactive Bash shells
+read it through normal Bash startup. The current terminal keeps its old environment
+until you run:
+
+```sh
+source "$HOME/.bashrc"
+```
+
+A child installer cannot source its parent shell. If a safe profile update cannot
+complete, it warns and prints an explicit PATH export to apply manually; it does
+not overwrite unrelated profile content. Follow the printed paths for a reused
+or custom Codex location. No daemon bootstrap or automatic restart is performed.
+
+## Verify installer and Bash PATH after deployment
+
+From the source checkout used for the deployment, run the version-controlled
+installer/profile checks with the existing Node.js and Bash tools:
+
+```sh
+cd "$HOME/command-center-ng-src"
+node --test tests/shell-path.test.mjs tests/per-user-codex.test.mjs
+```
+
+Use your actual deployed source-checkout path if different. Success is exit zero
+with all checks passing; a nonzero exit is failure. These exercise the actual
+PATH helper in temporary Bash profiles and the installer with a stub package
+install. They do not change the real user's profile or install Codex packages.
+They verify this component, not fresh real Codex installation, OpenAI sign-in,
+browser behavior or reboot startup. After an authorized deployment, also check
+that a new Bash shell resolves the selected real Codex executable/version through
+the configured PATH without starting a provider/model call. Record the actual
+target/result separately; the candidate check has not been run merely by
+documenting it here.
 
 ## Protect access before first start
 
@@ -130,9 +195,10 @@ explicit opt-in and [Ansible deployment](ansible-deployment.md) for its guard.
    optional native Codex sign-in and the existing project directory for Beads.
    The installer asks before installing packages/tools or initializing a tracker.
    It builds CCNG into `~/commandcenter-ng`; `--prefix DIRECTORY` changes that
-   destination. Prepare an existing writable task workspace before selecting it;
+   destination; `--codex-prefix` independently selects a missing Codex CLI's prefix.
+   Prepare an existing writable task workspace before selecting it;
    tracker setup may be deferred. The application password and Codex sign-in are separate.
-4. Apply the tool PATH printed by the installer and complete `codex login` if
+4. Apply the [Bash PATH setup](#cli-locations-and-bash-path), then complete `codex login` if
    sign-in was deferred. Under the same Linux account, run
    `codex app-server daemon start` once if the native daemon is not already running.
    It runs in the background; its starting terminal can close. CCNG only connects
@@ -183,7 +249,8 @@ cd "$HOME/command-center-ng-src"
 ./install.sh --workspace "$HOME/ccng-wd"
 ```
 
-For a custom installation, add the same `--prefix DIRECTORY` used originally.
+For a custom installation, add the same `--prefix DIRECTORY` used originally;
+retain any selected `--codex-prefix` too.
 Existing application settings, password and usable trackers are preserved.
 Fresh native Beads/Dolt initialization still requires confirmation; declining
 does not turn it into an automatic setup action. Use the matching directory for
@@ -359,9 +426,9 @@ sign in again when needed to see restored tabs. Restoring reads existing
 history without starting worker work; already-running Codex tasks remain native.
 See [workspace restore and recovery](workspace-restore.md).
 
-If CLIs were installed under the target, export its
-`tools/bin` and `tools/node_modules/.bin` on PATH before starting the daemon so native agents
-can also find Beads. An already-running daemon retains its original PATH; after
+Apply the [managed Bash PATH or printed export](#cli-locations-and-bash-path)
+before starting the daemon so native agents can find the selected Codex and
+app-local Beads tools. An already-running daemon retains its original PATH; after
 adding Beads, restart it only when existing work is idle.
 
 For native agent operation, use `codex app-server daemon start` if it is not
@@ -609,8 +676,9 @@ From the source checkout, run:
 ```
 
 Use your existing installation directory. Without --prefix, updates address
-~/commandcenter-ng; another existing path must be supplied explicitly. No
-installation is moved automatically. Git is required for updates. The installer fetches latest `main`
+~/commandcenter-ng; another existing path must be supplied explicitly. Retain a
+selected `--codex-prefix` on the update command where needed; it is independent
+of the app prefix. No installation is moved automatically. Git is required for updates. The installer fetches latest `main`
 from `origin`, permits only a fast-forward from a clean `main` checkout, and
 reruns the fetched installer. It refuses uncommitted changes, local commits
 absent upstream, and another branch rather than discarding work. Source fetch
@@ -673,7 +741,8 @@ Missing Dolt is offered separately under `PREFIX/tools/bin`, using the
 official Linux amd64/arm64 archive pinned to Dolt 2.2.0 for Beads 1.3.2. Its
 published SHA256 is checked before extraction; existing Dolt is reused rather
 than replaced. Downloading requires curl; a missing RHEL 9 curl RPM is offered
-through the same confirmed DNF flow. No shell profile or global binary is changed.
+through the same confirmed DNF flow. Dolt stays app-local; the separate managed
+Bash PATH step is described above.
 
 Fresh setup runs only after the application build and replacement succeed, so
 the native server uses the final tool path. It applies an owner-only umask and

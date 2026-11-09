@@ -580,6 +580,8 @@ kbd { font-family: inherit; }
   .overview-section-bottom { display: flex; flex-direction: column; flex: 0 1 auto; min-height: 0; max-height: 55%; overflow: hidden; }
   .overview-section-bottom > .overview-section-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .overview-section-body.sized { height: var(--section-height); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+  /* A closed roster must not reserve its expanded, saved section height. */
+  .overview-section[data-section="subagents"]:has(.subagent-roster:not([open])) > .overview-section-body.sized { height: auto; }
   .overview-section-divider { display: block; position: relative; height: 13px; flex: 0 0 13px; margin: 8px 0; cursor: row-resize; touch-action: none; }
   .overview-section-divider::after { content: ''; position: absolute; top: 6px; left: 0; right: 0; height: 1px; background: var(--line); }
   .overview-section-divider:hover::after, .overview-section-divider.resizing::after { height: 3px; top: 5px; background: var(--accent); }

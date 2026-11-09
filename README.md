@@ -56,7 +56,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Branch a Codex conversation, then hand tasks and a summary back to its parent.
 - See linked Beads tasks, input needs, progress and optional task notifications.
 - Request task reports immediately or choose a saved interval; Never disables automatic startup and recurring reports.
-- Recheck overlooked tasks and stalled delegated work silently every 15 minutes, including safe recovery of stalled child waits, with the next check shown in the coordinator.
+- Recheck overlooked tasks and stalled delegated work silently every 10 minutes, including safe recovery of stalled child waits, with the next check shown in the coordinator.
 - Keep coordinator decision summaries across restarts in a private local file.
 - Read Markdown, copy messages/code, and paste or attach images to a draft.
 - Keep desktop settings at the bottom of a full-height overview, with scrollable tasks and questions.
@@ -82,7 +82,7 @@ authentication: ChatGPT sign-in with Codex access or OpenAI API-key authenticati
 This is separate from the CCNG application password; an API key is not mandatory.
 See [native Codex authentication](https://learn.chatgpt.com/docs/auth?surface=cli).
 
-The installer can offer missing RHEL packages, local Codex/Beads tools and fresh
+The installer can offer missing RHEL packages, per-user Codex/app-local Beads tools and fresh
 Beads/Dolt setup after confirmation. Existing compatible tools and trackers are
 preserved. [Check prerequisites](docs/rhel9-prerequisites.md) for the details.
 The [Ansible deployment](docs/ansible-deployment.md#fresh-workspace) prepares a
@@ -133,6 +133,9 @@ The default installation directory is `~/commandcenter-ng`. To choose another
 location inside your home, use `./install.sh --prefix "$HOME/apps/commandcenter-ng"`.
 The installer asks before installing missing tools or initializing a tracker.
 If you defer the tracker, [finish Beads setup later](docs/installation.md#finish-beads-setup-later).
+Missing Codex defaults to `~/.local/bin/codex`; `--codex-prefix DIRECTORY` selects
+another writable prefix. Existing compatible Codex installations are reused.
+See [CLI locations and Bash PATH](docs/installation.md#cli-locations-and-bash-path).
 
 Existing application passwords are preserved; no default password is created.
 For local use, choose a password of **12–4,096 characters** with
@@ -143,8 +146,10 @@ The application password and your Codex sign-in are separate.
 
 ## Start and sign in
 
-If the installer provided local tools, use its printed PATH export. For the
-default installation, run the following commands. If you are not signed in
+The installer prepares a managed Bash PATH block after the app installs. Apply
+it to your current Bash terminal with `source "$HOME/.bashrc"`; the installer
+cannot change its parent shell. If it reports a profile update problem, use its
+printed PATH export instead. If you are not signed in
 already, run `codex login` for normal browser sign-in before starting its daemon.
 Device-code login is optional when your account/workspace enables it; sign-in may be
 deferred during installation, but must finish before agent work.
@@ -152,7 +157,7 @@ Start the native daemon once if it is not already running, under the same Linux
 account and tool PATH as CCNG. CCNG connects to it; it does not start it for you.
 
 ```sh
-export PATH="$HOME/commandcenter-ng/tools/bin:$HOME/commandcenter-ng/tools/node_modules/.bin:$PATH"
+source "$HOME/.bashrc"
 # Only if the native daemon is not already running:
 codex app-server daemon start
 "$HOME/commandcenter-ng/command-center-ng"

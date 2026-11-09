@@ -96,7 +96,7 @@ instruction compliance guarantees that an idle worker wakes itself. Existing
 native runtime objectives remain its own data. The already-approved branch
 handoff retains only the native checks needed to settle continuation safely.
 CCNG's task-report timer remains separate from execution. A user-approved
-fifteen-minute task-attention reminder uses the existing coordinator queue and
+ten-minute task-attention reminder uses the existing coordinator queue and
 safe idle input path; it adds no task-execution engine or native Goal requirement.
 
 ## Questions, approvals and coordinator review

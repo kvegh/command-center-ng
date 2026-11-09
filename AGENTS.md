@@ -433,9 +433,11 @@ persisted in workspace data.
 Report now after Never queues/coalesces one existing report without changing
 cadence, interrupting work or answering a pending request.
 
-Surface known native Codex child status and delivered current requests under
-their parent through the existing cards and Coordinator readback, with source-child
-labels and original native choices. Verify parent lineage from native metadata;
+Retain known native Codex child status for backend/Coordinator readback. Show its
+activity in a default-collapsed Subagents section below Tasks. Delivered pending
+child approval/question cards and necessary recovery warnings stay outside that
+collapsed section, under the parent,
+with source-child labels and original native choices. Verify parent lineage from native metadata;
 keep the existing pending map keyed by original child thread ID and typed native
 request ID. Parent/child context stays transient: no new store, timer, child tab
 or worker slot. Preserve native permissions and manual/Coordinator review limits.
@@ -612,7 +614,7 @@ native questions, source/approval protections, ownership and failed-send guards.
 
 ## Silent task-attention checks
 
-The user approved a fixed fifteen-minute backend cadence for silent worker task
+The user approved a fixed ten-minute backend cadence for silent worker task
 checks. Reuse the existing coordinator clock/queue and native input path.
 Ask each open Codex worker to inspect neglected Beads work and reassess independent
 authorized tasks that can run in parallel without conflicting writes or resources.
@@ -666,7 +668,8 @@ composer (title/status strip, text input and footer). Preserve keyboard controls
 cancel/reset and available-history bounds. Store the size in existing browser
 preferences; do not add server settings or alter worker/native state for resizing.
 
-The overview starts with the project/chat name, without the GOAL label. Overview
+The worker overview starts with `Project: {chat/project name}`, without a GOAL
+label. The Coordinator heading stays unchanged. Overview
 fonts are one pixel larger than their previous sizes, with font families and
 size differences preserved. Coordinator sidebar recaps aim for20 words and must
 not exceed 25 words total across summary/blocker/next action; this does not limit

@@ -69,15 +69,37 @@ ccng_cli_install() {
     npm install --prefix "$CCNG_STAGE/app/tools" --no-fund --no-audit "$CCNG_CLI_PACKAGE"
 }
 
+ccng_codex_install() {
+    CCNG_CODEX_PREFIX=${CCNG_CODEX_PREFIX:-${CCNG_USER_HOME:-$HOME}/.local}
+    case "$CCNG_CODEX_PREFIX" in *:*|*[[:cntrl:]]*) echo 'The Codex prefix cannot contain colon or control characters because it is used in PATH.' >&2; return 1 ;; esac
+    [ "$CCNG_CHECK_ONLY" -eq 0 ] || { echo 'Missing CLI package: @openai/codex@0.167.0' >&2; return 1; }
+    printf 'Proposed per-user Codex installation: npm install --global --prefix "%s" --no-fund --no-audit @openai/codex@0.167.0\n' "$CCNG_CODEX_PREFIX"
+    echo 'Codex is independent of the application directory; existing Codex installations and sign-in settings are preserved.'
+    ccng_confirm 'Install @openai/codex@0.167.0 for this user now?' || return 1
+    CCNG_CODEX_PARENT=$CCNG_CODEX_PREFIX
+    while [ ! -e "$CCNG_CODEX_PARENT" ]; do CCNG_CODEX_PARENT=$(dirname "$CCNG_CODEX_PARENT"); done
+    [ -d "$CCNG_CODEX_PARENT" ] && [ -w "$CCNG_CODEX_PARENT" ] || { echo 'The Codex prefix must be a directory writable by this account; no sudo is used.' >&2; return 1; }
+    npm install --global --prefix "$CCNG_CODEX_PREFIX" --no-fund --no-audit '@openai/codex@0.167.0' || return 1
+    PATH="$CCNG_CODEX_PREFIX/bin:$PATH"; export PATH
+}
+
 ccng_agent_prerequisites() {
     if ! command -v bd >/dev/null 2>&1; then ccng_cli_install '@beads/bd@1.3.2' || return 1; fi
     node "$CCNG_SOURCE_DIR/server/beads-check.mjs" || { echo 'Existing Beads is incompatible; review its upgrade and database requirements before retrying.' >&2; return 1; }
     if ! command -v codex >/dev/null 2>&1; then
-        if ! ccng_cli_install '@openai/codex@0.167.0'; then
+        if ! ccng_codex_install; then
             CCNG_CODEX_PENDING=1
             echo 'Warning: Codex installation was declined or failed; Command Center installation will continue. Install a compatible Codex before using Codex agents.' >&2
             return 0
         fi
+    fi
+    if command -v codex >/dev/null 2>&1; then
+        CCNG_CODEX_BIN=$(realpath -m "$(dirname "$(command -v codex)")")
+        case "$CCNG_CODEX_BIN" in *:*|*[[:cntrl:]]*)
+            CCNG_CODEX_BIN="${CCNG_CODEX_PREFIX:-${CCNG_USER_HOME:-$HOME}/.local}/bin"; CCNG_CODEX_PENDING=1
+            echo 'Warning: the existing Codex directory cannot be represented safely in PATH; installation will continue without changing it.' >&2
+            return 0 ;;
+        esac
     fi
     if ! command -v codex >/dev/null 2>&1 || ! codex --version; then
         CCNG_CODEX_PENDING=1

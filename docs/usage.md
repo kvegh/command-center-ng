@@ -29,6 +29,9 @@ status indicators above the title so the tab stays attached to the input.
 Tab order, chat colours, text drafts and reading positions use existing browser
 preferences. They do not synchronize across browsers or devices.
 
+The worker overview is headed **Project: {chat/project name}**. The Coordinator
+keeps its existing heading.
+
 ## Chat, activity and interruption
 
 **Enter** sends when sending is available; **Shift+Enter** inserts a newline.
@@ -66,7 +69,7 @@ execute their backlog.
 
 ## Silent task checks
 
-Every 15 minutes, the coordinator backend asks each open Codex worker to review tasks
+Every 10 minutes, the coordinator backend asks each open Codex worker to review tasks
 that may have lost attention and identify independent authorized work it can
 perform in parallel without conflicts. The request is silent in both chats;
 useful agent findings and work remain visible. This is separate from task reports,
@@ -102,7 +105,7 @@ worker unable to reach that checkpoint or guarantee model compliance.
 
 | Message | Recipient | Trigger |
 | --- | --- | --- |
-| Silent task check | Main worker chat | Existing fifteen-minute cycle |
+| Silent task check | Main worker chat | Existing ten-minute cycle |
 | Scheduled Standard Task Report | Worker chat | Saved enabled report interval |
 | Startup dashboard report | Worker chat | Startup/restoration, enabled report intervals only |
 | Report now | Worker chat | User presses Report now |
@@ -163,8 +166,11 @@ sends a summary, archives a branch or answers a question.
 Open one to reach its existing answer card. A request with several questions
 shows each question. Opening a card does not answer or dismiss it.
 
-Known native Codex child runs show their status and delivered requests under
-their parent, including in Coordinator readback, without separate child tabs.
+Known native Codex child runs expose delivered pending requests under their
+parent, without separate child tabs. Expand **Subagents**, below Tasks, to view
+their activity/status; this section starts collapsed. Pending approval/question
+cards and necessary recovery warnings stay visible independently of that section.
+Backend/Coordinator status remains available.
 Native metadata must verify the parent lineage. Existing cards identify the
 source child and retain its original thread/request IDs and native answer choices;
 manual and Coordinator approval limits remain unchanged. Child-only waiting does

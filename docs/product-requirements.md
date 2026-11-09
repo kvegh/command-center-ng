@@ -150,10 +150,10 @@ permissions, and state precise blockers when nothing can proceed. These are
 agent instructions, not a guarantee that CCNG wakes idle workers. Report timing
 remains separate and does not authorize additional project work.
 
-## Silent fifteen-minute task checks
+## Silent ten-minute task checks
 
 The coordinator backend sends each open Codex worker one silent task-attention check
-per fifteen-minute cycle. The check asks the worker to review neglected tasks,
+per ten-minute cycle. The check asks the worker to review neglected tasks,
 truthfully update Beads and parallelize independent authorized work without
 conflicting with other tasks. It does not grant new scope or resume deferred,
 blocked or explicitly stopped work. No replacement task-execution engine is added.
@@ -195,7 +195,7 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
-## Current development version: 0.34.2
+## Historical version 0.34.2 requirements
 
 Automatic startup binds exactly the one default-route IPv4 address and
 127.0.0.1 on the configured port, sharing one runtime. Explicit --host binds only
@@ -243,7 +243,8 @@ restore it on desktop after refresh. Clamp it to the available vertical space
 while leaving chat history usable. This layout preference must not alter agent settings,
 server configuration or network behavior.
 
-The overview starts with the project/chat name, without a GOAL label. Increase
+The worker overview starts with **Project: {chat/project name}**, without a GOAL
+label; the Coordinator heading is unchanged. Increase
 all overview fonts by exactly one pixel, retaining their families and relative
 size differences. Keep sidebar recaps near 20 words and at most25 words across
 summary, blocker and next action; tasks and native questions retain full details.
@@ -735,9 +736,11 @@ session scope, not a permanent grant. Preserve current identity, confirmation,
 explicit restrictions and coordinator limits. CCNG does not create its own
 permission store or change native configuration directly.
 
-Known native Codex children must expose delivered current requests and status to
-CCNG and the Coordinator under their parent, using the existing question cards
-with source-child labels and native answer choices. Require verified parent
+Known native Codex children must expose delivered pending requests under their
+parent using the existing cards with source-child labels and native choices.
+Put child activity/status in an optional Subagents section below Tasks, collapsed
+by default. Pending cards and recovery warnings remain visible independently;
+retain backend/Coordinator status. Require verified parent
 lineage from native metadata. Keep pending requests bound to the child's original
 thread ID and type-preserved native request ID; never fabricate IDs or replay approvals.
 Parent/child context is transient, not a new store, timer, tab or worker slot.
@@ -754,7 +757,7 @@ dashboard refresh. Startup still reads stored summaries/tasks/report settings
 without waking that worker for a report. Manual Report now remains a one-off;
 enabled schedules retain coalescing and their cadence. Changing to Never cancels
 only unsent automatic reports, preserving explicit manual, failed/unconfirmed
-and in-flight requests. Separate fifteen-minute task checks are unchanged.
+and in-flight requests. Separate ten-minute task checks remain independent of report intervals.
 
 ### Traceable conversation history
 
@@ -776,3 +779,26 @@ active approvals/credentials/raw code/answer forms. No replay or permission auth
 from saved summaries. Native acknowledgement/outcome stays independent of save
 failure; visible errors and graceful write flushing are required. Existing native
 history remains full reference, without automatic retrospective import.
+
+## Working 0.48.0 candidate requirements
+
+For missing Codex, the approved candidate uses a pinned npm global-prefix install
+under `~/.local` by default, with `--codex-prefix` for another writable location.
+Global mode selects npm's layout under that prefix, not a system-wide or multi-user
+installation. Existing compatible Codex, including app-local copies, is reused
+without migration/removal; Beads and Dolt remain app-local. Refuse a fresh Codex
+prefix inside the app or an app inside the Codex prefix's `bin/` or `lib/` trees.
+
+After app installation succeeds, maintain only the marked Bash PATH block,
+preserving other `.bashrc` content. The user sources it for the current shell;
+normal new Bash startup loads it. No native profile, `CODEX_HOME`, daemon bootstrap
+or restart is introduced. Worker overview headings use **Project: {chat/project name}**;
+the Coordinator heading stays unchanged. Put child activity in a default-collapsed
+Subagents section below Tasks, preserving independently visible pending child
+cards/recovery warnings and backend/Coordinator state without a new store.
+
+These candidate requirements await final combined verification, publication and
+deployment. Installer/profile checks use the version-controlled deployed-source
+test command documented in [installation](installation.md#verify-installer-and-bash-path-after-deployment);
+temporary profiles/stub installation do not prove fresh real Codex installation,
+native authentication, browser behavior or boot autostart.

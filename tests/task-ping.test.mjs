@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { Coordinator } from '../server/coordinator.mjs';
 
-const cadence = 15 * 60_000;
+const cadence = 10 * 60_000;
 function fixture() {
   let now = 0, sequence = 0;
   const timers = new Map(), sent = [], workspace = new EventEmitter();
@@ -31,7 +31,7 @@ function fixture() {
 }
 const settle = async () => { await new Promise(resolve => setImmediate(resolve)); };
 
-test('15-minute global cadence starts only after restoration and works with every report set to Never', async () => {
+test('10-minute global cadence starts only after restoration and works with every report set to Never', async () => {
   const f = fixture(); f.workspace.restoring = true;
   f.coordinator.reconcileReportSchedules({ startup: true });
   assert.equal(f.coordinator.snapshot().nextTaskPingAt, null); assert.equal(f.timers.size, 0);
@@ -44,6 +44,22 @@ test('15-minute global cadence starts only after restoration and works with ever
   assert.equal(f.workspace.agent('one').reportIntervalMinutes, 0);
   assert.equal(f.coordinator.snapshot().nextTaskPingAt, new Date(2 * cadence).toISOString());
   f.coordinator.stop(); assert.equal(f.timers.size, 0);
+});
+
+test('15-minute reports retain their own deadline while silent task checks run every 10 minutes', async () => {
+  const f = fixture();
+  try {
+    f.coordinator.setReportInterval('one', 15, { notifyWorker: true });
+    f.coordinator.reconcileReportSchedules({ startup: true });
+    assert.equal(f.coordinator.reportSchedules.get('one').nextAt, 15 * 60_000);
+    f.clock.advance(cadence); await settle();
+    assert.equal(f.sent.length, 1); assert.equal(f.sent[0].options.taskPing, true);
+    assert.equal(f.coordinator.reportSchedules.get('one').nextAt, 15 * 60_000);
+    f.clock.advance(5 * 60_000); await settle();
+    assert.equal(f.sent.length, 2); assert.equal(f.sent[1].options.report, true);
+    assert.equal(f.coordinator.reportSchedules.get('one').nextAt, 30 * 60_000);
+    assert.equal(f.coordinator.snapshot().nextTaskPingAt, new Date(20 * 60_000).toISOString());
+  } finally { f.coordinator.stop(); }
 });
 
 test('known active workers receive safe steering at each cadence, without catch-up bursts or interruption', async () => {

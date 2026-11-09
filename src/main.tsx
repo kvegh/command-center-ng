@@ -193,9 +193,15 @@ function AgentDialog({ state, dismiss, act, select }: { state: Snapshot; dismiss
   </dialog>;
 }
 
+function NativeSubagentRoster({ workers }: { workers: NativeWorker[] }) {
+  return <details className="subagent-roster"><summary className="context-label">Subagents ({workers.length})</summary>
+    {workers.map(worker => <div className="goal-row" key={worker.id}><strong>{worker.name}</strong><Badge status={worker.status} /></div>)}
+  </details>;
+}
+
 function NativeSubagentOverview({ workers }: { workers: NativeWorker[] }) {
-  return <>{workers.map(worker => <section key={worker.id} aria-label={`Subagent ${worker.name}`}>
-    <div className="goal-row"><strong>{worker.name}</strong><Badge status={worker.status} /></div>
+  return <>{workers.filter(worker => worker.needsInput || worker.questions.length).map(worker => <section key={worker.id} aria-label={`Subagent ${worker.name}`}>
+    <div className="eyebrow">Subagent · {worker.name}</div>
     {worker.detailError && <p className="error-text" role="alert">{worker.detailError}</p>}
     {!!(worker.needsInput || worker.questions.length) && <OpenQuestions agentId={worker.id} questions={worker.questions} attention={worker.needsInput} />}
   </section>)}</>;
@@ -561,8 +567,7 @@ function App() {
       <section className="workspace-frame">
         {state.restoration?.status === 'restoring' ? <div className="workspace-restoring" role="status">Restoring your conversations…</div> : active ? <div id="agent-panel" role="tabpanel" className="agent-panel"><SidebarDivider width={effectiveOverviewWidth} panelWidth={viewportWidth - 26} change={setOverviewWidth} />{active.role === 'coordinator' ? <CoordinatorContext compact={compactLayout} state={state} act={act} choose={choose} heights={overviewHeights} resize={resizeOverview} /> : <aside id="overview-panel" className="context" aria-label="Project, current tasks and open questions">
 <OverviewSections heights={overviewHeights} change={resizeOverview} bottomSection="settings" sections={[
-{ id: 'goal', label: 'Project', visible: true, content: <><div className="goal-row"><h2 title={active.name}>{active.name}</h2><Badge status={active.status} /></div></> },
-{ id: 'subagents', label: 'Subagents', visible: !!nativeWorkers.length, content: <NativeSubagentOverview workers={nativeWorkers} /> },
+{ id: 'goal', label: 'Project', visible: true, content: <><div className="goal-row"><h2 title={active.name}>Project: {active.name}</h2><Badge status={active.status} /></div></> },
 { id: 'branch', label: 'Branch', visible: !!active.parentId, content: <>{active.parentId && <div className="branch-context"><button className="parent-link" onClick={() => void navigate('parent')} disabled={busy === 'navigate'}><Icon name="branch" size={14} />Back to parent<span>{state.agents.find(agent => agent.id === active.parentId)?.name || 'Parent chat'}</span></button><BranchHandoff key={active.id} unsentText={!!draftText.trim()} unsentImages={draftImages.length} requestError={handoffErrors[active.id]} handoff={active.handoff} connected={activeConnected} provider={active.provider} starting={handoffStarting.includes(active.id)} start={() => startHandoff(active.id)} /></div>}</> },
 { id: 'recap', label: 'Coordinator recap', visible: !!active.progress, content: active.progress ? <ProgressRecap progress={active.progress} /> : null },
 { id: 'tasks', label: 'Tasks', visible: true, content: <><div className="task-summary">
@@ -580,6 +585,8 @@ function App() {
   {notificationNotice && <p className="field-note" role="status">{notificationNotice}</p>}
   {active.tracker?.error && <details className="tracker-error"><summary>Tracker details</summary><p>{active.tracker.error}</p></details>}
 </div></> },
+{ id: 'subagents', label: 'Subagents', visible: !!nativeWorkers.length, content: <NativeSubagentRoster key={active.id} workers={nativeWorkers} /> },
+{ id: 'subagent-questions', label: 'Subagent questions', visible: nativeWorkers.some(worker => worker.needsInput || worker.questions.length > 0), content: <NativeSubagentOverview workers={nativeWorkers} /> },
 { id: 'questions', label: 'Open questions', visible: !compactLayout || !!active.questions.length || activeOwnStatus === 'attention', content: <><OpenQuestions agentId={active.id} questions={active.questions} attention={activeOwnStatus === 'attention'} provider={active.provider} /></> },
 { id: 'settings', label: 'Worker specific settings', visible: true, content: <><WorkerSettings key={active.id} compact={compactLayout} agentId={active.id} minutes={active.reportIntervalMinutes} reportState={active.reportState} settingPending={active.reportSettingPending} disabled={!activeConnected || !active.canSend} paused={!!state.coordinator?.paused} error={active.reportError} save={minutes => act(`agents/${active.id}/report-settings`, { minutes })} reportNow={() => act(`agents/${active.id}/report`, {})}><WorkerModelSettings key={active.id} agentId={active.id} connected={activeConnected && active.canSend && active.modelSettingsAvailable !== false} currentModel={active.model} currentEffort={active.reasoningEffort} change={active.modelChange} load={() => api(`agents/${active.id}/model-settings`)} save={choice => api(`agents/${active.id}/model-settings`, choice)} />{active.provider === 'claude' && active.modelSettingsAvailable === false && active.canSend && <p className="field-note">Start this session here to load its model settings.</p>}</WorkerSettings></> }
 ].filter(section => section.visible)} />

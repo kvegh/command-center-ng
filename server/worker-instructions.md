@@ -47,7 +47,7 @@ priority-report protections below.
 
 ## Silent task checks
 
-Command Center sends a silent task check every fifteen minutes through supported
+Command Center sends a silent task check every ten minutes through supported
 native input. At the next safe response checkpoint, before the next ordinary
 step, inspect current Beads work for neglected authorized tasks, accurate
 states and newly ready work, using the task lifecycle rules above.

@@ -19,7 +19,7 @@ installer action, not an application startup or tab-viewing side effect.
 | System certificate trust | `ca-certificates` | Verify HTTPS package/download connections |
 | sudo and DNF | Existing administrator-provided access | Optional installation of missing system prerequisites |
 | Beads CLI | Existing compatible `bd`, or approved target-local `@beads/bd@1.3.2` | Read and maintain project tasks |
-| Codex CLI and sign-in | Existing compatible Codex, or approved target-local `@openai/codex@0.167.0` | Native agent conversations and daemon |
+| Codex CLI and sign-in | Existing compatible Codex, or approved `@openai/codex@0.167.0` under `~/.local`/`--codex-prefix` | Native agent conversations and daemon |
 | Dolt server binary | Existing Dolt, or confirmed target-local Dolt 2.2.0 prebuilt archive | Native shared-server task database access |
 | curl | `curl`, only if a fresh Dolt binary must be downloaded | HTTPS download with certificate verification |
 
@@ -120,21 +120,25 @@ existing target also checks both locally installed CLI directories on PATH, and
 `--workspace DIRECTORY` selects the tracker readiness check.
 
 Interactive installation lists the exact RPM command and asks before sudo. DNF
-also presents its transaction. Missing Beads/Codex CLIs can be installed under
-`TARGET_DIR/tools` through pinned npm packages after separate confirmation;
+also presents its transaction. Missing Beads is installed under `TARGET_DIR/tools`;
+missing Codex uses `npm --global --prefix "$HOME/.local"`, or the writable prefix
+selected with `--codex-prefix`. Both use pinned packages after confirmation;
 their upstream installation scripts are part of that approved CLI installation.
 Fresh Dolt/tracker setup remains a separate consent step; choose an existing
 writable task workspace first, or [finish Beads setup later](installation.md#finish-beads-setup-later).
-Compatible global tools are reused. No global npm prefix, shell profile or
-existing tool is overwritten. Noninteractive runs never treat supplied text,
+Existing compatible tools, including app-local Codex, are reused without migration
+or removal. npm's default prefix configuration is unchanged; the command uses an
+explicit prefix. After app installation, only a managed PATH block in `~/.bashrc`
+is maintained, preserving unrelated content. Noninteractive runs never treat supplied text,
 elapsed time or a default selection as approval for missing prerequisites.
 
-New CLI packages are staged with the application. A failed application build
-keeps the previous installation. Approved system RPM transactions remain installed
-even if a later build fails. An incompatible existing Beads version is reported
+App-local CLI packages are staged with the application. A failed application build
+keeps the previous app installation. A confirmed per-user Codex installation and
+approved system RPM transactions can remain even if a later build fails; Bash PATH
+setup follows successful app installation. An incompatible existing Beads version is reported
 for deliberate upgrade review; existing databases are not migrated automatically.
 
-Apply the printed tool PATH, complete native Codex sign-in if deferred, and start
+Apply the [Bash PATH setup](installation.md#cli-locations-and-bash-path), complete native Codex sign-in if deferred, and start
 its daemon before using agents; see [Codex and native agent PATH](#codex-and-native-agent-path).
 Choose the separate application password and protect browser access before
 exposure, as described in the [first-start guide](installation.md#protect-access-before-first-start).
@@ -142,10 +146,12 @@ The installer does not configure that external protection.
 
 ## Codex and native agent PATH
 
-Use the target you selected:
+After the installer reports its managed Bash PATH update, apply it in the current
+terminal. Use its explicit export instead if profile setup was unavailable. For
+the example app location below, use the target you selected:
 
 ```sh
-export PATH="$HOME/apps/command-center-ng/tools/bin:$HOME/apps/command-center-ng/tools/node_modules/.bin:$PATH"
+source "$HOME/.bashrc"
 codex login
 # Only if the native daemon is not already running for this account:
 codex app-server daemon start
@@ -169,8 +175,10 @@ CCNG only connects to the native daemon; it does not start it. Start it once if
 not already running under the same Linux account. It runs in the background,
 so its starting terminal can close. Start it again after reboot if needed;
 the installer/CCNG service does not configure or verify native boot autostart.
-The launcher exports its local CLI directory for the backend. The Codex daemon
-also needs that PATH so its agent shells and hooks can find Beads. Existing
+The launcher includes the selected Codex bin and app-local tool directories for
+the backend. The native daemon also needs those paths so its shells/hooks find
+Beads. New interactive Bash shells load the managed block normally; an existing
+terminal needs `source "$HOME/.bashrc"` or the printed export. Existing
 daemons retain their original environment; restart one only when existing work
 is idle after adding Beads. The installer never interrupts or restarts it.
 

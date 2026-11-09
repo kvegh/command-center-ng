@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
+import postcss from 'postcss';
 
 const require = createRequire(import.meta.url), modules = new Map();
 async function componentUrl(name) {
@@ -18,6 +19,7 @@ async function componentUrl(name) {
 const cards = await import(await componentUrl('native-request-card'));
 const { NativeRequestCard, NativeApprovalControls, NativePermissionControls, NativeFileChanges } = cards;
 const { questionTarget, OpenQuestions, RequestRecovery } = await import(await componentUrl('open-questions'));
+const { OverviewSections } = await import(await componentUrl('overview-sections'));
 const interruptSource = await readFile(new URL('../src/escape-interrupt.ts', import.meta.url), 'utf8');
 const { canInterrupt } = await import('data:text/javascript;base64,' + Buffer.from(ts.transpileModule(interruptSource, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText).toString('base64'));
 const main = await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8');
@@ -32,6 +34,7 @@ function mainFunction(name) {
 }
 const NativeSubagentRequests = mainFunction('NativeSubagentRequests');
 const NativeSubagentOverview = mainFunction('NativeSubagentOverview');
+const NativeSubagentRoster = mainFunction('NativeSubagentRoster');
 function expression(name) {
   let value; const visit = node => { if (ts.isVariableDeclaration(node) && node.name.getText(ast) === name) value = node.initializer.getText(ast); ts.forEachChild(node, visit); }; visit(ast); return value;
 }
@@ -124,7 +127,7 @@ test('children render inside the parent with native-target overview links and in
   const recovery = all(tree).find(node => node.type === RequestRecovery); await recovery.props.recover(); assert.deepEqual(calls, ['missing']);
   const overview = NativeSubagentOverview({ workers });
   assert.deepEqual(all(overview).filter(node => node.type === OpenQuestions).map(node => node.props.agentId), ['child-a', 'child-b', 'missing']);
-  assert.match(renderToStaticMarkup(overview), /Lineage not verified/);
+  assert.doesNotMatch(renderToStaticMarkup(overview), /Lineage not verified|Worker idle|Worker unverified|data-status/);
   const disconnected = NativeSubagentRequests({ ...props, connected: false }); assert.equal(all(disconnected).find(node => node.type === RequestRecovery).props.disabled, true);
   assert.match(main, /<NativeSubagentRequests workers=\{nativeWorkers\} parentId=\{active.id\}/);
   assert.match(main, /const nativeWorkers = active\?\.provider === 'claude' \? \[\]/);
@@ -155,7 +158,7 @@ test('legacy collaboration activities are not projected as native child request 
   assert.deepEqual(workers.map(worker => worker.id), ['verified', 'candidate']);
   const overview = renderToStaticMarkup(React.createElement(NativeSubagentOverview, { workers }));
   const requests = renderToStaticMarkup(React.createElement(NativeSubagentRequests, { workers, parentId: 'parent', connected: true, act: () => assert.fail('Rendering cannot answer'), recover: () => assert.fail('Rendering cannot reload'), prepareApprovalFocus: () => () => {} }));
-  assert.match(overview, /Worker verified/); assert.match(overview, /Lineage not verified/);
+  assert.match(overview, /Worker verified/); assert.doesNotMatch(overview, /Lineage not verified|Worker candidate/);
   assert.match(requests, /Worker verified/);
   assert.doesNotMatch(overview + requests, /Waiting|Input delivered|wait-target|send-target/);
 });
@@ -168,4 +171,85 @@ test('actual terminal child states have explicit labels without inferring comple
     if (status === 'failed') assert.match(html, /class="status error"/);
     if (status === 'idle') assert.doesNotMatch(html, /Completed|Failed/);
   }
+});
+
+test('routine subagent rows stay out of the independent pending-question view', () => {
+  const routine = ['idle', 'running', 'completed', 'failed', 'interrupted'].map(status => worker(`routine-${status}`, { status, questions: [], needsInput: false }));
+  assert.equal(renderToStaticMarkup(React.createElement(NativeSubagentOverview, { workers: routine })), '');
+  const subagentSection = (() => {
+    let section;
+    const visit = node => {
+      if (ts.isObjectLiteralExpression(node) && node.properties.some(property => ts.isPropertyAssignment(property) && property.name.getText(ast) === 'id' && property.initializer.text === 'subagent-questions')) section = node;
+      ts.forEachChild(node, visit);
+    }; visit(ast); return section;
+  })();
+  const visible = subagentSection.properties.find(property => ts.isPropertyAssignment(property) && property.name.getText(ast) === 'visible').initializer.getText(ast);
+  assert.equal(evaluate(`return (${visible});`, { nativeWorkers: routine }), false);
+  const pending = worker('needs-answer'), missing = worker('needs-details', { questions: [], requestError: 'Request details unavailable' });
+  const workers = [...routine, pending, missing];
+  assert.equal(evaluate(`return (${visible});`, { nativeWorkers: workers }), true);
+  const overview = renderToStaticMarkup(React.createElement(NativeSubagentOverview, { workers }));
+  const cards = renderToStaticMarkup(React.createElement(NativeSubagentRequests, { workers, parentId: 'parent', connected: true, act: () => assert.fail('Rendering cannot answer'), recover: () => assert.fail('Rendering cannot reload'), prepareApprovalFocus: () => () => {} }));
+  assert.doesNotMatch(overview + cards, /routine-|data-status/);
+  assert.match(overview, /Worker needs-answer|Worker needs-details/);
+  assert.ok(cards.includes(`id="${questionTarget('needs-answer', 1)}"`));
+  assert.match(cards, /Allow once/); assert.match(cards, /Request details unavailable/); assert.match(cards, /Load pending request|Retry loading request/);
+});
+
+test('the optional roster is a default-closed native disclosure below Tasks with requests outside it', () => {
+  const workers = [worker('routine', { status: 'running', questions: [], needsInput: false }), worker('pending')];
+  const disclosure = NativeSubagentRoster({ workers });
+  assert.equal(disclosure.type, 'details'); assert.equal(disclosure.props.open, undefined);
+  const html = renderToStaticMarkup(disclosure);
+  assert.match(html, /^<details class="subagent-roster"><summary/); assert.doesNotMatch(html, /<details[^>]*\sopen\b/);
+  assert.match(html, /Subagents \(2\)/); assert.match(html, /Worker routine/); assert.match(html, /Worker pending/);
+  assert.deepEqual(all(disclosure).filter(node => node.type === NativeRequestCard || node.type === OpenQuestions || node.type === RequestRecovery), []);
+  const sections = [];
+  const visit = node => {
+    if (ts.isObjectLiteralExpression(node)) {
+      const id = node.properties.find(property => ts.isPropertyAssignment(property) && property.name.getText(ast) === 'id');
+      if (id && ts.isStringLiteral(id.initializer)) sections.push(id.initializer.text);
+    }
+    ts.forEachChild(node, visit);
+  }; visit(ast);
+  assert.ok(sections.indexOf('tasks') < sections.indexOf('subagents'));
+  assert.ok(sections.indexOf('subagents') < sections.indexOf('subagent-questions'));
+  const questions = renderToStaticMarkup(React.createElement(NativeSubagentOverview, { workers }));
+  const requests = renderToStaticMarkup(React.createElement(NativeSubagentRequests, { workers, parentId: 'parent', connected: true, act: () => assert.fail('Rendering cannot answer'), recover: () => assert.fail('Rendering cannot recover'), prepareApprovalFocus: () => () => {} }));
+  assert.match(questions, /Worker pending/); assert.match(requests, /Allow once/);
+  assert.ok(requests.includes(`id="${questionTarget('pending', 1)}"`));
+  assert.doesNotMatch(questions + requests, /subagent-roster|Worker routine/);
+});
+
+test('a closed roster overrides saved desktop height without changing expanded or mobile section sizing', async () => {
+  const workers = [worker('example', { status: 'idle', questions: [], needsInput: false })];
+  const html = renderToStaticMarkup(React.createElement(OverviewSections, {
+    sections: [{ id: 'subagents', label: 'Subagents', content: React.createElement(NativeSubagentRoster, { workers }) }],
+    heights: { subagents: 1200 }, change: () => assert.fail('Rendering cannot change saved heights')
+  }));
+  assert.match(html, /data-section="subagents"/); assert.match(html, /class="overview-section-body sized" style="--section-height:1200px"/);
+  assert.match(html, /<details class="subagent-roster">/); assert.doesNotMatch(html, /<details[^>]*\sopen\b/);
+  const sheet = postcss.parse(await readFile(new URL('../src/style.css', import.meta.url), 'utf8'));
+  const desktop = sheet.nodes.find(node => node.type === 'atrule' && node.name === 'media' && node.params === '(min-width: 901px)' && node.nodes.some(rule => rule.selector === '.overview-section-body.sized'));
+  const generic = desktop.nodes.find(rule => rule.selector === '.overview-section-body.sized');
+  const closed = desktop.nodes.find(rule => rule.selector === '.overview-section[data-section="subagents"]:has(.subagent-roster:not([open])) > .overview-section-body.sized');
+  assert.equal(generic.nodes.find(declaration => declaration.prop === 'height').value, 'var(--section-height)');
+  assert.ok(closed, 'closed roster specifically overrides a saved section height');
+  assert.equal(closed.nodes.find(declaration => declaration.prop === 'height').value, 'auto');
+  assert.ok(desktop.nodes.indexOf(closed) > desktop.nodes.indexOf(generic));
+  assert.equal(closed.nodes.length, 1, 'expanded scrolling, shared layout and mobile rules stay unchanged');
+});
+
+test('worker overview names its current project without changing coordinator heading', () => {
+  let heading;
+  const visit = node => {
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === 'h2'
+      && node.openingElement.attributes.properties.some(attribute => ts.isJsxAttribute(attribute) && attribute.name.text === 'title' && attribute.initializer?.expression?.getText(ast) === 'active.name')) heading = node;
+    ts.forEachChild(node, visit);
+  }; visit(ast);
+  for (const name of ['Example project', 'Another <project>']) {
+    const html = renderToStaticMarkup(evaluate(`return (${heading.getText(ast)});`, { React, active: { name } }));
+    assert.match(html, /Project: /); assert.ok(html.includes(name.replaceAll('<', '&lt;').replaceAll('>', '&gt;')));
+  }
+  assert.match(main, /<h2>\{agent\?\.name \|\| 'Coordinator'\}<\/h2>/);
 });

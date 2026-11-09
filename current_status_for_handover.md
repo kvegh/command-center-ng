@@ -5,6 +5,29 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Working candidate **0.48.0** offers missing Codex under the user's `~/.local`
+prefix or a writable `--codex-prefix`, reuses compatible existing installations,
+and adds a safe, idempotent Bash PATH block after successful app installation.
+Existing app-local Codex is not migrated or removed. Beads and Dolt remain
+app-local; no native profile, authentication, permissions or daemon boot
+management is added. Current shells require the documented manual `source`
+command; unsafe profile updates retain an explicit manual PATH fallback.
+
+The worker overview now uses a `Project:` heading and a default-collapsed
+Subagents section below Tasks. Actual pending child requests and recovery
+warnings remain visible independently of that section. Silent unfinished-work
+checks change from fifteen to ten minutes; report interval choices and timing
+remain separate and unchanged.
+
+The final combined suite ran **784 tests: 783 passed, one skipped, zero failed**.
+The skipped group-ownership case requires an unavailable alternate supplementary
+group. The `.bashrc` group-preservation correction is included and final source
+review is clear. The production build passed; no frontend change followed it.
+Next: publish and perform the authorized deployment and installed functional
+checks. Publication and AAP deployment of 0.48.0 are not yet verified. Fresh real Codex installation,
+provider sign-in, rendered browser acceptance and reboot behavior remain
+unverified; fixture tests establish only their documented scope.
+
 Published and installed0.47.0 implements user-approved native child request/status visibility
 under the main chat and existing Coordinator. Verified native lineage, original
 child IDs/tokens/turn/item bindings and exact native confirmation remain required.
@@ -12,7 +35,7 @@ Child attention does not lock the main composer. Recovery reads native metadata
 and preserves newer events; no automatic resume, guessed approval, new request
 store, tab, model call, worker slot or timer is added.
 
-The same candidate clarifies installation prerequisites with/without sudo,
+The same release clarifies installation prerequisites with/without sudo,
 ordinary browser Codex login versus optional device-code login, and later Beads
 setup using the existing source installer and installation prefix. Existing
 installation layout, authentication and trackers remain protected.
@@ -1431,6 +1454,7 @@ and installer entry points must be distinguished; do not request more logs merel
 to establish the command already supplied.
 
 
-The separate per-user Codex location/persistent Bash PATH request remains blocked
-on its existing native location question. This release retains CCNG-local tools;
-it does not change shell profiles or enable native daemon boot management.
+The earlier per-user Codex location question is superseded by the user's approval
+of the home default, custom prefix and managed Bash PATH approach. Its 0.48.0
+candidate status and remaining verification are recorded above; it is no longer
+waiting for a location decision. Native daemon boot management remains unchanged.

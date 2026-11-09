@@ -9,6 +9,7 @@ import { WORKER_REPORT_REQUEST, WORKER_TASK_PING_REQUEST, REPORT_INTERVALS } fro
 import { approvalCommand, approvalWorkingDirectory, inspectApprovalSource, referencesApprovalSource } from './approval-source.mjs';
 import { nativeMessageQuestions } from './native-requests.mjs';
 
+const TASK_PING_INTERVAL_MS = 10 * 60_000;
 const fail = (message, status = 409) => Object.assign(new Error(message), { status });
 const textInput = text => [{ type: 'text', text, text_elements: [] }];
 const object = (properties, required = Object.keys(properties)) => ({ type: 'object', properties, required, additionalProperties: false });
@@ -105,7 +106,7 @@ export class Coordinator {
     if (this.stopped || this.workspace.restoring) return;
     if (startup) {
       this.reportSchedulesReady = true;
-      this.nextTaskPingAt ??= this.reportClock.now() + 15 * 60_000;
+      this.nextTaskPingAt ??= this.reportClock.now() + TASK_PING_INTERVAL_MS;
     }
     const workers = this.workers(), ids = new Set(workers.map(agent => agent.id));
     for (const id of this.reportSchedules.keys()) if (!ids.has(id)) this.reportSchedules.delete(id);
@@ -181,7 +182,7 @@ export class Coordinator {
     if (!this.workspace.restoring) {
       if (this.nextTaskPingAt !== null && this.reportClock.now() >= this.nextTaskPingAt) {
         // One current cycle only, even after a suspended process or long pause.
-        this.nextTaskPingAt = this.reportClock.now() + 15 * 60_000;
+        this.nextTaskPingAt = this.reportClock.now() + TASK_PING_INTERVAL_MS;
         if (!this.paused) for (const agent of this.workers()) this.requestTaskPing(agent);
         this.workspace.changed();
       }
