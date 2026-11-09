@@ -4,6 +4,11 @@ Command Center NG (CCNG) is a browser workspace for local AI coding sessions.
 Keep conversations, project tasks, questions and progress together while the
 native agent runtime continues to own execution and permissions.
 
+**One CCNG deployment is currently intended for one engineer.** The application
+does not provide multi-tenant isolation. Agent tabs organize projects and
+conversations, not different human users. Additional reverse-proxy logins do not
+create isolated CCNG accounts or workspaces.
+
 ## Why it exists
 
 Working across several projects makes it easy to lose context or miss a question.

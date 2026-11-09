@@ -2,6 +2,13 @@
 
 Linux is the first and primary platform for running Command Center NG.
 
+**Plan one CCNG deployment per engineer for now.** This application does not
+provide multi-tenant account or workspace isolation. People connecting to the
+same deployment share its backend account, connected agent runtimes and
+application workspace/data. Agent tabs organize projects and conversations;
+they do not separate human users. Reverse-proxy Basic Auth restricts entry,
+but different proxy logins do not create isolated CCNG accounts or workspaces.
+
 The user selected the installation model:
 
 - Provide a simple Linux shell script.
