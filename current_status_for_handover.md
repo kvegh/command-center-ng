@@ -5,23 +5,33 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working correction0.46.1 adds the user-requested conditional recovery sequence
-to the fifteen-minute main-agent ping and coordinator/base guidance. Inspect
-actual child waits/jobs, safely interrupt only a stalled child wait, retain
-history/findings/native request context, verify a pwd-only reply and resume a
-specific authorized next step. Unknown outcomes, external jobs, pending user
-decisions and explicit stops remain protected. No periodic probing or new timer.
-Six focused regression files and production build pass; independent review
-found no blocking issue. The native message tool confirmed sending the requested
-guidance to the current Coordinator; adoption is not independently verified.
-Publication remains pending. The user asked to retry ordinary Git commit/push;
-a fresh read-only SSH attempt still
-rejected system configuration ownership before connecting to GitHub. No settings,
-credentials, transport or execution permissions were changed. Production0.45.1
-remains the last verified deployment; earlier publication input is not an answer.
+Published and installed0.46.1 adds the user-requested conditional recovery
+sequence to the fifteen-minute main-agent ping and coordinator/base guidance.
+Check every child's actual wait/external-job state; safely interrupt only a
+stalled child wait, preserve history/findings/request context, verify its pwd-only
+reply under unchanged permissions and resume a specific authorized next step.
+Unknown external outcomes, genuine decisions and user stops remain protected.
+No blanket probing, timer, dispatcher or broader permission is introduced.
 
+Implementationd1bc08be75eab274aad317b48953d0c53034cb55 and installed/source
+checkpoint56b3499f35f16548a07a24e4733953bfc9e07259 were SSH-published/readback
+verified. Six focused regression files/build pass; independent review is clear.
+AAP3446 completed update/restart with nine protected files unchanged. Independent
+3447 matched105 files, actual0.46.1 trusted HTTPS health/assets, both listeners,
+authentication gates and installed recovery/coordinator instructions. No native
+approval, live pwd probe or model run was started for acceptance. The current
+Coordinator received the instruction through the native message tool; model
+compliance and full live recovery remain unverified.
 
-Working version0.46.0 strengthens silent task checks for outstanding delegated
+The standalone normal Git push worked after the user's retry request. Earlier
+compound/restricted SSH checks did not establish that this approved publication
+path was unavailable. No SSH configuration, identity, transport or native policy
+changed. Beads updates/readback also work normally; earlier restricted gate/socket
+errors are not proof of a database credentials or host failure. The publication
+input is actually resolved. The separate never-opened subagent approval/status
+routing fix78kx remains open; this release is checking/recovery guidance only.
+
+Historical working version0.46.0 (superseded by installed0.46.1) strengthens silent task checks for outstanding delegated
 work, tool calls and external jobs. Inspect actual timing/progress and status,
 investigate stale/unknown waits, collect results or surface a precise blocker;
 a launch or in_progress label alone is insufficient. Preserve exact approvals,

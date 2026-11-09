@@ -2726,3 +2726,26 @@ message variants, visible summaries and compatibility-only report-setting state.
 Publication/deployment remain unverified; a user-requested fresh Git SSH read
 still refused system configuration ownership in restricted execution. No SSH,
 credential, transport, approval-policy or production setting was changed.
+
+## 2026-11-09 — Verify publication and the recovery-guidance update
+
+The user's request to retry ordinary Git commit/push succeeded without changing
+SSH configuration, identities, transport or native permissions. Source and
+installed checkpoint `56b3499f35f16548a07a24e4733953bfc9e07259` were independently
+read back over SSH. Earlier compound/restricted inspection failures did not
+establish failure of that ordinary approved publication path; the previous
+operator-push question is resolved by actual publication, not an inferred answer.
+
+AAP3446 updated/restarted the existing installation to0.46.1 and preserved nine
+protected configuration/authentication/certificate/native-profile files.
+Independent3447 matched105 installed source files and verified actual running
+version, trusted HTTPS health, authentication gates, served assets, both listeners
+and installed recovery/coordinator instructions. Six focused regression files and
+production build pass. No live native approval, pwd probe or model run was created
+for acceptance. Instruction adoption and complete live recovery remain unverified;
+the separate never-opened child approval/status routing task remains open.
+
+The usage guide clarifies that Report now is the user's command to the selected
+agent, delivered by the backend queue without a Coordinator-model decision.
+Queueing preserves duplicates, exact delivery status and existing native gates;
+it does not wait for all ordinary project work to finish.

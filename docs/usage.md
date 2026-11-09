@@ -108,6 +108,12 @@ worker unable to reach that checkpoint or guarantee model compliance.
 | Coordinator-requested report | Worker chat | Coordinator requests missing status evidence |
 | Workspace events | Coordinator chat | Worker/task/request changes, with bounded review/recap/source/startup reminders |
 
+Report now is the user's command to the selected worker. The backend queues and
+delivers it directly through supported native input; the Coordinator model does
+not decide whether to issue it. The queue coalesces duplicate requests, retains
+unconfirmed delivery and respects native approval/handoff/pause gates. A known
+active Codex turn can receive supported steering at its safe checkpoint.
+
 These control inputs are hidden in CCNG history; actual reports and useful replies
 stay visible. Informational summaries/handoffs use a separate, visible message
 path. Changing the report interval sends no standalone message: the backend

@@ -21,8 +21,12 @@ The usage guide lists generated control messages and distinguishes visible
 handoffs and runtime context. Six focused regression files and the production
 build pass; independent source review found no blocking issue. The current
 Coordinator received the requested guidance through the native message tool.
-Publication/deployment remain pending; this guidance does not prove future
-compliance or recovery of any live incident.
+Application source56b3499 was SSH-published and independently read back. AAP3446
+updated/restarted production with nine protected files unchanged; independent3447
+verified105 installed files, running0.46.1, trusted HTTPS, served assets, both
+listeners and the installed recovery prompt. No live probe or approval was
+started for verification. This guidance does not prove future compliance, recover
+every wait or fix the separate never-opened subagent approval-routing defect.
 
 ## 0.46.0 — Check progress of outstanding delegated work
 
