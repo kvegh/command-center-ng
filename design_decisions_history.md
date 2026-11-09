@@ -2812,3 +2812,36 @@ and authentication gates. An isolated fixture using installed modules verified
 child-only ACK routing and parent request isolation without extra tabs or real
 provider/model calls. This does not establish real native request delivery,
 rendered browser behavior, organization login or reboot acceptance.
+
+## 2026-11-09 — Keep user tools available and compact worker activity
+
+Implementation `6877e20308a3f2e4aeb86ee9d00f1ffe249940a8` (0.48.0) follows the
+user's existing home-default/custom Codex location and persistent Bash PATH
+request. The later location question was unnecessary and withdrawn, not answered
+for the user. Missing Codex uses the existing consent-based pinned npm method
+under the chosen user prefix; compatible existing installations are retained.
+No native sign-in, CODEX_HOME, daemon startup or multi-user design is introduced.
+
+A marked Bash PATH block preserves surrounding bytes and original ownership/group
+and mode, safely quotes paths and does not grow on repeated sourcing. Unsafe
+profiles remain unchanged with manual guidance. The invoking terminal must source
+its own profile. Keep stable launcher paths, custom-prefix retry hints and existing
+Beads/Dolt data. No real package installation or user profile was changed during
+source tests. Existing Node built-ins supply the small atomic profile helper; no
+additional dependency or configuration store is required.
+
+The user reconsidered hiding routine child activity and chose a default-collapsed
+Subagents section below Tasks. Closing it releases saved expanded height. Actual
+child approval/question cards remain outside it with original native controls.
+The overview heading becomes Project: followed by the chat name. The user also
+shortened only the existing silent task-check cadence to ten minutes; report
+choices, queue gates, native permissions and conditional recovery remain intact.
+
+The combined suite ran784 tests:783 passed, one alternate-group case skipped
+because no supplementary group was available, and none failed. Actual temporary
+Bash/helper/installer fixtures, the production build and focused independent
+source review pass. Review identified and verified the group-preservation fix.
+These checks do not establish real fresh Codex download, provider sign-in,
+rendered phone/browser behavior, daemon reboot survival or complete native child
+approval delivery. Publication and installed verification will be recorded from
+actual outcomes. Detailed reports remain separate follow-up work.
