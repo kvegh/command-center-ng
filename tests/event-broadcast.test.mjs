@@ -112,6 +112,21 @@ test('withdrawn Goal control routes return 404 without native reads or writes', 
   } finally { await f.close(); }
 });
 
+test('authenticated rewind routes require an explicit preview and pass exact confirmation without sending input', async () => {
+  const f = await fixture();
+  try {
+    const calls = [], preview = { previewToken: 'preview-example', threadId: 'worker', selected: { messageId: 'input', turnId: 'turn', text: 'Editable input', imageCount: 0 }, affectedTurns: [], turnCount: 1, messageCount: 1, warning: 'Whole-turn history only' };
+    f.workspace.rewindPreview = async (id, selection) => { calls.push({ id, selection }); return preview; };
+    f.workspace.rewind = async (id, confirmation) => { calls.push({ id, confirmation }); return { id, draftText: 'Editable input', rewound: true }; };
+    const response = await f.request('/api/agents/worker/rewind-preview', { messageId: 'input', turnId: 'turn' }).finished;
+    assert.equal(response.statusCode, 200); assert.deepEqual(JSON.parse(response.chunks.join('')), preview);
+    const applied = await f.request('/api/agents/worker/rewind', { previewToken: preview.previewToken, confirm: true }).finished;
+    assert.equal(applied.statusCode, 200);
+    assert.deepEqual(calls, [{ id: 'worker', selection: { messageId: 'input', turnId: 'turn' } }, { id: 'worker', confirmation: { previewToken: preview.previewToken, confirm: true } }]);
+    assert.equal(f.rpc.replies.length, 0); assert.ok(!f.rpc.calls.some(call => ['turn/start', 'turn/steer', 'thread/revert'].includes(call.method)));
+  } finally { await f.close(); }
+});
+
 test('recovery restores retained current requests without native replay or new identities', async () => {
   const f = await fixture();
   try {
@@ -142,22 +157,27 @@ test('recovery restores retained current requests without native replay or new i
   } finally { await f.close(); }
 });
 
-test('continuous worker activity cannot indefinitely postpone a pending-request snapshot', async t => {
-  const f = await fixture(); let mocked = false;
+test('continuous worker activity cannot indefinitely postpone a pending-request snapshot', async () => {
+  const f = await fixture(); let updates;
   try {
     await delay(100);
     const stream = f.request('/api/events');
+    const ready = Date.now() + 1500;
+    while (!stream.headersSent && Date.now() < ready) await delay(5);
     assert.equal(stream.statusCode, 200); const initial = stream.chunks.length;
-    t.mock.timers.enable({ apis: ['setTimeout'] }); mocked = true;
+    // Authentication now includes real filesystem reads. Keep producing changes
+    // while they resolve, rather than assuming synchronous timer callbacks.
+    updates = setInterval(() => f.workspace.changed(), 20);
     f.rpc.emit('request', f.question);
-    for (let i = 0; i < 10; i++) { t.mock.timers.tick(40); f.workspace.changed(); }
+    const delivered = Date.now() + 1000;
+    while (stream.chunks.length <= initial && Date.now() < delivered) await delay(10);
     assert.ok(stream.chunks.length > initial, 'a busy worker must not starve browser state delivery');
     const snapshots = stream.chunks.filter(chunk => chunk.startsWith('data: ')).map(chunk => JSON.parse(chunk.slice(6)));
     assert.ok(snapshots.some(snapshot => snapshot.agents[0].questions.some(question => question.id === f.question.id)));
     assert.equal(f.rpc.replies.length, 0);
     assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false);
   } finally {
-    if (mocked) { t.mock.timers.tick(200); t.mock.timers.reset(); }
+    clearInterval(updates);
     await f.close();
   }
 });

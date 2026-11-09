@@ -5,6 +5,37 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Working version 0.44.0 integrates the approved whole-turn Codex Edit & rewind.
+Preview full affected turns/inputs, require confirmation, use native revert and
+refresh retained history before returning original text to the normal composer.
+Do not auto-send or undo files/tasks/commands/permissions. Selected images are
+blocked; stale, busy, pending/uncertain and handoff cases fail safely. Existing
+queues/schedules/drafts remain. Native cross-client atomicity is unavailable.
+Integrated tests/publication/deployment pending; no real native history was rewound.
+The same release integrates approved private decision-file persistence: new
+coordinator summaries reload at startup, retain older disk rows and never replay
+approvals/authority. Storage state/errors remain separate from native outcomes;
+normal shutdown flushes queued records. Older native history is not imported.
+The rewind/decision baseline passed all 668 application tests and the production
+build. Publication/deployment pending. Individual-message rewind and
+optional installed/native/browser exercises remain deferred. Public screenshots
+are now explicitly approved unchanged and placed in the README gallery with
+historical-UI captions; their original SHA256 values match.
+
+Additional report-status investigation confirmed that topic-labelled reports
+without literal four-section wording can be rejected despite being visible in
+native history. A delivery-turn race during instruction loading was also found.
+Focused fixes/regressions passed and the baseline full suite passed 672 tests.
+An independently found managed-provider early-acknowledgement compatibility edge
+was corrected and reviewed; correlation with the reported AAP warning remains
+unverified. No duplicate report or native answer was submitted.
+The user approved login persistence and --clear-logins. Backend and frontend
+implementation/tests/review are in progress; no production restart is underway.
+The user supplied a current RHEL file-approval example containing identifiers but
+no paths/diff/reason. Native file-change projection loss is being repaired for
+both cards and coordinator reads. Direct raw pending-item reads are unavailable
+under current native socket permissions; no access workaround is authorized.
+
 Published/deployed version 0.43.0 implements the user's explicit correction: Never also
 excludes automatic startup reports. Keep manual Report now, stored dashboard
 summary/task reads, enabled cadence/coalescing and separate task checks.

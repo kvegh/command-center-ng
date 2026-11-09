@@ -929,15 +929,18 @@ test('long password stays hashed/private; HTTP login protects controls, rejects 
   const base = 'http://127.0.0.1:' + app.server.address().port;
   const request = (path, data, cookie, origin = base) => fetch(base + path, { method: data === undefined ? 'GET' : 'POST', headers: { ...(data === undefined ? {} : { 'Content-Type': 'application/json', Origin: origin }), ...(cookie ? { Cookie: cookie } : {}) }, ...(data === undefined ? {} : { body: JSON.stringify(data) }) });
   try {
-    assert.equal((await request('/api/state')).status, 401);
-    assert.equal((await request('/api/agents/existing/messages/image-post/images/0')).status, 401);
-    assert.equal((await request('/api/coordinator', {})).status, 401);
-    assert.equal((await request('/api/agents/existing/tasks')).status, 401);
-    assert.equal((await request('/api/agents/existing/tasks', { ids: [] })).status, 401);
-    for (const action of ['fork', 'parent', 'summary', 'return', 'answer', 'review', 'requests']) assert.equal((await request('/api/agents/existing/' + action, {})).status, 401);
+    const unauthenticated = await request('/api/state');
+    assert.equal(unauthenticated.status, 403); assert.equal((await unauthenticated.json()).code, 'authentication_required');
+    assert.equal(unauthenticated.headers.get('www-authenticate'), null);
+    assert.equal((await request('/api/agents/existing/messages/image-post/images/0')).status, 403);
+    assert.equal((await request('/api/coordinator', {})).status, 403);
+    assert.equal((await request('/api/agents/existing/tasks')).status, 403);
+    assert.equal((await request('/api/agents/existing/tasks', { ids: [] })).status, 403);
+    for (const action of ['fork', 'parent', 'summary', 'return', 'answer', 'review', 'requests']) assert.equal((await request('/api/agents/existing/' + action, {})).status, 403);
     assert.equal((await request('/api/login', { password }, undefined, 'https://unrelated.example')).status, 403);
     const oversizedLogin = await request('/api/login', { password: 'x'.repeat(4097) });
-    assert.equal(oversizedLogin.status, 401);
+    assert.equal(oversizedLogin.status, 403); assert.equal((await oversizedLogin.json()).code, 'invalid_password');
+    assert.equal(oversizedLogin.headers.get('www-authenticate'), null);
     assert.equal(oversizedLogin.headers.get('set-cookie'), null);
     const login = await request('/api/login', { password }); assert.equal(login.status, 200);
     const cookie = login.headers.get('set-cookie'); assert.match(cookie, /HttpOnly/); assert.match(cookie, /SameSite=Strict/);
@@ -979,7 +982,7 @@ test('long password stays hashed/private; HTTP login protects controls, rejects 
     f.notify('serverRequest/resolved', { threadId: 'existing', requestId: 'http-question' });
     await waitFor(() => f.workspace.pending.size === 0);
     assert.equal((await request('/api/logout', {}, cookie)).status, 200);
-    assert.equal((await request('/api/state', undefined, cookie)).status, 401);
+    assert.equal((await request('/api/state', undefined, cookie)).status, 403);
   } finally { await app.close(); await f.close(); }
 });
 

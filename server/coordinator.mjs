@@ -16,10 +16,11 @@ const tool = (name, description, inputSchema) => ({ type: 'function', name, desc
 const isClarification = question => ['item/tool/requestUserInput', 'claude/tool/requestUserInput'].includes(question.method);
 const isApproval = question => ['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method);
 const isUnreviewedApproval = question => isApproval(question) && !question.review && !question.responding && !question.error;
+// Topic-labelled reports can omit red when no input is needed; recognition
+// acknowledges a summary, never infers that blockers or unfinished work are absent.
 const reportSections = [
-  /^(?:[-*+]\s+)?(?:\*\*)?🟩\s*(?:\*\*)?Done\b/i,
-  /^(?:[-*+]\s+)?(?:\*\*)?🟨\s*(?:\*\*)?In\s+progress\b/i,
-  /^(?:[-*+]\s+)?(?:\*\*)?🟥\s*(?:\*\*)?(?:Blocked(?:\s*\/\s*needs\s*input)?|Needs\s*input)\b/i,
+  /^(?:[-*+]\s+)?(?:\*\*)?🟩\s*(?:\*\*)?[\p{L}\p{N}]/u,
+  /^(?:[-*+]\s+)?(?:\*\*)?🟨\s*(?:\*\*)?[\p{L}\p{N}]/u,
   /^(?:[-*+]\s+)?(?:\*\*)?🟦\s*(?:\*\*)?Next\b/i
 ];
 function isStandardReport(text) {
@@ -63,6 +64,15 @@ export class Coordinator {
     this.reportClock = { now: () => Date.now(), setTimeout, clearTimeout, ...reportClock };
     this.nextTaskPingAt = null; this.taskPingPending = new Set();
     this.startupDashboardWorkers = new Map();
+    this.decisionStore = null; this.decisionLogError = null; this.decisionPersistence = Promise.resolve();
+  }
+  async initializeDecisionHistory(store) {
+    this.decisionStore = store;
+    try {
+      const saved = await store.load();
+      this.audit = [...saved.map(row => ({ ...row, storageState: 'saved' })), ...this.audit].slice(-200);
+    } catch (error) { this.decisionLogError = 'Decision history could not be loaded: ' + error.message; }
+    this.workspace.changed();
   }
   workers() { return [...this.workspace.agents.values()].filter(agent => agent.role !== 'coordinator'); }
   setReportInterval(id, minutes, { notifyWorker = false } = {}) {
@@ -213,7 +223,7 @@ export class Coordinator {
     if (cancelledStartup) this.settleStartupDashboard(id, 'cancelled', agent);
   }
 
-  snapshot() { return { id: this.id, starting: !!this.starting, error: this.error, paused: this.paused, nextTaskPingAt: !this.stopped && !this.paused && !this.workspace.restoring && this.nextTaskPingAt !== null ? new Date(this.nextTaskPingAt).toISOString() : null, queuedMessages: [...this.deliveries.values()].reduce((n, rows) => n + rows.length, 0), audit: this.audit.slice(-20) }; }
+  snapshot() { return { id: this.id, starting: !!this.starting, error: this.error, decisionLogError: this.decisionLogError, paused: this.paused, nextTaskPingAt: !this.stopped && !this.paused && !this.workspace.restoring && this.nextTaskPingAt !== null ? new Date(this.nextTaskPingAt).toISOString() : null, queuedMessages: [...this.deliveries.values()].reduce((n, rows) => n + rows.length, 0), audit: this.audit.slice(-20) }; }
   reportState(id) {
     if (this.deliveries.get(id)?.some(row => row.kind === 'report')) return 'queued';
     // This legacy state means the native runtime accepted the request, not
@@ -303,9 +313,24 @@ export class Coordinator {
     if (!paused) { await this.ensure(); this.markStartupDashboard(); for (const worker of this.workers()) { void this.flush(worker.id); this.mark(worker.id, 'Coordinator resumed', true); } }
     this.workspace.changed();
   }
-  record(entry) { this.audit.push({ ...entry, at: new Date().toISOString() }); this.audit = this.audit.slice(-200); this.workspace.changed(); }
+  record(entry, { persistenceRationale = entry.rationale } = {}) {
+    const decision = ['approve', 'decline', 'ask'].includes(entry.decision);
+    const row = { ...entry, at: new Date().toISOString(), ...(decision ? { id: randomUUID() } : {}) };
+    this.audit.push(row); this.audit = this.audit.slice(-200);
+    if (decision && this.decisionStore) {
+      row.storageState = 'pending';
+      // Storage failure cannot change a native acknowledgement, throw through
+      // review(), or cause the action to be retried. Keep the real outcome.
+      this.decisionPersistence = Promise.resolve().then(() => this.decisionStore.append({ ...row, version: 1, rationale: persistenceRationale })).then(() => {
+        row.storageState = 'saved'; this.workspace.changed();
+      }, error => {
+        row.storageState = 'failed'; this.decisionLogError = 'Decision history could not be saved: ' + error.message; this.workspace.changed();
+      });
+    }
+    this.workspace.changed();
+  }
   pendingRequests(agent) {
-    const questions = agent.questions.map(q => ({ id: q.id, method: q.method, params: q.params, reviewToken: q.reviewToken, review: q.review || null, responding: !!q.responding, error: q.error || null }));
+    const questions = agent.questions.map(q => ({ id: q.id, method: q.method, params: q.params, reviewToken: q.reviewToken, review: q.review || null, responding: !!q.responding, error: q.error || null, ...(q.method === 'item/fileChange/requestApproval' ? { nativeItem: this.workspace.requestView(agent, q).nativeItem } : {}) }));
     const clarifications = questions.filter(isClarification);
     return {
       requestSummary: {
@@ -321,6 +346,19 @@ export class Coordinator {
       },
       questions
     };
+  }
+  exposeFileContexts(result) {
+    // Stamp only data actually returned by coordinator list/read/review tools.
+    // Browser snapshots and internal list() calls must never count as model reads.
+    for (const row of Array.isArray(result) ? result : [result]) for (const exposed of row?.questions || []) {
+      const context = exposed.nativeItem; if (!context) continue;
+      const agent = this.workspace.agents.get(context.threadId);
+      const question = agent?.questions.find(candidate => candidate.id === exposed.id && candidate.reviewToken === exposed.reviewToken && candidate.params.turnId === context.turnId && candidate.params.itemId === context.itemId);
+      if (!question) continue;
+      const fingerprint = JSON.stringify([context.threadId, context.turnId, context.itemId, context.state, context.contentSha256 || null]);
+      Object.defineProperty(question, 'coordinatorFileContext', { value: fingerprint, writable: true, configurable: true });
+    }
+    return result;
   }
   markRemainingApprovals(id) {
     const agent = this.workspace.agents.get(id);
@@ -435,13 +473,19 @@ export class Coordinator {
   reportMessageCompleted(id, message) {
     const response = this.reportResponses.get(id); const agent = this.workspace.agents.get(id);
     if (this.stopped || !response || !agent || !this.reportPending.has(id) || message?.type !== 'assistant' || message.state !== 'completed' || typeof message.id !== 'string' || response.previousIds.has(message.id) || (message.nativeMessageId && response.previousIds.has(message.nativeMessageId))) return false;
-    const turnId = response.turnId || agent.turnId;
-    if (!turnId || message.turnId !== turnId || !isStandardReport(message.text)) return false;
-    response.candidate = { id: message.id, turnId };
+    if (typeof message.turnId !== 'string' || !message.turnId || !isStandardReport(message.text)) return false;
+    if (!response.confirmed) {
+      // A live report can precede the native acknowledgement. Keep it only in
+      // this pending response until the actual delivery turn is known.
+      response.candidates.set(message.turnId, { id: message.id, turnId: message.turnId });
+      return false;
+    }
+    if (message.turnId !== response.turnId) return false;
+    response.candidate = { id: message.id, turnId: message.turnId };
     return this.finishReportResponse(id, response);
   }
   finishReportResponse(id, response) {
-    if (!response.confirmed || !response.candidate || this.reportResponses.get(id) !== response || (response.turnId && response.candidate.turnId !== response.turnId)) return false;
+    if (!response.confirmed || !response.turnId || !response.candidate || this.reportResponses.get(id) !== response || response.candidate.turnId !== response.turnId) return false;
     const agent = this.workspace.agents.get(id); if (!agent) return false;
     this.reportResponses.delete(id); this.reportPending.delete(id);
     if (agent.coordinatorDeliveryKind === 'report') agent.coordinatorDeliveryKind = null;
@@ -454,7 +498,7 @@ export class Coordinator {
     return true;
   }
   finishMissingReportResponse(id, response) {
-    if (!response.confirmed || !response.turnCompleted || this.reportResponses.get(id) !== response) return false;
+    if (!response.confirmed || !response.turnId || !response.turnCompleted || this.reportResponses.get(id) !== response) return false;
     const agent = this.workspace.agents.get(id); if (!agent) return false;
     this.reportResponses.delete(id); this.reportPending.delete(id);
     if (agent.coordinatorDeliveryKind === 'report') agent.coordinatorDeliveryKind = null;
@@ -466,6 +510,7 @@ export class Coordinator {
     return true;
   }
   async flush(id) {
+    if (this.workspace.rewindJobs?.has(id)) return;
     const rows = this.deliveries.get(id); const agent = this.workspace.agents.get(id);
     if (this.stopped || this.paused || this.workspace.restoring || !rows?.length || rows[0].error || !agent || !this.workspace.readyFor(agent) || (agent.provider === 'claude' && agent.externalSession) || agent.questions.length || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag)) || !agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) return;
     if (rows[0].kind === 'task-ping' && !this.taskPingAllowed(agent)) return;
@@ -478,7 +523,8 @@ export class Coordinator {
     const reportInProgress = agent.coordinatorDeliveryKind === 'report';
     const previousScheduled = !!agent.scheduledReportInProgress;
     const response = message.kind === 'report' ? {
-      requestId: message.id, turnId: agent.turnId || null, confirmed: false, scheduledReport: !!message.scheduledReport, startupDashboard: !!message.startupDashboard,
+      requestId: message.id, turnId: agent.provider === 'claude' ? agent.turnId || null : null, confirmed: false, scheduledReport: !!message.scheduledReport, startupDashboard: !!message.startupDashboard,
+      candidates: new Map(), completedTurns: new Set(),
       previousIds: new Set(agent.messages.filter(item => item.type === 'assistant').flatMap(item => [item.id, item.nativeMessageId].filter(Boolean)))
     } : null;
     if (response) this.reportResponses.set(id, response);
@@ -486,22 +532,35 @@ export class Coordinator {
       if (!reportInProgress) agent.coordinatorDeliveryKind = message.kind;
       if (message.kind === 'report') agent.scheduledReportInProgress = !!message.scheduledReport;
       if (message.kind === 'task-ping') agent.taskPingInProgress = true;
-      await this.workspace.send(id, message.text, { report: message.kind === 'report', reportSetting: message.kind === 'report-setting', ...(message.kind === 'task-ping' ? { taskPing: true } : {}) }); rows.shift(); if (!rows.length) this.deliveries.delete(id);
+      const delivery = await this.workspace.send(id, message.text, { report: message.kind === 'report', reportSetting: message.kind === 'report-setting', ...(message.kind === 'task-ping' ? { taskPing: true } : {}) }); rows.shift(); if (!rows.length) this.deliveries.delete(id);
       if (message.kind === 'task-ping') this.taskPingPending.delete(id);
       if (message.kind !== 'task-ping') this.record({ agentId: id, action: message.kind, outcome: 'delivered', ...(message.scheduledReport ? { scheduledReport: true } : {}), ...(message.startupDashboard ? { startupDashboard: true } : {}) }); if (['report', 'report-setting'].includes(message.kind)) agent.reportError = null;
-      if (response && this.reportResponses.get(id) === response) { response.confirmed = true; response.turnId ||= agent.turnId; if (!this.finishReportResponse(id, response)) this.finishMissingReportResponse(id, response); }
+      if (response && this.reportResponses.get(id) === response) {
+        // The existing SDK can clear its active turn before send resolves.
+        // Only a completion observed for this response can supply that fallback.
+        const completedClaudeTurn = agent.provider === 'claude' && response.completedTurns.has(agent.finishedTurn?.id) ? agent.finishedTurn.id : null;
+        response.turnId = delivery?.turnId || (agent.provider === 'claude' ? response.turnId || agent.turnId || completedClaudeTurn : null);
+        response.candidate = response.candidates.get(response.turnId) || null;
+        response.turnCompleted = response.completedTurns.has(response.turnId);
+        delete response.candidates; delete response.completedTurns;
+        response.confirmed = true;
+        if (!this.finishReportResponse(id, response)) this.finishMissingReportResponse(id, response);
+      }
     } catch (error) { if (this.reportResponses.get(id) === response) this.reportResponses.delete(id); agent.coordinatorDeliveryKind = reportInProgress ? 'report' : null; agent.scheduledReportInProgress = previousScheduled; message.error = error.message; if (['report', 'report-setting'].includes(message.kind)) agent.reportError = error.message; if (message.startupDashboard) this.settleStartupDashboard(id, 'failed', agent); this.error = 'Coordinator message delivery was not confirmed; it will not retry automatically: ' + error.message; this.record({ agentId: id, action: message.kind, outcome: 'unconfirmed', rationale: error.message }); }
     finally { agent.coordinatorSending = false; this.workspace.changed(); if (['report', 'report-setting', 'task-ping'].includes(this.deliveries.get(id)?.[0]?.kind) && !this.deliveries.get(id)[0].error) void this.flush(id); }
   }
   async review(agent, args) {
     const question = agent.questions.find(q => q.reviewToken === args.reviewToken);
     if (!question || question.responding) throw fail('This approval is no longer available for review.');
+    const contextFingerprint = this.workspace.requestContextFingerprint(agent, question);
     const reason = typeof args.rationale === 'string' ? args.rationale.trim() : ''; if (!reason || reason.length > 1200) throw fail('Give a concise review rationale.', 400);
     if (!['approve', 'decline', 'ask'].includes(args.decision)) throw fail('Choose approve, decline or ask.', 400);
     if (!['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method)) throw fail('The coordinator cannot answer user preferences or broad permission grants.', 400);
+    if (args.decision === 'approve' && question.method === 'item/fileChange/requestApproval' && question.coordinatorFileContext !== contextFingerprint) throw fail('Read this current file approval with ccng_read_worker or ccng_list_workers before approving; its details changed or have not been read.');
     let evidence;
     if (args.decision === 'approve') {
       evidence = await this.authorizationMessage(agent, args.authorizationMessageId);
+      if (this.workspace.requestContextFingerprint(agent, question) !== contextFingerprint) throw fail('Native file-change details changed while the request was reviewed. Read the current request again.');
       if (this.workspace.agents.get(agent.id) !== agent || !agent.questions.includes(question) || question.responding || question.reviewToken !== args.reviewToken) throw fail('This approval changed or resolved while its user instruction was checked.');
       if (!evidence || typeof args.authorizationQuote !== 'string' || args.authorizationQuote.trim().length < 8 || args.authorizationQuote.length > 500 || !evidence.text.includes(args.authorizationQuote)) throw fail('Approval requires an exact reference to an actual user instruction in this worker conversation.', 400);
       if (Array.isArray(question.params.availableDecisions) && !question.params.availableDecisions.includes('accept')) throw fail('This request does not offer an approve-once decision.', 400);
@@ -511,21 +570,29 @@ export class Coordinator {
         const current = await inspectApprovalSource(cwd, command, path);
         if (current.sha256 !== previous.sha256 || current.commandSha256 !== previous.commandSha256) throw fail('Inspected helper source or the command changed. Read the current helper and review the exact action again.');
       }
+      if (this.workspace.requestContextFingerprint(agent, question) !== contextFingerprint) throw fail('Native file-change details changed while the request was reviewed. Read the current request again.');
       if (this.workspace.agents.get(agent.id) !== agent || !agent.questions.includes(question) || question.responding || question.reviewToken !== args.reviewToken || (cwd && approvalWorkingDirectory(question, agent.cwd) !== cwd) || approvalCommand(question) !== command) throw fail('This approval changed or resolved while its source was checked.');
     }
-    const entry = { agentId: agent.id, requestId: question.id, decision: args.decision, rationale: reason, authorizationMessageId: evidence?.id || null };
+    const requestLine = reason.match(/^[ \t]*Request:[ \t]*(.+)$/im)?.[1];
+    const requestSummary = (requestLine || (question.method === 'item/fileChange/requestApproval' ? 'Review the proposed file changes.' : 'Review the proposed command.')).slice(0, 240);
+    const projectDirectory = typeof question.params.cwd === 'string' && question.params.cwd ? question.params.cwd : agent.cwd;
+    const entry = {
+      agentId: agent.id, workerName: agent.name || agent.id, projectName: basename(projectDirectory || '') || 'Project',
+      requestSummary, requestId: question.id, turnId: question.params.turnId || null, itemId: question.params.itemId || null,
+      coordinatorId: this.id, decision: args.decision, rationale: reason, authorizationMessageId: evidence?.id || null,
+    };
     question.review = { decision: args.decision, rationale: reason }; this.workspace.changed();
     if (args.decision === 'ask') { this.record({ ...entry, outcome: 'needs_user' }); this.markRemainingApprovals(agent.id); return { outcome: 'needs_user', rationale: reason, ...this.pendingRequests(agent) }; }
     try { await this.workspace.answer(agent.id, question.id, { decision: args.decision === 'approve' ? 'accept' : 'decline' }); this.record({ ...entry, outcome: 'resolved' }); this.markRemainingApprovals(agent.id); return { outcome: 'resolved', rationale: reason, ...this.pendingRequests(agent) }; }
-    catch (error) { this.record({ ...entry, outcome: 'unconfirmed', rationale: reason + ' ' + error.message }); throw error; }
+    catch (error) { this.record({ ...entry, outcome: 'unconfirmed', rationale: reason + ' ' + error.message }, { persistenceRationale: reason }); throw error; }
   }
   async call(params) {
     if (params.threadId !== this.id || !this.workspace.agents.has(this.id)) throw fail('Only the active coordinator may use these tools.', 403);
     if (!params.turnId || this.workspace.agents.get(this.id).turnId !== params.turnId) throw fail('This coordinator turn is no longer active.', 409);
     const args = params.arguments; if (!args || typeof args !== 'object' || Array.isArray(args)) throw fail('Invalid coordinator tool arguments.', 400);
-    if (params.tool === 'ccng_list_workers') return this.list();
+    if (params.tool === 'ccng_list_workers') return this.exposeFileContexts(this.list());
     const agent = this.worker(args.agentId);
-    if (params.tool === 'ccng_read_worker') return this.readWorker(agent, args.cursor);
+    if (params.tool === 'ccng_read_worker') return this.exposeFileContexts(await this.readWorker(agent, args.cursor));
     if (params.tool === 'ccng_read_project_file') return this.readFile(agent, args.path, args.startLine);
     if (params.tool === 'ccng_read_approval_source') return this.readApprovalSource(agent, args);
     if (this.paused || this.stopped) throw fail('The coordinator is paused.');
@@ -548,14 +615,14 @@ export class Coordinator {
       try { return this.queue(agent, '[Command Center coordinator]\n' + WORKER_REPORT_REQUEST, 'report'); }
       catch (error) { this.reportPending.delete(agent.id); this.reportVersions.delete(agent.id); throw error; }
     }
-    if (params.tool === 'ccng_review_approval') return this.review(agent, args);
+    if (params.tool === 'ccng_review_approval') return this.exposeFileContexts(await this.review(agent, args));
     throw fail('Unknown coordinator tool.', 400);
   }
   async handle(message) {
     try { const result = await this.call(message.params); this.rpc.respond(message.id, { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify(result) }] }); }
     catch (error) { try { this.rpc.respond(message.id, { success: false, contentItems: [{ type: 'inputText', text: error.message }] }); } catch {} }
   }
-  completed(id) {
+  completed(id, turnId) {
     if (id === this.id) { this.messageActions.clear(); if (this.dirty.size) this.mark([...this.dirty.keys()][0], 'Changes arrived while coordinating'); return; }
     const agent = this.workspace.agents.get(id); if (!agent) return;
     const taskPing = !!agent.taskPingInProgress;
@@ -569,7 +636,9 @@ export class Coordinator {
     if (response) {
       // A completed message/turn can precede the send acknowledgement. Keep the
       // existing response record until delivery is known, then settle it once.
-      response.turnCompleted = true;
+      const completedTurnId = turnId || (agent.provider === 'claude' && agent.turnId) || agent.finishedTurn?.id;
+      if (!response.confirmed && completedTurnId) response.completedTurns.add(completedTurnId);
+      else if (completedTurnId && completedTurnId === response.turnId) response.turnCompleted = true;
       if (!this.finishReportResponse(id, response)) this.finishMissingReportResponse(id, response);
     } else if (deliveryKind === 'report') this.reportPending.delete(id);
     else if (!requested && !scheduledReport && !taskPing) this.mark(id, 'Worker turn completed');
@@ -590,5 +659,11 @@ export class Coordinator {
   async shutdown() {
     this.stop(); const agent = this.workspace.agents.get(this.id);
     if (agent?.turnId) { try { await this.workspace.interrupt(this.id); } catch (error) { if (!error.message.includes('no active turn')) this.error = error.message; } }
+    await this.flushDecisionHistory();
+  }
+  async flushDecisionHistory() {
+    await this.decisionPersistence;
+    await this.decisionStore?.flush();
+    return this.decisionLogError;
   }
 }

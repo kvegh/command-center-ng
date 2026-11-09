@@ -6,6 +6,7 @@ import { TabReorder, reorderTabs, type TabDragState } from './tab-reorder';
 import { loadBrowserWorkspace, saveBrowserWorkspace, type ThemeName, type ChatColour } from './browser-workspace';
 import { ThemeSwitcher } from './theme-switcher';
 import { CoordinatorWorkerCard } from './coordinator-worker-card';
+import { DecisionHistory, type CoordinatorAuditEntry } from './coordinator-audit';
 import { OpenQuestions, RequestRecovery, questionTarget, type Question } from './open-questions';
 import { ActivityGroup, groupMessages, isVisibleMessage } from './activity-groups';
 import { ChatDraft, clearSubmittedDraft } from './chat-draft';
@@ -35,6 +36,7 @@ import { MessageTime } from './message-time';
 import { TaskPingSchedule } from './task-ping-schedule';
 import { Login, loginMode, type SessionInfo } from './login';
 import { CopyButton } from './copy-button';
+import { EditRewindAction, RewindDialog, rewindUnavailable } from './message-rewind';
 import { canInterrupt, handleEscapeInterrupt } from './escape-interrupt';
 import './style.css';
 import { version as VERSION } from '../package.json';
@@ -44,21 +46,48 @@ const compactLayoutQuery = '(max-width: 900px), (hover: none) and (pointer: coar
 
 type Provider = 'codex' | 'claude';
 type Status = 'running' | 'attention' | 'idle' | 'offline' | 'error';
-type Message = { images?: MessageImage[]; timestamp?: string; timestampSource?: 'native' | 'received'; internalReport?: boolean; internalReportControl?: boolean; internalCoordinatorEvent?: boolean; internalTaskPing?: boolean; id: string; turnId: string; branchable?: boolean; type: 'user' | 'assistant' | 'activity'; text: string; state: string };
+type Message = { rewindable?: boolean; images?: MessageImage[]; timestamp?: string; timestampSource?: 'native' | 'received'; internalReport?: boolean; internalReportControl?: boolean; internalCoordinatorEvent?: boolean; internalTaskPing?: boolean; id: string; turnId: string; branchable?: boolean; type: 'user' | 'assistant' | 'activity'; text: string; state: string };
 type Task = { isChatQuestion?: boolean; displayState?: string; blockedBy?: string[]; id: string; text: string; state: string; worker?: string; assignee?: string | null; priority?: number; parentId?: string | null };
 type Tracker = { status: 'ready' | 'unavailable'; label: string; tasks: Task[]; checkedAt: string; error: string | null };
-type Agent = { handoff?: BranchHandoffState; lastNativeEventAt?: string; finishedTurn?: { id: string; status: string }; nativeWarning?: string | null; modelSettingsAvailable?: boolean; provider?: Provider; canBranch?: boolean; managementNotice?: string | null; reasoningEffort?: string | null; modelChange?: { model: string; effort: string | null; status: string }; reportState?: 'queued' | 'generating' | null; reportIntervalMinutes?: number; reportSettingPending?: boolean; reportError?: string | null; taskCounts?: TaskCounts; recoveringRequests?: boolean; requestError?: string | null; id: string; role?: 'worker' | 'coordinator'; observingOnly?: boolean; observeError?: string | null; progress?: { summary: string; nextStep: string; blocker: string; updatedAt: string }; name: string; goal: string; cwd: string; model: string | null; status: Status; parentId: string | null; freshBranch?: boolean; summarizing?: boolean; returning?: boolean; returnSummary?: { text: string; turnId: string; delivered: boolean }; lastCompletedTurnId: string | null; canSend: boolean; messages: Message[]; tasks: Task[]; taskCount: number; tracker?: Tracker; questions: Question[]; turnId: string | null; olderCursor: string | null };
-type CoordinatorState = { nextTaskPingAt?: string | null; id: string | null; starting: boolean; paused: boolean; error: string | null; queuedMessages: number; audit: { agentId: string; action?: string; decision?: string; outcome: string; rationale?: string; at: string }[] };
+type Agent = { rewindBlockedReason?: string | null; handoff?: BranchHandoffState; lastNativeEventAt?: string; finishedTurn?: { id: string; status: string }; nativeWarning?: string | null; modelSettingsAvailable?: boolean; provider?: Provider; canBranch?: boolean; managementNotice?: string | null; reasoningEffort?: string | null; modelChange?: { model: string; effort: string | null; status: string }; reportState?: 'queued' | 'generating' | null; reportIntervalMinutes?: number; reportSettingPending?: boolean; reportError?: string | null; taskCounts?: TaskCounts; recoveringRequests?: boolean; requestError?: string | null; id: string; role?: 'worker' | 'coordinator'; observingOnly?: boolean; observeError?: string | null; progress?: { summary: string; nextStep: string; blocker: string; updatedAt: string }; name: string; goal: string; cwd: string; model: string | null; status: Status; parentId: string | null; freshBranch?: boolean; summarizing?: boolean; returning?: boolean; returnSummary?: { text: string; turnId: string; delivered: boolean }; lastCompletedTurnId: string | null; canSend: boolean; messages: Message[]; tasks: Task[]; taskCount: number; tracker?: Tracker; questions: Question[]; turnId: string | null; olderCursor: string | null };
+type CoordinatorState = { decisionLogError?: string | null; nextTaskPingAt?: string | null; id: string | null; starting: boolean; paused: boolean; error: string | null; queuedMessages: number; audit: CoordinatorAuditEntry[] };
 type Snapshot = { handoffCompletions?: HandoffCompletion[]; nativeWarning?: string | null; backgroundQuestions?: number; backgroundWorkers?: BackgroundWorker[]; connected: boolean; codexConnected?: boolean; claudeAvailable?: boolean; claudeError?: string | null; error: string | null; version: string; agents: Agent[]; defaultCwd?: string; restoration?: { status: string; error: string | null; warnings: { id: string; message: string }[] } | null; coordinator?: CoordinatorState | null };
 type Available = { provider?: Provider; id: string; name: string; cwd: string; status: Status; parentId: string | null; forkedFromId: string | null };
 const runtimeReady = (state: Snapshot, provider: Provider = 'codex') => state.connected && (provider === 'claude' ? !!state.claudeAvailable : state.codexConnected ?? state.connected);
 const labels: Record<Status, string> = { running: 'Running', attention: 'Needs you', idle: 'Idle', offline: 'Offline', error: 'Error' };
+const apiAuthentication: { generation: number; required: ((generation: number) => void) | null } = { generation: 0, required: null };
+
+function authenticationRequired(path: string, status: number, code?: string) {
+  return !['login', 'setup'].includes(path) && ((status === 403 && code === 'authentication_required')
+    || (status === 401 && (!code || code === 'authentication_required')));
+}
 
 async function api(path: string, data?: unknown) {
+  const generation = apiAuthentication.generation;
   const response = await fetch('/api/' + path, { method: data === undefined ? 'GET' : 'POST', credentials: 'same-origin', ...(data === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) });
   const result = await response.json();
-  if (!response.ok) throw Object.assign(new Error(result.error || 'Request failed.'), { status: response.status });
+  if (!response.ok) {
+    const code = typeof result.code === 'string' ? result.code : undefined;
+    if (authenticationRequired(path, response.status, code)) apiAuthentication.required?.(generation);
+    throw Object.assign(new Error(result.error || 'Request failed.'), { status: response.status, code });
+  }
   return result;
+}
+
+async function checkSession(consume: (session: SessionInfo) => void): Promise<SessionInfo | null> {
+  const generation = apiAuthentication.generation;
+  let session: SessionInfo;
+  try {
+    session = await api('session');
+  } catch (error) {
+    if (apiAuthentication.generation !== generation) return null;
+    throw error;
+  }
+  if (apiAuthentication.generation !== generation) return null;
+  // Validate and apply in one checkpoint: a later .then could otherwise run
+  // after a successful login has already advanced this generation.
+  consume(session);
+  return session;
 }
 
 function Icon({ name, size = 18 }: { name: string; size?: number }) {
@@ -178,8 +207,7 @@ function CoordinatorContext({ state, act, choose, heights, resize, compact }: { 
     </> },
 { id: 'coordinator-questions', label: 'Open questions', visible: !!agent && (!compact || !!agent.questions.length || agent.status === 'attention'), content: <>{agent && <OpenQuestions agentId={agent.id} questions={agent.questions} attention={agent.status === 'attention'} />}
     </> },
-{ id: 'decisions', label: 'Recent decisions and deliveries', visible: !!coordinator?.audit.length, content: <>{!!coordinator?.audit.length && <details className="coordinator-audit"><summary>Recent decisions and deliveries</summary>{coordinator.audit.slice().reverse().map((entry, index) => <div key={`${entry.at}-${index}`}><strong>{entry.decision || entry.action} · {entry.outcome.replaceAll('_', ' ')}</strong><span>{state.agents.find(agent => agent.id === entry.agentId)?.name || 'Worker'} · {new Date(entry.at).toLocaleTimeString()}</span>{entry.rationale && <p>{entry.rationale}</p>}</div>)}</details>}
-  </> }
+{ id: 'decisions', label: 'Recent decisions and deliveries', visible: !!(coordinator?.audit.length || coordinator?.decisionLogError), content: <DecisionHistory entries={coordinator?.audit || []} workers={state.agents} error={coordinator?.decisionLogError} /> }
 ].filter(section => section.visible)} />
 </aside>;
 }
@@ -212,14 +240,19 @@ function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null); const [state, setState] = useState<Snapshot>({ connected: false, error: null, version: VERSION, agents: [] });
   const [loginSession, setLoginSession] = useState<Pick<SessionInfo, 'setupRequired' | 'setupAllowed'>>({});
   const [loginNotice, setLoginNotice] = useState('');
+  const [sessionReadError, setSessionReadError] = useState('');
   const applySession = (session: SessionInfo) => {
+    if (session.authenticated !== true) browserSave.current();
+    apiAuthentication.generation++;
+    setSessionReadError('');
     setLoginSession({ setupRequired: session.setupRequired === true, setupAllowed: session.setupAllowed === true });
     setAuthenticated(session.authenticated === true);
   };
   const refreshLoginSession = async () => {
-    const session = await api('session');
-    setLoginNotice(session.setupRequired ? '' : session.authenticated ? '' : 'The application password is configured. Sign in with the existing password.');
-    applySession(session);
+    await checkSession(session => {
+      setLoginNotice(session.setupRequired ? '' : session.authenticated ? '' : 'The application password is configured. Sign in with the existing password.');
+      applySession(session);
+    });
   };
   const [streamHealth, setStreamHealth] = useState<StreamHealth>({ state: 'connecting', lastSignalAt: null });
   const [receipts, setReceipts] = useState<Record<string, InputReceipt>>({});
@@ -227,6 +260,9 @@ function App() {
   const [taskQuestion, setTaskQuestion] = useState<{ agentId: string; taskId: string } | null>(null);
   const [openingBackground, setOpeningBackground] = useState(false);
   const [selected, setSelected] = useState(savedBrowser.state.selected); const [drafts, setDrafts] = useState<Record<string, string>>(savedBrowser.state.drafts); const [dialog, setDialog] = useState(false); const [error, setError] = useState(''); const [busy, setBusy] = useState(''); const [returnReviews, setReturnReviews] = useState<string[]>([]); const [taskAgent, setTaskAgent] = useState<Agent | null>(null);
+  const [rewindTarget, setRewindTarget] = useState<{ agentId: string; name: string; messageId: string; turnId: string } | null>(null);
+  const currentDrafts = useRef(drafts); currentDrafts.current = drafts;
+  const currentChat = useRef<string | null>(null);
   const [imageDrafts, setImageDrafts] = useState<ImageDrafts>({}); const imageDraftsRef = useRef<ImageDrafts>({});
   const [imageErrors, setImageErrors] = useState<Record<string, string>>({});
   const updateImages = (update: (drafts: ImageDrafts) => ImageDrafts) => { const next = update(imageDraftsRef.current); imageDraftsRef.current = next; setImageDrafts(next); };
@@ -264,10 +300,11 @@ function App() {
   });
   useEffect(() => () => tabReorder.current?.cancel(), []);
   const active = state.restoration?.status === 'restoring' ? undefined : state.agents.find(agent => agent.id === selected) || state.agents[0];
+  currentChat.current = active?.id || null;
   const activeConnected = runtimeReady(state, active?.provider);
   const draftText = active ? drafts[active.id] || '' : '';
   const draftImages = active ? imageDrafts[active.id] || [] : [];
-  const draftLocked = branchDraftLocked(active, !!active && handoffStarting.includes(active.id));
+  const draftLocked = branchDraftLocked(active, !!active && handoffStarting.includes(active.id)) || (!!rewindTarget && rewindTarget.agentId === active?.id);
   useEffect(() => {
     setHandoffStarting(previous => {
       const pending = previous.filter(id => state.agents.some(agent => agent.id === id && !agent.handoff));
@@ -289,17 +326,16 @@ function App() {
     approvalFocusContext.current = {
       agentId: active?.id || null,
       blocked: !authenticated || !active || active.provider === 'claude' || draftLocked
-        || !!(dialog || taskAgent || taskQuestion || returnReviews.includes(active.id) || tabDrag),
+        || !!(dialog || taskAgent || taskQuestion || rewindTarget || returnReviews.includes(active.id) || tabDrag),
       revision: approvalFocusContext.current.revision + 1
     };
-  }, [active?.id, active?.provider, authenticated, draftLocked, dialog, taskAgent, taskQuestion, returnReviews, tabDrag]);
+  }, [active?.id, active?.provider, authenticated, draftLocked, dialog, taskAgent, taskQuestion, rewindTarget, returnReviews, tabDrag]);
   const prepareApprovalFocus = () => captureApprovalFocus(composerInput.current, () => ({
     ...approvalFocusContext.current,
     blocked: approvalFocusContext.current.blocked || document.visibilityState === 'hidden'
       || !!document.querySelector('dialog[open], .resizing')
   }));
   const readyToSend = !!(active && activeConnected && active.canSend && hasReadyDraft(draftText, draftImages) && !busy && !draftLocked && !active.questions.length && active.status !== 'attention');
-  useEffect(() => { if (authenticated === false) { imageDraftsRef.current = {}; setImageDrafts({}); setImageErrors({}); setReceipts({}); } }, [authenticated]);
   browserSave.current = () => {
     if (!authenticated || ['pending', 'restoring'].includes(state.restoration?.status || '')) return;
     const problem = saveBrowserWorkspace({ version: 1, selected: active?.id || selected, order: tabOrder, overviewWidth, overviewHeights, composerHeight, theme, taskWatches, chatColours, drafts, positions: positions.current, bottom: bottom.current });
@@ -313,7 +349,20 @@ function App() {
     window.addEventListener('pagehide', flush); document.addEventListener('visibilitychange', hidden);
     return () => { window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', hidden); if (browserSaveTimer.current) clearTimeout(browserSaveTimer.current); };
   }, []);
-  useEffect(() => { api('session').then(applySession).catch(error => { setLoginNotice(error.message); setAuthenticated(false); }); }, []);
+  useEffect(() => { checkSession(applySession).catch(error => { setSessionReadError(error.message); }); }, []);
+  useEffect(() => {
+    if (!authenticated) return;
+    const required = (generation: number) => {
+      if (apiAuthentication.generation !== generation) return;
+      browserSave.current();
+      apiAuthentication.generation++;
+      setLoginNotice('Your application session ended. Sign in to continue. Your drafts are kept.');
+      setLoginSession({});
+      setAuthenticated(false);
+    };
+    apiAuthentication.required = required;
+    return () => { if (apiAuthentication.required === required) apiAuthentication.required = null; };
+  }, [authenticated]);
   useEffect(() => {
     if (!authenticated) return;
     let current = true; let receivedSnapshot = false;
@@ -323,7 +372,7 @@ function App() {
     const stream = new EventSource('/api/events');
     const stop = observeWorkspaceStream(stream, data => { receivedSnapshot = true; setState(data as Snapshot); }, setStreamHealth, () => {
       setState(previous => ({ ...previous, connected: false }));
-      api('session').then(data => { if (current && !data.authenticated) applySession(data); }).catch(() => {});
+      api('session').then(data => { if (current && !data.authenticated) applySession(data); }).catch(error => { if (current) setError(error.message); });
     });
     return () => { current = false; stop(); };
   }, [authenticated]);
@@ -334,12 +383,12 @@ function App() {
   }, [active?.id, active?.messages, active?.questions]);
   function focusComposer(id: string) {
     const node = composerInput.current;
-    if (focusTarget.current !== id || dialog || returnReviews.includes(id) || taskAgent || !node || node.dataset.agentId !== id) return;
+    if (focusTarget.current !== id || dialog || rewindTarget || returnReviews.includes(id) || taskAgent || !node || node.dataset.agentId !== id) return;
     focusTarget.current = null;
     if (node.disabled) return;
     node.focus({ preventScroll: true }); node.setSelectionRange(node.value.length, node.value.length);
   }
-  useLayoutEffect(() => { if (active) focusComposer(active.id); }, [active?.id, dialog, returnReviews, taskAgent]);
+  useLayoutEffect(() => { if (active) focusComposer(active.id); }, [active?.id, dialog, returnReviews, taskAgent, rewindTarget]);
   const choose = (id: string) => {
     if (active && scroll.current) positions.current[active.id] = scroll.current.scrollTop;
     nearBottom.current = bottom.current[id] !== false; focusTarget.current = id;
@@ -432,8 +481,8 @@ function App() {
     }
     setBusy('');
   };
-  if (authenticated === null) return <div className="loading-page"><Brand /><p>Opening your workspace…</p></div>;
-  if (!authenticated) return <Login key={loginMode(loginSession)} mode={loginMode(loginSession)} brand={<Brand />} lockIcon={<Icon name="lock" />} submitIcon={<Icon name="chevron" />} version={VERSION} notice={loginNotice} request={api} refreshSession={refreshLoginSession} onLogin={() => { setLoginSession({}); setLoginNotice(''); setAuthenticated(true); }} />;
+  if (authenticated === null) return <div className="loading-page"><Brand />{sessionReadError ? <><p className="error-text" role="alert">{sessionReadError}</p><button type="button" className="button subtle" onClick={() => { setSessionReadError(''); void checkSession(applySession).catch(error => setSessionReadError(error.message)); }}>Retry sign-in check</button></> : <p>Opening your workspace…</p>}</div>;
+  if (!authenticated) return <Login key={loginMode(loginSession)} mode={loginMode(loginSession)} brand={<Brand />} lockIcon={<Icon name="lock" />} submitIcon={<Icon name="chevron" />} version={VERSION} notice={loginNotice} request={api} refreshSession={refreshLoginSession} onLogin={() => { apiAuthentication.generation++; setLoginSession({}); setLoginNotice(''); setError(''); setAuthenticated(true); }} />;
   const attention = state.agents.filter(agent => agent.status === 'attention').length;
   const workerRows = state.agents.filter(agent => agent.role !== 'coordinator');
   const ids = [...tabOrder.filter(id => workerRows.some(agent => agent.id === id)), ...workerRows.map(agent => agent.id).filter(id => !tabOrder.includes(id))];
@@ -471,7 +520,7 @@ function App() {
           <ThemeSwitcher theme={theme} onChange={setTheme} />
         </div>
         <Brand />
-        <button className="icon-button logout-button" aria-label="Sign out" title="Sign out" onClick={async () => { if (await act('logout', {})) setAuthenticated(false); }}><Icon name="logout" /></button>
+        <button className="icon-button logout-button" aria-label="Sign out" title="Sign out" onClick={async () => { const generation = apiAuthentication.generation; if (await act('logout', {}) && apiAuthentication.generation === generation) { apiAuthentication.generation++; imageDraftsRef.current = {}; setImageDrafts({}); setImageErrors({}); setReceipts({}); setAuthenticated(false); } }}><Icon name="logout" /></button>
       </div>
     </header>
     <main className="workspace" aria-label="Agent workspace">
@@ -512,11 +561,29 @@ function App() {
 ].filter(section => section.visible)} />
 </aside>}
 
-          <div className="conversation" ref={scroll} onScroll={event => { const node = event.currentTarget; nearBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 90; if (active) { positions.current[active.id] = node.scrollTop; bottom.current[active.id] = nearBottom.current; scheduleBrowserSave(); } }}>{(active.managementNotice || active.observeError) && <p className="field-note session-notice" role="status">{active.managementNotice || active.observeError}</p>}{returnReviews.map(id => state.agents.find(agent => agent.id === id)).filter((agent): agent is Agent => !!agent).map(branch => <BranchSummaryReview key={branch.id} agent={branch} visible={active.id === branch.id} connected={runtimeReady(state, branch.provider) && !handoffActive(branch.handoff) && !handoffStarting.includes(branch.id)} parentName={state.agents.find(agent => agent.id === branch.parentId)?.name || 'Parent chat'} prepare={() => api(`agents/${branch.id}/summary`, {})} deliver={text => api(`agents/${branch.id}/return`, { text })} openParent={async () => { const result = await api(`agents/${branch.id}/parent`, {}); choose(result.id); }} dismiss={() => setReturnReviews(ids => ids.filter(id => id !== branch.id))} returned={parentId => { setReturnReviews(ids => ids.filter(id => id !== branch.id)); if (previous.current === branch.id) choose(parentId); }} />)}{active.olderCursor && <button className="older-button" onClick={() => void act(`agents/${active.id}/history`, { cursor: active.olderCursor })}>Load earlier messages</button>}{!active.messages.some(isVisibleMessage) && <div className="conversation-empty"><Icon name="chat" size={30} /><h3>A clear goal. A fresh start.</h3><p>Send a message to begin this conversation.</p></div>}{groupMessages(active.messages).map(group => { if (group.kind === 'activity') return <ActivityGroup key={group.id} messages={group.items} />; const message = group.message; return <article className={`message ${message.type}`} key={message.id}><div className="message-avatar">{message.type === 'user' ? 'Y' : <span className="mini-mark">✳</span>}</div><div className="message-body"><div className="message-author">{message.text.startsWith('[Command Center coordinator]') || (message.type === 'assistant' && active.role === 'coordinator') ? 'Coordinator' : message.type === 'user' ? 'You' : active.provider === 'claude' ? 'Claude' : 'Codex'}<MessageTime timestamp={message.timestamp} source={message.timestampSource} />{message.state === 'inProgress' && <span className="writing">writing</span>}<span className="message-actions">{!!message.text.trim() && <CopyButton text={message.text} />}{active.role !== 'coordinator' && active.canBranch !== false && message.type === 'assistant' && message.branchable && <button className="message-branch" title="Branch with context through this completed reply" disabled={!activeConnected || state.agents.filter(agent => agent.role !== 'coordinator').length >= limits.maxWorkers || busy === 'navigate'} onClick={() => void navigate('fork', { lastTurnId: message.turnId })}><Icon name="branch" size={12} />Branch here</button>}</span></div>{!!message.text && <Text value={message.text} />}<MessageImages images={message.images || []} agentId={active.id} messageId={message.id} /></div></article>; })}{active.questions.map(question => <NativeRequestCard key={questionTarget(active.id, question.id)} question={question} agentId={active.id} workerName={active.name} readOnlyCoordinator={active.role === 'coordinator'} act={act} prepareApprovalFocus={active.provider === 'claude' ? undefined : prepareApprovalFocus} />)}{active.status === 'attention' && !active.questions.length && <RequestRecovery key={active.id} recovering={!!active.recoveringRequests} error={active.requestError} disabled={!activeConnected} provider={active.provider} recover={() => api(`agents/${active.id}/requests`, {})} />}</div>
+          <div className="conversation" ref={scroll} onScroll={event => { const node = event.currentTarget; nearBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 90; if (active) { positions.current[active.id] = node.scrollTop; bottom.current[active.id] = nearBottom.current; scheduleBrowserSave(); } }}>{(active.managementNotice || active.observeError) && <p className="field-note session-notice" role="status">{active.managementNotice || active.observeError}</p>}{returnReviews.map(id => state.agents.find(agent => agent.id === id)).filter((agent): agent is Agent => !!agent).map(branch => <BranchSummaryReview key={branch.id} agent={branch} visible={active.id === branch.id} connected={runtimeReady(state, branch.provider) && !handoffActive(branch.handoff) && !handoffStarting.includes(branch.id)} parentName={state.agents.find(agent => agent.id === branch.parentId)?.name || 'Parent chat'} prepare={() => api(`agents/${branch.id}/summary`, {})} deliver={text => api(`agents/${branch.id}/return`, { text })} openParent={async () => { const result = await api(`agents/${branch.id}/parent`, {}); choose(result.id); }} dismiss={() => setReturnReviews(ids => ids.filter(id => id !== branch.id))} returned={parentId => { setReturnReviews(ids => ids.filter(id => id !== branch.id)); if (previous.current === branch.id) choose(parentId); }} />)}{active.olderCursor && <button className="older-button" onClick={() => void act(`agents/${active.id}/history`, { cursor: active.olderCursor })}>Load earlier messages</button>}{!active.messages.some(isVisibleMessage) && <div className="conversation-empty"><Icon name="chat" size={30} /><h3>A clear goal. A fresh start.</h3><p>Send a message to begin this conversation.</p></div>}{groupMessages(active.messages).map(group => { if (group.kind === 'activity') return <ActivityGroup key={group.id} messages={group.items} />; const message = group.message; return <article className={`message ${message.type}`} key={message.id}><div className="message-avatar">{message.type === 'user' ? 'Y' : <span className="mini-mark">✳</span>}</div><div className="message-body"><div className="message-author">{message.text.startsWith('[Command Center coordinator]') || (message.type === 'assistant' && active.role === 'coordinator') ? 'Coordinator' : message.type === 'user' ? 'You' : active.provider === 'claude' ? 'Claude' : 'Codex'}<MessageTime timestamp={message.timestamp} source={message.timestampSource} />{message.state === 'inProgress' && <span className="writing">writing</span>}<span className="message-actions">{message.type === 'user' && (message.rewindable === true || !!message.images?.length) ? <EditRewindAction disabledReason={message.images?.length ? 'This input has image attachments. Restoring them is not supported yet, so its history is kept.' : !message.turnId ? 'This input has no native turn boundary to rewind.' : rewindUnavailable({ worker: active, connected: activeConnected, draft: draftText, imageCount: draftImages.length, busy: !!busy || handoffStarting.includes(active.id) })} edit={() => setRewindTarget({ agentId: active.id, name: active.name, messageId: message.id, turnId: message.turnId })} /> : !!message.text.trim() && <CopyButton text={message.text} />}{active.role !== 'coordinator' && active.canBranch !== false && message.type === 'assistant' && message.branchable && <button className="message-branch" title="Branch with context through this completed reply" disabled={!activeConnected || state.agents.filter(agent => agent.role !== 'coordinator').length >= limits.maxWorkers || busy === 'navigate'} onClick={() => void navigate('fork', { lastTurnId: message.turnId })}><Icon name="branch" size={12} />Branch here</button>}</span></div>{!!message.text && <Text value={message.text} />}<MessageImages images={message.images || []} agentId={active.id} messageId={message.id} /></div></article>; })}{active.questions.map(question => <NativeRequestCard key={questionTarget(active.id, question.id)} question={question} agentId={active.id} workerName={active.name} readOnlyCoordinator={active.role === 'coordinator'} act={act} prepareApprovalFocus={active.provider === 'claude' ? undefined : prepareApprovalFocus} />)}{active.status === 'attention' && !active.questions.length && <RequestRecovery key={active.id} recovering={!!active.recoveringRequests} error={active.requestError} disabled={!activeConnected} provider={active.provider} recover={() => api(`agents/${active.id}/requests`, {})} />}</div>
           <ResizableComposer workerId={active.id} compact={compactLayout} height={composerHeight} change={setComposerHeight} onSubmit={event => { event.preventDefault(); void send(); }}><ChatHeader id={active.id} name={active.name} colour={chatColours[active.id] || 'cyan'} changeColour={(id, colour) => setChatColours(previous => ({ ...previous, [id]: colour }))}>{active.provider !== 'claude' && <WorkerStatus key={active.id} worker={active} receipt={receipts[active.id]} stream={streamHealth} runtimeConnected={activeConnected} />}</ChatHeader><div className="composer-box"><ImageDraftPreviews images={draftImages} error={imageErrors[active.id]} disabled={draftLocked} remove={imageId => { updateImages(previous => removeImageDrafts(previous, active.id, [imageId])); setImageErrors(previous => ({ ...previous, [active.id]: '' })); }} /><ChatDraft inputRef={composerInput} agentId={active.id} name={active.name} placeholder={handoffActive(active.handoff) || handoffStarting.includes(active.id) ? 'Handing this branch back to its parent…' : active.summarizing ? 'Preparing the branch summary…' : active.questions.length || active.status === 'attention' ? 'Draft your next message while answering the question…' : 'A follow-up, a direction, a pasted image…'} text={draftText} onChange={text => setDrafts(previous => ({ ...previous, [active.id]: text }))} onPasteImages={pasteImages} onSubmit={() => void send()} canSubmit={readyToSend} disabled={draftLocked} /><div className="composer-controls"><span>{active.questions.length || active.status === 'attention' ? 'You can draft · answer the question to send' : <><kbd>Enter</kbd> send <span className="composer-separator">·</span><kbd>Shift Enter</kbd> new line</>}</span><div><ImageAttachmentPicker agentId={active.id} name={active.name} disabled={draftLocked} attach={pasteImages} />{active.role !== 'coordinator' && active.canBranch !== false && <button type="button" className="button branch-button small" disabled={!activeConnected || !active.messages.length || state.agents.filter(agent => agent.role !== 'coordinator').length >= limits.maxWorkers || busy === 'navigate'} title={state.agents.filter(agent => agent.role !== 'coordinator').length >= limits.maxWorkers ? 'Close a tab to make room for a branch' : 'Branch from the current conversation, including the ongoing exchange'} onClick={() => void navigate('fork')}><Icon name="branch" size={14} />Branch chat</button>}{active.status === 'running' || active.status === 'attention' ? <button type="button" className="button interrupt small" onClick={() => void interrupt(active.id)} disabled={!canInterrupt(active, activeConnected)} title="Interrupt the visible agent (Escape)" aria-keyshortcuts="Escape"><Icon name="stop" size={14} />Interrupt <kbd>Esc</kbd></button> : null}<button type="submit" className="send-button" aria-label="Send message" disabled={!readyToSend}><Icon name="arrow" /></button></div></div></div><div className="composer-foot"><span>Local {active.provider === 'claude' ? 'Claude' : 'Codex'} workspace</span><span className="version">v{VERSION}</span></div></ResizableComposer></div> : <div className="empty-workspace"><div className="empty-glyph"><Icon name="branch" size={36} /></div><div className="eyebrow">ONE PLACE TO PICK UP THE THREAD</div><h2>Your agents. In focus.</h2><p>Open a running conversation or start something new.<br />Keep up to {limits.maxWorkers} agents close, without losing your place.</p><button className="button primary" disabled={!state.connected} onClick={() => setDialog(true)}><Icon name="plus" />Add your first agent</button><div className="empty-legend"><Badge status="running" /><Badge status="attention" /><Badge status="idle" /></div></div>}
       </section>
     </main>{dialog && <AgentDialog state={state} dismiss={() => setDialog(false)} act={act} select={choose} />}
     {taskQuestion && state.agents.some(agent => agent.id === taskQuestion.agentId) && (() => { const worker = state.agents.find(agent => agent.id === taskQuestion.agentId)!; return <TaskDiscussion key={`${worker.id}:${taskQuestion.taskId}`} taskId={taskQuestion.taskId} workerName={worker.name} canSend={runtimeReady(state, worker.provider) && worker.canSend && worker.status !== 'attention' && !worker.questions.length && !branchDraftLocked(worker, handoffStarting.includes(worker.id))} load={() => api(`agents/${worker.id}/tasks/${encodeURIComponent(taskQuestion.taskId)}`)} send={text => act(`agents/${worker.id}/message`, { text })} dismiss={() => setTaskQuestion(null)} />; })()}
+    {rewindTarget && (() => {
+      const target = rewindTarget; const opened = state.agents.find(agent => agent.id === target.agentId);
+      const worker = opened || { id: target.agentId, name: target.name };
+      const blocked = opened ? rewindUnavailable({ worker: opened, connected: runtimeReady(state, opened.provider), draft: drafts[worker.id] || '', imageCount: imageDrafts[worker.id]?.length || 0, busy: !!busy || handoffStarting.includes(worker.id) }) : 'This chat is no longer open. Reopen it before rewinding, or copy the original input shown in the preview before closing this dialog.';
+      return <RewindDialog key={`${target.agentId}:${target.messageId}`} workerId={worker.id} workerName={worker.name} messageId={target.messageId} turnId={target.turnId} blocked={blocked}
+        preview={() => api(`agents/${worker.id}/rewind-preview`, { messageId: target.messageId, turnId: target.turnId })}
+        commit={async previewToken => {
+          if (currentDrafts.current[worker.id]?.length || imageDraftsRef.current[worker.id]?.length) throw new Error('Your current draft is kept. Send or clear it before rewinding.');
+          return api(`agents/${worker.id}/rewind`, { previewToken, confirm: true });
+        }}
+        dismiss={() => setRewindTarget(null)}
+        applied={text => {
+          if (currentDrafts.current[worker.id]?.length || imageDraftsRef.current[worker.id]?.length) throw new Error('History was rewound, but your current draft was kept. Copy the original input shown in the preview before closing it.');
+          setDrafts(previous => ({ ...previous, [worker.id]: text }));
+          if (currentChat.current === worker.id) focusTarget.current = worker.id;
+          setRewindTarget(null);
+        }} />;
+    })()}
     {taskAgent && <TaskDialog key={taskAgent.id} agent={taskAgent} dismiss={() => { choose(taskAgent.id); setTaskAgent(null); }} saved={() => { choose(taskAgent.id); setTaskAgent(null); }} />}
   </div>;
 }

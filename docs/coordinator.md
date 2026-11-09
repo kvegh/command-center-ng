@@ -99,8 +99,9 @@ backend restart requires reading the original page again. References remain
 private process memory, outside browser/workspace persistence.
 
 The coordinator tab shows recent decisions/deliveries and their reasons. Native
-Codex history also retains coordinator tool calls and results. The bounded live
-decision list is process memory, not a new audit database. Supplied worker context
+Codex history also retains coordinator tool calls and results. Coordinator decision
+summaries now persist in a private local file and reload at startup; report/delivery
+events remain temporary. No new audit database is required. Supplied worker context
 is private native conversation data; it is not exported into the source repository.
 
 This is model-based review, not proof that an arbitrary script with administrator
@@ -246,8 +247,9 @@ paused state. Views are read without resuming unloaded conversations or starting
 turns. Before the coordinator next acts, its read-only sandbox and reduced
 capabilities are reapplied and checked. An unavailable saved coordinator reports
 an error and retries its existing ID instead of silently creating a replacement.
-The live decision list, pending reviews/tokens and queued messages remain process
-memory and are not replayed. Native tool-call history remains with Codex.
+Pending reviews/tokens and queued messages remain process memory and are not
+replayed. Saved decision summaries restore for display only, never as approvals
+or authority. Native tool-call history remains with Codex.
 See [workspace restore](workspace-restore.md) for the approved storage split.
 
 ## Reordering tabs
@@ -328,6 +330,23 @@ ordinary summaries and identical user-written text remain visible; native
 history is retained. Stopping the backend clears timers; restart loads intervals
 rather than replaying old native approvals or missed-report bursts.
 
+Report completion is matched to the actual native delivery turn. If existing
+work finishes during instruction loading, its completion cannot mark a request
+sent into the next turn as missing. Recognition accepts ordered green outcomes,
+yellow work and a blue Next bullet with substantive topic labels; a red blocker
+bullet is optional. The recommended four-label worker format is unchanged.
+Only new completed assistant messages for the matching delivery turn count;
+quoted examples, code blocks and historical text remain excluded. Recognition
+does not establish task completion or infer that no blockers exist.
+
+File-approval reads include the matching native file-change paths, change kinds
+and diffs when supplied, with explicit unavailable/truncated status. The worker
+card and coordinator use the same exact conversation/turn/item projection.
+Proposed content remains temporary native evidence, not new authority or durable
+decision-log data. Recheck its fingerprint across asynchronous review; changed
+content invalidates that review. No filesystem reads or answer submission are
+used to fill missing proposal details.
+
 
 ## Local providers and recorded chat questions in0.19.0
 
@@ -365,3 +384,39 @@ request a throttled update for the relevant worker; one blocked/external session
 does not gate the rest of the dashboard. Startup inputs remain hidden in both
 CCNG chats, with no instruction echo/acknowledgement loop. Native permissions and
 real user authority remain unchanged.
+
+
+## Decision summaries after restart
+
+`decisions.jsonl` is stored beside the private `workspace.json`, normally under
+`~/.config/command-center-ng/`. `CCNG_CONFIG_DIR` selects the existing private
+configuration directory. It is outside the checkout/installation, uses owner-only
+permissions and is created on the first recorded coordinator decision. Updates
+preserve it. No new database, service or Git export is used.
+
+Each entry keeps the timestamp, recorded worker/project names, short request,
+decision/rationale and native references. Coordinator rationale starts with a
+plain `Request:` line describing the effects; raw commands/helper bodies and
+approval parameters are not used as the summary. The store projects a fixed
+allowlist, omits active tokens, answer forms and authority quotes, and rejects
+obvious credential/code text. That check is not a guarantee of general secret
+redaction: keep credentials out of rationales. Treat this file as private data.
+
+All entries remain on disk until you explicitly delete them. Startup streams the
+file with bounded memory, reloads the recent 200 records and shows the last 20
+with readable request/decision bullets, recorded names and save status. Earlier
+records remain in the file; report/delivery events are not retained. Persistence
+begins when this feature is installed; older decisions remain in native history
+and are not automatically imported.
+
+**Saved** means the summary was written, not that the approved work executed.
+Native resolved, needs-user and unconfirmed outcomes stay distinct. Saved rows
+cannot authorize another request, restore a pending approval or change native
+permissions. Current requests remain in Open questions.
+
+If loading/writing fails, the panel shows a warning and unsaved status without
+changing the native decision's real outcome. Corrupt, partial, unsafe or externally
+modified files are left untouched; no repair, deletion or retry is automatic.
+Normal shutdown waits for queued writes. Abrupt kills or native acknowledgements
+that have not yet been recorded cannot be guaranteed durable. Back up this private
+file with the rest of your private runtime configuration; do not commit it to Git.

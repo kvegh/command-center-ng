@@ -33,6 +33,19 @@ Create the initial hash atomically without replacing an existing file; corrupt
 or unsafe auth must fail closed. Preserve login, origin/Host checks, rate limits
 and secure sessions. Infrastructure/Ansible integration belongs to its owner.
 
+The user approved persistent application sessions to survive updates/restarts.
+Use owner-private hashed opaque-session records beside auth configuration, with
+the existing absolute 12-hour expiry, logout and password-change invalidation.
+No raw cookie/password storage, extra service or memory-only fallback. Refresh
+the actual password revision before issuing a session. Exact --clear-logins
+rotates invalidation state for the running app and future starts, then exits
+without starting listeners/native work or changing passwords/nginx. Reject old
+sessions at the next check and close event streams by the next heartbeat;
+already accepted agent work continues. App authentication uses explicit JSON403
+codes rather than HTTP Basic401 challenges, and unavailable storage fails visibly
+with503. Preserve origin/TLS/rate protections and expose no new permissions.
+RAM-only sessions from older versions need one final login during migration.
+
 The user requested a target-local launcher and installer update mode, explicitly
 selecting automatic fetching of latest code. Version 0.1.0 uses the same local
 service and native Codex thread/fork support for completed-reply branching with
@@ -86,6 +99,8 @@ branch summaries remain excluded. Do not add a persistent authority store or
 broaden native permissions.
 Keep transcripts in native conversation history, live reviews/queues in process
 memory and only the approved workspace metadata in the private workspace file.
+The later user-approved decision-summary exception uses a separate private
+JSONL file, as described below; it does not persist active reviews or queues.
 Worker settings stay unchanged. The user also requested draggable tab order with
 accessible controls; preserve the separate coordinator group and chat focus.
 
@@ -131,6 +146,12 @@ tokens, secret values, encrypted secret payloads, private conversation exports,
 runtime state, or environment-specific usernames, addresses, hostnames, paths,
 and configuration. Use synthetic, generic examples. Keep credentials outside
 the repository, including its history. Review staged files before publication.
+
+Specific screenshot exception: the user approved publication of the three supplied
+development screenshots after being shown their visible host/target aliases,
+account path, operational context and creation metadata. Keep those approved
+images authentic and label their historical UI/status context. This does not
+authorize other screenshots, private exports or credential disclosure.
 
 Do not copy local agent settings or another project's environment files into
 this repository. Keep screenshots and fixtures free of private data.
@@ -660,3 +681,47 @@ overflow or push settings offscreen. Preserve resize keyboard/cancel/reset and
 make settings feedback reachable on short windows. Mobile retains its continuous
 page and compact settings; desktop pinning must not apply to narrow/coarse-touch
 layouts. Do not change native task/request semantics for layout work.
+
+
+## Approved whole-turn Edit and rewind
+
+The user approved native Codex whole-turn rewind with preview/confirmation.
+Use thread/revert(beforeTurnId) only for exact original text user input, with
+all affected turns/messages shown before explicit confirmation. Whole turns can
+contain multiple inputs. Refresh authoritative native history after acknowledgement,
+replace the old cache and return original text to the normal editable composer;
+never send it automatically. Preserve existing drafts/attachments and other chats.
+Images/other attachment-bearing inputs are disabled until restoration is supported.
+Files, commands, deployments, Beads states and saved permissions are not undone.
+
+Busy work, current/uncertain native requests, pending coordinator inputs and
+prepared/incoming branch handoffs block rewind. Recheck identity/revision/suffix
+immediately before the native mutation; no automatic retry after an uncertain
+outcome. Existing queues and report/task-check schedules remain, not cancelled.
+Native API has no cross-client compare-and-swap: warn against editing the same
+conversation from another client during confirmation. Do not claim cross-client
+atomicity or implement unsupported history rewrites/backups. Unsupported legacy,
+ephemeral or native-method cases fail visibly without alternate rewrites.
+Individual-message rewind and all Claude rewind work remain deferred.
+
+
+## Approved durable decision summaries
+
+Persist coordinator decision summaries in owner-only decisions.jsonl beside
+workspace.json, outside Git/checkout. Retain all entries until explicit deletion;
+reload recent 200 at startup, keeping the existing last-20 panel. Save timestamp,
+worker/project names, short Request summary, decision/rationale and native IDs
+only; exclude raw command/helper bodies, credentials, active review tokens,
+authorization quotes, answer forms and transport error bodies. Existing native
+history remains the full reference; no automatic import of older history.
+
+These are explanations, never authorization or replayable approval answers.
+Loading the log must not submit native responses, change permissions or resume
+work. Only future coordinator decisions are appended; report/delivery events
+remain temporary. Mark storage pending/saved/failed separately from the real
+native acknowledgement/outcome. Unsafe/corrupt/changed logs remain untouched
+with a visible warning; disk failures cannot turn an acknowledged action into
+an unconfirmed native outcome or trigger retries. Graceful shutdown drains queued
+writes; hard kills and future unrecorded native acknowledgements have no durability
+guarantee. Use bounded streaming/append and existing Node facilities, no database
+or service, no silent truncation/rotation or automatic permission changes.

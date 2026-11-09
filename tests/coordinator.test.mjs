@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Workspace } from '../server/workspace.mjs';
 import { COORDINATOR_TOOLS } from '../server/coordinator.mjs';
+import { DecisionStore } from '../server/decision-store.mjs';
 import { COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_RATIONALE_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE } from '../server/coordinator-prompt.mjs';
 
 class Rpc extends EventEmitter {
@@ -54,6 +55,7 @@ function fakeReportClock() {
   };
 }
 const standardReport = '- 🟩 **Done:** Published version 0.26.0.\n- 🟨 **In progress:** Continue the authorized build.\n- 🟥 **Blocked / needs input:** None.\n- 🟦 **Next:** Finish verification.';
+const topicReport = '- 🟩 **Published source:** The reviewed release is available.\n- 🟩 **Import fix:** The correction is verified.\n- 🟨 **MCP:** Validation continues.\n- 🟨 **Firewall:** Waiting for the existing test.\n- 🟦 **Next:** Finish the authorized checks.';
 
 async function fixture(coordinatorOptions = {}) {
   const cwd = await mkdtemp(join(tmpdir(), 'ccng-coordinator-')); const rpc = new Rpc(cwd);
@@ -213,6 +215,99 @@ test('approval review requires exact user authority and a current request, while
     await assert.rejects(f.call('ccng_review_approval', args), /no longer available/);
     f.rpc.ask('clarify', 'worker', 'item/tool/requestUserInput'); const clarification = f.workspace.agent('worker').questions[0];
     await assert.rejects(f.call('ccng_review_approval', { ...args, reviewToken: clarification.reviewToken }), /cannot answer user preferences/);
+  } finally { await f.close(); }
+});
+
+test('decision history saves native outcomes and source references but never approval bodies, tokens or authorization quotes', async () => {
+  const f = await fixture();
+  try {
+    const file = join(f.cwd, 'decisions.jsonl');
+    await f.coordinator.initializeDecisionHistory(new DecisionStore(file));
+    f.coordinator.record({ agentId: 'worker', action: 'report', outcome: 'delivered' });
+    await f.coordinator.flushDecisionHistory();
+    await assert.rejects(readFile(file), { code: 'ENOENT' });
+    f.rpc.ask('persisted-request', 'worker');
+    const question = f.workspace.agent('worker').questions[0];
+    question.params.command = 'synthetic-private-command-body'; question.params.reason = 'synthetic-private-native-reason'; question.params.itemId = 'native-item';
+    const args = { agentId: 'worker', reviewToken: question.reviewToken, decision: 'ask', rationale: 'Request: Verify the selected configuration.\nConcern: Confirm the intended target.', authorizationMessageId: null, authorizationQuote: null };
+    assert.equal((await f.call('ccng_review_approval', args)).outcome, 'needs_user');
+    args.decision = 'approve'; args.authorizationMessageId = 'user-worker'; args.authorizationQuote = 'Create and clean up disposable test resources.';
+    assert.equal((await f.call('ccng_review_approval', args)).outcome, 'resolved');
+    await f.coordinator.flushDecisionHistory();
+    const rows = await new DecisionStore(file).load();
+    assert.deepEqual(rows.map(row => [row.decision, row.outcome]), [['ask', 'needs_user'], ['approve', 'resolved']]);
+    assert.equal(rows[1].requestSummary, 'Verify the selected configuration.');
+    assert.equal(rows[1].requestId, 'persisted-request'); assert.equal(rows[1].itemId, 'native-item');
+    assert.equal(rows[1].authorizationMessageId, 'user-worker');
+    const bytes = await readFile(file, 'utf8');
+    for (const excluded of [question.reviewToken, args.authorizationQuote, 'synthetic-private-command-body', 'synthetic-private-native-reason']) assert.equal(bytes.includes(excluded), false);
+    assert.equal(f.coordinator.audit.at(-1).storageState, 'saved');
+    assert.equal(f.rpc.replies.filter(reply => reply.id === 'persisted-request').length, 1);
+    const restored = await fixture();
+    try {
+      const before = restored.rpc.calls.length;
+      await restored.coordinator.initializeDecisionHistory(new DecisionStore(file));
+      assert.equal(restored.rpc.calls.length, before, 'loading history does not call the native runtime');
+      assert.equal(restored.rpc.replies.length, 0); assert.equal(restored.coordinator.deliveries.size, 0);
+      assert.deepEqual(restored.coordinator.audit.map(row => row.storageState), ['saved', 'saved']);
+      restored.rpc.ask('new-request', 'worker');
+      const fresh = restored.workspace.agent('worker').questions[0];
+      await assert.rejects(restored.call('ccng_review_approval', { ...args, reviewToken: fresh.reviewToken, authorizationMessageId: rows[1].id }), /actual user instruction/);
+      assert.equal(restored.rpc.replies.length, 0, 'a saved explanation is not user authority');
+    } finally { await restored.close(); }
+  } finally { await f.close(); }
+});
+
+test('decision storage failure cannot change or retry a confirmed native approval', async () => {
+  const f = await fixture();
+  try {
+    await f.coordinator.initializeDecisionHistory({ load: async () => [], append: async () => { throw new Error('Synthetic disk failure'); }, flush: async () => {} });
+    f.rpc.ask('native-success', 'worker');
+    const question = f.workspace.agent('worker').questions[0];
+    const result = await f.call('ccng_review_approval', { agentId: 'worker', reviewToken: question.reviewToken, decision: 'approve', rationale: 'The user authorized this bounded lifecycle check.', authorizationMessageId: 'user-worker', authorizationQuote: 'Create and clean up disposable test resources.' });
+    assert.equal(result.outcome, 'resolved');
+    await f.coordinator.flushDecisionHistory();
+    const rows = f.coordinator.audit.filter(row => row.requestId === 'native-success');
+    assert.equal(rows.length, 1); assert.equal(rows[0].outcome, 'resolved'); assert.equal(rows[0].storageState, 'failed');
+    assert.match(f.coordinator.snapshot().decisionLogError, /Synthetic disk failure/);
+    assert.equal(f.rpc.replies.filter(reply => reply.id === 'native-success').length, 1);
+  } finally { await f.close(); }
+});
+
+test('unconfirmed native answers persist their uncertainty without retaining native error bodies', async () => {
+  const f = await fixture();
+  try {
+    const file = join(f.cwd, 'decisions.jsonl'); await f.coordinator.initializeDecisionHistory(new DecisionStore(file));
+    f.rpc.ask('uncertain-request', 'worker');
+    const question = f.workspace.agent('worker').questions[0];
+    f.workspace.answer = async () => { throw new Error('synthetic-private-native-error'); };
+    await assert.rejects(f.call('ccng_review_approval', { agentId: 'worker', reviewToken: question.reviewToken, decision: 'decline', rationale: 'The current action requires a clearer target choice.', authorizationMessageId: null, authorizationQuote: null }), /synthetic-private-native-error/);
+    await f.coordinator.flushDecisionHistory();
+    const rows = await new DecisionStore(file).load();
+    assert.equal(rows[0].decision, 'decline'); assert.equal(rows[0].outcome, 'unconfirmed');
+    assert.equal(rows[0].requestSummary, 'Review the proposed command.');
+    assert.equal((await readFile(file, 'utf8')).includes('synthetic-private-native-error'), false);
+  } finally { await f.close(); }
+});
+
+test('startup corruption is visible and normal shutdown drains all queued decisions without native work', async () => {
+  const f = await fixture();
+  try {
+    const file = join(f.cwd, 'decisions.jsonl'); await f.coordinator.initializeDecisionHistory(new DecisionStore(file));
+    for (let index = 0; index < 2; index++) f.coordinator.record({ agentId: 'worker', workerName: 'Worker', projectName: 'Project', requestSummary: 'Verify the selected change.', requestId: 'queued-' + index, decision: 'ask', outcome: 'needs_user', rationale: 'The user needs to choose the intended target.' });
+    f.workspace.agent(f.coordinator.id).turnId = null;
+    const before = f.rpc.calls.length;
+    await f.coordinator.shutdown();
+    assert.equal(f.rpc.calls.length, before);
+    assert.equal((await new DecisionStore(file).load()).length, 2);
+    const broken = join(f.cwd, 'broken.jsonl'); await writeFile(broken, 'broken history', { mode: 0o600 });
+    const other = await fixture();
+    try {
+      await other.coordinator.initializeDecisionHistory(new DecisionStore(broken));
+      assert.match(other.coordinator.snapshot().decisionLogError, /incomplete final record/);
+      assert.equal(await readFile(broken, 'utf8'), 'broken history');
+      assert.equal(other.rpc.replies.length, 0);
+    } finally { await other.close(); }
   } finally { await f.close(); }
 });
 
@@ -605,7 +700,7 @@ test('priority insertion preserves an in-flight message and follows it without w
   try {
     const worker = f.workspace.agent('worker'); const originalSend = f.workspace.send.bind(f.workspace);
     let release; const gate = new Promise(resolve => { release = resolve; });
-    f.workspace.send = async (...args) => { await originalSend(...args); if (args[1] === 'In-flight summary.') await gate; };
+    f.workspace.send = async (...args) => { const result = await originalSend(...args); if (args[1] === 'In-flight summary.') await gate; return result; };
     f.coordinator.queue(worker, 'In-flight summary.', 'summary');
     await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/start'));
     f.coordinator.queue(worker, 'Later summary.', 'summary'); f.coordinator.requestUserReport('worker');
@@ -766,7 +861,7 @@ test('Never preserves startup sends already in flight or with uncertain delivery
       let release; let attempts = 0;
       const gate = new Promise(resolve => { release = resolve; });
       const send = f.workspace.send.bind(f.workspace);
-      f.workspace.send = async (...args) => { attempts++; if (uncertain) throw new Error('Uncertain startup delivery'); await send(...args); await gate; };
+      f.workspace.send = async (...args) => { attempts++; if (uncertain) throw new Error('Uncertain startup delivery'); const result = await send(...args); await gate; return result; };
       f.coordinator.refreshStartupDashboard();
       await waitFor(() => uncertain ? !!f.coordinator.deliveries.get('worker')?.[0].error : f.rpc.calls.some(call => call.method === 'turn/start'));
       if (!uncertain) f.workspace.agent('worker').reportError = 'Earlier scheduling failure';
@@ -1003,7 +1098,7 @@ test('a report observed before send acknowledgement stays pending until native d
     const worker = f.workspace.agent('worker'); worker.turnId = 'active-work'; worker.thread.status = { type: 'active' };
     const send = f.workspace.send.bind(f.workspace); let release;
     const gate = new Promise(resolve => { release = resolve; });
-    f.workspace.send = async (...args) => { await send(...args); await gate; };
+    f.workspace.send = async (...args) => { const result = await send(...args); await gate; return result; };
     f.coordinator.setReportInterval('worker', 5, { notifyWorker: true }); clock.advance(5 * 60_000);
     await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer'));
     assert.equal(f.coordinator.reportMessageCompleted('worker', { id: 'fast-report', type: 'assistant', state: 'completed', turnId: 'active-work', text: standardReport }), false);
@@ -1012,6 +1107,130 @@ test('a report observed before send acknowledgement stays pending until native d
     assert.equal(f.coordinator.reportPending.has('worker'), false);
     assert.equal(worker.turnId, 'active-work'); assert.equal(f.coordinator.reportResponses.size, 0);
   } finally { await f.close(); }
+});
+
+test('topic-labelled green and yellow report sections with blue Next are recognized without a red section', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'report-work'; worker.thread.status = { type: 'active' };
+    for (const [index, text] of [topicReport, topicReport.replace('- 🟦', '- 🟥 **Needs input:** Choose the intended test target.\n- 🟦')].entries()) {
+      f.coordinator.requestUserReport('worker');
+      await waitFor(() => !worker.coordinatorSending);
+      assert.equal(f.coordinator.reportPending.has('worker'), true);
+      f.rpc.emit('notification', { method: 'item/completed', params: { threadId: 'worker', turnId: 'report-work', item: { id: 'topic-report-' + index, type: 'agentMessage', text } } });
+      assert.equal(f.coordinator.reportPending.has('worker'), false);
+      assert.equal(worker.reportError, null);
+    }
+  } finally { await f.close(); }
+});
+
+test('topic report recognition keeps partial, non-Next, quoted, code, reversed and other-turn negatives', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'report-work'; worker.thread.status = { type: 'active' };
+    f.coordinator.requestUserReport('worker'); await waitFor(() => !worker.coordinatorSending);
+    for (const text of [
+      topicReport.split('\n').slice(0, -1).join('\n'), topicReport.replace('**Next:**', '**Notes:**'),
+      topicReport.split('\n').reverse().join('\n'), topicReport.split('\n').map(line => '> ' + line).join('\n'),
+      '```markdown\n' + topicReport + '\n```', topicReport.split('\n').map(line => '    ' + line).join('\n'),
+    ]) assert.equal(f.coordinator.reportMessageCompleted('worker', { id: 'not-a-report', type: 'assistant', state: 'completed', turnId: 'report-work', text }), false);
+    assert.equal(f.coordinator.reportMessageCompleted('worker', { id: 'wrong-turn', type: 'assistant', state: 'completed', turnId: 'another-turn', text: topicReport }), false);
+    assert.equal(f.coordinator.reportPending.has('worker'), true);
+  } finally { await f.close(); }
+});
+
+test('report delivery binds to its actual new turn when the previous turn finishes during context loading', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'previous-work'; worker.thread.status = { type: 'active' };
+    let releaseContext, contextEntered;
+    const entered = new Promise(resolve => { contextEntered = resolve; });
+    f.workspace.instructionContext = () => { contextEntered(); return new Promise(resolve => { releaseContext = resolve; }); };
+    f.coordinator.requestUserReport('worker'); await entered;
+    f.rpc.emit('notification', { method: 'item/completed', params: { threadId: 'worker', turnId: 'previous-work', item: { id: 'previous-turn-report', type: 'agentMessage', text: standardReport } } });
+    f.coordinator.dirty.clear(); f.rpc.complete('worker', 'previous-work');
+    releaseContext({}); await waitFor(() => !worker.coordinatorSending);
+    const turnId = worker.turnId;
+    assert.notEqual(turnId, 'previous-work');
+    assert.equal(f.coordinator.reportResponses.get('worker')?.turnId, turnId);
+    assert.equal(f.coordinator.reportPending.has('worker'), true);
+    assert.equal(worker.reportError, null);
+    assert.equal(f.coordinator.dirty.get('worker')?.has('Requested report was not received') || false, false);
+    f.coordinator.completed('worker', 'unrelated-completion');
+    assert.equal(f.coordinator.reportPending.has('worker'), true, 'an unrelated turn completion cannot fail this report');
+    f.rpc.emit('notification', { method: 'item/completed', params: { threadId: 'worker', turnId, item: { id: 'actual-new-turn-report', type: 'agentMessage', text: standardReport } } });
+    assert.equal(f.coordinator.reportPending.has('worker'), false);
+  } finally { await f.close(); }
+});
+
+test('a fast new report turn can finish before native acknowledgement without being missed or marked active again', async () => {
+  for (const previousActive of [false, true]) {
+    const f = await fixture();
+    try {
+      const worker = f.workspace.agent('worker');
+      if (previousActive) { worker.turnId = 'previous-work'; worker.thread.status = { type: 'active' }; }
+      let releaseContext, contextEntered, releaseAck, reportEmitted;
+      const entered = new Promise(resolve => { contextEntered = resolve; });
+      const emitted = new Promise(resolve => { reportEmitted = resolve; });
+      const ack = new Promise(resolve => { releaseAck = resolve; });
+      f.workspace.instructionContext = () => { contextEntered(); return new Promise(resolve => { releaseContext = resolve; }); };
+      const call = f.rpc.call.bind(f.rpc);
+      f.rpc.call = async (method, params) => {
+        const result = await call(method, params);
+        if (method === 'turn/start' && params.threadId === 'worker') {
+          f.rpc.emit('notification', { method: 'item/completed', params: { threadId: 'worker', turnId: result.turn.id, item: { id: 'fast-new-report', type: 'agentMessage', text: standardReport } } });
+          f.rpc.complete('worker', result.turn.id); reportEmitted(); await ack;
+        }
+        return result;
+      };
+      f.coordinator.requestUserReport('worker'); await entered;
+      if (previousActive) f.rpc.complete('worker', 'previous-work');
+      releaseContext({}); await emitted;
+      assert.equal(f.coordinator.reportPending.has('worker'), true, 'early report still waits for native acceptance');
+      releaseAck(); await waitFor(() => !worker.coordinatorSending);
+      assert.equal(f.coordinator.reportPending.has('worker'), false);
+      assert.equal(worker.reportError, null);
+      assert.equal(worker.turnId, null);
+      assert.equal(worker.thread.status.type, 'idle');
+      assert.equal(f.coordinator.audit.some(row => row.outcome === 'missing-response'), false);
+    } finally { await f.close(); }
+  }
+});
+
+test('idle managed Claude settles an observed completed report turn only after acknowledgement, without guessing another candidate turn', async () => {
+  for (const withReport of [true, false]) {
+    const f = await fixture();
+    try {
+      const worker = f.workspace.agent('worker'); worker.provider = 'claude'; worker.externalSession = false;
+      worker.turnId = null; worker.thread.status = { type: 'idle' };
+      f.workspace.instructionContext = async () => ({});
+      let releaseAck, completed;
+      const ack = new Promise(resolve => { releaseAck = resolve; });
+      const emitted = new Promise(resolve => { completed = resolve; });
+      f.workspace.claude = { available: true, runs: new Map(), send: async () => {
+        worker.turnId = 'sdk-completed-turn'; worker.thread.status = { type: 'active' };
+        f.coordinator.reportMessageCompleted('worker', { id: 'sdk-report', type: 'assistant', state: 'completed', turnId: withReport ? 'sdk-completed-turn' : 'unrelated-turn', text: standardReport });
+        worker.finishedTurn = { id: 'sdk-completed-turn', status: 'completed' };
+        worker.turnId = null; worker.thread.status = { type: 'idle' };
+        f.coordinator.completed('worker'); completed(); await ack;
+      } };
+      f.coordinator.dirty.clear(); f.coordinator.requestUserReport('worker'); await emitted;
+      assert.equal(f.coordinator.reportPending.has('worker'), true);
+      assert.equal(worker.reportError == null, true);
+      releaseAck(); await waitFor(() => !worker.coordinatorSending);
+      assert.equal(f.coordinator.reportPending.has('worker'), false);
+      assert.equal(f.coordinator.reportResponses.has('worker'), false);
+      if (withReport) {
+        assert.equal(worker.reportError, null);
+        assert.ok(f.coordinator.dirty.get('worker')?.has('Requested report is ready'));
+      } else {
+        assert.match(worker.reportError, /without a recognized Standard Task Report/);
+        assert.ok(f.coordinator.dirty.get('worker')?.has('Requested report was not received'));
+      }
+      f.coordinator.completed('worker');
+      assert.equal(f.coordinator.audit.filter(row => row.outcome === 'missing-response').length, withReport ? 0 : 1);
+    } finally { await f.close(); }
+  }
 });
 
 test('native request acceptance waits for a report; ordinary turn completion reports a missing response without retrying', async () => {
@@ -1050,7 +1269,7 @@ test('turn completion before send acknowledgement settles once after confirmatio
       const worker = f.workspace.agent('worker'); worker.turnId = 'fast-turn'; worker.thread.status = { type: 'active' };
       const send = f.workspace.send.bind(f.workspace); let release;
       const gate = new Promise(resolve => { release = resolve; });
-      f.workspace.send = async (...args) => { await send(...args); await gate; };
+      f.workspace.send = async (...args) => { const result = await send(...args); await gate; return result; };
       f.coordinator.requestUserReport('worker');
       await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer'));
       if (withReport) assert.equal(f.coordinator.reportMessageCompleted('worker', { id: 'fast-complete-report', type: 'assistant', state: 'completed', turnId: 'fast-turn', text: standardReport }), false);
@@ -1080,7 +1299,7 @@ test('an in-flight summary stays first and a due report then steers the active t
   try {
     const worker = f.workspace.agent('worker'); const send = f.workspace.send.bind(f.workspace);
     let release; const gate = new Promise(resolve => { release = resolve; });
-    f.workspace.send = async (...args) => { await send(...args); if (args[1] === 'In-flight summary.') await gate; };
+    f.workspace.send = async (...args) => { const result = await send(...args); if (args[1] === 'In-flight summary.') await gate; return result; };
     f.coordinator.setReportInterval('worker', 5, { notifyWorker: true });
     f.coordinator.queue(worker, 'In-flight summary.', 'summary');
     await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/start'));

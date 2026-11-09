@@ -28,7 +28,7 @@ assert.equal(effects.length, 1, 'test the actual authenticated workspace initial
 assert.ok(sessionApplier, 'test the actual session state application too');
 const { makeEffect, makeSessionApplier } = await compiledModule(`
 export function makeEffect({ authenticated, api, EventSource, observeWorkspaceStream, setState, setError, setStreamHealth, applySession }) { return ${effects[0].getText(ast)}; }
-export function makeSessionApplier({ setLoginSession, setAuthenticated }) { return ${sessionApplier.getText(ast)}; }
+export function makeSessionApplier({ setLoginSession, setAuthenticated, setSessionReadError, apiAuthentication, browserSave }) { return ${sessionApplier.getText(ast)}; }
 `);
 
 const statusSource = await readFile(new URL('../src/worker-status.tsx', import.meta.url), 'utf8');
@@ -38,7 +38,7 @@ const { observeWorkspaceStream } = await compiledModule(observer.getText(statusA
 
 const snapshot = (name, questionIds = []) => ({ name, connected: true, agents: [{ id: 'worker', questions: questionIds.map(id => ({ id })) }] });
 const checkpoint = () => new Promise(resolve => setImmediate(resolve));
-function fixture({ authenticated = true, state = { value: null, writes: [], errors: [], health: [], authentication: [], setup: [] }, session = Promise.resolve({ authenticated: true }) } = {}) {
+function fixture({ authenticated = true, state = { value: null, writes: [], errors: [], health: [], authentication: [], setup: [], flushed: 0 }, session = Promise.resolve({ authenticated: true }) } = {}) {
   let resolveInitial, rejectInitial;
   const initial = new Promise((resolve, reject) => { resolveInitial = resolve; rejectInitial = reject; });
   const streams = [], requests = [];
@@ -52,7 +52,7 @@ function fixture({ authenticated = true, state = { value: null, writes: [], erro
     setState: update => { state.value = typeof update === 'function' ? update(state.value) : update; state.writes.push(state.value); },
     setError: message => state.errors.push(message),
     setStreamHealth: value => state.health.push(value),
-    applySession: makeSessionApplier({ setAuthenticated: value => state.authentication.push(value), setLoginSession: value => state.setup.push(value) }),
+    applySession: makeSessionApplier({ setAuthenticated: value => state.authentication.push(value), setLoginSession: value => state.setup.push(value), setSessionReadError() {}, apiAuthentication: { generation: 0 }, browserSave: { current: () => { state.flushed++; } } }),
   })();
   return { state, requests, stream: streams[0], streams, cleanup, resolveInitial, rejectInitial };
 }
@@ -124,9 +124,11 @@ test('a prior login session check cannot log out a newer login after its stream 
     current.stream.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(fresh) }));
     resolveOldSession({ authenticated: false }); await checkpoint();
     assert.deepEqual(current.state.authentication, [], 'an expired old session cannot log out the newer effect');
+    assert.equal(current.state.flushed, 0);
     assert.deepEqual(current.state.value, fresh);
     current.stream.dispatchEvent(new Event('error')); await checkpoint();
     assert.deepEqual(current.state.authentication, [false], 'the current effect still detects an expired session');
+    assert.equal(current.state.flushed, 1, 'save pending text preferences before leaving the authenticated view');
   } finally { current.cleanup(); }
 });
 
@@ -142,5 +144,27 @@ test('old setup flags cannot replace the newer login while a current session rec
     current.stream.dispatchEvent(new Event('error')); await checkpoint();
     assert.deepEqual(current.state.authentication, [false]);
     assert.deepEqual(current.state.setup, [{ setupRequired: true, setupAllowed: true }], 'the current effect preserves the exact first-password mode');
+  } finally { current.cleanup(); }
+});
+
+test('current authentication-storage failures are visible and never interpreted as an expired session', async () => {
+  const failure = Object.assign(new Error('Authentication storage is unavailable.'), { status: 503, code: 'authentication_unavailable' });
+  const f = fixture({ session: Promise.reject(failure) });
+  try {
+    f.stream.dispatchEvent(new Event('error')); await checkpoint();
+    assert.deepEqual(f.state.errors, ['Authentication storage is unavailable.']);
+    assert.deepEqual(f.state.authentication, []);
+    assert.deepEqual(f.state.setup, []);
+  } finally { f.cleanup(); }
+});
+
+test('a delayed storage error from the old stream cannot replace a newer login with an obsolete warning', async () => {
+  let rejectOldSession;
+  const old = fixture({ session: new Promise((_resolve, reject) => { rejectOldSession = reject; }) });
+  old.stream.dispatchEvent(new Event('error')); old.cleanup();
+  const current = fixture({ state: old.state });
+  try {
+    rejectOldSession(Object.assign(new Error('Obsolete authentication storage error.'), { status: 503 })); await checkpoint();
+    assert.deepEqual(current.state.errors, []); assert.deepEqual(current.state.authentication, []);
   } finally { current.cleanup(); }
 });

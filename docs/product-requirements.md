@@ -38,6 +38,16 @@ local setup uses the existing password CLI. Missing authentication without the
 protected-proxy opt-in still refuses startup. Proxy enforcement and Ansible
 integration remain separately owned; tests do not prove infrastructure protection.
 
+Application logins must survive ordinary updates/restarts with their existing
+absolute 12-hour expiry. Persist only hashed opaque session IDs and invalidation
+references in owner-private files outside the installation. Preserve per-browser
+logout and password-change invalidation; refresh the actual password revision
+before issuing a session. Exact `--clear-logins` explicitly invalidates all app
+sessions in the running process and on later startup without changing passwords,
+htpasswd or native agents. Authentication-storage errors fail visibly and closed.
+Application authentication errors must not evict cached HTTP Basic credentials.
+Existing RAM-only sessions cannot be migrated and require one final sign-in.
+
 ### Approved mobile layout
 
 Use a single naturally scrolling, full-width page with wrapping worker tabs.
@@ -88,8 +98,9 @@ does not establish that its assigned work is complete.
 
 ## Conversation branching
 
-Every chat message has a **Copy this** control with a copy icon, immediately
-left of **Branch here** where branching is available, with space between them.
+Assistant messages retain **Copy this** with its icon, immediately left of
+**Branch here** where available. Eligible original Codex user text inputs use
+**Edit & rewind** instead; unsupported/image inputs retain safe limitations.
 It copies that message's full text to the browser clipboard. Fenced and indented
 code blocks have their own copy icon that copies only that block's exact text.
 Copying provides visible success/failure feedback and never executes commands.
@@ -307,6 +318,21 @@ Standard Task Reports must account for every active workstream in the current
 scope, including delegated audits and research. Concise grouping must not hide
 active work. Keep blocked, queued, deferred and completed work distinguishable;
 disclose uncertain coverage without extra commands merely for a report.
+
+Report tracking matches the actual native delivery turn, including when the
+previous turn finishes during request preparation. Recognize completed summaries
+with ordered green outcomes, yellow work and blue Next bullets even when their
+labels name topics and no red blocker bullet is present. Preserve the recommended
+four-label instructions, pending-delivery confirmation, freshness and quoted/code
+exclusions. Recognition does not imply completion or absence of blockers.
+
+Native file approvals must show the available proposed paths, change kinds and
+diffs to both user and coordinator, joined by exact worker/thread/turn/item
+identity. Do not substitute identifiers or an earlier edit's content. Use the
+existing native-message records and pending-request views, not another store.
+Disclose truncation or unavailable native content; explicit detail loading reads
+history without approving, executing or fetching arbitrary files. Preserve native
+answer scopes and reject review when the proposal changes while being checked.
 
 Escape interrupts the eligible native turn in the visible chat through the
 existing Interrupt action. It preserves unsent drafts and normal local Escape
@@ -693,3 +719,28 @@ without waking that worker for a report. Manual Report now remains a one-off;
 enabled schedules retain coalescing and their cadence. Changing to Never cancels
 only unsent automatic reports, preserving explicit manual, failed/unconfirmed
 and in-flight requests. Separate fifteen-minute task checks are unchanged.
+
+### Whole-turn Edit and rewind
+
+The user approved native whole-turn rewind; finer per-message boundaries are
+optional future work. Offer Edit & rewind on original Codex text inputs, preview
+all removed turns/inputs, require explicit confirmation and only apply native
+thread/revert after current identity/history/native-request checks. Native
+acknowledgement and authoritative history refresh precede draft insertion.
+Editing happens in the ordinary composer, never automatic resubmission. Do not
+undo files, commands, deployments, tasks or saved permissions. Existing drafts,
+pending/uncertain inputs, ownership and handoffs remain protected. Reject image
+inputs and unsupported/incomplete histories rather than losing attachments or
+rewriting unsupported native storage. Document native cross-client concurrency
+limits and avoid claims of atomicity beyond CCNG's own operation gates.
+
+### Durable coordinator decision summaries
+
+User approved a private decisions.jsonl beside workspace metadata, owner-only and
+outside Git, retained until explicit deletion. Reload recent records at startup
+for the existing decisions panel; older entries remain on disk. Persist short
+request/decision/rationale, timestamps/names and native references only, excluding
+active approvals/credentials/raw code/answer forms. No replay or permission authority
+from saved summaries. Native acknowledgement/outcome stays independent of save
+failure; visible errors and graceful write flushing are required. Existing native
+history remains full reference, without automatic retrospective import.

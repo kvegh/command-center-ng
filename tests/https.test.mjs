@@ -50,8 +50,12 @@ test('real HTTPS keeps certificate verification, mandatory login, secure cookies
     assert.match(f.app.settings.certificate.subject, /localhost/);
     assert.equal((await f.request('/healthz')).status, 200);
     await assert.rejects(f.request('/healthz', undefined, {}, false), /self.signed|certificate/i);
-    assert.equal((await f.request('/api/state')).status, 401);
-    assert.equal((await f.request('/api/login', { password: 'not-the-password' })).status, 401);
+    const unauthenticated = await f.request('/api/state');
+    assert.equal(unauthenticated.status, 403); assert.equal(JSON.parse(unauthenticated.body).code, 'authentication_required');
+    assert.equal(unauthenticated.headers['www-authenticate'], undefined);
+    const wrongPassword = await f.request('/api/login', { password: 'not-the-password' });
+    assert.equal(wrongPassword.status, 403); assert.equal(JSON.parse(wrongPassword.body).code, 'invalid_password');
+    assert.equal(wrongPassword.headers['www-authenticate'], undefined);
     assert.equal((await f.request('/api/login', { password: f.password }, { Origin: 'https://unrelated.example' })).status, 403);
     assert.equal((await f.request('/api/login', { password: f.password }, { Origin: f.origin.replace('https:', 'http:') })).status, 403);
     assert.equal((await f.request('/healthz', undefined, { Host: 'unrelated.example' })).status, 403);
@@ -61,7 +65,7 @@ test('real HTTPS keeps certificate verification, mandatory login, secure cookies
     assert.equal((await f.request('/api/state', undefined, { Cookie: cookie })).status, 200);
     const logout = await f.request('/api/logout', {}, { Cookie: cookie });
     assert.equal(logout.status, 200); assert.match(logout.headers['set-cookie'][0], /; Secure/);
-    assert.equal((await f.request('/api/state', undefined, { Cookie: cookie })).status, 401);
+    assert.equal((await f.request('/api/state', undefined, { Cookie: cookie })).status, 403);
   } finally { await f.close(); }
 });
 
@@ -79,7 +83,7 @@ test('real trusted HTTPS first-password setup creates a session and cannot repla
     assert.equal(JSON.parse(session.body).setupRequired, true);
     assert.equal(JSON.parse(session.body).setupAllowed, true);
     assert.equal(session.headers['set-cookie'], undefined);
-    assert.equal((await f.request('/api/state', undefined, headers)).status, 401);
+    assert.equal((await f.request('/api/state', undefined, headers)).status, 403);
     const localSetup = await f.request('/api/setup', proposed, { Host: `localhost:${f.port}`, Origin: `https://localhost:${f.port}` });
     assert.equal(localSetup.status, 403);
     assert.equal(localSetup.headers['set-cookie'], undefined);
@@ -98,14 +102,14 @@ test('real trusted HTTPS first-password setup creates a session and cannot repla
     assert.equal(state.status, 200);
     assert.equal(state.body.includes(cookie.split(';')[0].split('=')[1]), false, 'authenticated state does not expose its session token');
     assert.equal(state.body.includes(JSON.parse(saved).hash), false, 'authenticated state does not expose the stored password hash');
-    assert.equal((await f.request('/api/state', undefined, headers)).status, 401);
+    assert.equal((await f.request('/api/state', undefined, headers)).status, 403);
 
     const replacement = randomBytes(24).toString('base64url');
     const repeated = await f.request('/api/setup', { password: replacement, confirmation: replacement }, headers);
     assert.equal(repeated.status, 409);
     assert.equal(repeated.headers['set-cookie'], undefined);
     assert.equal(await readFile(f.authFile, 'utf8'), saved);
-    assert.equal((await f.request('/api/login', { password: replacement }, headers)).status, 401);
+    assert.equal((await f.request('/api/login', { password: replacement }, headers)).status, 403);
     assert.equal((await f.request('/api/login', { password: chosen }, headers)).status, 200);
   } finally { await f.close(); }
 });
@@ -149,8 +153,8 @@ test('HTTPS tunnel login and authenticated writes coexist with an exact configur
   try {
     const host = `localhost:${f.port}`; const origin = `https://${host}`;
     const headers = { Host: host, Origin: origin };
-    assert.equal((await f.request('/api/state', undefined, { Host: host })).status, 401);
-    assert.equal((await f.request('/api/login', { password: 'incorrect-password' }, headers)).status, 401);
+    assert.equal((await f.request('/api/state', undefined, { Host: host })).status, 403);
+    assert.equal((await f.request('/api/login', { password: 'incorrect-password' }, headers)).status, 403);
     assert.equal((await f.request('/api/login', { password: f.password }, { ...headers, Origin: `https://localhost:${f.port + 1}` })).status, 403);
     assert.equal((await f.request('/api/login', { password: f.password }, { ...headers, Origin: `http://${host}` })).status, 403);
     assert.equal((await f.request('/api/login', { password: f.password }, { ...headers, Origin: 'https://unrelated.example' })).status, 403);
@@ -160,7 +164,7 @@ test('HTTPS tunnel login and authenticated writes coexist with an exact configur
     assert.match(cookie, /; Secure/); assert.match(cookie, /HttpOnly/); assert.match(cookie, /SameSite=Strict/);
     assert.equal((await f.request('/api/state', undefined, { Host: host, Cookie: cookie })).status, 200);
     assert.equal((await f.request('/api/logout', {}, { ...headers, Cookie: cookie })).status, 200);
-    assert.equal((await f.request('/api/state', undefined, { Host: host, Cookie: cookie })).status, 401);
+    assert.equal((await f.request('/api/state', undefined, { Host: host, Cookie: cookie })).status, 403);
     assert.equal((await f.request('/api/login', { password: f.password }, { Host: 'command-center.example', Origin: publicOrigin })).status, 200);
   } finally { await f.close(); }
 });
@@ -177,7 +181,7 @@ test('dual HTTPS listeners share authentication and retain listener-specific tun
     assert.equal((await f.request('/api/state', undefined, publicHeaders, true, '127.0.0.2')).status, 200);
     assert.equal((await f.request('/api/login', { password: f.password }, localHeaders, true, '127.0.0.2')).status, 403);
     assert.equal((await f.request('/api/logout', {}, publicHeaders, true, '127.0.0.2')).status, 200);
-    assert.equal((await f.request('/api/state', undefined, { ...localHeaders, Cookie: cookie })).status, 401);
+    assert.equal((await f.request('/api/state', undefined, { ...localHeaders, Cookie: cookie })).status, 403);
   } finally { await f.close(); }
 });
 

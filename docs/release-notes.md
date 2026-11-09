@@ -9,6 +9,54 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 0.44.0 — Rewind inputs and preserve logins and decision history
+
+- Edit & rewind previews every affected turn/input before explicit confirmation.
+- Native acknowledgement refreshes retained history and places the original text
+  in the normal editable draft; no automatic send or file/task/permission rollback.
+- Busy requests, stale previews, incomplete history and prepared handoffs block
+  destructive changes; existing drafts and uncertain outcomes are preserved.
+- Text-only initially; image inputs, individual-message and Claude variants remain
+  unavailable. Avoid simultaneous edits from another native client.
+
+- Coordinator decision summaries now append to a private JSONL file beside
+  workspace metadata and reload recent entries at startup without approval replay.
+- Readable request/decision bullets and saved status preserve historical names;
+  storage failures remain visible without changing native acknowledgement outcomes.
+- Retain all disk entries until explicit deletion; no raw approval bodies or
+  automatic import of prior native history. Graceful shutdown flushes queued writes.
+
+- Report recognition accepts topic-labelled green/yellow/Next summaries and an
+  omitted red blocker bullet without changing the recommended report format.
+- Requests bind to the actual native delivery turn so work ending during
+  instruction loading cannot prematurely produce a missing-report warning.
+  Existing acknowledgement, freshness, quote/code and request guards remain.
+
+- Private hashed application sessions survive normal updates/restarts with their
+  original 12-hour expiry. Logout, password changes and exact `--clear-logins`
+  revoke sessions without changing nginx or stopping accepted agent work.
+- Application authentication failures use explicit JSON403 codes instead of
+  interfering with HTTP Basic login. Storage503 failures remain visible and
+  fail closed; expiry preserves drafts and the selected conversation.
+- The first upgrade from RAM-only sessions requires one final application login.
+- File approvals retain matching native paths/change kinds/diffs for the card and
+  coordinator, with explicit missing/truncated content and read-only detail loading.
+  Current request identity, native answers and changed-content guards remain.
+- Three user-approved original development screenshots illustrate the README;
+  captions identify historical UI versions and task states.
+
+**Validation:** the rewind/decision integration passed all 668 application tests
+and the production build; the report correction baseline passed all 672 tests.
+An independently found compatibility correction passes focused regressions.
+Persistent-login and file-approval-content checks and the final combined run are
+in progress. Existing checks
+cover native whole-turn/stale/uncertain/concurrency guards, preserved drafts,
+HTTP auth/origin gates, private append/reload/retention, corrupt/changed logs,
+save failure versus native acknowledgement and graceful shutdown draining.
+Independent source reviews continue for the new authentication changes. Publication/deployment
+are pending. No actual native conversation was rewound; optional installed
+native/browser exercises are deferred.
+
 ## 0.43.0 — Honor Never for startup reports
 
 - Never skips automatic startup reports as well as recurring reports.

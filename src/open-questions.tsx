@@ -5,6 +5,12 @@ export type Question = {
   id: string | number; method: string; params: Record<string, any>;
   responding?: boolean; error?: string | null;
   review?: { decision: string; rationale: string };
+  nativeItem?: {
+    threadId: string; turnId: string; itemId: string; type: 'fileChange';
+    state: 'available' | 'unavailable'; totalChanges: number | null; truncated: boolean;
+    notice?: string | null; contentSha256?: string;
+    changes: { path: string; kind: { type: string; move_path?: string | null }; diff: string }[];
+  };
 };
 
 export const questionTarget = (agentId: string, requestId: string | number) =>

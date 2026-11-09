@@ -43,7 +43,9 @@ test('automatic listeners share the same port and authenticated workspace while 
   assert.deepEqual(bound.map(listener => listener.host), [selected, '127.0.0.1']);
   assert.equal(bound[0].server, f.app.server); assert.equal(bound[0].port, bound[1].port);
   const port = bound[0].port;
-  assert.equal((await f.request(selected, port, '/api/state')).status, 401);
+  const unauthenticated = await f.request(selected, port, '/api/state');
+  assert.equal(unauthenticated.status, 403); assert.equal(JSON.parse(unauthenticated.body).code, 'authentication_required');
+  assert.equal(unauthenticated.headers['www-authenticate'], undefined);
   const login = await f.request('127.0.0.1', port, '/api/login', { password: f.password }, { Host: `localhost:${port}`, Origin: `http://localhost:${port}` });
   assert.equal(login.status, 200); const cookie = login.headers['set-cookie'][0];
   for (const host of [selected, '127.0.0.1']) {

@@ -8,18 +8,20 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { CodexRpc } from './rpc.mjs';
 import { Workspace } from './workspace.mjs';
-import { defaultAuthFile, loadPassword, setPassword, Sessions } from './auth.mjs';
+import { defaultAuthFile, loadAuthState, setPassword, Sessions, clearAllLogins } from './auth.mjs';
+import { authenticationUnavailable } from './session-store.mjs';
 import { VERSION } from './version.mjs';
 import { resolveListenAddress, listenAddresses } from './listen-address.mjs';
 import { loadTlsSettings, certificateInfo } from './tls-settings.mjs';
 import { readRuntimeConfig, runtimeConfigFile } from './runtime-config.mjs';
 import { ensureCodexQuestions } from './codex-setup.mjs';
 import { WorkspaceStore, WorkspacePersistence } from './workspace-store.mjs';
+import { DecisionStore } from './decision-store.mjs';
 import imageLimits from './image-limits.json' with { type: 'json' };
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.ico': 'image/x-icon' };
-const failure = (message, status = 400) => Object.assign(new Error(message), { status });
+const failure = (message, status = 400, code) => Object.assign(new Error(message), { status, ...(code ? { code } : {}) });
 const normalizeHost = host => host?.replace(/^\[|\]$/g, '').toLowerCase();
 const loopbackAddress = address => ['127.0.0.1', '::1'].includes(address?.replace(/^::ffff:/, ''));
 
@@ -71,33 +73,50 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
     settings.certificate = certificateInfo(tls.cert);
     if (!(isIP(name) ? certificate.checkIP(name) : certificate.checkHost(name, { subject: 'never', partialWildcards: false }))) throw new Error('The TLS certificate does not cover ' + name + ' in its subject alternative names. Set --public-origin to a covered HTTPS hostname or provide a suitable certificate. Certificate: ' + JSON.stringify(settings.certificate));
   }
-  let verify = await loadPassword(authFile, { allowMissing: browserSetup });
-  const refreshSetupPassword = async () => {
-    if (!verify) verify = await loadPassword(authFile, { allowMissing: true });
+  await loadAuthState(authFile, { allowMissing: browserSetup });
+  const refreshAuthState = async () => {
+    try {
+      return await loadAuthState(authFile, { allowMissing: browserSetup });
+    } catch { throw authenticationUnavailable(); }
   };
   const setupHostAllowed = request => browserSetup && request.headers.host === new URL(settings.publicOrigin).host;
-  const sessions = new Sessions(); const clients = new Set();
+  const sessions = new Sessions(authFile); const clients = new Set();
+  await sessions.initialize();
   rpc ||= new CodexRpc({ socketPath: settings.socketPath });
   workspace ||= new Workspace(rpc, { coordinator: true, claude: true });
   await workspace.claude?.initialize();
   await workspace.beads?.checkAvailable(settings.cwd);
+  // Load past decisions before restoration can publish a new startup dashboard.
+  // These explanatory records never restore approvals or queued actions.
+  if (workspace.coordinator?.initializeDecisionHistory) await workspace.coordinator.initializeDecisionHistory(new DecisionStore(join(dirname(workspaceFile || join(dirname(authFile), 'workspace.json')), 'decisions.jsonl')));
   const persistence = new WorkspacePersistence(workspace, new WorkspaceStore(workspaceFile || join(dirname(authFile), 'workspace.json')));
   await persistence.initialize();
   const taskTimer = setInterval(() => {
     for (const id of workspace.agents.keys()) { void workspace.refreshTasks(id); void workspace.refreshObserved(id); }
   }, 5000);
   taskTimer.unref();
-  let vite; let broadcastTimer;
+  let vite; let broadcastTimer; let broadcasting = false; let broadcastAgain = false; let appClosing = false;
   const json = (response, value, status = 200) => { response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(value)); };
   const publish = () => {
+    if (appClosing) return;
+    if (broadcasting) { broadcastAgain = true; return; }
     // Coalesce bursts without letting continuous worker updates postpone delivery indefinitely.
     if (broadcastTimer) return;
-    broadcastTimer = setTimeout(() => {
-      broadcastTimer = null;
-      const message = `data: ${JSON.stringify(workspace.snapshot())}\n\n`;
-      for (const client of clients) {
-        if (client.response.writableLength > 4 * 1024 * 1024 || !sessions.valid(client.request)) { client.response.destroy(); clients.delete(client); }
-        else client.response.write(message);
+    broadcastTimer = setTimeout(async () => {
+      broadcastTimer = null; broadcasting = true;
+      try {
+        const authenticated = await Promise.all([...clients].map(async client => {
+          try {
+            if (client.response.writableLength <= 4 * 1024 * 1024 && await sessions.valid(client.request)) return client;
+          } catch { console.warn('Authentication state unavailable; closing an event stream.'); }
+          client.response.destroy(); clients.delete(client); return null;
+        }));
+        if (appClosing) return;
+        const message = `data: ${JSON.stringify(workspace.snapshot())}\n\n`;
+        for (const client of authenticated) if (client && clients.has(client) && !client.response.destroyed) client.response.write(message);
+      } finally {
+        broadcasting = false;
+        if (broadcastAgain) { broadcastAgain = false; publish(); }
       }
     }, 80);
   };
@@ -121,16 +140,15 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
       const path = url.pathname;
       if (path === '/healthz' && request.method === 'GET') return json(response, { ok: true, version: VERSION });
       if (path === '/api/session' && request.method === 'GET') {
-        await refreshSetupPassword();
-        return json(response, { authenticated: sessions.valid(request), version: VERSION, ...(!verify ? { setupRequired: true, setupAllowed: setupHostAllowed(request) } : {}) });
+        const current = await refreshAuthState();
+        return json(response, { authenticated: await sessions.valid(request), version: VERSION, ...(!current ? { setupRequired: true, setupAllowed: setupHostAllowed(request) } : {}) });
       }
       const secure = !!tls || settings.publicOrigin?.startsWith('https://') || false;
       if (path === '/api/setup' && request.method === 'POST') {
         // The operator explicitly asserts htpasswd protection; forwarded headers are not proof.
         if (!setupHostAllowed(request) || request.headers.origin !== settings.publicOrigin) throw failure('First-password setup requires the configured htpasswd-protected HTTPS address.', 403);
         if (!sessions.allowAttempt(request.socket.remoteAddress)) throw failure('Too many setup attempts. Try again in five minutes.', 429);
-        await refreshSetupPassword();
-        if (verify) throw failure('An application password already exists. Sign in instead.', 409);
+        if (await refreshAuthState()) throw failure('An application password already exists. Sign in instead.', 409);
         const data = await body(request);
         if (!data || typeof data.password !== 'string' || typeof data.confirmation !== 'string') throw failure('Enter and confirm the new application password.');
         if (data.password.length < 12 || data.password.length > 4096) throw failure('Use a password with 12–4096 characters.');
@@ -138,35 +156,41 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
         try { await setPassword(data.password, authFile, { createOnly: true }); }
         catch (error) {
           if (error.code !== 'EEXIST') throw error;
-          await refreshSetupPassword();
+          await refreshAuthState();
           throw failure('An application password was created by another setup. Sign in instead.', 409);
         }
-        verify = await loadPassword(authFile);
-        response.setHeader('Set-Cookie', sessions.cookie(sessions.create(), true)); return json(response, { authenticated: true });
+        const created = await refreshAuthState();
+        if (!created?.verify(data.password)) throw failure('Authentication changed while signing in. Sign in again.', 403, 'authentication_required');
+        response.setHeader('Set-Cookie', sessions.cookie(await sessions.create(created.fingerprint), true)); return json(response, { authenticated: true });
       }
       if (path === '/api/login' && request.method === 'POST') {
         if (!sessions.allowAttempt(request.socket.remoteAddress)) throw failure('Too many login attempts. Try again in five minutes.', 429);
         const data = await body(request);
-        await refreshSetupPassword();
-        if (!verify) throw failure('Create the application password through the configured setup address first.', 409);
-        if (typeof data.password !== 'string' || data.password.length > 4096 || !verify(data.password)) throw failure('Incorrect password.', 401);
-        response.setHeader('Set-Cookie', sessions.cookie(sessions.create(), secure)); return json(response, { authenticated: true });
+        const current = await refreshAuthState();
+        if (!current) throw failure('Create the application password through the configured setup address first.', 409);
+        if (!data || typeof data.password !== 'string' || data.password.length > 4096 || !current.verify(data.password)) throw failure('Incorrect password.', 403, 'invalid_password');
+        response.setHeader('Set-Cookie', sessions.cookie(await sessions.create(current.fingerprint), secure)); return json(response, { authenticated: true });
       }
       if (path.startsWith('/api/')) {
-        if (!sessions.valid(request)) throw failure('Sign in to continue.', 401);
+        if (!await sessions.valid(request)) throw failure('Sign in to continue.', 403, 'authentication_required');
         const image = path.match(/^\/api\/agents\/([^/]+)\/messages\/([^/]+)\/images\/(\d+)$/);
         if (image && request.method === 'GET') {
           const result = workspace.messageImage(decodeURIComponent(image[1]), decodeURIComponent(image[2]), Number(image[3]));
           response.writeHead(200, { 'Content-Type': result.mimeType, 'Content-Length': result.bytes.length, 'Cache-Control': 'no-store' });
           response.end(result.bytes); return;
         }
-        if (path === '/api/logout' && request.method === 'POST') { sessions.revoke(request); response.setHeader('Set-Cookie', sessions.cookie('', secure)); publish(); return json(response, { authenticated: false }); }
+        if (path === '/api/logout' && request.method === 'POST') { await sessions.revoke(request); response.setHeader('Set-Cookie', sessions.cookie('', secure)); publish(); return json(response, { authenticated: false }); }
         if (path === '/api/state' && request.method === 'GET') return json(response, { ...workspace.snapshot(), defaultCwd: settings.cwd });
         if (path === '/api/events' && request.method === 'GET') {
           response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' });
           response.write(`data: ${JSON.stringify(workspace.snapshot())}\n\n`);
           const client = { request, response }; clients.add(client);
-          const heartbeat = setInterval(() => { if (!sessions.valid(request)) response.end(); else response.write(`event: heartbeat\ndata: ${JSON.stringify({ at: new Date().toISOString() })}\n\n`); }, 15_000);
+          const heartbeat = setInterval(async () => {
+            try {
+              if (!await sessions.valid(request)) response.end();
+              else if (!response.destroyed && !response.writableEnded) response.write(`event: heartbeat\ndata: ${JSON.stringify({ at: new Date().toISOString() })}\n\n`);
+            } catch { console.warn('Authentication state unavailable; closing an event stream.'); response.end(); }
+          }, 15_000);
           request.on('close', () => { clearInterval(heartbeat); clients.delete(client); }); return;
         }
         if (path === '/api/connect' && request.method === 'POST') {
@@ -198,6 +222,11 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
         const modelRoute = path.match(/^\/api\/agents\/([^/]+)\/model-settings$/);
         if (modelRoute && request.method === 'GET') return json(response, await workspace.modelSettings(decodeURIComponent(modelRoute[1])));
         if (modelRoute && request.method === 'POST') return json(response, await workspace.updateModel(decodeURIComponent(modelRoute[1]), await body(request)));
+        const rewindRoute = path.match(/^\/api\/agents\/([^/]+)\/(rewind-preview|rewind)$/);
+        if (rewindRoute && request.method === 'POST') {
+          const [, encoded, action] = rewindRoute, id = decodeURIComponent(encoded), data = await body(request);
+          return json(response, action === 'rewind-preview' ? await workspace.rewindPreview(id, data) : await workspace.rewind(id, data));
+        }
         const taskRoute = path.match(/^\/api\/agents\/([^/]+)\/tasks$/);
         if (taskRoute) {
           const id = decodeURIComponent(taskRoute[1]);
@@ -243,7 +272,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
       response.end(request.method === 'HEAD' ? undefined : content);
     } catch (error) {
       if (response.headersSent) response.end();
-      else json(response, { error: error.message || 'Request failed.' }, error.status || 500);
+      else json(response, { error: error.message || 'Request failed.', ...(['authentication_required', 'invalid_password', 'authentication_unavailable'].includes(error.code) ? { code: error.code } : {}) }, error.status || 500);
     }
   };
   const createListener = host => {
@@ -258,12 +287,16 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
   }
   let closing;
   const close = () => closing ||= (async () => {
+    appClosing = true;
     await workspace.coordinator?.shutdown(); await workspace.claude?.shutdown();
     clearInterval(taskTimer); clearTimeout(broadcastTimer);
     for (const client of clients) client.response.end();
     clients.clear(); workspace.off('change', publish); rpc.close(); await vite?.close();
     await Promise.all(listeners.map(listener => new Promise(resolve => listener.server.close(resolve))));
     await persistence.close();
+    // Late review completions may have queued writes during listener cleanup.
+    const decisionLogError = await workspace.coordinator?.flushDecisionHistory?.();
+    if (decisionLogError) console.warn('Decision history warning at shutdown: ' + decisionLogError);
   })();
   const listen = async (selection, port = settings.port) => {
     if (closing || listeners.some(listener => listener.server.listening)) throw new Error('The application listener has already started or closed.');
@@ -302,13 +335,13 @@ export function runtimeOptions(args = process.argv.slice(2), env = process.env, 
     'first-password-setup': { type: 'string', default: env.CCNG_FIRST_PASSWORD_SETUP || fileValues['first-password-setup'] || 'disabled' },
     'tls-cert': { type: 'string', default: env.CCNG_TLS_CERT || fileValues['tls-cert'] || undefined },
     'tls-key': { type: 'string', default: env.CCNG_TLS_KEY || fileValues['tls-key'] || undefined },
-    dev: { type: 'boolean' }, help: { type: 'boolean', short: 'h' }
+    dev: { type: 'boolean' }, help: { type: 'boolean', short: 'h' }, 'clear-logins': { type: 'boolean' }
   } }).values;
 }
 
 export async function loadRuntimeOptions(args = process.argv.slice(2), env = process.env, { appDir = root } = {}) {
   const requested = runtimeOptions(args, env);
-  if (requested.help) return requested;
+  if (requested.help || requested['clear-logins']) return requested;
   return runtimeOptions(args, env, await readRuntimeConfig(runtimeConfigFile(appDir)));
 }
 
@@ -337,6 +370,9 @@ Usage: command-center-ng [--host ADDRESS] [--port PORT] [--protocol https|http] 
   --tls-cert FILE       PEM certificate/full-chain file for direct HTTPS.
   --tls-key FILE        Matching PEM private key; both TLS files are required.
   --dev                 Enable the development frontend.
+  --clear-logins        Invalidate all saved application logins and exit, including
+                        logins in running servers. Uses CCNG_CONFIG_DIR (or the
+                        default private config directory); does not stop agents.
   --help, -h            Show this help without starting the application.
 
 Configuration: INSTALLDIR/etc/config.conf is read at foreground/systemd startup.
@@ -375,6 +411,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const values = await loadRuntimeOptions();
     if (values.help) console.log(runtimeHelp());
+    else if (values['clear-logins']) { await clearAllLogins(); console.log('All saved application logins were cleared. Running clients must sign in again; agent work was not stopped.'); }
     else {
       const port = Number(values.port); if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Choose a port from 1 to 65535.');
       if (!['http', 'https'].includes(values.protocol)) throw new Error('Choose --protocol http or https.');

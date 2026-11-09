@@ -9,6 +9,8 @@ required. Codex retains conversation histories and Beads retains task records.
 | --- | --- |
 | `workspace.json` beside the password configuration | Up to sixteen open worker IDs, the coordinator ID and coordinator pause state |
 | Browser local storage, key `ccng.workspace.v1` | Selected tab, worker order, unsent drafts, reading positions and whether a chat was at the bottom |
+| `decisions.jsonl` beside `workspace.json` | Private coordinator decision summaries, reloaded for display; older records retained |
+| `sessions/` beside `auth.json` | Owner-private hashed application-session records, original expiry and explicit revocation generation |
 | Native Codex storage | Existing conversation context, messages, branch relationships and coordinator tool history |
 | Existing Beads tracker | Durable tasks, states and conversation labels |
 
@@ -21,7 +23,9 @@ unsafe or linked files are rejected without overwriting them.
 
 ## Startup and continuation
 
-After an app restart, sign in with the same password. The app restores saved
+After an app restart, an unexpired application session remains signed in.
+Otherwise, sign in with the same password. Memory-only sessions from older
+versions require one final login during migration. The app restores saved
 tabs by reading native conversation metadata and recent history. It does not
 resume unloaded workers or start a model turn just to restore a view. Existing
 native work can continue independently while Command Center is stopped.
@@ -67,6 +71,11 @@ clearing this site's browser storage removes them. Passwords, login cookies and
 approval answers are excluded from the saved workspace object. Signing out ends
 the session but does not erase saved drafts.
 
+Application-session persistence is separate from workspace metadata and stores
+only token hashes and expiry/invalidation references. Normal logout, password
+changes and `--clear-logins` remain effective after restart. Clearing logins does
+not erase drafts, tasks, decision summaries or native agent history.
+
 The browser records at most 32 conversations and drafts up to 32,000 characters.
 If storage is blocked, corrupt or full, the app displays an error and continues
 with in-memory state. Reading positions refer to the loaded history, not a
@@ -103,3 +112,15 @@ Closing a tab keeps a managed SDK process running; requests in closed tabs offer
 explicit reopening. Shutting down the backend ends its SDK-owned processes and
 retains native history. Callback answers are not persisted or replayed. A live
 provider/model run and interactive browser verification remain separate checks.
+
+
+## Decision-summary persistence
+
+The separately approved `decisions.jsonl` file reloads recent coordinator decisions
+before startup dashboard restoration. It is not part of workspace.json's small
+metadata whitelist and never restores approvals, queued inputs, review tokens or
+authority. Its last-20 panel is independent of retained disk history. New decisions
+are saved from feature installation onward; prior native history is not imported.
+See [decision summaries](coordinator.md#decision-summaries-after-restart) for fields,
+permissions, failure warnings and retention. Update/restart preserves the file;
+a hard process kill may lose writes that were not yet recorded or flushed.

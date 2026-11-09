@@ -64,7 +64,10 @@ test('fresh setup exposes only setup state while worker APIs remain authenticate
   const local = (await f.request('/api/session', undefined, { host: 'localhost:4242', origin: null })).json();
   assert.equal(local.setupRequired, true); assert.equal(local.setupAllowed, false);
   for (const [path, data] of [['/api/state'], ['/api/events'], ['/api/agents'], ['/api/connect', {}]]) {
-    assert.equal((await f.request(path, data)).statusCode, 401, path);
+    const denied = await f.request(path, data);
+    assert.equal(denied.statusCode, 403, path);
+    assert.equal(denied.json().code, 'authentication_required');
+    assert.equal(denied.headers['www-authenticate'], undefined);
   }
   assert.equal((await f.request('/api/login', { password: password() })).statusCode, 409);
   await assert.rejects(lstat(f.authFile), { code: 'ENOENT' });
@@ -82,13 +85,15 @@ test('first-browser setup stores a private hash, creates a secure session and pr
   assert.equal((await loadPassword(f.authFile))(chosen), true);
   assert.deepEqual((await f.request('/api/session', undefined, { cookie })).json(), { authenticated: true, version: f.app.workspace.snapshot().version });
   assert.equal((await f.request('/api/state', undefined, { cookie })).statusCode, 200);
-  assert.equal((await f.request('/api/state')).statusCode, 401);
+  assert.equal((await f.request('/api/state')).statusCode, 403);
   const second = password();
   const rejected = await f.request('/api/setup', { password: second, confirmation: second });
   assert.equal(rejected.statusCode, 409); assert.equal(rejected.headers['set-cookie'], undefined);
   assert.equal(await readFile(f.authFile, 'utf8'), saved);
   assert.equal((await f.request('/api/login', { password: chosen })).statusCode, 200);
-  assert.equal((await f.request('/api/login', { password: second })).statusCode, 401);
+  const wrongPassword = await f.request('/api/login', { password: second });
+  assert.equal(wrongPassword.statusCode, 403); assert.equal(wrongPassword.json().code, 'invalid_password');
+  assert.equal(wrongPassword.headers['www-authenticate'], undefined);
   assert.deepEqual((await readdir(f.directory)).filter(name => name.startsWith('auth.json.')), []);
 });
 
@@ -137,7 +142,7 @@ test('independent servers racing first setup cannot replace the winning password
   const verify = await loadPassword(first.authFile);
   assert.equal(verify(candidates[winner]), true); assert.equal(verify(candidates[loser]), false);
   const losingServer = [first, second][loser];
-  assert.equal((await losingServer.request('/api/login', { password: candidates[loser] })).statusCode, 401);
+  assert.equal((await losingServer.request('/api/login', { password: candidates[loser] })).statusCode, 403);
   assert.equal((await losingServer.request('/api/login', { password: candidates[winner] })).statusCode, 200);
   assert.equal((await losingServer.request('/api/session')).json().setupRequired, undefined);
   assert.deepEqual((await readdir(directory)).filter(name => name.startsWith('auth.json.')), []);

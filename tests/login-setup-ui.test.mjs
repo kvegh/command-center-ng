@@ -151,6 +151,17 @@ test('login failures do not attempt setup or replace existing password state', a
   assert.equal(f.state.authenticated, false); assert.equal(f.state.password, 'existing-value');
 });
 
+test('typed invalid-password and authentication-storage errors remain visible login failures without setup or fake success', async () => {
+  for (const [status, code, message] of [[403, 'invalid_password', 'Incorrect password.'], [503, 'authentication_unavailable', 'Authentication storage is unavailable.']]) {
+    const f = handler({ mode: 'login', password: 'existing-value', request: async () => { throw Object.assign(new Error(message), { status, code }); } });
+    await f.submit(event());
+    assert.equal(f.state.authenticated, false); assert.equal(f.state.refreshes, 0); assert.equal(f.state.error, message);
+    assert.equal(f.state.password, 'existing-value'); assert.equal(f.state.busy, false);
+    const html = renderToStaticMarkup(fields({ mode: 'login', error: f.state.error }));
+    assert.match(html, /role="alert"/); assert.ok(html.includes(message));
+  }
+});
+
 test('error and busy states remain accessible without writing passwords to browser storage', () => {
   const element = fields({ error: 'The passwords do not match.', busy: true });
   assert.ok(descendants(element, node => node.type === 'input').every(input => input.props.disabled && input.props['aria-invalid']));
@@ -160,7 +171,7 @@ test('error and busy states remain accessible without writing passwords to brows
 
 test('main session integration retains setup flags on startup/reconnect and remounts the form when its mode changes', async () => {
   const main = await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8');
-  assert.match(main, /api\('session'\).then\(applySession\)/);
+  assert.match(main, /checkSession\(applySession\)/);
   assert.match(main, /if \(current && !data.authenticated\) applySession\(data\)/);
   assert.match(main, /setupRequired: session.setupRequired === true, setupAllowed: session.setupAllowed === true/);
   assert.match(main, /<Login key=\{loginMode\(loginSession\)\} mode=\{loginMode\(loginSession\)\}/);

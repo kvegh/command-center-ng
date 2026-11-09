@@ -95,6 +95,35 @@ The supported source-checkout update command is `./install.sh --update`, with
 the app after updating. Existing configuration, certificates, login hash and
 saved workspace are preserved.
 
+## Login management
+
+Application sessions survive normal CCNG updates and restarts. Each retains its
+original 12-hour expiry; restarting does not extend it. Logging out revokes that
+browser's session, and changing the application password invalidates existing
+sessions. The first upgrade from memory-only sessions needs one final application
+login because those older sessions were never saved.
+
+To require every browser to sign in again, run this as the account that runs CCNG:
+
+```sh
+"$HOME/commandcenter-ng/command-center-ng" --clear-logins
+```
+
+Use your existing installation path if different. The command exits after
+invalidating application sessions in the same private configuration profile.
+It works while the application service is running: the next authenticated check
+rejects an old session, and open event streams close by their next heartbeat
+(within about 15 seconds). It does not stop agents, change the password or clear
+nginx's htpasswd credentials. If the service uses `CCNG_CONFIG_DIR` or
+`XDG_CONFIG_HOME`, run the command with the same profile settings.
+
+Session records live in the owner-private `sessions/` directory beside
+`auth.json`, outside the installation. They contain hashes of random session
+IDs, expiry and invalidation references, never raw browser cookies or passwords.
+Unsafe or unavailable authentication storage produces an error rather than
+falling back to temporary sessions. Application authentication failures use
+explicit JSON errors instead of issuing HTTP Basic authentication challenges.
+
 ## Application connection settings
 
 After a successful build, the installer prepares `INSTALLDIR/etc/config.conf`
@@ -141,8 +170,10 @@ permissions. Set `CCNG_CONFIG_DIR` to select another private directory outside
 the checkout. Reinstalling preserves this file and the existing password.
 The installer does not create a default password or ask for one. For local setup,
 run `node INSTALLDIR/server/password.mjs` in a terminal before starting CCNG.
-The same explicit command can deliberately reset a password; restart the app
-for the new password to take effect. Restarting invalidates current sessions.
+The same explicit command can deliberately reset a password. The app checks the
+current password revision for authentication, so a reset invalidates existing
+sessions without requiring a restart. An ordinary restart preserves unexpired
+sessions; `--clear-logins` explicitly revokes them.
 Without an existing password, startup requires the protected setup opt-in below.
 
 ### First-browser password creation

@@ -134,6 +134,15 @@ starts no worker turn and changes no native permissions. Missing details alone
 do not prove another client owns the request. Failed recovery retains the
 waiting state and an error rather than inventing an approval card.
 
+File approvals show the native proposed paths, change types and diffs when Codex
+supplies the matching file-change item. CCNG joins it only to that conversation's
+exact turn/item/request; the coordinator receives the same content. Large
+proposals show explicit file-count and size limits rather than implying the
+visible excerpt is complete. If content is unavailable, **Load change details**
+uses native read-only history without approving or executing the edit. Native
+backends that do not supply the item still show an explicit unavailable notice.
+Request identifiers alone do not describe the proposed changes.
+
 Alongside **Allow once**, an offered Codex rule can expose **Allow always**.
 Review the displayed command-prefix, network-host or MCP-tool scope. Codex owns
 rule saving; CCNG has no separate permission allowlist or native-config writer.
@@ -215,7 +224,7 @@ burst of missed intervals. Closing a tab removes that worker's CCNG schedule.
 
 The Codex **Model** and **Effort** controls use the native runtime's catalog and
 supported choices. Changes apply to subsequent turns without interrupting the
-current turn or changing global permissions. Edit & rewind remains unfinished;
+current turn or changing global permissions. Edit & rewind is described below;
 use the existing branch action for a separate conversation.
 
 ## Images, Markdown and copying
@@ -285,3 +294,50 @@ response; it does not claim the worker has started writing. If the turn ends
 without a recognized Standard Task Report, a visible error replaces a false ready
 announcement. Pending permissions and unsafe work are not interrupted, and
 unconfirmed delivery is not automatically retried.
+
+Recognition accepts a fresh completed status summary with green outcomes,
+yellow work and a blue Next bullet, including topic labels instead of the
+recommended section names. A red blocker bullet is optional for recognition;
+its absence does not establish that no blockers exist. Quoted/code examples,
+older messages and other turns cannot satisfy an outstanding request.
+
+
+## Edit a previous input and rewind
+
+On an eligible Codex text input, **Edit & rewind** replaces its Copy this action.
+A preview lists the entire selected turn and every later turn that will be removed,
+including any other inputs in the selected turn. A turn is one agent work cycle
+and may contain several inputs. Review the list, select the confirmation checkbox
+and choose **Rewind & edit input**. Only after native acknowledgement does the
+original text enter the normal chat draft; edit it there and send when ready.
+Nothing is sent automatically. Cancel leaves conversation history unchanged.
+
+This changes conversation history, not files or the machine. Prior commands,
+commits, deployments, Beads tasks and saved permissions are not rolled back.
+Branching remains separate: it creates another conversation and preserves the
+original. Individual-message rewind and Claude support remain deferred.
+
+Rewind requires an idle editable worker, no pending native/coordinator requests,
+no prepared or incoming handoff, and an empty target chat draft. Existing text or
+image drafts are preserved. Selected image/attachment inputs are disabled because
+they cannot yet be restored to the draft. Larger or incomplete native history,
+legacy/ephemeral threads and unsupported runtimes fail with a specific explanation.
+There is no direct native-history-file rewrite or fallback.
+
+If history changes after preview, refresh and review it again. An uncertain
+native response may mean the rewind already happened: inspect history before
+another attempt; CCNG never retries it automatically. Other workers keep their
+drafts/focus, and stored report/task-check schedules remain active. Do not edit
+the same conversation from another native client during confirmation: the native
+API cannot atomically compare that client's changes against this preview.
+
+
+## Saved coordinator decisions
+
+Recent decisions show two readable bullets: the request and the decision/rationale.
+A separate Saved/Saving/Not saved status describes local persistence; it does not
+change whether a native approval was acknowledged. Coordinator summaries are
+saved privately and reload after restart, including recorded names for closed
+tabs. Delivery events remain temporary. A visible warning explains unavailable
+or unsaved history even when the list is collapsed. Records are explanatory only;
+answer current requests in Open questions. See [storage details](coordinator.md#decision-summaries-after-restart).

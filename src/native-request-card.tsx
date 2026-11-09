@@ -3,6 +3,7 @@ import { formFields, requestKind, COMMAND_APPROVAL, FILE_APPROVAL, CLARIFICATION
 import { nativeApprovalChoices, isNativeToolApproval } from '../server/approval-choices.mjs';
 import { questionTarget, type Question } from './open-questions';
 import { ClaudeRequestCard } from './claude-request-card';
+import { CopyButton } from './copy-button';
 
 function safeExternalUrl(value: unknown) {
   if (typeof value !== 'string') return null;
@@ -77,6 +78,24 @@ export function NativePermissionControls({ question, busy, readOnlyCoordinator =
   </>;
 }
 
+export function NativeFileChanges({ question, agentId, busy, load }: { question: Question; agentId: string; busy: boolean; load: () => void }) {
+  const context = question.nativeItem;
+  const matched = !!context && question.params.threadId === agentId && typeof question.params.turnId === 'string' && typeof question.params.itemId === 'string'
+    && context.threadId === agentId && context.turnId === question.params.turnId && context.itemId === question.params.itemId && context.type === 'fileChange';
+  if (!context || !matched || context.state !== 'available') return <div className="native-file-changes">
+    <p className="field-note">{matched && context.notice ? context.notice : 'File paths and diff have not been loaded for this exact native request. No changes were inferred.'}</p>
+    <button type="button" className="button subtle small" disabled={busy} onClick={() => { if (!busy) load(); }}>Load change details</button>
+  </div>;
+  return <div className="native-file-changes">
+    <p>{context.totalChanges} proposed file change{context.totalChanges === 1 ? '' : 's'}</p>
+    {context.notice && <p className="field-note" role={context.truncated ? 'alert' : undefined}>{context.notice}</p>}
+    {context.changes.map((change, index) => <div key={`${index}-${change.path}`}>
+      <p><strong>{change.kind.type}</strong> · <code>{change.path}</code>{change.kind.move_path && <> → <code>{change.kind.move_path}</code></>}</p>
+      {change.diff ? <div className="markdown-code-block"><div className="markdown-code-actions"><CopyButton text={change.diff} label="Copy diff" compact /></div><pre><code>{change.diff}</code></pre></div> : <p className="field-note">No textual diff was supplied for this file.</p>}
+    </div>)}
+  </div>;
+}
+
 function NativeRequestFields({ question, agentId, workerName, readOnlyCoordinator = false, act, prepareApprovalFocus }: RequestCardProps) {
   const toolApproval = isNativeToolApproval(question);
   const approval = [COMMAND_APPROVAL, FILE_APPROVAL].includes(question.method) || toolApproval;
@@ -113,6 +132,7 @@ function NativeRequestFields({ question, agentId, workerName, readOnlyCoordinato
     </form> : approval ? <>
       {question.params.command && <pre><code>{typeof question.params.command === 'string' ? question.params.command : JSON.stringify(question.params.command)}</code></pre>}
       {question.params.grantRoot && <p>Requested change root: {question.params.grantRoot}</p>}
+      {question.method === FILE_APPROVAL && <NativeFileChanges question={question} agentId={agentId} busy={busy} load={() => void act(`agents/${agentId}/requests`, {})} />}
       <NativeApprovalControls question={question} busy={busy} readOnlyCoordinator={readOnlyCoordinator} submit={submit} prepareApprovalFocus={prepareApprovalFocus} review={toolApproval ? undefined : () => void act(`agents/${agentId}/review`, { requestId: question.id })} />
     </> : permissions ? <NativePermissionControls question={question} busy={busy} readOnlyCoordinator={readOnlyCoordinator} submit={submit} prepareApprovalFocus={prepareApprovalFocus} /> : mcp ? <>
       {fields !== null ? <form onSubmit={event => { event.preventDefault(); void submit({ decision: 'accept', content }); }}>

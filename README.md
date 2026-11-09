@@ -10,15 +10,35 @@ Working across several projects makes it easy to lose context or miss a question
 CCNG puts each conversation in a tab, keeps its tasks close to the chat, and adds
 a coordinator overview so you can see where your attention is needed.
 
+![Worker chat with linked tasks and report/model settings](docs/screenshots/worker-workspace.png)
+
+Development screenshot: worker chat, project tasks and settings in one workspace.
+Screenshots show an earlier UI; displayed versions and task states are historical.
+
+<details>
+<summary>See the coordinator dashboard and image attachments</summary>
+
+![Coordinator chat and clickable project progress overview](docs/screenshots/coordinator-overview.png)
+
+The coordinator brings project progress and decisions together.
+
+![A worker conversation with image attachments in its draft](docs/screenshots/image-attachments.png)
+
+Paste or attach images while keeping the conversation and project tasks visible.
+
+</details>
+
 ## What you can do
 
 - Open existing Codex conversations or start new agents in explicit project directories.
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
 - Chat, steer active work, interrupt a turn and answer native questions or approvals.
 - Branch a Codex conversation, then hand tasks and a summary back to its parent.
+- Edit earlier Codex text inputs using a confirmed whole-turn conversation rewind.
 - See linked Beads tasks, input needs, progress and optional task notifications.
 - Request task reports immediately or choose a saved interval; Never disables automatic startup and recurring reports.
 - Recheck overlooked tasks silently every 15 minutes, with the next check shown in the coordinator.
+- Keep coordinator decision summaries across restarts in a private local file.
 - Read Markdown, copy messages/code, and paste or attach images to a draft.
 - Keep desktop settings at the bottom of a full-height overview, with scrollable tasks and questions.
 - Use desktop resizing, a continuous mobile layout and three colour themes.
@@ -105,6 +125,11 @@ This fetches latest `main` and rebuilds the installation. Existing configuration
 certificates, password and saved workspace are preserved. Restart CCNG afterward;
 the installer does not restart the native Codex daemon.
 
+Valid application logins survive normal restarts until their original 12-hour
+expiry. Upgrading from older memory-only sessions requires one final login.
+To explicitly sign out every application session, run the installed launcher
+with `--clear-logins`; see [login management](docs/installation.md#login-management).
+
 For background operation, follow the [user-level systemd instructions](docs/installation.md#user-level-systemd-service).
 The installed launcher supports `service install`, `enable`, `start`, `stop`,
 `restart`, `status` and `logs`. Installing a unit does not start or enable it.
@@ -114,7 +139,9 @@ The installed launcher supports `service install`, `enable`, `start`, `stop`,
 - Session management is **local to the backend host**; no SSH or remote-agent monitoring.
 - Codex is the current operational focus. Official Claude Agent SDK code exists,
   but Claude completion and live validation remain **TODO**.
-- Codex Edit & rewind is unfinished; branching is available.
+- Codex Edit & rewind removes whole turns after a preview; files, commands and
+  deployments are not undone. Text-only initially; Claude and per-message rewind
+  remain future work. Avoid concurrent edits from another native client.
 - Native Goals controls and automatic Goal creation were withdrawn; tasks remain in Beads.
 - Closing a tab does not stop its native conversation. Backend shutdown stops
   CCNG-owned Claude runs; native history remains available for later resume.
