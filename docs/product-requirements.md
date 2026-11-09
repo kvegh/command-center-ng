@@ -127,34 +127,35 @@ Navigation remains separate: Back to parent does not send, archive, or complete
 the child. Native context preservation and the summary/close lifecycle were
 verified with real Codex conversations.
 
-## Native Goals and clarified task outcomes
+## Task outcomes and continuation boundaries
 
-The user approved supported native Goal execution with CCNG worker controls and
-clarified Goal announcements. Codex owns its conversation Goal, status,
-continuation, usage and limits. Beads stores task outcomes, finish checks and
-dependencies; there is no CCNG Goal store or task execution loop. One active
-conversation Goal can cover several agreed tasks.
+The user withdrew the native Goals feature, automatic Goal creation and the
+requirement that future harnesses provide native Goals. CCNG must not expose
+Goal controls or implement a replacement continuation engine. Existing native
+Goal data remains owned by its runtime; this removal neither clears nor resumes it.
 
-Expose actual native read/start/pause/resume/clear and replacement controls for
-Codex workers, preserving requests, ownership, handoff and restoration guards.
-Replacement must explicitly acknowledge possible accounting reset. Old reads,
-notifications and uncertain writes must not silently overwrite newer state or
-cause automatic mutation retries. Native state may remain blocked/limited after
-Resume; display it truthfully. Viewing/restoring never activates a Goal.
+Workers record task outcomes and acceptance criteria in Beads, update states
+after actual lifecycle changes, and reassess ready work within real user scope.
+Use subagents for independent authorized work, retain native questions and
+permissions, and state precise blockers when nothing can proceed. These are
+agent instructions, not a guarantee that CCNG wakes idle workers. Report timing
+remains separate and does not authorize additional project work.
 
-For newly clarified authorized work, workers use supported native tools and
-announce confirmed Goal creation as three consecutive lines: New Goal, Task title
-and Beads ID. Use active-task light blue for labels and normal text for values.
-Keep source messages, copying and history unchanged and raw HTML disabled.
-Existing unfinished Goals and explicit user pause/clear remain authoritative;
-uncovered new work stays visible for a later Goal. Reports, ordinary questions
-and backlog creation alone do not start a Goal.
+## Silent fifteen-minute task checks
 
-Workers update Beads after actual lifecycle changes and reassess ready work
-within real user scope. Use subagents for independent authorized work, retain
-native questions/permissions and stop with a precise blocker when nothing can
-proceed. Goal completion never automatically closes every task. These rules do
-not enable a provider-independent dispatcher or resume postponed Claude work.
+The coordinator backend sends each open Codex worker one silent task-attention check
+per fifteen-minute cycle. The check asks the worker to review neglected tasks,
+truthfully update Beads and parallelize independent authorized work without
+conflicting with other tasks. It does not grant new scope or resume deferred,
+blocked or explicitly stopped work. No replacement task-execution engine is added.
+
+Expose “Next chat task-ping to send” and the next scheduled time in the
+coordinator overview. Backend startup begins a fresh cycle with no missed-check
+burst. Coalesce outstanding worker checks and retain existing pause, ownership,
+native-request, safe-checkpoint and handoff guards; a due check can wait for
+eligibility. Known active Codex turns use supported steering without interruption.
+Hide internal triggers in both histories, preserve useful agent output and keep
+existing task-report settings independent.
 
 ## History and tasks
 

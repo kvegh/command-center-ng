@@ -678,7 +678,8 @@ test('startup reads saved intervals and queues one initial report without replay
     assert.equal(f.coordinator.list().find(row => row.id === 'worker').nextReportAt, new Date(15 * 60_000).toISOString());
     f.coordinator.dirty.clear(); f.rpc.complete('worker'); f.rpc.complete('second');
     assert.equal(f.coordinator.dirty.size, 0);
-    clock.advance(15 * 60_000); await delivered(f, 3);
+    clock.advance(15 * 60_000);
+    await waitFor(() => f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.clientUserMessageId?.startsWith('ccng-report-')).length === 3 && f.coordinator.workers().every(agent => !agent.coordinatorSending));
   } finally { await f.close(); }
 });
 

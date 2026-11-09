@@ -1,24 +1,35 @@
 # Current status for handover
 
-Updated: 2026-11-08. This is a development handover snapshot. Beads remains the
+Updated: 2026-11-09. This is a development handover snapshot. Beads remains the
 task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Version 0.39.0 (implementation `2ea1956c8ff83425e414ec8f5b92eeb6a80f97a0`) implements native Codex Goal controls and worker lifecycle
-guidance. Native state is separate from the descriptive chat title. Start,
-pause/resume, clear and explicit replacement preserve native requests, ownership,
-handoff and accounting. Prior-objective checks and revision guards address the
-reviewed stale-state races; the native API has no atomic cross-client comparison.
-Workers announce confirmed Goals using three exact lines: New Goal, Task title,
-Beads ID. Labels use active-task blue; values remain normal escaped text and
-native history/copying are unchanged. Only worker assistant replies opt in.
+Working version 0.40.0 removes the Goals feature at the user's explicit
+request. No Goal will be assigned to kept-open tasks and the earlier batch
+approval question is withdrawn. Removed worker Goal controls, HTTP routes,
+state/events, native start/resume/clear adapter paths, automatic Goal creation
+and announcement formatting. Native Goals are no longer a harness requirement.
+Ordinary Beads tracking, task lifecycle/ready-work guidance, reports, approvals
+and existing branch handoff remain. Existing runtime Goal data is untouched;
+branch handoff retains only its earlier safe continuation checks. No replacement
+execution engine is selected. The user separately approved a fixed15-minute
+silent task-attention reminder through the existing coordinator timer/queue,
+with a next-dispatch counter and existing native/pause/stop/handoff guards.
+Codex-only for now; Claude stays deferred. All578 application tests and the
+production build pass; independent review is finishing and publication/deployment
+are pending. Earlier socket/home/subprocess capture restrictions did not recur
+in the final complete run; do not retain them as an active test blocker.
 
-All 606 tests and the production build pass. No new store/dispatcher or Claude
-work was added. A real native Goal covers this implementation; the direct local
-application RPC probe was blocked by the sandbox. Actual installed Goal controls,
-continuation, announcements and existing browser/native workflow acceptance
-remain unverified. Publication and production update are pending.
+Previous 0.39.0 was published at `a0467e99efc84575081393ad135d28cbaa5f1cf6`
+(implementation `2ea1956c8ff83425e414ec8f5b92eeb6a80f97a0`). Production update
+and independent verification succeeded: 96 installed source files, trusted HTTPS
+health/assets/authentication gates and both listeners matched; eight protected
+files stayed unchanged. All 606 tests/build passed for that revision, but actual
+native/browser Goal controls and continuation were not accepted. The user later
+withdrew the feature after the one-active-Goal-per-chat limitation was clarified.
+Do not resume the explicitly paused implementation Goal or recreate it for the
+removal. Historical code/decision evidence remains available in Git.
 
 The user confirmed backlog cleanup is CCNG-only. Read-only review found no safe
 extra completion closures. Claude, mobile notifications and development charts
@@ -312,7 +323,8 @@ version or browser acceptance.
 All remaining Claude implementation, native Goals/rewind integration and live
 validation were moved to Todo at the user's request. Retain existing published
 SDK code and completed research, but do not resume Claude work automatically.
-Codex Goal controls and Codex Edit & rewind remain separate unfinished work.
+This is a historical checkpoint: Codex Goals were subsequently withdrawn in
+0.40.0; Codex Edit & rewind remains unfinished.
 The rollout input record is now assigned to AAP AutoDeploy by user direction;
 do not repeat that credential question in this conversation. Its original CCNG
 creation is evidenced, not a demonstrated cross-conversation read leak.

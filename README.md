@@ -18,7 +18,7 @@ a coordinator overview so you can see where your attention is needed.
 - Branch a Codex conversation, then hand tasks and a summary back to its parent.
 - See linked Beads tasks, input needs, progress and optional task notifications.
 - Request task reports immediately or choose a saved reporting interval.
-- Set and control native Codex Goals, with clarified task outcomes kept in Beads.
+- Recheck overlooked tasks silently every 15 minutes, with the next check shown in the coordinator.
 - Read Markdown, copy messages/code, and paste or attach images to a draft.
 - Use desktop resizing, a continuous mobile layout and three colour themes.
 
@@ -109,7 +109,8 @@ The installed launcher supports `service install`, `enable`, `start`, `stop`,
 - Session management is **local to the backend host**; no SSH or remote-agent monitoring.
 - Codex is the current operational focus. Official Claude Agent SDK code exists,
   but Claude completion and live validation remain **TODO**.
-- Codex Edit & rewind is unfinished; branching and native Goal controls are available.
+- Codex Edit & rewind is unfinished; branching is available.
+- Native Goals controls and automatic Goal creation were withdrawn; tasks remain in Beads.
 - Closing a tab does not stop its native conversation. Backend shutdown stops
   CCNG-owned Claude runs; native history remains available for later resume.
 - Unsent image drafts disappear on browser refresh; text drafts use browser storage.

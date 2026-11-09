@@ -14,60 +14,51 @@ repeat the import recursively if its contents refer to itself.
 If the source was not loaded, state that clearly instead of inventing rules or
 automatically cloning/fetching a repository or changing permissions.
 
-## Native Goals and task lifecycle
+## Task lifecycle
 
 For new substantive work already authorized in this conversation, clarify the
 objective and observable finish checks from the available context. Create or
 reuse a matching Beads task and record its clarified outcome and acceptance criteria;
 ask a structured question only when a material missing decision prevents that
-clarification. This standing user instruction authorizes a supported native Goal
-for that clarified work, without granting new scope or permissions. Ordinary
-chat, clarification questions, reports and creating a Beads record alone are
-not requests to start a new Goal.
+clarification. This does not grant new scope or permissions. Keep dependent or
+deferred work visible using its actual Beads state and dependencies.
 
-Inspect the current native Goal before starting another. A runtime permits one
-unfinished Goal: retain it when it covers the work, preserving its objective,
-budgets and usage accounting. If a new task falls outside it, keep that task
-queued and visible in Beads and say that its next Goal is pending. Do not
-falsely complete, clear or reset the current Goal to make room, or pretend an
-unsupported Goal-edit tool exists. Respect explicit native pause/clear actions;
-never automatically resume a Goal because a view opens, the backend restarts
-or a task record changes.
-
-Only after the supported native Goal tool confirms creation, announce the Goal
-in chat as its own message using exactly these three lines, with bold labels
-and normal text values. Use the actual human-readable objective (including its
-finish checks where useful), matching task title and existing Beads ID:
-
-```text
-**New Goal:** $actual objective
-**Task title:** $task title
-**Beads ID:** $id
-```
-
-Do not add a state or finish-check line to this announcement. Until native
-confirmation, explain proposed, pending or unavailable work separately in plain
-text; never use the New Goal announcement for an unconfirmed or reused Goal.
-If the native Goal facility is unavailable, explain that limitation truthfully;
-do not replace it with a custom dispatcher, fallback scheduler or clock loop.
+The user withdrew native Goal integration and its announcement format. Do not
+start, resume or require native Goals as part of this workflow, or replace them
+with a custom continuation loop, dispatcher or fallback scheduler. Preserve
+explicit native pause and stop instructions.
 
 Keep Beads current after genuine completion, blocking, input waits, deferral,
 withdrawal, failure, reopening or unblocking. Use supported task states,
 dependencies and concise notes; preserve other conversation labels and task
-ownership. A failed attempt is not task completion. Completing a native Goal
-does not automatically close every linked task, and an answered question is
-resolved only after its actual answer is processed.
+ownership. A failed attempt is not task completion. Close tasks only when their
+own outcomes are verified; an answered question is resolved only after its
+actual answer is processed.
 
 After each such lifecycle change, inspect newly ready work within the existing
 user authorization. Continue useful authorized work and delegate independent
 streams under the native concurrency limits; keep dependent actions ordered.
 New scope, native approvals and unsafe retries still require their actual
 decisions. If all remaining authorized work is blocked, report the exact input
-or external condition needed and stop. Use the native blocked state only when
-its own transition/stopping criteria permit; do not mark the Goal complete or
-keep an empty loop running to manufacture progress or a stopping condition.
-Status-only and Standard Task Report requests must not set or complete Goals;
-retain the existing question, permission and priority-report protections below.
+or external condition needed and stop. Do not keep an empty loop running to
+manufacture progress. Status-only and Standard Task Report requests do not
+authorize additional work; retain the existing question, permission and
+priority-report protections below.
+
+## Silent task checks
+
+Command Center sends a silent task check every fifteen minutes through supported
+native input. At the next safe response checkpoint, before the next ordinary
+step, inspect current Beads work for neglected authorized tasks, accurate
+states and newly ready work, using the task lifecycle rules above. Do not force
+cancellation or interrupt unsafe work. Parallelize
+independent work when useful without conflicting edits or exceeding native
+limits. The check grants no new scope, permissions or decisions and does not
+override user pauses/stops, pending questions, blocked dependencies, deferral
+or withdrawal. Do not create/resume native Goals or another continuation system.
+Do not acknowledge the ping or generate a routine report for it; useful results,
+errors and genuine input requests retain their normal visible channels. If
+nothing is ready, stop. Do not self-schedule checks or keep an empty loop alive.
 
 ## Standard Task Report
 

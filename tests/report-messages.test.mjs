@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { Workspace, input } from '../server/workspace.mjs';
 import { markInternalInput, reportMessageFlags } from '../server/report-messages.mjs';
+import { isCoordinatorMessage } from '../server/coordinator.mjs';
+import { WORKER_TASK_PING_REQUEST } from '../server/worker-instructions.mjs';
 
 const id = '12345678-1234-1234-1234-123456789abc';
 const body = '[Command Center coordinator]\nStandard Task Report. 🟩 Done.';
@@ -37,7 +39,7 @@ async function fixture(rpc = new Rpc()) {
 }
 
 test('typed report identities retain exact native text and coherent UTF-8 span metadata', () => {
-  for (const [kind, flags] of [['report', { internalReport: true }], ['report-setting', { internalReportControl: true }], ['event', { internalCoordinatorEvent: true }]]) {
+  for (const [kind, flags] of [['report', { internalReport: true }], ['report-setting', { internalReportControl: true }], ['event', { internalCoordinatorEvent: true }], ['task-ping', { internalTaskPing: true }]]) {
     const item = nativeInput(kind);
     assert.deepEqual(reportMessageFlags(item), flags);
     const marked = markInternalInput(item.content, item.clientId);
@@ -68,16 +70,18 @@ test('matching prose, invalid markers and assistant output never become internal
 });
 
 test('silent input flags survive completion and history updates that omit metadata for the same item', async () => {
-  const f = await fixture();
-  const original = nativeInput('report-setting');
-  f.workspace.addItem(f.agent, original, 'active-turn', false, { live: true });
-  const plain = { ...original, clientId: undefined };
-  f.workspace.notification({ method: 'item/completed', params: { threadId: 'worker', turnId: 'active-turn', item: plain } });
-  assert.equal(f.agent.messages[0].internalReportControl, true);
-  f.rpc.items = [plain];
-  await f.workspace.history('worker');
-  assert.equal(f.agent.messages[0].internalReportControl, true);
-  assert.deepEqual(reportMessageFlags({ ...plain, id: 'different-user-item' }, f.agent.messages[0]), {}, 'a previous record cannot hide another item');
+  for (const [kind, flag] of [['report-setting', 'internalReportControl'], ['task-ping', 'internalTaskPing']]) {
+    const f = await fixture();
+    const original = nativeInput(kind);
+    f.workspace.addItem(f.agent, original, 'active-turn', false, { live: true });
+    const plain = { ...original, clientId: undefined };
+    f.workspace.notification({ method: 'item/completed', params: { threadId: 'worker', turnId: 'active-turn', item: plain } });
+    assert.equal(f.agent.messages[0][flag], true);
+    f.rpc.items = [plain];
+    await f.workspace.history('worker');
+    assert.equal(f.agent.messages[0][flag], true);
+    assert.deepEqual(reportMessageFlags({ ...plain, id: 'different-user-item' }, f.agent.messages[0]), {}, 'a previous record cannot hide another item');
+  }
 });
 
 test('start and active steering use typed report/control/event identities while normal messages remain plain', async () => {
@@ -98,7 +102,7 @@ test('start and active steering use typed report/control/event identities while 
 
 test('fresh read-only restoration classifies native span markers without any app-memory mapping', async () => {
   const rpc = new Rpc();
-  rpc.items = ['report', 'report-setting', 'event'].map(kind => {
+  rpc.items = ['report', 'report-setting', 'event', 'task-ping'].map(kind => {
     const item = nativeInput(kind);
     return { id: item.id, type: item.type, content: markInternalInput(item.content, item.clientId) };
   });
@@ -107,9 +111,12 @@ test('fresh read-only restoration classifies native span markers without any app
   assert.equal(f.agent.messages[0].internalReport, true);
   assert.equal(f.agent.messages[1].internalReportControl, true);
   assert.equal(f.agent.messages[2].internalCoordinatorEvent, true);
-  assert.equal(f.agent.messages[3].internalReport, undefined);
+  assert.equal(f.agent.messages[3].internalTaskPing, true);
   assert.equal(f.agent.messages[4].internalReport, undefined);
-  assert.equal(f.agent.messages.length, 5, 'native records remain available; only presentation is silent');
+  assert.equal(f.agent.messages[5].internalReport, undefined);
+  assert.equal(f.agent.messages[4].internalTaskPing, undefined);
+  assert.equal(f.agent.messages[5].internalTaskPing, undefined);
+  assert.equal(f.agent.messages.length, 6, 'native records remain available; only presentation is silent');
   assert.equal(rpc.calls.some(call => ['turn/start', 'turn/steer', 'thread/resume'].includes(call.method)), false);
 });
 
@@ -121,7 +128,113 @@ test('Claude receives explicit report/control transport options without changing
   await f.workspace.send('worker', body, { report: true });
   await f.workspace.send('worker', body, { reportSetting: true });
   await f.workspace.send('worker', body);
+  await assert.rejects(f.workspace.send('worker', body, { taskPing: true }), /only for Codex workers/);
   assert.equal(sent[0][2].report, true); assert.equal(sent[0][2].priority, 'next');
   assert.equal(sent[1][2].reportSetting, true); assert.equal(sent[1][2].priority, 'next');
   assert.equal(sent[2][2].report, false); assert.equal(sent[2][2].reportSetting, false); assert.equal(sent[2][2].priority, undefined);
+  assert.equal(sent.length, 3, 'task checks do not add postponed Claude transport behavior');
+});
+
+test('silent task checks carry native identity without renaming branches and steer only a known active native turn', async () => {
+  const f = await fixture();
+  f.agent.freshBranch = true;
+  const text = '[Command Center coordinator]\n' + WORKER_TASK_PING_REQUEST;
+  await f.workspace.send('worker', text, { taskPing: true });
+  const call = f.rpc.calls.at(-1);
+  assert.equal(call.method, 'turn/start');
+  assert.match(call.params.clientUserMessageId, /^ccng-task-ping-[a-f0-9-]{36}$/);
+  assert.equal(call.params.input[0].text, text);
+  assert.equal(f.agent.messages.at(-1).internalTaskPing, true);
+  assert.equal(f.agent.freshBranch, true);
+  assert.equal(f.rpc.calls.some(call => call.method === 'thread/name/set'), false);
+  await f.workspace.send('worker', text, { taskPing: true });
+  const steer = f.rpc.calls.at(-1);
+  assert.equal(steer.method, 'turn/steer');
+  assert.equal(steer.params.expectedTurnId, 'active-turn');
+  assert.equal(steer.params.input[0].text, text);
+  assert.equal(f.agent.messages.at(-1).internalTaskPing, true);
+  assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
+  const count = f.rpc.calls.length;
+  f.agent.turnId = null;
+  await assert.rejects(f.workspace.send('worker', text, { taskPing: true }), /active native turn identity/);
+  assert.equal(f.rpc.calls.length, count);
+  f.agent.thread.status = { type: 'idle' };
+  const question = { id: 'pending-choice', method: 'item/tool/requestUserInput', params: {} };
+  f.agent.questions = [question];
+  await assert.rejects(f.workspace.send('worker', text, { taskPing: true }), /pending question/);
+  assert.deepEqual(f.agent.questions, [question]);
+  assert.equal(f.rpc.calls.length, count, 'task check never answers, reloads or bypasses a pending request');
+});
+
+test('task checks recheck native turn identity and pending requests after asynchronous context loading', async () => {
+  for (const change of ['unknown-turn', 'pending-request']) {
+    const f = await fixture();
+    f.workspace.instructionContext = async () => {
+      if (change === 'unknown-turn') { f.agent.thread.status = { type: 'active' }; f.agent.turnId = null; }
+      else f.agent.questions = [{ id: 'new-pending-request' }];
+      return {};
+    };
+    await assert.rejects(f.workspace.send('worker', WORKER_TASK_PING_REQUEST, { taskPing: true }), /active native turn identity|pending request/);
+    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false);
+  }
+});
+
+test('task-ping provenance excludes real-user authority without hiding identical real-user prose or useful replies', async () => {
+  const f = await fixture();
+  const item = { id: 'silent-check', type: 'userMessage', clientId: `ccng-task-ping-${id}`, content: input(WORKER_TASK_PING_REQUEST) };
+  f.workspace.addItem(f.agent, item, 'check-turn');
+  const generated = f.agent.messages.at(-1);
+  assert.equal(generated.internalTaskPing, true);
+  assert.equal(isCoordinatorMessage(generated), true, 'typed internal checks are not real user authority even without their display prefix');
+  f.workspace.addItem(f.agent, { ...item, id: 'actual-user', clientId: undefined }, 'user-turn');
+  assert.equal(f.agent.messages.at(-1).internalTaskPing, undefined);
+  assert.equal(isCoordinatorMessage(f.agent.messages.at(-1)), false);
+  f.workspace.addItem(f.agent, { id: 'useful-result', type: 'agentMessage', text: 'Implemented the remaining authorized fix.', clientId: item.clientId }, 'check-turn');
+  assert.equal(f.agent.messages.at(-1).internalTaskPing, undefined, 'useful assistant output stays visible even if native metadata contains an internal client ID');
+  for (const clientId of ['ccng-task-ping-invalid', `ccng-task-ping-${id}-extra`]) assert.deepEqual(reportMessageFlags({ ...item, clientId }), {});
+  assert.deepEqual(reportMessageFlags({ ...item, clientId: undefined, internalTaskPing: true }), {}, 'untyped input flags are not native provenance');
+});
+
+test('read-only restoration keeps the latest native interrupted or failed outcome without guessing from idle', async () => {
+  class TerminalRpc extends Rpc {
+    status = 'interrupted';
+    async call(method, params) {
+      if (method === 'thread/turns/list') {
+        this.calls.push({ method, params });
+        return { data: [{ id: 'latest-turn', status: this.status, items: [] }, { id: 'older-turn', status: 'completed', items: [] }], nextCursor: 'older' };
+      }
+      return super.call(method, params);
+    }
+  }
+  for (const status of ['interrupted', 'failed', 'completed', undefined]) {
+    const rpc = new TerminalRpc(); rpc.status = status;
+    const f = await fixture(rpc);
+    assert.deepEqual(f.agent.finishedTurn, status ? { id: 'latest-turn', status } : undefined);
+    assert.equal(rpc.calls.some(call => ['turn/start', 'turn/steer', 'thread/resume'].includes(call.method)), false);
+    const current = { id: 'newer-live-turn', status: 'interrupted' };
+    f.agent.finishedTurn = current;
+    await f.workspace.history('worker', 'older');
+    assert.equal(f.agent.finishedTurn, current, 'older history cannot replace the current stop outcome');
+  }
+});
+
+test('history arriving after a live turn event cannot overwrite its finished or active state', async () => {
+  const f = await fixture();
+  const call = f.rpc.call.bind(f.rpc);
+  let resolve;
+  f.rpc.call = (method, params) => method === 'thread/turns/list' ? new Promise(done => { resolve = done; }) : call(method, params);
+  const history = f.workspace.history('worker');
+  f.workspace.notification({ method: 'turn/started', params: { threadId: 'worker', turn: { id: 'new-live-turn' } } });
+  resolve({ data: [{ id: 'old-native-turn', status: 'interrupted', items: [] }], nextCursor: null });
+  await history;
+  assert.equal(f.agent.turnId, 'new-live-turn');
+  assert.equal(f.agent.thread.status.type, 'active');
+  assert.deepEqual(f.agent.finishedTurn, { id: 'history-turn', status: 'completed' });
+
+  const completedHistory = f.workspace.history('worker');
+  f.workspace.notification({ method: 'turn/completed', params: { threadId: 'worker', turn: { id: 'new-live-turn', status: 'failed' } } });
+  resolve({ data: [{ id: 'old-native-turn', status: 'completed', items: [] }], nextCursor: null });
+  await completedHistory;
+  assert.deepEqual(f.agent.finishedTurn, { id: 'new-live-turn', status: 'failed' });
+  assert.equal(f.agent.turnId, null);
 });

@@ -9,7 +9,32 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 0.40.0 — Silent task checks and removal of native Goals
+
+- Removed native Goal controls, worker state/events, API routes, task Goal
+  creation instructions and special three-line announcement formatting.
+- Native Goals are no longer a requirement for future harness integrations.
+- Kept ordinary Beads outcomes, lifecycle updates and ready-work reassessment,
+  plus existing reports, approvals, layout and branch handoff.
+- Existing native Goal data is unchanged. Branch handoff retains only its
+  previous read/pause checks needed to establish a safe return checkpoint.
+- Added user-selected silent task-attention checks every fifteen minutes through
+  the existing coordinator queue. Show the next scheduled check in its overview;
+  preserve pause, native-request, ownership and handoff gates while using native
+  steering for known active Codex turns at their next safe checkpoint.
+- No replacement execution loop, dispatcher, service or dependency added.
+
+**Validation:** all578 application tests and the production build pass. Focused
+coverage includes15-minute cadence, active steering, coalescing, stop/request/
+handoff guards, uncertain sends, hidden replay/provenance and the next-time UI.
+Earlier restricted attempts could not use sockets/home fixtures or capture Node
+subprocess output; the final complete run passed without changing those tests
+to bypass their checks. Actual publication/deployment is recorded separately;
+rendered browser and real scheduled worker acceptance remain distinct.
+
 ## 0.39.0 — Native Codex Goals and clarified task announcements
+
+Historical release; the Goals feature and requirement were withdrawn in 0.40.0.
 
 - Added native Goal status, objective, usage and start/pause/resume/clear controls
   under Worker specific settings, with a compact mobile summary. Viewing and

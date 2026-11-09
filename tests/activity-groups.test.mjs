@@ -69,3 +69,15 @@ test('only typed internal inputs are silent; report answers, normal summaries an
   assert.deepEqual(groupMessages(hidden), []);
   assert.equal(isVisibleMessage({ ...visible[1], internalReport: true }), true, 'an assistant report is never hidden as an input');
 });
+
+test('typed silent task-ping inputs are hidden in worker/coordinator views while real replies and quoted prompts remain visible', () => {
+  const text = '[Command Center coordinator]\nCheck current task progress.';
+  const ping = { ...message('silent-ping', 'user', 'completed', text), internalTaskPing: true };
+  const visible = [message('quoted-user-input', 'user', 'completed', text), message('task-update', 'assistant', 'completed', 'The current task is progressing.')];
+  const original = [ping, ...visible];
+  assert.equal(isVisibleMessage(ping), false);
+  assert.deepEqual(groupMessages(original).map(group => group.id), visible.map(item => item.id));
+  assert.equal(original.length, 3, 'presentation filtering retains the original native message records');
+  assert.equal(isVisibleMessage({ ...visible[1], internalTaskPing: true }), true, 'worker updates remain visible even if a flag is mistakenly attached');
+  assert.equal(isVisibleMessage({ ...visible[0], internalTaskPing: 'true' }), true, 'untyped text does not identify a synthetic input');
+});

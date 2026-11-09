@@ -401,7 +401,8 @@ without losing unrelated preferences. Amber remains reserved for attention.
 Confirm Input received only after native input acknowledgement. Keep real native
 worker-update age separate from browser/backend heartbeat freshness; disconnected
 or delayed updates show last-known activity, never an invented stuck diagnosis.
-Do not send worker pings, restart/resend work or add agent scheduling for status.
+Do not add status-only pings or restart/resend work for activity indicators.
+The separately approved task-attention schedule below is not a connection probe.
 Claude activity integration remains deferred. Default shell installation goes to
 ~/commandcenter-ng; --prefix selects another home-contained app directory.
 Preserve existing installations and require their explicit path for updates.
@@ -547,37 +548,41 @@ throttling for newly arrived startup results. Do not wait for all workers or
 add repeated acknowledgements/chat prompts. Preserve paused startup intent,
 native questions, source/approval protections, ownership and failed-send guards.
 
-## Native Goal execution and CCNG controls
+## Silent task-attention checks
 
-The user approved native Goal execution with controls/status in CCNG. Future
-full managed harness integrations require native Goals support. The harness
-owns goal execution, persistence and continuation; do not add a CCNG goal loop,
-daemon or replacement execution engine. Verify each native interface and expose
-provider differences truthfully. Goal controls require explicit user action;
-restoring/opening a view does not create a goal or grant additional permissions.
-The report timer remains separate. See docs/agent-harness-requirements.md.
+The user approved a fixed fifteen-minute backend cadence for silent worker task
+checks. Reuse the existing coordinator clock/queue and native input path.
+Ask each open Codex worker to inspect neglected Beads work and reassess independent
+authorized tasks that can run in parallel without conflicting writes or resources.
+This is a reminder to the agent, not a dispatcher selecting or executing tasks.
+Do not echo triggers/acknowledgements in either chat history. Show the coordinator
+counter “Next chat task-ping to send” with the next scheduled local time.
 
-The user now authorizes supported native Goals for newly clarified substantive
-worker tasks within existing scope. Workers record outcomes and acceptance in
-Beads, preserve an unfinished Goal and its accounting, and never manufacture a
-completed/cleared state to make room. Work outside that Goal stays visible for
-later execution. Respect native pause/clear and stopping conditions. Do not
-create Goals from ordinary chat, reports, task-record creation, view restoration
-or a coordinator-generated message. No custom task dispatcher is approved.
+Begin a fresh interval after startup/restoration; do not replay missed cycles.
+Coalesce outstanding checks, preserve failed/uncertain delivery, and respect
+coordinator pause, worker ownership, native questions, handoff and user stop.
+Use the existing safe native input path for idle workers or a known active
+Codex turn. The worker handles the check at its next safe checkpoint; never
+interrupt a tool or bypass a native request to deliver it.
+Never/report interval controls remain unchanged and apply only to task reports.
+No Goal, new permission, deferred-work authorization or extra service is implied.
 
-After native Goal creation is confirmed, announce exactly three consecutive
-lines: **New Goal:** the actual objective, **Task title:** the task title and
-**Beads ID:** its ID. The renderer colours only these labels using active-task
-blue; values remain normal text. Opt this rendering in only for worker assistant
-messages, keep native text/copying unchanged and raw HTML disabled. Proposed,
-pending and unsupported states must not be announced as a new confirmed Goal.
+## Task lifecycle and withdrawn Goals feature
 
-After real completion, blocking/input waits, deferral/withdrawal, failure,
-reopening or dependency clearance, update Beads and reassess authorized ready
-work, using native parallelism for independent work. Native Goal completion is
-not proof every task finished. Keep permissions/questions intact and report
-when no authorized work can proceed. Runtime continuation owns further turns.
-The coordinator retains its read-only role; Claude Goal work remains postponed.
+The user withdrew native Goals as a CCNG feature and provider requirement.
+Do not create task Goals, announce Goal creation or reinstate Goal controls,
+routes, state, automatic continuation or a replacement dispatcher. Preserve
+existing native Goal data and explicit pause/clear decisions; removal does not
+clear or resume runtime objectives. Existing branch handoff may inspect/pause
+native continuation only to establish its already-approved safe checkpoint.
+
+Keep ordinary Beads tracking: record task outcomes and acceptance criteria,
+update states after actual completion, blocking/input waits, deferral/withdrawal,
+failure, reopening or dependency clearance, and reassess authorized ready work.
+Use native parallelism for independent authorized work. Never infer completion
+from idle, reports or task-record creation; preserve questions and permissions.
+Task instructions encourage continuation but do not guarantee autonomous wakeup.
+The coordinator retains its read-only role; all Claude work remains postponed.
 
 The user approved a draggable horizontal divider between history and the whole
 composer (title/status strip, text input and footer). Preserve keyboard controls,

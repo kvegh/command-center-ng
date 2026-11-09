@@ -14,7 +14,6 @@ import { BeadsTasks, sessionLabel } from './beads.mjs';
 import { Coordinator, COORDINATOR_NAME, isCoordinatorThread } from './coordinator.mjs';
 import { SUMMARY_LIMIT, SUMMARY_SCHEMA, summaryPrompt, readSummary } from './branch-summary.mjs';
 import { BranchHandoffs } from './branch-handoff.mjs';
-import { WorkerGoals } from './worker-goals.mjs';
 import { ClaudeSessions, isClaudeId } from './claude.mjs';
 import { readEnvironmentInstructions, environmentInstructionContext } from './environment-instructions.mjs';
 import { messageTime } from './message-time.mjs';
@@ -52,7 +51,6 @@ export class Workspace extends EventEmitter {
     super(); this.rpc = rpc; this.agents = new Map(); this.pending = new Map(); this.opening = new Set(); this.watched = new Set(); this.creating = 0; this.error = null;
     this.summaryJobs = new Map(); this.returnJobs = new Map(); this.summaryTimeout = summaryTimeout;
     this.handoffs = new BranchHandoffs(this, handoffOptions);
-    this.goals = new WorkerGoals(this);
     this.workerReads = new Set(); this.beads = beads; this.trackerReads = new Map();
     this.answerJobs = new Map(); this.answerTimeout = answerTimeout;
     this.requestJobs = new Map(); this.recoveryTimeout = recoveryTimeout;
@@ -131,7 +129,7 @@ export class Workspace extends EventEmitter {
       // Native resume may replay requests before the awaiting continuation runs.
       this.watched.add(id);
       const { thread, instructionSources } = observeOnly ? observed : await this.rpc.call('thread/resume', { threadId: id, excludeTurns: true });
-      const agent = { id, name: thread.name || 'Codex agent', goal: thread.name || thread.preview?.split('\n')[0] || 'No goal recorded', nativeGoal: null, nativeGoalState: 'unknown', nativeGoalError: null, cwd: thread.cwd, model: thread.model || null, reasoningEffort: thread.reasoningEffort ?? null, thread, parentId: thread.forkedFromId || null, canSend: thread.canAcceptDirectInput !== false, messages: [], tasks: [], workers: [], questions: [], turnId: null, lastCompletedTurnId: null, olderCursor: null, activity: null, summary: null, reportIntervalMinutes: 0, reportError: null };
+      const agent = { id, name: thread.name || 'Codex agent', goal: thread.name || thread.preview?.split('\n')[0] || 'No goal recorded', cwd: thread.cwd, model: thread.model || null, reasoningEffort: thread.reasoningEffort ?? null, thread, parentId: thread.forkedFromId || null, canSend: thread.canAcceptDirectInput !== false, messages: [], tasks: [], workers: [], questions: [], turnId: null, lastCompletedTurnId: null, olderCursor: null, activity: null, summary: null, reportIntervalMinutes: 0, reportError: null };
       agent.questions = [...this.pending.values()].filter(q => q.params.threadId === id);
       agent.role = role; agent.observingOnly = observeOnly; agent.instructionSources = instructionSources || [];
       this.agents.set(id, agent);
@@ -237,12 +235,22 @@ export class Workspace extends EventEmitter {
   async history(id, cursor) {
     const agent = this.agent(id);
     if (agent.provider === 'claude') { if (cursor) throw Object.assign(new Error('Claude history uses its native current transcript.'), { status: 400 }); await this.claude.refresh(agent); return; }
+    const before = { turnId: agent.turnId, finishedTurn: agent.finishedTurn, status: agent.thread.status };
     const page = await this.rpc.call('thread/turns/list', { threadId: id, limit: 20, itemsView: 'full', ...(cursor ? { cursor } : {}) });
+    const sameTurn = agent.turnId === before.turnId && agent.finishedTurn === before.finishedTurn && agent.thread.status === before.status;
+    const restoreTurn = !cursor && sameTurn && (before.status?.type !== 'active' || !before.turnId);
+    if (!cursor && sameTurn) {
+      const latest = page.data[0];
+      // Only current native history establishes whether an idle restored worker was stopped.
+      if (latest?.id && ['completed', 'interrupted', 'failed'].includes(latest.status) && agent.thread.status?.type !== 'active') {
+        agent.finishedTurn = { id: latest.id, status: latest.status };
+      }
+    }
     const current = { tasks: agent.tasks, workers: agent.workers.map(worker => ({ ...worker })), summary: agent.summary, activity: agent.activity };
-    const live = agent.messages; const previous = new Map(live.map(message => [message.id, message])); agent.messages = []; if (!cursor) agent.turnId = null;
+    const live = agent.messages; const previous = new Map(live.map(message => [message.id, message])); agent.messages = []; if (restoreTurn) agent.turnId = null;
     for (const turn of [...page.data].reverse()) {
       agent.tasks = []; agent.summary = null;
-      if (turn.status === 'inProgress') agent.turnId = turn.id;
+      if (restoreTurn && turn.status === 'inProgress') agent.turnId = turn.id;
       const lastReply = turn.status === 'completed' ? turn.items?.findLast(item => item.type === 'agentMessage') : null;
       if (lastReply && !cursor) agent.lastCompletedTurnId = turn.id;
       for (const item of turn.items || []) this.addItem(agent, item, turn.id, item.id === lastReply?.id, { previous: previous.get(item.id) });
@@ -300,8 +308,6 @@ export class Workspace extends EventEmitter {
     const models = await readModelCatalog(this.rpc); this.changed();
     return { models, model: agent.model, effort: agent.reasoningEffort ?? null, change: agent.modelChange || null };
   }
-  goalState(id) { return this.goals.read(id); }
-  updateGoal(id, choice) { return this.goals.update(id, choice); }
   async updateModel(id, choice) {
     const agent = this.agent(id);
     if (agent.provider === 'claude') return this.claude.updateModel(agent, choice);
@@ -372,8 +378,10 @@ export class Workspace extends EventEmitter {
       await this.send(thread.id, goal.trim()); return thread.id;
     } finally { if (reserved) this.creating--; }
   }
-  async send(id, text, { report = false, reportSetting = false, coordinatorEvent = false, images: suppliedImages } = {}) {
+  async send(id, text, { report = false, reportSetting = false, coordinatorEvent = false, taskPing = false, images: suppliedImages } = {}) {
     const agent = this.agent(id);
+    if (taskPing && (agent.provider === 'claude' || agent.role === 'coordinator')) throw Object.assign(new Error('Silent task checks are supported only for Codex workers.'), { status: 409 });
+    if (taskPing && agent.thread.status?.type === 'active' && !agent.turnId) throw Object.assign(new Error('Wait for the active native turn identity before a silent task check.'), { status: 409 });
     if (this.summaryJobs.has(id) || this.returnJobs.has(id) || agent.returnSummary?.delivered) throw Object.assign(new Error('Finish the branch handoff before sending another message.'), { status: 409 });
     if (!agent.canSend) throw Object.assign(new Error(agent.managementNotice || 'The native agent does not allow direct input to this session.'), { status: 409 });
     const images = validateImages(suppliedImages);
@@ -384,18 +392,19 @@ export class Workspace extends EventEmitter {
     const context = await this.instructionContext(agent);
     if (this.agents.get(id) !== agent) throw Object.assign(new Error('The worker was closed before message delivery.'), { status: 409 });
     if (!this.readyFor(agent)) throw Object.assign(new Error('Reconnect the native runtime before sending this message.'), { status: 503 });
+    if (taskPing && agent.thread.status?.type === 'active' && !agent.turnId) throw Object.assign(new Error('Wait for the active native turn identity before a silent task check.'), { status: 409 });
     if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
     if (agent.provider === 'claude') {
       await this.claude.send(agent, text.trim(), { images, report, reportSetting, instructions: Object.values(context).map(part => part.value).join('\n\n'), stillOpen: () => this.agents.get(id) === agent, ...(report || reportSetting ? { priority: 'next' } : {}) }); return;
     }
-    if (agent.freshBranch && !report && !reportSetting) {
+    if (agent.freshBranch && !report && !reportSetting && !taskPing) {
       const title = text.trim().split('\n')[0].slice(0, 120) || 'Image message';
       await this.rpc.call('thread/name/set', { threadId: id, name: title });
       agent.name = title; agent.goal = title; agent.freshBranch = false;
     }
     if (this.agents.get(id) !== agent) throw Object.assign(new Error('The worker was closed before message delivery.'), { status: 409 });
     if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
-    const clientUserMessageId = report || reportSetting || coordinatorEvent ? (report ? 'ccng-report-' : reportSetting ? 'ccng-report-setting-' : 'ccng-event-') + randomUUID() : null;
+    const clientUserMessageId = report || reportSetting || coordinatorEvent || taskPing ? (report ? 'ccng-report-' : reportSetting ? 'ccng-report-setting-' : coordinatorEvent ? 'ccng-event-' : 'ccng-task-ping-') + randomUUID() : null;
     const messageInput = markInternalInput(input(text.trim(), images), clientUserMessageId);
     const identity = clientUserMessageId ? { clientUserMessageId } : {};
     if (agent.thread.status?.type === 'active' && agent.turnId) {
@@ -439,7 +448,6 @@ export class Workspace extends EventEmitter {
     if (!parentId) throw Object.assign(new Error('This conversation has no parent branch.'), { status: 400 });
     if (this.agents.has(parentId)) return parentId;
     const replace = this.workerSlots() >= limits.maxWorkers;
-    if (replace && this.goals.mutations.has(id)) throw Object.assign(new Error('Wait for the native Goal change before replacing its tab with the parent.'), { status: 409 });
     if (replace && branch.handoff) throw Object.assign(new Error('All worker tabs are open. Close another tab to open the parent; the handing-back branch is kept.'), { status: 409 });
     if (replace) this.agents.delete(id);
     try { await this.open(parentId); return parentId; }
@@ -456,7 +464,6 @@ export class Workspace extends EventEmitter {
     return branch;
   }
   async summarize(id) {
-    if (this.goals.mutations.has(id)) throw Object.assign(new Error('Wait for the native Goal change before preparing a branch summary.'), { status: 409 });
     if (this.handoffs.incoming(id) || this.agent(id).handoff) throw Object.assign(new Error('Use Hand back & close to finish this branch handoff; an incoming delivery must finish first.'), { status: 409 });
     if (this.summaryJobs.has(id)) return this.summaryJobs.get(id);
     const branch = this.idleBranch(id, { allowUnloaded: true });
@@ -465,10 +472,7 @@ export class Workspace extends EventEmitter {
     const job = this.generateSummary(branch); this.summaryJobs.set(id, job); this.changed();
     try { return await job; } finally { this.summaryJobs.delete(id); this.changed(); }
   }
-  startHandoff(id) {
-    if (this.goals.mutations.has(id)) throw Object.assign(new Error('Wait for the native Goal change before handing the branch back.'), { status: 409 });
-    return this.handoffs.start(id);
-  }
+  startHandoff(id) { return this.handoffs.start(id); }
   async generateSummary(branch) {
     // Return summary is an explicit user action; restoring a tab stays read-only.
     await this.activate(branch.id);
@@ -496,7 +500,6 @@ export class Workspace extends EventEmitter {
     return branch.returnSummary;
   }
   async returnToParent(id, text) {
-    if (this.goals.mutations.has(id)) throw Object.assign(new Error('Wait for the native Goal change before returning a branch.'), { status: 409 });
     if (this.handoffs.incoming(id) || this.agent(id).handoff) throw Object.assign(new Error('Use Hand back & close to finish this branch handoff; the older return flow cannot bypass its safety checks.'), { status: 409 });
     if (this.returnJobs.has(id)) return this.returnJobs.get(id);
     const branch = this.idleBranch(id, { allowUnloaded: true });
@@ -537,7 +540,7 @@ export class Workspace extends EventEmitter {
       throw error;
     }
   }
-  close(id) { const agent = this.agent(id); if (agent.role === 'coordinator') throw Object.assign(new Error('Pause the coordinator using its controls.'), { status: 409 }); if (this.goals.mutations.has(id)) throw Object.assign(new Error('Wait for the native Goal change before closing its tab.'), { status: 409 }); if (this.summaryJobs.has(id) || this.returnJobs.has(id)) throw Object.assign(new Error('Wait for the branch handoff to finish before closing its tab.'), { status: 409 }); this.agents.delete(id); this.coordinator?.closed(id); this.changed(); }
+  close(id) { const agent = this.agent(id); if (agent.role === 'coordinator') throw Object.assign(new Error('Pause the coordinator using its controls.'), { status: 409 }); if (this.summaryJobs.has(id) || this.returnJobs.has(id)) throw Object.assign(new Error('Wait for the branch handoff to finish before closing its tab.'), { status: 409 }); this.agents.delete(id); this.coordinator?.closed(id); this.changed(); }
   request(message) {
     const p = message.params || {};
     if (['execCommandApproval', 'applyPatchApproval'].includes(message.method) && typeof p.conversationId === 'string' && !p.threadId) p.threadId = p.conversationId;
@@ -597,7 +600,6 @@ export class Workspace extends EventEmitter {
     if (agent) { this.coordinator?.markRemainingApprovals(threadId); void this.coordinator?.flush(threadId); }
   }
   notification({ method, params: p = {} }) {
-    if (this.goals.notification(method, p)) return;
     if (method === 'serverRequest/resolved') { this.removeQuestion(p.threadId, p.requestId); this.changed(); return; }
     if (method === 'warning' && typeof p.message === 'string' && p.message.trim()) {
       // Native rule-save failures can leave the current action approved. Keep the

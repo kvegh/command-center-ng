@@ -81,6 +81,8 @@ test('busy handoff accepts immediately, cooperates then transfers all tasks and 
   assert.equal(steer.params.expectedTurnId, 'running');
   assert.ok(isBranchControlMessage(steer.params.input[0].text), 'generated checkpoint is not a new user authority source');
   assert.equal(f.calls.filter(call => call.method === 'thread/goal/set').length, 1);
+  assert.deepEqual(f.calls.find(call => call.method === 'thread/goal/set').params, { threadId: 'child', origin: 'user', status: 'paused' }, 'safe closure only pauses existing continuation without creating/resetting an objective');
+  assert.ok(!f.calls.some(call => call.method === 'thread/goal/clear'));
   const delivery = f.calls.find(call => call.method === 'turn/start' && call.params.threadId === 'parent');
   assert.match(delivery.params.input[0].text, /All 75 linked branch tasks/);
   assert.match(delivery.params.input[0].text, /ccng-session:child/);
@@ -266,19 +268,22 @@ test('unloaded spawned descendant may be archived only with explicit empty termi
   assert.ok(f.calls.some(call => call.method === 'thread/goal/get' && call.params.threadId === 'finished-spawn'));
 });
 
-test('branch handoff waits for native Goal control confirmation without losing either view', async () => {
-  const f = fixture();
-  f.w.goals.mutations.set('child', Promise.resolve());
-  assert.throws(() => f.w.startHandoff('child'), /native Goal/);
-  assert.equal(f.calls.length, 0);
-  f.w.goals.mutations.delete('child');
-  f.w.goals.mutations.set('parent', Promise.resolve());
-  f.w.startHandoff('child');
-  await until(() => f.branch.handoff?.phase === 'waiting' && !!f.branch.returnSummary);
+test('unconfirmed native continuation pause retains the child instead of archiving active work', async () => {
+  const f = fixture({ goal: true }), call = f.rpc.call;
+  f.rpc.call = async (method, params) => method === 'thread/goal/set' ? call('thread/goal/get', params) : call(method, params);
+  f.w.startHandoff('child'); await done(f);
+  assert.equal(f.branch.handoff.phase, 'failed');
+  assert.match(f.branch.handoff.detail, /continuation is still active/);
+  assert.deepEqual(f.archived, []); assert.ok(f.w.agents.has('child'));
+});
+
+test('native continuation inspection refuses wrong-thread state before safe closure', async () => {
+  const f = fixture({ goal: true }), call = f.rpc.call;
+  f.rpc.call = async (method, params) => {
+    const result = await call(method, params);
+    return method === 'thread/goal/get' ? { goal: { ...result.goal, threadId: 'unrelated' } } : result;
+  };
+  f.w.startHandoff('child'); await done(f);
+  assert.equal(f.branch.handoff.phase, 'failed'); assert.match(f.branch.handoff.detail, /different or invalid conversation/);
   assert.deepEqual(f.archived, []);
-  assert.ok(f.w.agents.has('child') && f.w.agents.has('parent'));
-  assert.ok(!f.calls.some(call => call.method === 'turn/start' && call.params.threadId === 'parent'));
-  f.w.goals.mutations.delete('parent'); f.w.changed();
-  await done(f);
-  assert.deepEqual(f.archived, ['child']);
 });

@@ -51,45 +51,33 @@ chat. The action preserves the unsent draft and does not undo completed commands
 or files. Escape keeps its local meaning in dialogs, selects, question controls,
 summary editing, resizing and text composition. Other tabs are unaffected.
 
-## Native Goals and task outcomes
+## Task outcomes
 
-A task is one piece of work; a native Goal describes the result the worker
-should reach before stopping. One Codex conversation has one active Goal, which
-can cover several agreed Beads tasks. Codex owns execution, persistence and usage
-accounting. Beads keeps task outcomes, acceptance criteria and dependencies;
-CCNG adds no Goal database or replacement continuation loop.
+Beads stores each task's expected outcome, acceptance criteria, state and
+dependencies. Workers update those records after real changes and reassess
+other authorized ready work, using subagents for independent work when useful.
+Native questions and permissions still apply; idle does not mean complete.
 
-Under **Worker specific settings**, read the native objective, status and usage.
-Start a clarified objective, pause/resume it or clear it through the supported
-native controls. Replacing a Goal requires explicit confirmation because native
-accounting may reset. Optional budget input is sent only when supplied; check
-the actual returned native budget. Resume preserves existing limits and can
-remain limited. Unavailable or unconfirmed native states are shown explicitly;
-refresh before another change. Viewing or restoring a chat only reads state.
+Native Goals controls and automatic Goal creation were withdrawn. CCNG does not
+start Goals or a replacement task dispatcher. Existing runtime Goal data is
+preserved. Task-report requests ask for status; they do not wake workers to
+execute their backlog.
 
-For newly authorized substantive work, workers clarify the outcome and finish
-checks, record them in Beads, and use supported native Goal tools. Only after
-creation is confirmed do they announce three consecutive lines:
+## Silent task checks
 
-```text
-New Goal: Deliver the agreed change, pass its checks and verify the release.
-Task title: Deliver the agreed change
-Beads ID: example-123
-```
+Every 15 minutes, the coordinator backend asks each open Codex worker to review tasks
+that may have lost attention and identify independent authorized work it can
+perform in parallel without conflicts. The request is silent in both chats;
+useful agent findings and work remain visible. This is separate from task reports,
+so **Never** stops recurring reports but does not disable task checks.
 
-The labels use the active-task light blue; values use normal text. The native
-message is kept unchanged for copying and history. Unsupported Goal tools are
-reported as unavailable. An unfinished Goal and its accounting are preserved;
-new work outside it stays visible for a later Goal. Explicit pause/clear actions
-remain authoritative, and a question, report or backlog entry alone starts no Goal.
-
-After actual task completion, blocking, input waits, deferral, withdrawal,
-failure, reopening or dependency clearance, workers update Beads and reassess
-authorized ready work. Independent work can use native subagents. Native
-questions and permissions remain in force; no app dispatcher starts arbitrary
-backlog tasks, and a completed Goal does not automatically close task records.
-When all authorized work is blocked, workers report the exact obstacle and stop
-under the native runtime's stopping rules. Claude Goal integration stays postponed.
+The coordinator overview shows **Next chat task-ping to send** with the next
+scheduled local time. It is a schedule, not a guarantee of immediate delivery:
+a pending question, paused coordinator, disconnected session, unknown active
+turn or branch handoff can defer it. Known active Codex turns receive the check
+through supported steering for their next safe checkpoint; no tool is interrupted. Checks coalesce and do not replay missed intervals
+when CCNG restarts. Explicit user stops and project permissions remain in force;
+the reminder does not authorize an arbitrary backlog task or native Goal.
 
 ## Branch and return a summary
 
@@ -222,8 +210,8 @@ burst of missed intervals. Closing a tab removes that worker's CCNG schedule.
 
 The Codex **Model** and **Effort** controls use the native runtime's catalog and
 supported choices. Changes apply to subsequent turns without interrupting the
-current turn or changing global permissions. Native Goals controls and Edit &
-rewind remain unfinished; they are not substitutes for the existing branch action.
+current turn or changing global permissions. Edit & rewind remains unfinished;
+use the existing branch action for a separate conversation.
 
 ## Images, Markdown and copying
 

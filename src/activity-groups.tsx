@@ -1,10 +1,10 @@
 import React from 'react';
 
-type ActivityMessage = { id: string; type: 'user' | 'assistant' | 'activity'; text: string; state: string; internalReport?: boolean; internalReportControl?: boolean; internalCoordinatorEvent?: boolean };
+type ActivityMessage = { id: string; type: 'user' | 'assistant' | 'activity'; text: string; state: string; internalReport?: boolean; internalReportControl?: boolean; internalCoordinatorEvent?: boolean; internalTaskPing?: boolean };
 type MessageGroup<T> = { kind: 'message'; id: string; message: T } | { kind: 'activity'; id: string; items: T[] };
 
 export function isVisibleMessage(message: ActivityMessage): boolean {
-  return message.type !== 'user' || !(message.internalReport === true || message.internalReportControl === true || message.internalCoordinatorEvent === true);
+  return message.type !== 'user' || !(message.internalReport === true || message.internalReportControl === true || message.internalCoordinatorEvent === true || message.internalTaskPing === true);
 }
 
 export function groupMessages<T extends ActivityMessage>(messages: T[]): MessageGroup<T>[] {
