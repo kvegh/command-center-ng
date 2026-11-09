@@ -207,8 +207,10 @@ questions, pause, ownership, branch handoff and failed sends still gate delivery
 Reports request the next safe checkpoint; they do not interrupt unsafe tools.
 
 Stopping CCNG stops its report timer. Startup loads saved intervals, publishes
-available dashboard evidence and requests one fresh report per restored worker,
-including a one-off for Never. Enabled schedules continue without replaying a
+available dashboard evidence and requests one fresh report only for workers
+with enabled intervals. Never skips startup reports as well as recurring reports;
+the dashboard uses stored summaries/tasks. Report now remains a manual one-off.
+Enabled schedules continue without replaying a
 burst of missed intervals. Closing a tab removes that worker's CCNG schedule.
 
 The Codex **Model** and **Effort** controls use the native runtime's catalog and

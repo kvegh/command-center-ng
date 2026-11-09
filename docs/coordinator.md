@@ -350,11 +350,13 @@ Codex connection. Source publication does not restart either runtime.
 
 ## Current dashboard after startup
 
-Version0.27.0 refreshes every restored worker after workspace loading, including
-its current native history, stored tasks, pending questions and saved reporting
-interval/next deadline. The backend queues one silent fresh startup report,
-coalescing existing enabled-timer or Report now work. Never workers receive one
-startup summary without enabling recurring reporting.
+After workspace loading, refresh each restored worker's current native history,
+stored tasks, pending questions and saved report interval/next deadline. The
+backend requests a silent fresh startup report only for enabled report intervals,
+coalescing existing timer or Report now work. Never workers receive no automatic
+startup/recurring report request; their dashboard uses available stored evidence.
+Manual Report now is still allowed. Selecting Never cancels only unsent automatic
+requests, preserving explicit manual, failed/unconfirmed and in-flight delivery.
 
 The coordinator publishes useful sidebar summary/blocker/nextStep fields using
 available evidence immediately. It qualifies unavailable trackers or pending

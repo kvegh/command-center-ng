@@ -685,6 +685,109 @@ test('startup reads saved intervals and queues one initial report without replay
   } finally { await f.close(); }
 });
 
+test('Never skips startup reports while stored summaries, handoffs and tasks remain readable', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
+  try {
+    const worker = f.workspace.agent('worker');
+    worker.progress = { summary: 'The handoff is ready for review.', blocker: '', nextStep: 'Inspect the existing result.' };
+    worker.messages.push({ id: 'stored-handoff', type: 'assistant', state: 'completed', text: 'Stored handoff summary: implementation is ready.' });
+    worker.tracker = { status: 'ready', tasks: [{ id: 'existing-task', text: 'Review the handoff', state: 'blocked', isChatQuestion: true }] };
+    f.coordinator.dirty.clear();
+    f.coordinator.reconcileReportSchedules({ startup: true });
+    f.coordinator.refreshStartupDashboard(); f.coordinator.refreshStartupDashboard(); clock.advance(1000);
+    assert.equal(f.coordinator.reportPending.has('worker'), false);
+    assert.equal(f.coordinator.deliveries.has('worker'), false);
+    assert.equal(f.coordinator.reportSchedules.has('worker'), false);
+    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer'].includes(call.method)), false);
+    assert.ok(f.coordinator.dirty.get('worker')?.has('Startup dashboard: read current summaries, task progress and report intervals'));
+    const read = await f.call('ccng_read_worker', { agentId: 'worker' });
+    assert.equal(read.startupDashboard.status, 'skipped');
+    assert.equal(read.nextReportAt, null); assert.equal(read.reportIntervalMinutes, 0);
+    assert.equal(read.progress.summary, worker.progress.summary);
+    assert.equal(read.messages.some(message => message.id === 'stored-handoff'), true);
+    assert.deepEqual(read.tasks, worker.tracker.tasks);
+    assert.equal(read.chatQuestionCount, 1, 'stored input needs remain visible without requesting a report');
+    f.coordinator.requestUserReport('worker'); await delivered(f);
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1, 'Report now remains one explicit report under Never');
+    assert.match(f.rpc.calls.find(call => call.method === 'turn/start').params.input[0].text, /user selected Report now/);
+    assert.equal(worker.reportIntervalMinutes, 0); assert.equal(f.coordinator.reportSchedules.has('worker'), false);
+  } finally { await f.close(); }
+});
+
+test('an enabled startup dashboard queues exactly one automatic report and retains its deadline', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
+  try {
+    f.coordinator.paused = true; f.coordinator.setReportInterval('worker', 15);
+    f.coordinator.refreshStartupDashboard();
+    const queued = f.coordinator.deliveries.get('worker');
+    assert.equal(queued.length, 1); assert.equal(queued[0].scheduledReport, true); assert.equal(queued[0].startupDashboard, true);
+    f.coordinator.reconcileReportSchedules({ startup: true }); f.coordinator.refreshStartupDashboard();
+    assert.equal(queued.length, 1);
+    assert.equal(f.coordinator.reportSchedules.get('worker').nextAt, 15 * 60_000);
+    f.coordinator.paused = false; await f.coordinator.flush('worker'); await delivered(f);
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
+  } finally { await f.close(); }
+});
+
+test('Never cancels only unsent automatic startup reports and preserves explicit promoted requests', async () => {
+  for (const explicit of [false, true]) {
+    const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
+    try {
+      f.coordinator.paused = true; f.coordinator.setReportInterval('worker', 15);
+      f.coordinator.refreshStartupDashboard();
+      if (explicit) {
+        assert.equal(f.coordinator.requestUserReport('worker').alreadyPending, true);
+        assert.equal(f.coordinator.deliveries.get('worker')[0].scheduledReport, false);
+      }
+      f.coordinator.setReportInterval('worker', 0, { notifyWorker: true });
+      assert.equal(f.coordinator.reportSchedules.has('worker'), false);
+      if (explicit) {
+        assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+        assert.equal(f.coordinator.reportPending.has('worker'), true);
+      } else {
+        assert.equal(f.coordinator.deliveries.has('worker'), false);
+        assert.equal(f.coordinator.reportPending.has('worker'), false);
+        assert.equal(f.coordinator.startupDashboardWorkers.get('worker').status, 'cancelled');
+      }
+      f.coordinator.paused = false; await f.coordinator.flush('worker');
+      if (explicit) await delivered(f);
+      f.coordinator.refreshStartupDashboard(); clock.advance(1000);
+      assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, explicit ? 1 : 0);
+      assert.equal(f.rpc.replies.length, 0); assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
+    } finally { await f.close(); }
+  }
+});
+
+test('Never preserves startup sends already in flight or with uncertain delivery without retrying', async () => {
+  for (const uncertain of [false, true]) {
+    const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
+    try {
+      f.coordinator.setReportInterval('worker', 15);
+      let release; let attempts = 0;
+      const gate = new Promise(resolve => { release = resolve; });
+      const send = f.workspace.send.bind(f.workspace);
+      f.workspace.send = async (...args) => { attempts++; if (uncertain) throw new Error('Uncertain startup delivery'); await send(...args); await gate; };
+      f.coordinator.refreshStartupDashboard();
+      await waitFor(() => uncertain ? !!f.coordinator.deliveries.get('worker')?.[0].error : f.rpc.calls.some(call => call.method === 'turn/start'));
+      if (!uncertain) f.workspace.agent('worker').reportError = 'Earlier scheduling failure';
+      f.coordinator.setReportInterval('worker', 0, { notifyWorker: true });
+      assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+      if (uncertain) {
+        assert.match(f.coordinator.deliveries.get('worker')[0].error, /Uncertain startup delivery/);
+        assert.equal(f.workspace.agent('worker').reportError, 'Uncertain startup delivery');
+        const startup = f.coordinator.list().find(row => row.id === 'worker').startupDashboard;
+        assert.equal(startup.status, 'failed'); assert.equal(startup.error, 'Uncertain startup delivery');
+      } else {
+        assert.equal(f.workspace.agent('worker').reportError, null, 'a setting change clears an old error when no uncertain report remains');
+        release(); await waitFor(() => !f.workspace.agent('worker').coordinatorSending);
+      }
+      f.coordinator.refreshStartupDashboard(); clock.advance(1000); await f.coordinator.flush('worker');
+      assert.equal(attempts, 1);
+      assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
+    } finally { await f.close(); }
+  }
+});
+
 test('startup dashboard coalesces queued and in-flight reports without changing intervals or deadlines', async () => {
   for (const mode of ['queued', 'in-flight']) {
     const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
@@ -700,8 +803,6 @@ test('startup dashboard coalesces queued and in-flight reports without changing 
       if (mode === 'queued') {
         assert.equal(f.coordinator.deliveries.get('worker').length, 1);
         assert.equal(f.coordinator.deliveries.get('worker')[0].startupDashboard, true);
-        f.coordinator.setReportInterval('worker', 0, { notifyWorker: true });
-        assert.equal(f.coordinator.deliveries.get('worker').length, 1, 'Never keeps the startup request when cancelling periodic work');
         f.coordinator.paused = false; await f.coordinator.flush('worker'); await delivered(f);
       }
       assert.equal(f.coordinator.reportResponses.get('worker').startupDashboard, true);
@@ -720,6 +821,7 @@ test('paused startup reports defer safely and one pending worker cannot block pr
   const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
   try {
     f.coordinator.paused = true; await f.workspace.open('second'); f.coordinator.dirty.clear();
+    f.coordinator.setReportInterval('worker', 15); f.coordinator.setReportInterval('second', 15);
     f.rpc.ask('waiting', 'worker');
     f.coordinator.refreshStartupDashboard(); f.coordinator.refreshStartupDashboard();
     assert.equal(f.coordinator.deliveries.get('worker').length, 1); assert.equal(f.coordinator.deliveries.get('second').length, 1);
@@ -742,7 +844,7 @@ test('paused startup reports defer safely and one pending worker cannot block pr
     f.rpc.complete('worker');
     assert.equal(f.coordinator.startupDashboardWorkers.get('worker').status, 'failed', 'ordinary turn completion does not establish receipt of a startup report');
     assert.match(f.workspace.agent('worker').reportError, /without a recognized Standard Task Report/);
-    assert.equal(f.workspace.agent('worker').reportIntervalMinutes, 0); assert.equal(second.reportIntervalMinutes, 0);
+    assert.equal(f.workspace.agent('worker').reportIntervalMinutes, 15); assert.equal(second.reportIntervalMinutes, 15);
     assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
 });
@@ -751,6 +853,7 @@ test('failed startup sends remain visible and are not retried by refresh or the 
   const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
   try {
     let attempts = 0;
+    f.coordinator.setReportInterval('worker', 15);
     f.workspace.send = async () => { attempts++; throw new Error('Synthetic startup delivery failure'); };
     f.coordinator.refreshStartupDashboard();
     await waitFor(() => f.coordinator.startupDashboardWorkers.get('worker')?.status === 'failed');

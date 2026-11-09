@@ -9,6 +9,21 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 0.43.0 — Honor Never for startup reports
+
+- Never skips automatic startup reports as well as recurring reports.
+- The dashboard uses stored summaries/tasks for those workers without requesting
+  a model report; manual Report now remains available.
+- Selecting Never cancels unsent automatic startup reports while preserving
+  manual requests, uncertain/in-flight delivery and existing native safeguards.
+- Enabled startup/cadence coalescing and separate task checks are preserved.
+
+**Validation:** all 618 application tests and the production build pass. Checks
+cover Never startup with stored input needs, manual Report now after Never,
+cancelled automatic versus retained manual/uncertain/in-flight work, enabled
+startup coalescing and unchanged task checks. Publication/deployment are pending.
+Optional installed/native browser exercises are deferred by the user.
+
 ## 0.42.0 — Protected first-browser password setup and native approval choices
 
 - Fresh installations can create their first app password through an explicitly
@@ -32,7 +47,11 @@ setup, invalid authentication, request scopes/confirmation/coordinator limits,
 installer configuration preservation and report response/acknowledgement ordering.
 Independent source review found no concrete blockers. The final normal test run
 passes; a redirected run hit known subprocess/socket environment restrictions.
-Publication/deployment outcomes are recorded separately.
+Payload `1aea82fc4a65852bd175fa34495ecd300118045c` was SSH-published and
+remote-verified, installed/restarted through AAP and independently checked:
+96 matching source files, two assets, trusted HTTPS0.42.0, required login,
+both listeners and eight unchanged protected files. The merged Ansible bootstrap
+also passes all 17 disposable deployment fixtures.
 Actual browser/proxy first-enrollment acceptance remains separate from tests and
 from production preservation checks on an installation with an existing password.
 ## 0.41.1 — Repair fresh Ansible workspace and tool preparation

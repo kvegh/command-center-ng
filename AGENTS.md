@@ -343,7 +343,7 @@ version or unknown release evidence. Distinguish published code from deployed/li
 verified behavior and identify the exact user input needed. Reports alone do not
 authorize extra project work. Command Center owns the per-worker report timer,
 using saved intervals in its existing private workspace metadata. Radio changes
-update the backend schedule silently; Never stops future scheduled requests and
+update the backend schedule silently; Never stops automatic reports, including startup requests, and
 Report now remains one-off. At startup, enabled saved intervals queue one initial
 report and continue at their cadence without missed-report bursts. Internal
 triggers/control events are hidden in CCNG chat; actual reports stay visible.
@@ -556,9 +556,12 @@ without a new explicit architectural decision.
 
 After saved state is loaded, refresh the coordinator dashboard from current
 worker history, stored tasks/blockers and saved report intervals/next due times.
-Queue one silent fresh startup report for each restored worker; Never means no
-periodic reports but permits this one-off startup summary. Coalesce existing
-startup timer/Report now work and do not change user-selected intervals. Publish
+Queue one silent fresh startup report only for workers with enabled report
+intervals. Never excludes all automatic reports, including startup; use stored
+summaries/tasks without requesting a worker model turn. Report now remains a
+manual one-off. Coalesce existing startup timer/Report now work and do not change
+user-selected intervals. Cancel only unsent automatic requests when selecting
+Never; preserve explicit manual, failed/unconfirmed and in-flight requests. Publish
 sidebar progress with available evidence immediately, then use existing
 throttling for newly arrived startup results. Do not wait for all workers or
 add repeated acknowledgements/chat prompts. Preserve paused startup intent,

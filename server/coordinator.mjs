@@ -74,8 +74,10 @@ export class Coordinator {
       if (!agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) throw fail('Finish the branch handoff before changing its report setting, or choose a worker that accepts direct input.');
       this.reportSchedulesReady = true;
     }
-    this.cancelScheduledReports(id);
-    agent.reportIntervalMinutes = minutes; agent.reportError = null;
+    this.cancelScheduledReports(id, { includeStartup: minutes === 0 });
+    agent.reportIntervalMinutes = minutes;
+    // Changing cadence cannot resolve an uncertain request kept in the queue.
+    agent.reportError = this.deliveries.get(id)?.find(row => row.kind === 'report' && row.error)?.error || null;
     this.updateReportSchedule(id, minutes, !notifyWorker);
     this.armReports();
     this.workspace.changed();
@@ -111,9 +113,12 @@ export class Coordinator {
     if (this.stopped || this.workspace.restoring) return;
     for (const agent of this.workers()) {
       if (this.startupDashboardWorkers.get(agent.id)?.agent === agent) continue;
-      // Register before queuing so a fast native response belongs to this
-      // startup refresh, even when the scheduled startup request is in flight.
-      this.startupDashboardWorkers.set(agent.id, { agent, status: 'waiting', initialPending: true, refreshPending: false });
+      const enabled = REPORT_INTERVALS.includes(agent.reportIntervalMinutes) && agent.reportIntervalMinutes > 0;
+      // Never still contributes stored dashboard evidence, but cannot start an
+      // automatic worker report. Register enabled workers before queuing so a
+      // fast native response belongs to this startup refresh.
+      this.startupDashboardWorkers.set(agent.id, { agent, status: enabled ? 'waiting' : 'skipped', initialPending: true, refreshPending: false });
+      if (!enabled) continue;
       if (this.reportPending.has(agent.id)) {
         const queued = this.deliveries.get(agent.id)?.find(row => row.kind === 'report');
         if (queued) queued.startupDashboard = true;
@@ -122,7 +127,7 @@ export class Coordinator {
         continue;
       }
       this.reportPending.add(agent.id);
-      try { this.queue(agent, '[Command Center coordinator]\nStartup dashboard report. ' + WORKER_REPORT_REQUEST, 'report', { startupDashboard: true }); }
+      try { this.queue(agent, '[Command Center coordinator]\nStartup dashboard report. ' + WORKER_REPORT_REQUEST, 'report', { scheduledReport: true, startupDashboard: true }); }
       catch (error) { this.reportPending.delete(agent.id); agent.reportError = 'Startup report could not be queued: ' + error.message; this.settleStartupDashboard(agent.id, 'failed', agent); }
     }
     this.markStartupDashboard(); this.armReports(); this.workspace.changed();
@@ -197,13 +202,15 @@ export class Coordinator {
       this.record({ agentId: agent.id, action: 'task-ping', outcome: 'not-queued', rationale: error.message });
     }
   }
-  cancelScheduledReports(id) {
+  cancelScheduledReports(id, { includeStartup = false } = {}) {
     const rows = this.deliveries.get(id); const agent = this.workspace.agents.get(id);
     if (!rows || !agent) return;
-    const retained = rows.filter((row, index) => !row.scheduledReport || row.startupDashboard || row.error || (index === 0 && agent.coordinatorSending));
+    const retained = rows.filter((row, index) => !row.scheduledReport || (row.startupDashboard && !includeStartup) || row.error || (index === 0 && agent.coordinatorSending));
+    const cancelledStartup = rows.some(row => row.startupDashboard && !retained.includes(row));
     rows.splice(0, rows.length, ...retained);
     if (!rows.length) this.deliveries.delete(id);
     if (agent.coordinatorDeliveryKind !== 'report' && !rows.some(row => row.kind === 'report')) this.reportPending.delete(id);
+    if (cancelledStartup) this.settleStartupDashboard(id, 'cancelled', agent);
   }
 
   snapshot() { return { id: this.id, starting: !!this.starting, error: this.error, paused: this.paused, nextTaskPingAt: !this.stopped && !this.paused && !this.workspace.restoring && this.nextTaskPingAt !== null ? new Date(this.nextTaskPingAt).toISOString() : null, queuedMessages: [...this.deliveries.values()].reduce((n, rows) => n + rows.length, 0), audit: this.audit.slice(-20) }; }

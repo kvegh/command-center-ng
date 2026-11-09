@@ -14,5 +14,5 @@ export const WORKER_QUESTION_INSTRUCTIONS = WORKER_BASE_INSTRUCTIONS.split('## S
 export function reportTimingContext(minutes = 0) {
   return minutes && REPORT_INTERVALS.includes(minutes)
     ? `Current saved Standard Task Report interval: ${minutes} minutes. Command Center owns this timer and sends silent one-off report triggers. Stop any older agent-owned Standard Task Report clock loop or native schedule; do not recreate it. Browser refresh does not change the backend schedule. Report once when triggered, without acknowledging the trigger or repeating these timing instructions. This saved setting alone does not request a report or authorize additional project work.`
-    : 'Current saved Standard Task Report interval: Never. Command Center schedules no recurring reports. Stop any older agent-owned Standard Task Report loop or native schedule. Explicit one-off Report now requests remain valid.';
+    : 'Current saved Standard Task Report interval: Never. Command Center requests no automatic startup or recurring reports. Stop any older agent-owned Standard Task Report loop or native schedule. Explicit one-off Report now requests remain valid.';
 }

@@ -236,12 +236,14 @@ test('startup refresh combines fresh worker reports, restored intervals and coor
     const deadline = Date.now() + 2000;
     while (f.workspace.coordinator.workers().some(agent => agent.coordinatorSending) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 5));
     const reports = f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId !== 'coordinator');
-    assert.deepEqual(reports.map(call => call.params.threadId).sort(), ['one', 'two'], 'Never receives one startup summary and enabled timers do not duplicate it');
+    assert.deepEqual(reports.map(call => call.params.threadId), ['one'], 'only enabled saved intervals receive a startup report');
     await f.workspace.coordinator.pump();
     assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId === 'coordinator').length, 1);
     const metadata = f.workspace.coordinator.list();
     assert.equal(metadata.find(row => row.id === 'one').reportIntervalMinutes, 15);
     assert.equal(metadata.find(row => row.id === 'two').reportIntervalMinutes, 0);
+    assert.equal(metadata.find(row => row.id === 'two').startupDashboard.status, 'skipped');
+    assert.equal(f.workspace.agent('two').observingOnly, true, 'Never stays a read-only restored view');
     const coordinator = f.workspace.agent('coordinator');
     await f.workspace.coordinator.call({ threadId: 'coordinator', turnId: coordinator.turnId, tool: 'ccng_publish_progress', arguments: { agentId: 'one', summary: 'Current release is published; deployment is being checked.', blocker: '', nextStep: 'Verify the running deployment.' } });
     assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'one').progress.summary, 'Current release is published; deployment is being checked.');

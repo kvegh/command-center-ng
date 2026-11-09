@@ -113,7 +113,7 @@ repetition of timing instructions. The actual report remains visible to the user
 the internal trigger is hidden by Command Center's chat presentation. Browser
 refresh does not reset the backend timer. After backend restart, enabled saved
 intervals trigger one startup report and continue at their interval, without
-replaying missed reports. Never cancels future scheduled requests; explicit
+replaying missed reports. Never excludes automatic startup and recurring reports; explicit
 Report now remains available and does not change the interval.
 
 Reports stay within existing project scope. Pending questions, native permissions,

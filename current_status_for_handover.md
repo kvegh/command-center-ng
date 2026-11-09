@@ -5,7 +5,18 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working version 0.42.0 implements the user-selected htpasswd-protected
+Working version 0.43.0 implements the user's explicit correction: Never also
+excludes automatic startup reports. Keep manual Report now, stored dashboard
+summary/task reads, enabled cadence/coalescing and separate task checks.
+Unsent automatic startup reports can be cancelled without dropping manual,
+failed/unconfirmed or in-flight work. All 618 application tests and the production
+build pass; publication/deployment are pending.
+The user deferred optional installed/native/browser workflow exercises; do not
+install Playwright/Chromium or run real native grants merely for acceptance.
+Whole-turn Edit and rewind is now approved with preview/confirmation; its isolated
+implementation is separate from this release. Fine per-message rewind is deferred.
+
+Published/deployed version 0.42.0 implements the user-selected htpasswd-protected
 first-browser password setup without a temporary code. Configuration is explicit
 and disabled by default; existing passwords remain unchanged. Atomic creation,
 exact HTTPS public-origin/Host checks, normal API gates, confirmation and secure
@@ -19,9 +30,16 @@ Report status now distinguishes a delivered request from an actual recognized
 report; ending without one produces an error, not a false ready announcement.
 The original AAP delay cause remains unverified; no interrupt/retry was added.
 All 614 application tests and the production build pass, including real trusted
-HTTPS first enrollment and exact native response fixtures. Independent reviews
-found no concrete blockers. Publication and authorized production update are
-pending; real browser/proxy first-enrollment acceptance is not yet verified.
+HTTPS first enrollment and exact native response fixtures. Combined source also
+passes all 17 native-Ansible deployment fixtures, preserving the independently
+published 0.41.1 bootstrap changes. Implementation bd3212a and payload
+1aea82fc4a65852bd175fa34495ecd300118045c are SSH-published and remote-verified.
+Authorized production update/restart and independent verification passed: 96
+exact installed source files, two served assets, trusted HTTPS0.42.0, login gates,
+both listeners and eight unchanged protected files. Existing auth remains configured;
+fresh browser/proxy enrollment and actual native approval acceptance stay unverified.
+The user accepted moving fresh-install validation to AAP AutoDeploy existing
+rollout; that task is no longer awaiting input in this conversation.
 
 Version 0.41.0 implements the user's bounded desktop overview: report/model
 settings stay at the bottom while task/question content can scroll within the

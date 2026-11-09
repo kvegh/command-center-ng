@@ -657,8 +657,9 @@ This supersedes the earlier native-agent-owned timing requirement.
 
 After startup, the coordinator reaches out for current worker summaries and
 stored task progress to populate the dashboard. It also reads the saved report
-intervals and next due times. Request one silent startup report per worker,
-including a one-off summary for Never, and coalesce enabled-timer startup work.
+intervals and next due times. Request one silent startup report only for enabled
+report intervals and coalesce enabled-timer startup work. For Never use stored
+summaries/tasks without an automatic report; manual Report now remains available.
 Publish available evidence first, update sidebar fields as fresh results arrive
 and preserve pause/native request/ownership boundaries. Refresh/reconnect must
 not duplicate requests, change intervals or cause routine chat spam.
@@ -683,3 +684,12 @@ supports session approval. Exact filesystem/network requests support turn or
 session scope, not a permanent grant. Preserve current identity, confirmation,
 explicit restrictions and coordinator limits. CCNG does not create its own
 permission store or change native configuration directly.
+
+### Never includes startup reports
+
+Never disables all automatic Standard Task Report requests, including startup
+dashboard refresh. Startup still reads stored summaries/tasks/report settings
+without waking that worker for a report. Manual Report now remains a one-off;
+enabled schedules retain coalescing and their cadence. Changing to Never cancels
+only unsent automatic reports, preserving explicit manual, failed/unconfirmed
+and in-flight requests. Separate fifteen-minute task checks are unchanged.

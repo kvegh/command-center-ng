@@ -17,7 +17,7 @@ a coordinator overview so you can see where your attention is needed.
 - Chat, steer active work, interrupt a turn and answer native questions or approvals.
 - Branch a Codex conversation, then hand tasks and a summary back to its parent.
 - See linked Beads tasks, input needs, progress and optional task notifications.
-- Request task reports immediately or choose a saved reporting interval.
+- Request task reports immediately or choose a saved interval; Never disables automatic startup and recurring reports.
 - Recheck overlooked tasks silently every 15 minutes, with the next check shown in the coordinator.
 - Read Markdown, copy messages/code, and paste or attach images to a draft.
 - Keep desktop settings at the bottom of a full-height overview, with scrollable tasks and questions.
