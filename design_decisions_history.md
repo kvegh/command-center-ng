@@ -2679,3 +2679,28 @@ This describes the existing product boundary, not a new multi-user design or
 security mechanism. Existing protection guidance and all five screenshots remain
 intact. Documentation links and diff checks pass; no runtime code, numeric version,
 dependency, configuration or deployment changed for this clarification.
+
+## 2026-11-09 — Check actual progress behind in-progress tasks
+
+The user reported delegated calls left unchecked for hours while their tasks
+still appeared active. Extend the existing silent fifteen-minute reminder and
+worker instructions to inspect outstanding subagents, tool calls and external
+jobs using available exact IDs, timing, returned results and evidenced progress.
+Investigate stale/unknown waits promptly, collect outcomes or state the exact
+blocker and safe next action; do not wait for the next ping after noticing a gap.
+Age alone establishes neither execution nor an approval wait. Preserve native
+approvals, explicit stops, scope and the existing silent delivery gates. The
+coordinator asks the owning worker to investigate; its read-only role and exact
+command/file approval-review authority remain unchanged.
+
+Implementation `9eb6ce5c369a36fb1db162aa2e90058d76a5f1f0` advances the working
+version to0.46.0. Six focused regression files and the production build pass;
+the broader run passes71 of76 files, with five prevented by restricted sockets
+or home-directory writes. The current Coordinator received the user-requested
+instructions through the existing native message tool. That acknowledgement
+establishes delivery, not future compliance or recovery of the cited jobs.
+Publication and production deployment remain pending after SSH rejected system
+configuration ownership. No permission/security workaround, new watchdog,
+dispatcher or timer was introduced. Production remains at the previously verified
+0.45.1. This instruction cannot guarantee inspection before a worker reaches its
+safe response checkpoint.
