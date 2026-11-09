@@ -2900,3 +2900,53 @@ TS-based UI fixture lacked the intentionally omitted production development
 compiler; backend checks passed. No new compiler was installed. Actual component
 checks passed before publication; final deployed checks cover backend behavior
 and delivered UI artifacts, not a real browser-generated model report.
+
+## 2026-11-09 — Reply through the native asynchronous-question interface
+
+Implementation `115cf9a36449b8acac3ebec21da3569b6b99d296` (1.1.0) follows
+the existing conditional requirement to enable replies once an exact supported
+native binding is established. Ordinary authorized Git SSH retrieved exact Codex
+0.167.0 source commit086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a. It proves the
+canonical answered-question envelope uses ordinary App Server input and the
+original message ID plus original zero-based question index. Earlier schema-only
+unsupported assumptions and restricted source-fetch failures were insufficient.
+
+The previous display projection discarded indices while filtering questions.
+Retain original indices and privately bind the complete source content before
+using bounded display text. Hash source changes and preserve the native UTF-8
+question framing. Only a live completed question in its known active worker turn
+can be answered; history, cold restoration, unsafe/truncated bindings and terminal
+questions remain read-only. Native emission/accepted input is not model processing
+or task resolution. Actual blocking approval/form responses remain separate.
+
+Use existing input, ownership, request and handoff guards. Partial native replies
+retire only addressed identities; exact source-supported input shapes, replay and
+other-client observations cannot resurrect closed editors. Browser-memory drafts
+and delivery/error latches survive worker switches without persistent form storage.
+Uncertain sends cannot be blindly repeated; definite size rejection permits an
+explicit shortened retry. Readable question/answer display preserves raw native
+history and original Copy this text. Keep Node hashing out of browser-shared code.
+
+Automatic reports, task checks and informational summaries wait for live human
+decisions through existing queues. Exact manual answers remain possible while an
+owned handback waits/stops; ordinary composer input stays locked. Per-attempt
+observations in the existing handoff record defer unsafe terminal/changed/missing/
+unconfirmed question closure, retaining the branch and unsent text. Explicit retry
+rebaselines observations. Existing draft hints/start guard and explicit local
+discard prevent hidden draft loss. No extra transport, store, daemon, timer,
+permission grant or model call is introduced.
+
+Canonical native user input contains model-written question framing as well as
+human answers. Approval quotes therefore match only individual actual answer
+strings; titles, IDs, JSON and oversized unsupported envelopes cannot supply user
+authority. Existing native provenance/current-request checks remain required.
+
+The final combined suite ran827 tests:826 passed, one unavailable alternate-group
+case skipped and none failed. The production build is clean and independent
+source/UI/provenance review found no remaining blocker. Relevant authenticated
+HTTP, lifecycle, partial-answer, draft, queue, handoff and authority regressions
+pass. Early review found and verified source-fingerprint, singleton/input-shape,
+browser-module, draft-switch and handoff safety corrections. These source/transport
+fixtures do not prove actual browser/native-provider answer delivery. Publication
+and installed verification will be recorded from their outcomes. The separate
+YAML approval-reader boundary is unchanged by this release.
