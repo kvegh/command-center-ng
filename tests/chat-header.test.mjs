@@ -20,36 +20,60 @@ const now = Date.parse('2026-01-01T10:00:00Z');
 const live = { state: 'connected', lastSignalAt: now };
 const worker = values => ({ status: 'idle', questions: [], ...values });
 
-test('chat header shows its escaped title, four choices and right-side status without sending input', () => {
-  const html = renderToStaticMarkup(React.createElement(ChatHeader, {
+test('chat header limits the coloured folder tab to its title and keeps six choices/status outside it', () => {
+  const props = {
     id: 'one', name: '<Example project>', colour: 'violet', changeColour() { assert.fail('Rendering must not change settings'); },
     children: React.createElement('span', null, 'Working'),
-  }));
+  };
+  const element = ChatHeader(props);
+  const html = renderToStaticMarkup(element);
   assert.match(html, /data-chat-colour="violet"/);
   assert.match(html, /<h2 title="&lt;Example project&gt;">&lt;Example project&gt;<\/h2>/);
   assert.match(html, /aria-label="Colour for &lt;Example project&gt;"/);
-  assert.equal((html.match(/<option /g) || []).length, 4);
+  assert.equal((html.match(/<option /g) || []).length, 6);
+  assert.doesNotMatch(html, /value="amber"/);
   assert.match(html, /value="violet" selected=""/);
   assert.ok(html.indexOf('</select>') < html.indexOf('Working'));
+  const [heading, status] = element.props.children;
+  const [title, select] = heading.props.children;
+  assert.equal(title.props.className, 'chat-title-tab');
+  assert.equal(select.type, 'select');
+  assert.equal(status.props.className, 'chat-header-status');
+  assert.equal(status.props.children, props.children, 'the existing status component stays outside the title fill');
+  assert.doesNotMatch(renderToStaticMarkup(title), /<select|Working/);
 });
 
 test('colour changes stay bound to the originating chat and reject arbitrary values', () => {
   const changed = [];
-  const dropdown = id => ChatHeader({ id, name: id, colour: 'cyan', changeColour: (...args) => changed.push(args) }).props.children[0].props.children[2];
+  const dropdown = id => ChatHeader({ id, name: id, colour: 'cyan', changeColour: (...args) => changed.push(args) }).props.children[0].props.children[1];
   const first = dropdown('one'); const second = dropdown('two');
-  first.props.onChange({ target: { value: 'amber' } });
+  first.props.onChange({ target: { value: 'blue' } });
   second.props.onChange({ target: { value: 'green' } });
+  first.props.onChange({ target: { value: 'teal' } });
+  second.props.onChange({ target: { value: 'rose' } });
+  first.props.onChange({ target: { value: 'amber' } });
   first.props.onChange({ target: { value: 'arbitrary-css' } });
-  assert.deepEqual(changed, [['one', 'amber'], ['two', 'green']]);
+  assert.deepEqual(changed, [['one', 'blue'], ['two', 'green'], ['one', 'teal'], ['two', 'rose']]);
 });
 
-test('chat colours tint only the title strip persistently, with readable text in all three themes', async () => {
+test('six chat colours fill only the attached title tab, with readable text in all three themes', async () => {
   const sheet = postcss.parse(await readFile(new URL('../src/style.css', import.meta.url), 'utf8'));
   const header = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === '.chat-header');
+  const title = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === '.chat-title-tab');
   const declaration = (rule, property) => rule.nodes.filter(node => node.type === 'decl' && node.prop === property).at(-1)?.value;
-  const background = declaration(header, 'background');
+  const background = declaration(title, 'background');
   const mix = /^color-mix\(in srgb, var\(--chat-colour\) (\d+)%, var\(--surface\)\)$/.exec(background);
-  assert.ok(mix, 'the unfocused strip itself carries its selected-colour background');
+  assert.ok(mix, 'the title itself carries its persistent selected-colour background');
+  assert.equal(declaration(header, 'background'), 'transparent');
+  assert.equal(declaration(header, 'border'), '0');
+  assert.equal(declaration(header, 'margin-bottom'), '0');
+  assert.equal(declaration(title, 'border-bottom'), '0');
+  assert.equal(declaration(title, 'border-radius'), '7px 7px 0 0');
+  assert.equal(declaration(title, 'transform'), 'translateY(1px)', 'the title meets the input without a separating seam');
+  const select = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === '.chat-heading select');
+  assert.equal(declaration(select, 'background'), 'var(--surface)');
+  const status = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === '.chat-header-status');
+  assert.equal(declaration(status, 'background'), 'transparent');
   const channels = hex => [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16));
   const luminance = rgb => rgb.map(value => value / 255).map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4)
     .reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
@@ -59,15 +83,15 @@ test('chat colours tint only the title strip persistently, with readable text in
       if (rule.selectors.includes(':root') || rule.selectors.includes(`:root[data-theme="${theme}"]`)) {
         rule.walkDecls(decl => { palette[decl.prop] = decl.value; });
       }
-      if (rule.selectors.some(selector => selector.includes('.chat-header'))) {
-        if (declaration(rule, 'background')) assert.equal(rule.selector, '.chat-header', 'focus and theme rules must not erase the persistent strip background');
-      }
       if (rule.selectors.some(selector => /\.composer(?:\b|-box)/.test(selector))) {
         assert.ok(!rule.nodes.some(node => node.type === 'decl' && node.value.includes('--chat-colour')), 'chat colouring stays outside the composer/input frame');
       }
     });
+    header.walkDecls(decl => { if (decl.prop.startsWith('--chat-')) palette[decl.prop] = decl.value; });
+    const themedHeader = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === `:root[data-theme="${theme}"] .chat-header`);
+    themedHeader?.walkDecls(decl => { palette[decl.prop] = decl.value; });
     const backgrounds = new Set();
-    for (const colour of ['cyan', 'violet', 'green', 'amber']) {
+    for (const colour of ['cyan', 'violet', 'green', 'blue', 'teal', 'rose']) {
       const rule = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === `.chat-header[data-chat-colour="${colour}"]`);
       const selected = declaration(rule || header, '--chat-colour');
       const variable = /^var\((--[a-z-]+)\)$/.exec(selected)?.[1];
@@ -76,14 +100,19 @@ test('chat colours tint only the title strip persistently, with readable text in
       const surface = channels(palette['--surface']);
       const tinted = channels(palette[variable]).map((value, index) => value * fraction + surface[index] * (1 - fraction));
       backgrounds.add(JSON.stringify(tinted));
-      for (const text of ['--ink', '--muted', '--green', '--amber']) {
+      for (const text of ['--ink']) {
         const [light, dark] = [luminance(channels(palette[text])), luminance(tinted)].sort((a, b) => b - a);
         const ratio = (light + .05) / (dark + .05);
         assert.ok(ratio >= 4.5, `${theme}/${colour}/${text}: text contrast ${ratio.toFixed(2)} must remain readable`);
       }
     }
-    assert.equal(backgrounds.size, 4, `${theme}: all four choices produce distinct persistent backgrounds`);
+    assert.equal(backgrounds.size, 6, `${theme}: all six choices produce distinct persistent backgrounds`);
   }
+  const mobile = sheet.nodes.find(node => node.type === 'atrule' && node.name === 'media' && node.params === '(max-width: 600px)');
+  assert.equal(declaration(mobile.nodes.find(rule => rule.selector === '.chat-heading'), 'grid-row'), '2');
+  assert.equal(declaration(mobile.nodes.find(rule => rule.selector === '.chat-header-status'), 'grid-row'), '1', 'wrapped status stays above the attached title');
+  const focus = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === '.chat-heading select:focus-visible');
+  assert.equal(declaration(focus, 'outline'), '2px solid var(--accent)');
 });
 
 test('input receipt waits for native-backed acknowledgement and stays with its worker across selection changes', async () => {

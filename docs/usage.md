@@ -20,7 +20,12 @@ its view and report schedule, not its native history or running conversation.
 The selected tab has a larger bold title and highlighted edges. Status dots
 indicate running or attention states independently of selection. Selecting a
 tab focuses its input; the title directly above the input helps identify where
-the next message will go. Its colour menu changes that input header's background.
+the next message will go. Only the compact title folder tab is coloured and
+attached to the input below; its adjacent colour selector and status indicators
+stay on neutral backgrounds. Choose **cyan**, **violet**, **green**, **blue**,
+**teal** or **rose**. Older saved amber choices become blue, leaving amber for
+attention states and preserving other preferences. Narrow layouts place stacked
+status indicators above the title so the tab stays attached to the input.
 Tab order, chat colours, text drafts and reading positions use existing browser
 preferences. They do not synchronize across browsers or devices.
 
@@ -59,17 +64,27 @@ The branch waits for your follow-up. Its first message becomes its goal.
 Branches share the project's directory; they do not create Git branches or
 worktrees. Existing branches retain their original snapshots after an update.
 
-**Back to parent** only navigates. Once the branch is idle and its requests are
-resolved, **Return summary** asks Codex to summarize findings, decisions,
-verification, open questions and next steps. This uses a normal native turn.
-The editable review stays inside that child tab, so other chats remain usable.
+**Back to parent** only navigates. **Hand back & close** starts a background
+handoff with one click, including while the branch is working. You can switch
+tabs immediately. CCNG asks the branch to finish at a safe checkpoint, settle
+its local background work and prepare a concise summary of findings, decisions,
+verification, open questions and next steps. It does not forcibly interrupt work
+or answer a pending request. Resolve any request in its originating chat.
 
-Review the summary, up to 2,000 characters, then choose **Send summary & close**.
-After the parent accepts the message, CCNG archives the child and removes its
-tab. Native archived history remains. Failed generation or delivery keeps the
-branch open. A parent request blocking delivery names the parent; use **Open
-parent**, resolve that request, then return and retry. Navigation alone never
-sends a summary or answers a question.
+Every branch task is linked to the parent without changing its state, owner,
+dependencies or existing branch association. The parent receives the summary
+and a reference to the full native branch history and original task records.
+Only after native receipt and fresh safety/task checks does CCNG archive the
+branch and remove its tab. If it is selected, the parent opens; if another tab
+is selected, that tab and its draft keep focus.
+
+The branch status shows waiting, preparation, transfer, delivery or an actionable
+failure. A full workspace may need a free tab slot for the parent. Errors and
+uncertain delivery keep the branch available; retry does not blindly resend a
+summary. The workflow runs in the existing backend process, so keep CCNG running
+until it finishes. A restart preserves native history and Beads records, but
+does not automatically resume an interrupted handoff. Navigation alone never
+sends a summary, archives a branch or answers a question.
 
 ## Questions and approvals
 

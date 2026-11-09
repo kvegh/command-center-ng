@@ -9,6 +9,35 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 0.38.0 — Background branch handoff and compact title colours
+
+- **Hand back & close** queues a background transfer, including during work.
+  The branch reaches a safe checkpoint, settles local terminals/spawned work,
+  and prepares a summary. Native questions remain manual.
+- Every linked Beads task gains the parent association, retaining its original
+  branch label, state, owner, dependencies and content. Full history and task
+  references accompany the summary; tasks are not silently limited to ten.
+- Exact native parent receipt and fresh lifecycle/task checks precede archive.
+  Errors and ambiguous results keep the branch available without blind resends.
+  Background closure preserves another tab's selection, focus and draft.
+- The composer colour fills only a compact title folder tab attached to the
+  input. The selector and status text remain neutral. Cyan, violet, green,
+  blue, teal and rose are available; saved amber becomes blue because amber
+  indicates pending attention elsewhere.
+
+Handoff coordination stays in the existing backend process, with no new
+service or store. Keep CCNG running while it finishes; restart does not replay
+an interrupted handoff. Unsupported native safety APIs retain the branch with
+an error. Send or remove unsent images before handback; unsent text stays local
+and is not included in the summary. Actual native/browser acceptance is
+separate from automated fixture and build checks.
+
+**Validation:** all 560 application tests and the production build passed.
+After the final generated-control provenance guard, the 20 handoff, 58
+coordinator and four source-review regressions passed again. Focused review
+confirmed the identified uncertainty, parent-serialization and capacity fixes.
+Actual rendered title-tab geometry and native end-to-end handoff remain unverified.
+
 ## 0.37.0 — Image picker and pending-request visibility
 
 Published implementation:

@@ -173,7 +173,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           if (request.method === 'GET') return json(response, await workspace.taskCatalog(id));
           if (request.method === 'POST') return json(response, await workspace.linkTasks(id, (await body(request)).ids));
         }
-        const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|interrupt|history|answer|review|requests|report-settings|report|fork|parent|summary|return)$/);
+        const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|interrupt|history|answer|review|requests|report-settings|report|fork|parent|summary|return|handoff)$/);
         if (match && request.method === 'POST') {
           const [, encoded, action] = match; const id = decodeURIComponent(encoded); const data = await body(request, action === 'message' ? imageLimits.maxRequestBytes : 65_536);
           if (action === 'open') await workspace.open(id);
@@ -194,6 +194,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           }
           if (action === 'fork') return json(response, { id: await workspace.fork(id, data.lastTurnId) }, 201);
           if (action === 'parent') return json(response, { id: await workspace.parent(id) });
+          if (action === 'handoff') return json(response, workspace.startHandoff(id), 202);
           if (action === 'summary') return json(response, await workspace.summarize(id));
           if (action === 'return') return json(response, { id: await workspace.returnToParent(id, data.text) });
           return json(response, { ok: true });

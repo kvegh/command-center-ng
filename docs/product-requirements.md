@@ -100,14 +100,22 @@ parent. Both parent and branch remain available for navigation, historical
 review, and later continuation. Opening or leaving a branch does not require
 completing it or performing a merge ceremony.
 
-The optional **Return summary** action prepares a concise summary in the child
-using its existing native Codex context. It covers findings, decisions and their
-reasons, completed verification, unresolved questions, and next steps. The user
-can review or edit it, then send it to the parent. The parent receives a summary
-rather than the transcript. After accepted delivery, the child is archived and
-its tab closes. History remains available in Codex's archive. Delivery failures
-keep the child open; an archive retry does not resend an acknowledged summary
-within the current application process.
+The optional **Hand back & close** action starts an asynchronous transfer with
+one click, including during active work. It requests a safe checkpoint and
+settled local background work, then prepares a concise native summary of
+findings, decisions, verification, unresolved questions and next steps. It links
+every branch Beads task to the parent, preserving task states, ownership,
+dependencies and original branch labels. The parent receives a summary plus
+references to complete branch history and task records.
+
+Archive and close only after exact native parent-message receipt, verified task
+links and fresh native lifecycle checks. Pending requests remain manual. Failed
+or uncertain delivery retains a recoverable branch without blind resending.
+Users may leave the tab while the existing backend finishes the operation;
+background completion must not change another tab's selection, draft or focus.
+Process restart preserves native history and task data but does not replay the
+in-process workflow. Existing manual review remains a compatibility path;
+the new explicitly requested action does not require a second review click.
 
 Navigation remains separate: Back to parent does not send, archive, or complete
 the child. Native context preservation and the summary/close lifecycle were
@@ -141,16 +149,20 @@ copy source and assistant formatting; do not rewrite clipboard text or infer
 terminal commands from content.
 
 Apply the saved chat colour as a persistent theme-compatible background tint
-on the title/colour/status tab directly above the input. It must remain visible
-while the dropdown or input has focus. Keep colour scoped to this header strip;
-the composer input frame and top agent tabs retain their existing styling.
+only on the compact title folder tab directly above and attached to the input.
+The adjacent colour selector and status indicators stay outside the tint on
+neutral backgrounds. Keep the title colour visible while the dropdown or input
+has focus; the composer input frame and top agent tabs retain existing styling.
+Provide cyan, violet, green, blue, teal and rose. Migrate older saved amber choices
+to blue without losing other browser preferences; reserve amber for attention.
 
 Keep a compact header inside the composer, directly above the input box and
-below the scrolling history. This strip belongs to the chat input area. Put the chat title
-and a four-colour selector on the left; put Codex input receipt, native activity,
+below the scrolling history. This strip belongs to the chat input area. Put the
+title tab and six-colour selector on the left; put Codex input receipt, native activity,
 connection state and last real update age on the right. Use smaller text than
-the input, theme-compatible cyan/violet/green/amber choices and existing
-browser-local per-conversation preferences. Distinguish native input acceptance
+the input, readable contrast across all three themes and existing browser-local
+per-conversation preferences. On narrow layouts, stacked status indicators go
+above the title row so the folder tab still joins the input. Distinguish native input acceptance
 from model activity, and transport heartbeats from real worker updates. Mark
 unconfirmed connections and last-known activity truthfully; no guessed stuck
 diagnosis, automatic resend, interruption, worker ping or restart.
@@ -466,9 +478,10 @@ status and structured clarification tools when available in the current mode.
 Show all current Beads tasks in a scrollable panel with real state totals and
 queued derived from unfinished dependencies. Task details allow direct answers
 or requests for clarification without automatic task closure.
-Branch summary review belongs inside the child tab; switching tabs retains the
-review and edits. Parent-delivery errors identify the parent and offer navigation,
-while preserving native request identity and explicit summary delivery/archive.
+Any legacy branch summary review stays inside the child tab and retains edits
+when switching tabs. The current one-click Hand back & close action supersedes
+its mandatory review step. Parent-delivery errors identify the parent while
+preserving native request identity and safe delivery/archive ordering.
 
 The user approved future ordinary-chat question tracking, fresh local Dolt/Beads
 provisioning and local read-write Claude management with the official Claude Agent

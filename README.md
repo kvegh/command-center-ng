@@ -15,7 +15,7 @@ a coordinator overview so you can see where your attention is needed.
 - Open existing Codex conversations or start new agents in explicit project directories.
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
 - Chat, steer active work, interrupt a turn and answer native questions or approvals.
-- Branch a Codex conversation and return an editable summary to its parent.
+- Branch a Codex conversation, then hand tasks and a summary back to its parent.
 - See linked Beads tasks, input needs, progress and optional task notifications.
 - Request task reports immediately or choose a saved reporting interval.
 - Read Markdown, copy messages/code, and paste or attach images to a draft.

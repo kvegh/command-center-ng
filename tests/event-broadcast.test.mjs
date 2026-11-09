@@ -72,6 +72,30 @@ test('HTTP reconnect preserves exact requests replayed before the resume respons
   } finally { await f.close(); }
 });
 
+test('HTTP handoff accepts immediately while native questions and background completion remain independent', async () => {
+  const f = await fixture();
+  try {
+    f.rpc.emit('request', f.question);
+    const calls = [];
+    f.workspace.startHandoff = id => {
+      calls.push(id);
+      f.workspace.agent(id).handoff = { phase: 'waiting', parentId: 'parent', detail: 'Waiting for the existing request.' };
+      return { id, parentId: 'parent' };
+    };
+    const response = await f.request('/api/agents/worker/handoff', {}).finished;
+    assert.equal(response.statusCode, 202);
+    assert.deepEqual(JSON.parse(response.chunks.join('')), { id: 'worker', parentId: 'parent' });
+    assert.deepEqual(calls, ['worker']);
+    assert.equal(f.workspace.agent('worker').handoff.phase, 'waiting');
+    assert.deepEqual(f.workspace.agent('worker').questions.map(question => question.id), [73]);
+    assert.equal(f.rpc.replies.length, 0, 'accepting handoff must not answer a native question');
+    f.workspace.startHandoff = () => { throw Object.assign(new Error('Reconnect before handing back.'), { status: 409 }); };
+    const rejected = await f.request('/api/agents/worker/handoff', {}).finished;
+    assert.equal(rejected.statusCode, 409);
+    assert.match(JSON.parse(rejected.chunks.join('')).error, /Reconnect/);
+  } finally { await f.close(); }
+});
+
 test('recovery restores retained current requests without native replay or new identities', async () => {
   const f = await fixture();
   try {

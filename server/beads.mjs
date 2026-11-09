@@ -42,8 +42,8 @@ export class BeadsTasks {
     if (['--json', '--readonly', '--brief', '--flat'].some(flag => !help.includes(flag))) throw fail('Update Beads: this integration requires JSON, read-only, brief, and flat list support.', 503, 'BEADS_VERSION');
     return version;
   }
-  async list(cwd, filters = []) {
-    const text = await this.command(cwd, ['list', '--json', '--brief', '--flat', '--all', '--limit', '1000', ...filters]);
+  async list(cwd, filters = [], { limit = 1000 } = {}) {
+    const text = await this.command(cwd, ['list', '--json', '--brief', '--flat', '--all', '--limit', String(limit), ...filters]);
     let rows;
     try { rows = JSON.parse(text); } catch { throw fail('Beads returned invalid JSON.'); }
     if (!Array.isArray(rows)) throw fail('Beads returned an invalid task list.');
@@ -92,6 +92,37 @@ export class BeadsTasks {
       if (removals.length) await this.command(cwd, ['update', ...removals, '--remove-label', label, '--json'], { readonly: false });
     } catch (error) { throw fail('Task links could not be fully updated. Refresh to inspect the current links. ' + error.message); }
     return this.linked(cwd, threadId);
+  }
+  async handoff(cwd, childId, parentId) {
+    const childLabel = sessionLabel(childId); const parentLabel = sessionLabel(parentId);
+    if (childLabel === parentLabel) throw fail('A branch must return to a different conversation.', 400);
+    // Handoff must include closed history and every linked task, rather than
+    // the bounded dashboard list. A CLI buffer/read failure aborts the handoff.
+    const included = ['--include-ephemeral', '--include-gates', '--include-infra', '--include-templates'];
+    const readChild = () => this.list(cwd, [...included, '--label', childLabel], { limit: 0 });
+    const readShared = () => this.list(cwd, [...included, '--label', childLabel, '--label', parentLabel], { limit: 0 });
+    const before = await readChild();
+    const taskIds = before.map(task => task.id); const expected = new Set(taskIds);
+    if (expected.size !== taskIds.length) throw fail('Beads returned duplicate task records during branch handoff.');
+    for (let offset = 0; offset < taskIds.length; offset += 50) issueIds(taskIds.slice(offset, offset + 50));
+    const shared = new Set(taskIds.length ? (await readShared()).map(task => task.id) : []);
+    const additions = taskIds.filter(id => !shared.has(id));
+    // Keep the child label as provenance. Only add the parent's association;
+    // never change task state, ownership, dependencies or another label.
+    try {
+      for (let offset = 0; offset < additions.length; offset += 50) {
+        await this.command(cwd, ['update', ...additions.slice(offset, offset + 50), '--add-label', parentLabel, '--json'], { readonly: false });
+      }
+    } catch (error) {
+      throw fail('Task handoff could not be completed. The branch and existing task links must be kept; retrying safely resumes the remaining links. ' + error.message);
+    }
+    const tasks = await readChild();
+    if (tasks.length !== expected.size || tasks.some(task => !expected.has(task.id))) {
+      throw fail('The branch task list changed during handoff. Keep the branch open and retry to include its latest work.', 409, 'BEADS_HANDOFF_CHANGED');
+    }
+    const verified = new Set(taskIds.length ? (await readShared()).map(task => task.id) : []);
+    if (taskIds.some(id => !verified.has(id))) throw fail('Beads did not confirm every parent task link. Keep the branch open and retry the handoff.');
+    return { taskIds, tasks };
   }
   context(threadId) {
     const label = sessionLabel(threadId);

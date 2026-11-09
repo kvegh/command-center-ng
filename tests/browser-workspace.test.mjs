@@ -83,7 +83,7 @@ test('each chat colour survives reload without changing another chat or existing
   const local = storage();
   const value = {
     ...emptyBrowserWorkspace(), selected: 'one', theme: 'light', drafts: { one: 'Keep this draft' },
-    chatColours: { one: 'cyan', two: 'violet', three: 'green', four: 'amber' },
+    chatColours: { one: 'cyan', two: 'violet', three: 'green', four: 'blue', five: 'teal', six: 'rose' },
     taskWatches: { one: ['project-123'] }
   };
   assert.equal(saveBrowserWorkspace(value, local), null);
@@ -92,6 +92,22 @@ test('each chat colour survives reload without changing another chat or existing
   assert.equal(saveBrowserWorkspace(next, local), null);
   assert.deepEqual(loadBrowserWorkspace(local).state, next);
   assert.equal(loadBrowserWorkspace(local).state.chatColours.two, 'violet');
+});
+
+test('legacy amber chat preferences migrate to blue without losing other workspace preferences', () => {
+  const local = storage();
+  const older = {
+    ...emptyBrowserWorkspace(), selected: 'legacy', theme: 'contrastful', order: ['legacy', 'other'],
+    drafts: { legacy: 'Keep this draft' }, positions: { legacy: 125 }, bottom: { legacy: false },
+    overviewWidth: 520, composerHeight: 300, overviewHeights: { tasks: 200 },
+    taskWatches: { legacy: ['project-123'] }, chatColours: { legacy: 'amber', other: 'violet' },
+  };
+  const expected = { ...older, chatColours: { legacy: 'blue', other: 'violet' } };
+  local.setItem('ccng.workspace.v1', JSON.stringify(older));
+  assert.deepEqual(loadBrowserWorkspace(local).state, expected);
+  assert.equal(saveBrowserWorkspace(expected, local), null);
+  assert.deepEqual(loadBrowserWorkspace(local).state, expected, 'migration is stable across subsequent saves');
+  assert.equal(older.chatColours.legacy, 'amber', 'sanitization does not mutate its input');
 });
 
 test('chat colours reject invalid values and worker IDs without adding defaults to older data', () => {

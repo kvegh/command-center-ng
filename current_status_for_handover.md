@@ -5,6 +5,21 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Working version 0.38.0 adds one-click background Hand back & close and a compact
+title-only composer colour tab. Handoff requests a safe checkpoint, proves local
+work settled, links every Beads task to the parent while retaining provenance,
+confirms exact native summary receipt, then archives last. Pending requests stay
+manual; uncertain results keep the branch. Background closure does not steal
+another tab's selection or draft. Workflow state stays process-local and is not
+replayed on restart. Native APIs that cannot establish safety retain the branch.
+
+Only the title is tinted; the selector/status remain neutral. Six choices are
+cyan/violet/green/blue/teal/rose; legacy amber migrates to blue. All 560 tests and
+the production build passed, with final authority-related focused regressions
+passing again. Publication and production update are pending for this working
+version. Real native handoff and rendered desktop/phone acceptance remain
+unverified; do not infer them from fixtures or health checks.
+
 Production verification now confirms 0.37.0 is already installed and running.
 The user configured the previously missing sudo access; authorized AAP ad hoc
 checks succeeded. All 92 checked installed source files match published payload

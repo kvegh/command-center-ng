@@ -336,9 +336,17 @@ force; starting enabled reports after restoration is explicitly authorized.
 The user approved per-worker report cadence in existing private workspace metadata,
 all current tasks with dependency-derived queued state, direct task answers and
 Markdown/GFM rendering with react-markdown and remark-gfm, raw HTML disabled.
-Keep branch summary review inside the child tab so other tabs remain accessible;
-preserve edits across selection changes and identify the parent in blocked-return
-errors. Do not answer requests, auto-send summaries or archive through navigation.
+Keep any legacy branch summary review inside the child tab and preserve its
+edits across selection changes. The user now explicitly selected one-click
+Hand back & close: queue a background safe checkpoint, settle local native work,
+transfer all task links and deliver a summary before archiving. This action may
+auto-deliver its summary; Back to parent remains navigation only. Keep the
+branch available on errors or uncertain receipt, never blindly resend, and
+never answer requests to advance handoff. Retain task states, owners,
+dependencies, branch provenance and full native history. Close only after exact
+parent receipt and fresh lifecycle/task checks; do not steal focus from an
+unrelated selected tab. Keep coordination in the existing process; restart
+does not replay or fabricate completed handoffs.
 
 ## Approved approval-source inspection and report queue
 
@@ -377,11 +385,14 @@ cadence, interrupting work or answering a pending request.
 ## Approved worker controls and layout
 
 Keep a compact header inside the composer, directly above the chat input and
-below the scrolling history. Put the current chat title and four-colour selector
-on the left, Codex input/activity/connection indicators on the right. It belongs
-to the input area, not the top of the chat pane. Keep the top-right branding.
-Use smaller text than the composer and theme-compatible cyan/violet/green/amber
-choices in existing browser workspace preferences, isolated by conversation.
+below the scrolling history. Put the current chat title in a compact coloured
+folder-style tab attached to the input below it. Keep the adjacent colour
+selector and Codex input/activity/connection indicators on neutral backgrounds,
+outside the coloured title. It belongs to the input area, not the top of the chat
+pane. Keep the top-right branding and smaller text than the composer. Offer six
+theme-compatible choices: cyan, violet, green, blue, teal and rose. Store choices
+in existing browser preferences per conversation; migrate saved amber to blue
+without losing unrelated preferences. Amber remains reserved for attention.
 Confirm Input received only after native input acknowledgement. Keep real native
 worker-update age separate from browser/backend heartbeat freshness; disconnected
 or delayed updates show last-known activity, never an invented stuck diagnosis.
@@ -560,10 +571,12 @@ strict public-origin checks while permitting exact same-origin native HTTPS on
 the local listener only with loopback socket endpoints. This fixes SSH tunnel
 login; it does not grant HTTP/proxy-header exceptions or certificate trust.
 
-The user clarified chat colour applies only to the background of the title/colour/
-status tab directly above the input. Keep its saved per-chat tint visible while
-typing, without colouring the input frame or top agent tabs. Preserve theme
-contrast, small text and existing responsive status wrapping.
+Chat colour applies only to the compact title folder tab directly above and
+attached to the input. Keep its saved tint visible while typing; the selector,
+status area, input frame and top agent tabs retain their neutral/existing fills.
+Preserve readable contrast across all three themes, small text and visible
+keyboard focus. When narrow layouts stack status indicators, place them above
+the title row so they do not separate the folder tab from the input.
 
 Preserve soft line breaks and spacing in user-message Markdown text blocks so
 multi-line pastes remain readable. Keep Markdown/code/table support and assistant

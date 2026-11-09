@@ -13,6 +13,7 @@ import { taskSummary, reportedPlan } from './task-summary.mjs';
 import { BeadsTasks, sessionLabel } from './beads.mjs';
 import { Coordinator, COORDINATOR_NAME, isCoordinatorThread } from './coordinator.mjs';
 import { SUMMARY_LIMIT, SUMMARY_SCHEMA, summaryPrompt, readSummary } from './branch-summary.mjs';
+import { BranchHandoffs } from './branch-handoff.mjs';
 import { ClaudeSessions, isClaudeId } from './claude.mjs';
 import { readEnvironmentInstructions, environmentInstructionContext } from './environment-instructions.mjs';
 import { messageTime } from './message-time.mjs';
@@ -46,9 +47,10 @@ function itemTime(item, previous, live) {
 }
 
 export class Workspace extends EventEmitter {
-  constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, recoveryTimeout = 2000, beads = new BeadsTasks(), coordinator = false, claude = null } = {}) {
+  constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, recoveryTimeout = 2000, beads = new BeadsTasks(), coordinator = false, claude = null, handoffOptions } = {}) {
     super(); this.rpc = rpc; this.agents = new Map(); this.pending = new Map(); this.opening = new Set(); this.watched = new Set(); this.creating = 0; this.error = null;
     this.summaryJobs = new Map(); this.returnJobs = new Map(); this.summaryTimeout = summaryTimeout;
+    this.handoffs = new BranchHandoffs(this, handoffOptions);
     this.workerReads = new Set(); this.beads = beads; this.trackerReads = new Map();
     this.answerJobs = new Map(); this.answerTimeout = answerTimeout;
     this.requestJobs = new Map(); this.recoveryTimeout = recoveryTimeout;
@@ -90,7 +92,7 @@ export class Workspace extends EventEmitter {
     return { backgroundQuestions: [...workers.values()].reduce((total, worker) => total + worker.questionCount, 0), backgroundWorkers: [...workers.values()] };
   }
   snapshot() {
-    return { connected: this.available(), codexConnected: this.rpc.ready, claudeAvailable: !!this.claude?.available, claudeError: this.claude?.error || null, error: this.error, nativeWarning: this.nativeWarning || null, version: VERSION, restoration: this.restoration, coordinator: this.coordinator?.snapshot() || null, ...this.backgroundRequests(), agents: [...this.agents.values()].map(agent => ({ ...agent, messages: agent.messages.map(message => imageReferences(agent.id, message)), ...taskSummary(agent), reportState: this.coordinator?.reportState(agent.id) || null, reportSettingPending: !!this.coordinator?.deliveries.get(agent.id)?.some(row => row.kind === 'report-setting'), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), recoveringRequests: this.requestJobs.has(agent.id), status: this.readyFor(agent) ? (agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline', thread: undefined })) };
+    return { connected: this.available(), codexConnected: this.rpc.ready, claudeAvailable: !!this.claude?.available, claudeError: this.claude?.error || null, error: this.error, nativeWarning: this.nativeWarning || null, version: VERSION, restoration: this.restoration, handoffCompletions: this.handoffs.completions, coordinator: this.coordinator?.snapshot() || null, ...this.backgroundRequests(), agents: [...this.agents.values()].map(agent => ({ ...agent, messages: agent.messages.map(message => imageReferences(agent.id, message)), ...taskSummary(agent), reportState: this.coordinator?.reportState(agent.id) || null, reportSettingPending: !!this.coordinator?.deliveries.get(agent.id)?.some(row => row.kind === 'report-setting'), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), recoveringRequests: this.requestJobs.has(agent.id), status: this.readyFor(agent) ? (agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline', thread: undefined })) };
   }
   agent(id) { const agent = this.agents.get(id); if (!agent) throw Object.assign(new Error('Open this agent first.'), { status: 404 }); return agent; }
   messageImage(id, messageId, index) {
@@ -319,6 +321,7 @@ export class Workspace extends EventEmitter {
   }
   async linkTasks(id, ids) {
     const agent = this.agent(id);
+    if (this.returnJobs.has(id)) throw Object.assign(new Error('Wait for the branch handoff before editing its task links.'), { status: 409 });
     if (!this.beads) throw Object.assign(new Error('Beads is unavailable.'), { status: 503 });
     try { agent.tracker = await this.beads.setLinks(agent.cwd, id, ids); this.changed(); return agent.tracker; }
     catch (error) { await this.refreshTasks(id); throw error; }
@@ -432,6 +435,7 @@ export class Workspace extends EventEmitter {
     if (!parentId) throw Object.assign(new Error('This conversation has no parent branch.'), { status: 400 });
     if (this.agents.has(parentId)) return parentId;
     const replace = this.workerSlots() >= limits.maxWorkers;
+    if (replace && branch.handoff) throw Object.assign(new Error('All worker tabs are open. Close another tab to open the parent; the handing-back branch is kept.'), { status: 409 });
     if (replace) this.agents.delete(id);
     try { await this.open(parentId); return parentId; }
     catch (error) { if (replace) this.agents.set(id, branch); this.changed(); throw error; }
@@ -447,6 +451,7 @@ export class Workspace extends EventEmitter {
     return branch;
   }
   async summarize(id) {
+    if (this.handoffs.incoming(id) || this.agent(id).handoff) throw Object.assign(new Error('Use Hand back & close to finish this branch handoff; an incoming delivery must finish first.'), { status: 409 });
     if (this.summaryJobs.has(id)) return this.summaryJobs.get(id);
     const branch = this.idleBranch(id, { allowUnloaded: true });
     if (branch.returnSummary?.delivered || branch.returnSummary?.turnId === branch.lastCompletedTurnId) return branch.returnSummary;
@@ -454,6 +459,7 @@ export class Workspace extends EventEmitter {
     const job = this.generateSummary(branch); this.summaryJobs.set(id, job); this.changed();
     try { return await job; } finally { this.summaryJobs.delete(id); this.changed(); }
   }
+  startHandoff(id) { return this.handoffs.start(id); }
   async generateSummary(branch) {
     // Return summary is an explicit user action; restoring a tab stays read-only.
     await this.activate(branch.id);
@@ -481,6 +487,7 @@ export class Workspace extends EventEmitter {
     return branch.returnSummary;
   }
   async returnToParent(id, text) {
+    if (this.handoffs.incoming(id) || this.agent(id).handoff) throw Object.assign(new Error('Use Hand back & close to finish this branch handoff; the older return flow cannot bypass its safety checks.'), { status: 409 });
     if (this.returnJobs.has(id)) return this.returnJobs.get(id);
     const branch = this.idleBranch(id, { allowUnloaded: true });
     if (typeof text !== 'string' || !text.trim() || text.length > SUMMARY_LIMIT) throw Object.assign(new Error(`Enter a concise summary of up to ${SUMMARY_LIMIT} characters.`), { status: 400 });

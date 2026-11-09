@@ -41,6 +41,13 @@ conversation. A failed individual restore leaves other tabs usable and retains
 the unavailable ID for retry through Reconnect. No pending approval answer,
 review token, queued summary or report is persisted or replayed.
 
+The one-click **Hand back & close** workflow also runs only in the existing
+backend process. Browser refresh or changing tabs leaves that process working;
+stopping CCNG interrupts its coordination. Native history and Beads task links
+remain, but restoration does not replay a delivery or assume a branch was
+successfully archived. Inspect the retained branch and parent history before
+starting another handoff after a backend restart.
+
 Version 0.9.0 adds explicit **Load pending request** when a restored active
 conversation reports attention without request details. It reads current status
 and rejoins only the selected already-active conversation so Codex can replay
