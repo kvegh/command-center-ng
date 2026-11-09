@@ -2,6 +2,7 @@ const fail = (message, status = 400) => Object.assign(new Error(message), { stat
 const statuses = new Set(['active', 'paused', 'blocked', 'usageLimited', 'budgetLimited', 'complete']);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const nonnegative = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+export { nativeGoal as parseNativeGoal, goalChange as validateGoalChange };
 
 function validateThreadId(threadId) {
   if (typeof threadId !== 'string' || !threadId.trim() || threadId.length > 128) throw fail('Choose a valid native conversation.');

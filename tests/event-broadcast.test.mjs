@@ -96,6 +96,26 @@ test('HTTP handoff accepts immediately while native questions and background com
   } finally { await f.close(); }
 });
 
+test('authenticated Goal routes keep reads separate from explicit native control actions', async () => {
+  const f = await fixture();
+  try {
+    const calls = [];
+    const current = { goal: null, state: 'ready', error: null };
+    f.workspace.goalState = async id => { calls.push({ read: id }); return current; };
+    f.workspace.updateGoal = async (id, choice) => { calls.push({ id, choice }); return { ...current, state: 'uncertain', error: 'Refresh native state before retrying.' }; };
+    const read = await f.request('/api/agents/worker/goal').finished;
+    assert.equal(read.statusCode, 200);
+    assert.deepEqual(JSON.parse(read.chunks.join('')), current);
+    assert.deepEqual(calls, [{ read: 'worker' }], 'viewing a Goal must not invoke the mutation route');
+    const choice = { action: 'start', objective: 'Deliver the agreed feature and verify it.', tokenBudget: 5000, expectedGoal: null };
+    const changed = await f.request('/api/agents/worker/goal', choice).finished;
+    assert.equal(changed.statusCode, 200);
+    assert.deepEqual(calls[1], { id: 'worker', choice });
+    assert.equal(JSON.parse(changed.chunks.join('')).state, 'uncertain', 'preserve the native outcome instead of inventing success');
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
 test('recovery restores retained current requests without native replay or new identities', async () => {
   const f = await fixture();
   try {

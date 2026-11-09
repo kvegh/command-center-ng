@@ -95,8 +95,11 @@ exception before being presented as full managed support.
 Assess the actual programmatic interface, not just a CLI command's existence.
 Preserve native ownership, permissions, safe boundaries, lifecycle and usage
 limits. Display provider differences honestly, including unavailable pause,
-status or idle wakeup behavior. Starting/changing/clearing a goal requires an
-explicit user control action; restoring a view must not create a goal. A Goal
+status or idle wakeup behavior. CCNG control mutations require an explicit user
+action. The user also authorized workers to set supported native Goals for newly
+clarified, already-authorized substantive tasks and announce them after native
+confirmation. This does not activate Goals from reports, questions, task-record
+creation, opening a view or restoration. A Goal
 does not expand project scope, grant approvals or automatically close Beads work.
 
 Codex exposes native thread Goal state and controls. Claude Code has native
@@ -105,6 +108,15 @@ control and observation details. Native APIs and local command acknowledgements
 must be verified before claiming CCNG integration. The controls are approved
 implementation work, not yet part of the 0.27.3 baseline reviewed here.
 The existing CCNG report timer remains a separate approved feature.
+
+In 0.39.0, Codex controls expose actual native state with guarded mutations and
+live updates. Workers record task-specific outcomes and finish checks in Beads,
+preserve an unfinished native Goal and report confirmed creation as three lines:
+New Goal, Task title and Beads ID. Labels use active-task blue, values remain
+normal text and native history is unchanged. Task-state changes prompt ready-work
+reassessment within existing authority; native continuation owns further turns.
+This is not a provider-independent Beads dispatcher. Actual installed-runtime
+continuation, message adoption and browser controls require their own evidence.
 
 ## Questions, approvals and coordinator review
 

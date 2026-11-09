@@ -265,3 +265,20 @@ test('unloaded spawned descendant may be archived only with explicit empty termi
   assert.ok(f.calls.some(call => call.method === 'thread/backgroundTerminals/list' && call.params.threadId === 'finished-spawn'));
   assert.ok(f.calls.some(call => call.method === 'thread/goal/get' && call.params.threadId === 'finished-spawn'));
 });
+
+test('branch handoff waits for native Goal control confirmation without losing either view', async () => {
+  const f = fixture();
+  f.w.goals.mutations.set('child', Promise.resolve());
+  assert.throws(() => f.w.startHandoff('child'), /native Goal/);
+  assert.equal(f.calls.length, 0);
+  f.w.goals.mutations.delete('child');
+  f.w.goals.mutations.set('parent', Promise.resolve());
+  f.w.startHandoff('child');
+  await until(() => f.branch.handoff?.phase === 'waiting' && !!f.branch.returnSummary);
+  assert.deepEqual(f.archived, []);
+  assert.ok(f.w.agents.has('child') && f.w.agents.has('parent'));
+  assert.ok(!f.calls.some(call => call.method === 'turn/start' && call.params.threadId === 'parent'));
+  f.w.goals.mutations.delete('parent'); f.w.changed();
+  await done(f);
+  assert.deepEqual(f.archived, ['child']);
+});

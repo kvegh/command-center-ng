@@ -160,7 +160,7 @@ export class BranchHandoffs {
         }
       }
       const parent = w.agent(branch.parentId); await this.read(parent);
-      return parent.canSend && !attention(parent) && !w.returnJobs.has(parent.id) && !w.summaryJobs.has(parent.id) && !this.incoming(parent.id);
+      return parent.canSend && !attention(parent) && !w.returnJobs.has(parent.id) && !w.summaryJobs.has(parent.id) && !w.goals?.mutations.has(parent.id) && !this.incoming(parent.id);
     }, 'The parent has a pending request, handoff, or no free tab slot.');
     const parent = w.agent(branch.parentId);
     if (await realpath(branch.cwd) !== await realpath(parent.cwd)) throw fail('Parent and branch use different project directories. Their task transfer needs review.');
@@ -180,7 +180,7 @@ export class BranchHandoffs {
         const text = `Branch summary from "${branch.name}" (${branch.id}):\n\n${record.summary}\n\nAll ${record.taskCount} linked branch tasks are linked to this parent without changing their states. Full branch history remains in native conversation ${branch.id}. Query the original complete task records using Beads label ccng-session:${branch.id}; those branch links are retained. Continue monitoring any external job IDs recorded above.\n\nHandoff reference: ${record.clientId}`;
         const context = await w.instructionContext(parent);
         await this.read(parent);
-        if (attention(parent) || w.agents.get(parent.id) !== parent || !parent.canSend || w.returnJobs.has(parent.id) || w.summaryJobs.has(parent.id) || this.incoming(parent.id)) throw fail('The parent changed before delivery. Its existing request and the branch are kept.');
+        if (attention(parent) || w.agents.get(parent.id) !== parent || !parent.canSend || w.returnJobs.has(parent.id) || w.summaryJobs.has(parent.id) || w.goals?.mutations.has(parent.id) || this.incoming(parent.id)) throw fail('The parent changed before delivery. Its existing request and the branch are kept.');
         if (parent.thread.status?.type === 'active' && !parent.turnId) await w.history(parent.id);
         if (parent.thread.status?.type === 'active' && !parent.turnId) throw fail('The active parent turn is not identified. The branch is kept.');
         if (attention(parent) || w.agents.get(parent.id) !== parent || w.returnJobs.has(parent.id) || w.summaryJobs.has(parent.id) || this.incoming(parent.id)) throw fail('The parent changed while identifying its active turn. The branch is kept.');

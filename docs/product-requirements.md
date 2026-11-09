@@ -27,11 +27,17 @@ does not imply any selected public hosting or remote-access arrangement.
 
 Fresh setup uses a user-chosen application password and preserves existing
 configured passwords. The shared bootstrap-password/forced-first-login-change
-proposal is withdrawn. Interactive installation prompts when authentication is
-absent. Headless installation may stage files without creating a password, but
-the server must refuse startup without valid authentication. Ansible deployment
-requires a protected initial password of 12–4096 characters only when the auth
-file is absent; it does not rotate an existing password.
+proposal is withdrawn. The user subsequently selected password creation on the
+first browser opening for a fresh setup, without a default or predeployment
+application password. That browser-first flow remains unimplemented; keep its
+existing work record open.
+
+Current implemented behaviour: interactive installation prompts when
+authentication is absent. Headless installation may stage files without creating
+a password, but the server refuses startup without valid authentication. The
+current Ansible playbook requires protected initial input of 12–4096 characters
+when the auth file is absent. These are present constraints, not completion of
+the browser-first requirement; an existing password is always preserved.
 
 ### Approved mobile layout
 
@@ -120,6 +126,35 @@ the new explicitly requested action does not require a second review click.
 Navigation remains separate: Back to parent does not send, archive, or complete
 the child. Native context preservation and the summary/close lifecycle were
 verified with real Codex conversations.
+
+## Native Goals and clarified task outcomes
+
+The user approved supported native Goal execution with CCNG worker controls and
+clarified Goal announcements. Codex owns its conversation Goal, status,
+continuation, usage and limits. Beads stores task outcomes, finish checks and
+dependencies; there is no CCNG Goal store or task execution loop. One active
+conversation Goal can cover several agreed tasks.
+
+Expose actual native read/start/pause/resume/clear and replacement controls for
+Codex workers, preserving requests, ownership, handoff and restoration guards.
+Replacement must explicitly acknowledge possible accounting reset. Old reads,
+notifications and uncertain writes must not silently overwrite newer state or
+cause automatic mutation retries. Native state may remain blocked/limited after
+Resume; display it truthfully. Viewing/restoring never activates a Goal.
+
+For newly clarified authorized work, workers use supported native tools and
+announce confirmed Goal creation as three consecutive lines: New Goal, Task title
+and Beads ID. Use active-task light blue for labels and normal text for values.
+Keep source messages, copying and history unchanged and raw HTML disabled.
+Existing unfinished Goals and explicit user pause/clear remain authoritative;
+uncovered new work stays visible for a later Goal. Reports, ordinary questions
+and backlog creation alone do not start a Goal.
+
+Workers update Beads after actual lifecycle changes and reassess ready work
+within real user scope. Use subagents for independent authorized work, retain
+native questions/permissions and stop with a precise blocker when nothing can
+proceed. Goal completion never automatically closes every task. These rules do
+not enable a provider-independent dispatcher or resume postponed Claude work.
 
 ## History and tasks
 

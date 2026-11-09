@@ -9,6 +9,33 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 0.39.0 — Native Codex Goals and clarified task announcements
+
+- Added native Goal status, objective, usage and start/pause/resume/clear controls
+  under Worker specific settings, with a compact mobile summary. Viewing and
+  restoration read state without activating a Goal.
+- Goal replacement explicitly confirms possible accounting reset. Controls check
+  the displayed Goal against fresh native evidence; stale responses cannot
+  overwrite newer events or erase an unconfirmed outcome. Native cross-client
+  writes have no atomic comparison API, so the final native race is not claimed
+  eliminated.
+- Worker instructions now clarify authorized task outcomes, use supported native
+  Goals and announce confirmed creation as New Goal, Task title and Beads ID.
+  Only the labels use active-task blue; values remain normal escaped text.
+- Actual task lifecycle changes trigger Beads updates and ready-work reassessment
+  within user scope. The native runtime owns continuation; reports, questions,
+  backlog records and view restoration do not independently start Goals.
+- Preserved native requests, permission controls, ownership, branch handoff and
+  budget/accounting rules. Unsupported native facilities stay unavailable;
+  no dispatcher, Goal database, dependency or Claude implementation was added.
+
+**Validation:** all 606 application tests and the production build pass. Focused
+review fixes cover prior-Goal identity, old native reads and HTTP replies racing
+newer streamed state. A real Goal was set for this implementation using the
+native tool. A direct local application RPC probe was denied by the sandbox;
+actual installed Goal controls, continuation and rendered announcements remain
+separate acceptance checks. Publication and deployment are recorded separately.
+
 ## 0.38.0 — Background branch handoff and compact title colours
 
 - **Hand back & close** queues a background transfer, including during work.

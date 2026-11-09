@@ -28,6 +28,11 @@ Headless installation may stage files without auth, but server startup requires
 valid authentication. Deployment requires protected 12–4096-character initial
 password input only when no auth file exists; it preserves an existing login.
 Do not restore a shared default or forced-change mechanism as pending work.
+The later user-selected browser-first password creation flow is separate and
+still unfinished: fresh opening should let the user choose the password without
+a predeployment/default application password. The installation/startup behaviour
+above describes current code, not acceptance of that future flow. Preserve its
+open record and do not recreate the withdrawn shared-password question.
 
 The user requested a target-local launcher and installer update mode, explicitly
 selecting automatic fetching of latest code. Version 0.1.0 uses the same local
@@ -551,6 +556,28 @@ daemon or replacement execution engine. Verify each native interface and expose
 provider differences truthfully. Goal controls require explicit user action;
 restoring/opening a view does not create a goal or grant additional permissions.
 The report timer remains separate. See docs/agent-harness-requirements.md.
+
+The user now authorizes supported native Goals for newly clarified substantive
+worker tasks within existing scope. Workers record outcomes and acceptance in
+Beads, preserve an unfinished Goal and its accounting, and never manufacture a
+completed/cleared state to make room. Work outside that Goal stays visible for
+later execution. Respect native pause/clear and stopping conditions. Do not
+create Goals from ordinary chat, reports, task-record creation, view restoration
+or a coordinator-generated message. No custom task dispatcher is approved.
+
+After native Goal creation is confirmed, announce exactly three consecutive
+lines: **New Goal:** the actual objective, **Task title:** the task title and
+**Beads ID:** its ID. The renderer colours only these labels using active-task
+blue; values remain normal text. Opt this rendering in only for worker assistant
+messages, keep native text/copying unchanged and raw HTML disabled. Proposed,
+pending and unsupported states must not be announced as a new confirmed Goal.
+
+After real completion, blocking/input waits, deferral/withdrawal, failure,
+reopening or dependency clearance, update Beads and reassess authorized ready
+work, using native parallelism for independent work. Native Goal completion is
+not proof every task finished. Keep permissions/questions intact and report
+when no authorized work can proceed. Runtime continuation owns further turns.
+The coordinator retains its read-only role; Claude Goal work remains postponed.
 
 The user approved a draggable horizontal divider between history and the whole
 composer (title/status strip, text input and footer). Preserve keyboard controls,

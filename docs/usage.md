@@ -51,6 +51,46 @@ chat. The action preserves the unsent draft and does not undo completed commands
 or files. Escape keeps its local meaning in dialogs, selects, question controls,
 summary editing, resizing and text composition. Other tabs are unaffected.
 
+## Native Goals and task outcomes
+
+A task is one piece of work; a native Goal describes the result the worker
+should reach before stopping. One Codex conversation has one active Goal, which
+can cover several agreed Beads tasks. Codex owns execution, persistence and usage
+accounting. Beads keeps task outcomes, acceptance criteria and dependencies;
+CCNG adds no Goal database or replacement continuation loop.
+
+Under **Worker specific settings**, read the native objective, status and usage.
+Start a clarified objective, pause/resume it or clear it through the supported
+native controls. Replacing a Goal requires explicit confirmation because native
+accounting may reset. Optional budget input is sent only when supplied; check
+the actual returned native budget. Resume preserves existing limits and can
+remain limited. Unavailable or unconfirmed native states are shown explicitly;
+refresh before another change. Viewing or restoring a chat only reads state.
+
+For newly authorized substantive work, workers clarify the outcome and finish
+checks, record them in Beads, and use supported native Goal tools. Only after
+creation is confirmed do they announce three consecutive lines:
+
+```text
+New Goal: Deliver the agreed change, pass its checks and verify the release.
+Task title: Deliver the agreed change
+Beads ID: example-123
+```
+
+The labels use the active-task light blue; values use normal text. The native
+message is kept unchanged for copying and history. Unsupported Goal tools are
+reported as unavailable. An unfinished Goal and its accounting are preserved;
+new work outside it stays visible for a later Goal. Explicit pause/clear actions
+remain authoritative, and a question, report or backlog entry alone starts no Goal.
+
+After actual task completion, blocking, input waits, deferral, withdrawal,
+failure, reopening or dependency clearance, workers update Beads and reassess
+authorized ready work. Independent work can use native subagents. Native
+questions and permissions remain in force; no app dispatcher starts arbitrary
+backlog tasks, and a completed Goal does not automatically close task records.
+When all authorized work is blocked, workers report the exact obstacle and stop
+under the native runtime's stopping rules. Claude Goal integration stays postponed.
+
 ## Branch and return a summary
 
 **Branch here**, beside a completed Codex reply, copies history through that

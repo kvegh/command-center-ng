@@ -5,6 +5,29 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Working version 0.39.0 implements native Codex Goal controls and worker lifecycle
+guidance. Native state is separate from the descriptive chat title. Start,
+pause/resume, clear and explicit replacement preserve native requests, ownership,
+handoff and accounting. Prior-objective checks and revision guards address the
+reviewed stale-state races; the native API has no atomic cross-client comparison.
+Workers announce confirmed Goals using three exact lines: New Goal, Task title,
+Beads ID. Labels use active-task blue; values remain normal escaped text and
+native history/copying are unchanged. Only worker assistant replies opt in.
+
+All 606 tests and the production build pass. No new store/dispatcher or Claude
+work was added. A real native Goal covers this implementation; the direct local
+application RPC probe was blocked by the sandbox. Actual installed Goal controls,
+continuation, announcements and existing browser/native workflow acceptance
+remain unverified. Publication and production update are pending.
+
+The user confirmed backlog cleanup is CCNG-only. Read-only review found no safe
+extra completion closures. Claude, mobile notifications and development charts
+are deferred; request-recovery and general installed-workflow records were
+renamed to distinguish published code from outstanding acceptance. The approved
+browser-first password flow is still unimplemented; documentation now makes
+that distinction clear rather than treating current installer prompts as the
+completed future flow. Keep genuine unfinished and future work visible.
+
 Version 0.38.0 (implementation `e7bb5e0e12d5363626609893d3d53a712baeecde`) adds one-click background Hand back & close and a compact
 title-only composer colour tab. Handoff requests a safe checkpoint, proves local
 work settled, links every Beads task to the parent while retaining provenance,

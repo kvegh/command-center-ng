@@ -167,6 +167,9 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
         const modelRoute = path.match(/^\/api\/agents\/([^/]+)\/model-settings$/);
         if (modelRoute && request.method === 'GET') return json(response, await workspace.modelSettings(decodeURIComponent(modelRoute[1])));
         if (modelRoute && request.method === 'POST') return json(response, await workspace.updateModel(decodeURIComponent(modelRoute[1]), await body(request)));
+        const goalRoute = path.match(/^\/api\/agents\/([^/]+)\/goal$/);
+        if (goalRoute && request.method === 'GET') return json(response, await workspace.goalState(decodeURIComponent(goalRoute[1])));
+        if (goalRoute && request.method === 'POST') return json(response, await workspace.updateGoal(decodeURIComponent(goalRoute[1]), await body(request)));
         const taskRoute = path.match(/^\/api\/agents\/([^/]+)\/tasks$/);
         if (taskRoute) {
           const id = decodeURIComponent(taskRoute[1]);
