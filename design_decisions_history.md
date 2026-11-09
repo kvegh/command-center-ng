@@ -2564,3 +2564,30 @@ same refused connection from the application host. This is a separate unverified
 public network path, not evidence that application installation failed. No
 proxy, DNS, firewall, trust or saved connection setting was changed. Actual
 browser login continuity and native rewind/request recovery remain unverified.
+
+
+## 2026-11-09 — Withdraw Edit/Rewind to preserve traceable communication
+
+Implementation: `ffa76e145225f0e022ef1721c894219a313f4082` (0.45.0).
+
+The user withdrew Edit/Rewind altogether because earlier communication and
+reasons for decisions should remain traceable. Corrections and changed decisions
+belong in follow-up text. This supersedes the previous whole-turn approval and
+withdraws individual-message and Claude variants rather than postponing them.
+Native branching remains a separate supported action preserving its source.
+
+Remove the UI action/dialog and native mutation implementation, endpoints,
+feature state and obsolete tests. Restore Copy this on user text/captions and
+retain ordinary input, drafts, branching, approvals, reporting and login. CCNG
+can still observe an external native history-change notification; it makes no
+mutation request. Such observations invalidate stale transcript/file-approval
+bodies and old reads, preserve authoritative task/request state, and show errors
+without leaving a stale warning after a successful current refresh.
+
+All718 application tests and the production build pass. Focused authenticated
+route tests confirm404 and unchanged messages with no native calls; follow-up,
+copy and passive-history/error/race regressions pass. Independent source review
+found no remaining issue. No real native history, permissions or credentials were
+changed for testing. Publication/deployment are pending at this checkpoint;
+optional real browser/native exercises remain deferred. Shared instructions and
+current requirements withdraw the feature without deleting historical evidence.
