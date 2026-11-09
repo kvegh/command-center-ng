@@ -2112,3 +2112,26 @@ five destination anchors resolve, and whitespace checks pass. No executable
 code or version changed, so application tests/build were not repeated. The
 previous 0.37.0 executable baseline still has 520 passing tests and build. No
 installation, service or access change accompanied this documentation cleanup.
+
+
+## 2026-11-08 — Verify production is current after deployment access is restored
+
+The user confirmed required host sudo access was configured and renewed the
+standing instruction to update production through AAP ad hoc after every minor
+release. Elevated checks with the existing selected Machine credential now
+succeeded. The existing installation was already current at the tested 0.37.0
+implementation `e3a01ba6fefa45ee6e6fcacbcf444b1a7126f96e`, with all 92 checked source
+files matching published payload `ce587a3fd29e191d5960425ce5d38095a8b09845`.
+
+The actual running process reported 0.37.0 over trusted HTTPS. Its existing user
+service was active, runtime files preceded process start, the served index and
+two hashed assets matched the installation, state/events required login, and
+both expected listeners were present. A redundant reinstall or restart was not
+performed. No configuration, authentication, certificate, native profile or
+access-control change was made by this agent. The user-provided access change
+resolves the previous blocker and the standing deployment rule remains active.
+
+These are real installed-app version, artifact, transport and access-gate
+checks. They do not establish fresh native request recovery or Android Firefox
+interaction; those acceptance records remain open. No new code/version changed,
+so the existing 520-test/build baseline was not rerun.

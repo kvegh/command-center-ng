@@ -35,6 +35,13 @@ effect. Independent review found no concrete issue in the recovery/state-order
 fixes. Actual Android Firefox and affected-runtime acceptance remain unverified;
 the historical missing-card report's exact triggering sequence is unconfirmed.
 
+Subsequent production checks through AAP confirmed the existing installation is
+running 0.37.0: 92 checked source files match the published payload, HTTPS health
+and served assets are correct, state/events require login, and both configured
+listeners are present. It was already current, so this verification performed
+no reinstall or restart. Fresh native request workflows and Android Firefox
+interaction still require their separate acceptance checks.
+
 ## 0.36.1 — New-agent path validation
 
 Trim surrounding whitespace, preserve spaces within directory names and require

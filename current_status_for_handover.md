@@ -5,6 +5,18 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Production verification now confirms 0.37.0 is already installed and running.
+The user configured the previously missing sudo access; authorized AAP ad hoc
+checks succeeded. All 92 checked installed source files match published payload
+`ce587a3fd29e191d5960425ce5d38095a8b09845`, and the actual HTTPS health endpoint
+reports 0.37.0. The existing user service is active, runtime files precede its
+start, the served index/two hashed assets match, API state/events require login,
+and both expected listeners are present. No reinstall/restart or configuration,
+password, certificate or access-control change was performed by this agent.
+This supersedes the earlier sudo/deployment blocker below. The standing minor
+release deployment rule remains active; actual phone and fresh native-request
+workflow acceptance retain their separate records.
+
 The README is now a 148-line product/onboarding guide. Current operation lives
 in `docs/usage.md`; chronological changes live in `docs/release-notes.md`, with
 archived details linked. Documentation commit:
@@ -25,9 +37,9 @@ Actual Android Firefox and affected-runtime verification remain separate.
 All 520 application tests and the production build pass. Independent review
 found no concrete issue in the recovery or browser state fixes. Native cancel
 uses a cleanup ref listener because React's input props do not offer onCancel.
-The existing AAP deployment credential was retried at the user's request;
-its elevated preflight still failed with a sudo denial before any update.
-The credential choice is answered; no replacement credential selection is pending.
+Earlier elevated preflights failed with a sudo denial. The newer successful
+production verification above resolves that blocker; credential selection is
+answered and no replacement decision is pending.
 
 Version 0.36.1 (implementation `64c8b2376a3a552cff6129219f86ecebed877a1f`)
 corrects new-agent path validation: the form and backend trim
@@ -45,7 +57,7 @@ ad hoc, including the normal update/restart and outcome verification. The
 initial 0.36.1 deployment attempt was blocked because the selected Machine login
 has no sudo rights and cannot access the installation. No update/restart or
 security change occurred. The user subsequently confirmed the existing
-credential; deployment remains blocked on that login's authorized sudo access.
+credential and configured sudo access, now verified as working above.
 Preserve configuration/auth/certificates/native profiles and native permissions.
 
 Version 0.36.0 implements the user's MOBILE ONLY overview compaction. Padding
