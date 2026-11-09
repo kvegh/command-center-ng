@@ -9,7 +9,26 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
-## 0.48.0 — Working candidate: per-user Codex and compact worker overview
+## 1.0.0 — Optional detailed task reports
+
+- Add a Detailed report choice beside Report now. Keep the normal overview first,
+  then show every linked in-progress task with up to ten evidenced recent actions,
+  timestamps and outcomes. State missing history, unknown times or fewer entries.
+- Permit bounded existing Beads/native-history reads only for explicit detailed
+  requests. Ordinary reports, intervals and permission boundaries are unchanged.
+- Upgrade unsent reports without downgrading them. An already dispatched normal
+  request stays normal, with visible feedback and no automatic duplicate request.
+
+The combined suite ran792 tests:791 passed, one alternate-group case skipped,
+and none failed. The production build and independent source review pass,
+including authenticated HTTP, queue/ACK/native-gate and desktop/mobile component
+regressions. Publication and installed verification will be recorded from actual
+outcomes. This option does not guarantee complete action history or change the
+existing 32,000-character report recognition bound. This release supports the
+current single-engineer, Codex-focused scope; full live approval recovery,
+provider question replies and phone acceptance remain separate verification.
+
+## 0.48.0 — Per-user Codex and compact worker overview
 
 - Offer missing Codex under `~/.local` or a writable `--codex-prefix`, while
   reusing a compatible existing CLI. A managed Bash PATH block makes the selected
@@ -25,10 +44,16 @@ is retrievable in the [README before this reorganization](https://github.com/kve
 Validation: the final combined suite ran 784 tests: 783 passed, one group-ownership
 case skipped because no alternate supplementary group was available, and none
 failed. The production build passed. The Bash-profile group-preservation fix is
-included and final source review is clear. Source publication, deployment and
-installed functional verification remain pending.
-Fixture checks do not establish a fresh real Codex installation, sign-in,
-rendered browser behavior or daemon availability after reboot.
+included and final source review is clear. Implementation 6877e20 and payload 82e7861
+are SSH-published/readback verified. AAP 3454 stopped before installer execution;
+corrected 3455 updated/restarted production, preserving nine protected files and
+unrelated Bash bytes/group/mode. Independent 3456 matched 105 installed files,
+trusted HTTPS/assets/both listeners/auth gates and actual managed Bash updates
+plus Codex 0.167.0 lookup. Deployed-source checks passed 17 cases with one
+alternate-group skip; isolated installed checks verified ten-minute task checks
+and the separate fifteen-minute report deadline. The user confirms the collapsed
+Subagents section is visible. Fresh real Codex installation, provider sign-in,
+full phone/native interaction and daemon availability after reboot remain unverified.
 
 ## 0.47.0 — Show delegated approvals under their parent
 
@@ -50,7 +75,7 @@ rendered browser behavior or daemon availability after reboot.
 Validation: all761 application tests and the production build pass. Independent
 source review found no remaining blocking issue. Payload8a26850 is SSH-published
 and independently read back. AAP3452 updated/restarted production with nine
-protected files unchanged; independent3453 matched105 installed files, actual
+protected files unchanged; independent3453 matched 105 installed files, actual
 0.47.0 trusted HTTPS/assets/both listeners/login gates and isolated installed
 child routing/ACK identity. Real provider delivery, browser interaction and an
 organization-managed sign-in were not exercised for this release.

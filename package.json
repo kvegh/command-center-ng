@@ -1,6 +1,6 @@
 {
   "name": "command-center-ng",
-  "version": "0.48.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "engines": {

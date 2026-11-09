@@ -13,6 +13,7 @@ import { setPassword, loadPassword } from '../server/auth.mjs';
 import { CodexRpc } from '../server/rpc.mjs';
 import { Workspace, statusOf } from '../server/workspace.mjs';
 import { createApp } from '../server/main.mjs';
+import { Coordinator } from '../server/coordinator.mjs';
 
 async function waitFor(predicate) {
   const until = Date.now() + 2000;
@@ -79,6 +80,43 @@ async function fixture() {
   const rpc = new CodexRpc({ socketPath, timeout: 2000 }); await rpc.connect(); const workspace = new Workspace(rpc, { beads: null });
   return { dir, rpc, workspace, calls, replies, threads, histories, failures, resumeRequests, summary, models, notify, ask, request: message => connection.send(JSON.stringify(message)), close: async () => { rpc.close(); for (const client of wss.clients) client.terminate(); await new Promise(resolve => wss.close(resolve)); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); } };
 }
+
+test('the authenticated report endpoint validates and coalesces the explicit detailed option', async () => {
+  const f = await fixture(); const authFile = join(f.dir, 'auth.json'); const password = randomBytes(24).toString('base64url');
+  f.workspace.coordinator = new Coordinator(f.workspace, { debounceMs: 1000000, intervalMs: 1000000 });
+  await setPassword(password, authFile);
+  const app = await createApp({ rpc: f.rpc, workspace: f.workspace, authFile });
+  // Restoration applies the saved pause state. Pause only after it settles so
+  // this regression exercises a genuinely unsent report, not an in-flight one.
+  await waitFor(() => f.workspace.restoration?.status === 'ready');
+  await f.workspace.coordinator.setPaused(true);
+  await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
+  const base = 'http://127.0.0.1:' + app.server.address().port;
+  const post = (path, data, cookie, origin = base) => fetch(base + path, { method: 'POST', headers: {
+    'Content-Type': 'application/json', Origin: origin, ...(cookie ? { Cookie: cookie } : {})
+  }, body: JSON.stringify(data) });
+  try {
+    const route = '/api/agents/existing/report';
+    assert.equal((await post(route, { detailed: true })).status, 403);
+    const login = await post('/api/login', { password }); assert.equal(login.status, 200);
+    const cookie = login.headers.get('set-cookie');
+    assert.equal((await post('/api/agents/existing/open', {}, cookie)).status, 200);
+    assert.equal((await post(route, { detailed: true }, cookie, 'https://unrelated.example')).status, 403);
+    for (const detailed of [null, 'true', 1, {}, []]) assert.equal((await post(route, { detailed }, cookie)).status, 400);
+    assert.equal(f.workspace.coordinator.reportPending.has('existing'), false);
+    const normal = await post(route, {}, cookie); assert.equal(normal.status, 200);
+    assert.deepEqual(await normal.json(), { queued: true, detailed: false });
+    const detailed = await post(route, { detailed: true }, cookie); assert.equal(detailed.status, 200);
+    assert.deepEqual(await detailed.json(), { alreadyPending: true, state: 'queued', detailed: true });
+    const unchanged = await post(route, { detailed: false }, cookie);
+    assert.equal((await unchanged.json()).detailed, true);
+    assert.equal(f.workspace.coordinator.deliveries.get('existing').length, 1);
+    assert.match(f.workspace.coordinator.deliveries.get('existing')[0].text, /Detailed task report/);
+    assert.equal(f.workspace.agent('existing').reportIntervalMinutes, 0);
+    assert.equal(f.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false);
+    assert.equal(f.replies.length, 0);
+  } finally { await app.close(); await f.close(); }
+});
 
 test('native history can load several screenshots beyond the former16MiB frame cap without broadcasting their bytes', async () => {
   const f = await fixture();

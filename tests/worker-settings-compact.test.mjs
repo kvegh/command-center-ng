@@ -14,9 +14,14 @@ const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.Modu
 const { WorkerSettings } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
 const defaults = { agentId: 'worker-one', minutes: 15, disabled: false, paused: false, save: async () => true, reportNow: async () => true };
 const advanced = React.createElement('select', { 'aria-label': 'Worker model', defaultValue: 'example-model' }, React.createElement('option', { value: 'example-model' }, 'Example model'));
-function fixture(props = {}) {
+function fixture(props = {}, detailed = false) {
   let element;
-  function Capture() { element = WorkerSettings({ ...defaults, children: advanced, ...props }); return null; }
+  function Capture() {
+    element = WorkerSettings({ ...defaults, children: advanced, ...props });
+    const choice = descendants(element, node => node.type === 'input' && node.props.type === 'checkbox')[0];
+    if (detailed && !choice.props.checked) choice.props.onChange({ target: { checked: true } });
+    return null;
+  }
   renderToStaticMarkup(React.createElement(Capture));
   return { element, html: renderToStaticMarkup(element) };
 }
@@ -36,11 +41,12 @@ test('compact settings collapse cadence and model controls into one row with Rep
   assert.match(html, /<details class="worker-settings-disclosure"><summary class="worker-settings-summary">Worker settings <span class="worker-settings-cadence">Reports: 15min<\/span><\/summary>/);
   const disclosure = descendants(element, node => node.type === 'details')[0];
   assert.equal(disclosure.props.open, false);
-  assert.equal(descendants(disclosure, node => node.type === 'input').length, 4);
+  assert.equal(descendants(disclosure, node => node.type === 'input' && node.props.type === 'radio').length, 4);
+  assert.equal(descendants(disclosure, node => node.type === 'input' && node.props.type === 'checkbox').length, 1);
   assert.equal(disclosure.props.children[4], advanced, 'the advanced subtree stays rendered inside the native disclosure');
   const directChildren = React.Children.toArray(element.props.children);
-  const mobileReport = directChildren.find(node => node.type === 'button');
-  assert.match(mobileReport.props.className, /worker-report-mobile/);
+  const mobileActions = directChildren.find(node => node.props.className === 'worker-report-mobile');
+  const mobileReport = descendants(mobileActions, node => node.type === 'button')[0];
   assert.equal(mobileReport.props.children, 'Report now');
   assert.equal(mobileReport.props.disabled, false);
   assert.doesNotMatch(html, /Command Center schedules/);
@@ -80,7 +86,7 @@ test('queued, generating, setting updates and report errors remain outside colla
 test('compact report controls retain per-worker radio selection, disabled guards and callbacks', async () => {
   const calls = [];
   const { element, html } = fixture({ compact: true, save: async value => { calls.push(['interval', value]); return true; }, reportNow: async () => { calls.push(['report']); return true; } });
-  const radios = descendants(element, node => node.type === 'input');
+  const radios = descendants(element, node => node.type === 'input' && node.props.type === 'radio');
   assert.deepEqual(radios.map(radio => radio.props.value), [60, 15, 5, 0]);
   assert.ok(radios.every(radio => radio.props.name === 'report-interval-worker-one'));
   assert.deepEqual(radios.filter(radio => radio.props.checked).map(radio => radio.props.value), [15]);
@@ -123,4 +129,65 @@ test('desktop feedback retains its position before model controls without duplic
       assert.ok(inside.indexOf('role="alert"') < inside.indexOf('aria-label="Worker model"'));
     }
   }
+});
+
+test('desktop and mobile share an accessible detailed choice without changing cadence or other chats', async () => {
+  for (const compact of [false, true]) {
+    const calls = [], { element, html } = fixture({ compact, reportNow: async detailed => { calls.push(detailed); return { detailed }; } }, true);
+    const choices = descendants(element, node => node.type === 'input' && node.props.type === 'checkbox');
+    assert.equal(choices.length, 2); assert.ok(choices.every(choice => choice.props.checked));
+    assert.ok(choices.every(choice => choice.props.disabled === false));
+    assert.equal((html.match(/Detailed report<\/span>/g) || []).length, 2);
+    const buttons = descendants(element, node => node.type === 'button');
+    assert.equal(buttons[0].props.onClick, buttons[1].props.onClick);
+    await buttons[compact ? 1 : 0].props.onClick();
+    assert.deepEqual(calls, [true]);
+    assert.deepEqual(descendants(element, node => node.type === 'input' && node.props.type === 'radio' && node.props.checked).map(node => node.props.value), [15]);
+  }
+  const other = fixture({ agentId: 'another-worker' });
+  assert.ok(descendants(other.element, node => node.type === 'input' && node.props.type === 'checkbox').every(node => node.props.checked === false));
+  const normalCalls = [], normal = fixture({ reportNow: async detailed => { normalCalls.push(detailed); return { detailed }; } });
+  await descendants(normal.element, node => node.type === 'button')[0].props.onClick();
+  assert.deepEqual(normalCalls, [false]);
+});
+
+test('detailed request feedback follows actual dispatched mode and never retries or bypasses current gates', async () => {
+  const ast = ts.createSourceFile('worker-settings.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let requestReport;
+  const visit = node => { if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'requestReport') requestReport = node.initializer.getText(ast); ts.forEachChild(node, visit); }; visit(ast);
+  const compiledRequest = ts.transpileModule(`return (${requestReport});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const run = async (result, changes = {}) => {
+    const state = { calls: [], requesting: [], notice: '', error: '' };
+    const environment = { reportDisabled: false, detailed: true,
+      setRequesting: value => state.requesting.push(value), setRequestNotice: value => { state.notice = value; }, setRequestError: value => { state.error = value; },
+      reportNow: async detailed => { state.calls.push(detailed); if (result instanceof Error) throw result; return result; }, ...changes };
+    await new Function(...Object.keys(environment), compiledRequest)(...Object.values(environment))(); return state;
+  };
+  const detailed = await run({ detailed: true, queued: true });
+  assert.equal(detailed.notice, 'Detailed report request accepted.'); assert.deepEqual(detailed.calls, [true]);
+  const dispatched = await run({ detailed: false, alreadyPending: true, state: 'generating', upgradeUnavailable: true });
+  assert.match(dispatched.notice, /current report request cannot be changed/); assert.doesNotMatch(dispatched.notice, /Detailed report request accepted/);
+  assert.deepEqual(dispatched.calls, [true]); assert.deepEqual(dispatched.requesting, [true, false]);
+  const failed = await run(new Error('Native report delivery unavailable.'));
+  assert.equal(failed.error, 'Native report delivery unavailable.'); assert.equal(failed.notice, ''); assert.deepEqual(failed.requesting, [true, false]);
+  const blocked = await run({ detailed: true }, { reportDisabled: true });
+  assert.deepEqual(blocked.calls, []); assert.deepEqual(blocked.requesting, []);
+  for (const props of [{ disabled: true }, { reportState: 'queued' }, { reportState: 'generating' }]) {
+    const { element } = fixture(props);
+    assert.ok(descendants(element, node => node.type === 'input' && node.props.type === 'checkbox').every(node => node.props.disabled));
+  }
+});
+
+test('the keyed worker action posts only the chosen detail flag and returns actual backend feedback', async () => {
+  const main = await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8');
+  const ast = ts.createSourceFile('main.tsx', main, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let settings;
+  const visit = node => { if (ts.isJsxOpeningElement(node) && node.tagName.getText(ast) === 'WorkerSettings') settings = node; ts.forEachChild(node, visit); }; visit(ast);
+  const attribute = name => settings.attributes.properties.find(node => ts.isJsxAttribute(node) && node.name.text === name).initializer.expression.getText(ast);
+  assert.equal(attribute('key'), 'active.id');
+  const response = { detailed: false, upgradeUnavailable: true }, calls = [];
+  const callback = ts.transpileModule(`return (${attribute('reportNow')});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const reportNow = new Function('active', 'api', callback)({ id: 'selected-worker' }, async (...args) => { calls.push(args); return response; });
+  assert.equal(await reportNow(true), response);
+  assert.deepEqual(calls, [['agents/selected-worker/report', { detailed: true }]]);
 });

@@ -5,7 +5,21 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working candidate **0.48.0** offers missing Codex under the user's `~/.local`
+Working candidate **1.0.0** adds a one-off Detailed report checkbox beside
+Report now. Give the normal overview first, then every linked actual in-progress
+Beads task by title/ID with up to ten recent attributable timestamp/action/outcome
+entries. Missing/fewer/unknown evidence must be explicit. Only this request may
+make bounded read-only existing Beads/native-history lookups; it authorizes no
+project execution, external checks, secret reads, model calls or permission
+changes. Ordinary/scheduled reports and the 32,000-character limit are unchanged.
+Unsent requests may upgrade but never downgrade; an already dispatched normal
+request remains normal with visible feedback and no automatic resend. Related
+backend, UI, instructions and tests ship together. The combined suite ran792
+cases:791 passed, one alternate-group case skipped, none failed. The production
+build and independent source review pass; publication and installed verification
+remain pending.
+
+Published and installed **0.48.0** offers missing Codex under the user's `~/.local`
 prefix or a writable `--codex-prefix`, reuses compatible existing installations,
 and adds a safe, idempotent Bash PATH block after successful app installation.
 Existing app-local Codex is not migrated or removed. Beads and Dolt remain
@@ -23,10 +37,19 @@ The final combined suite ran **784 tests: 783 passed, one skipped, zero failed**
 The skipped group-ownership case requires an unavailable alternate supplementary
 group. The `.bashrc` group-preservation correction is included and final source
 review is clear. The production build passed; no frontend change followed it.
-Next: publish and perform the authorized deployment and installed functional
-checks. Publication and AAP deployment of 0.48.0 are not yet verified. Fresh real Codex installation,
-provider sign-in, rendered browser acceptance and reboot behavior remain
-unverified; fixture tests establish only their documented scope.
+Implementation `6877e20308a3f2e4aeb86ee9d00f1ffe249940a8` and payload
+`82e7861fd6d2570001f0ec8757f370813c73bc5f` are SSH-published/readback verified.
+AAP 3454 failed command syntax before installer actions. Corrected 3455 succeeded
+in 20.902s, preserving nine protected files and unrelated Bash bytes/uid/gid/mode.
+Independent 3456 succeeded in 18.144s: 105 installed files match, actual HTTPS/assets,
+both listeners and auth gates pass. The deployed-source installer/profile checks
+ran 18 cases: 17 passed, one alternate-supplementary-group case skipped. Actual
+managed Bash updates were repeated twice; Codex 0.167.0 resolved through that PATH.
+Isolated installed checks verified the ten-minute task-check deadline and
+separate fifteen-minute report deadline. The user confirms the collapsible
+Subagents section is visible. Fresh real Codex installation, provider sign-in,
+full phone/native interaction and reboot behavior remain unverified; fixture
+tests establish only their documented scope.
 
 Published and installed0.47.0 implements user-approved native child request/status visibility
 under the main chat and existing Coordinator. Verified native lineage, original
@@ -64,7 +87,7 @@ Implementationd1bc08be75eab274aad317b48953d0c53034cb55 and installed/source
 checkpoint56b3499f35f16548a07a24e4733953bfc9e07259 were SSH-published/readback
 verified. Six focused regression files/build pass; independent review is clear.
 AAP3446 completed update/restart with nine protected files unchanged. Independent
-3447 matched105 files, actual0.46.1 trusted HTTPS health/assets, both listeners,
+3447 matched 105 files, actual0.46.1 trusted HTTPS health/assets, both listeners,
 authentication gates and installed recovery/coordinator instructions. No native
 approval, live pwd probe or model run was started for acceptance. The current
 Coordinator received the instruction through the native message tool; model

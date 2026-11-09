@@ -335,7 +335,17 @@ closed-browser delivery is selected.
 Standard Task Reports must account for every active workstream in the current
 scope, including delegated audits and research. Concise grouping must not hide
 active work. Keep blocked, queued, deferred and completed work distinguishable;
-disclose uncertain coverage without extra commands merely for a report.
+disclose uncertain coverage without extra commands merely for an ordinary report.
+An explicit one-off Detailed report adds every actual linked `in_progress` task,
+with title/ID and up to ten recent attributable timestamp/action/outcome entries.
+Allow bounded read-only existing Beads records/notes and supported native history
+lookups only for this option. State missing/fewer/unknown evidence; never infer
+action time from task updates or success from launch/tool completion. Keep the
+normal summary first and the combined output within 32,000 characters, identifying
+omissions. No project execution, external checks, secret reads, new research,
+model calls or expanded permissions are authorized. Upgrade unsent requests only;
+never downgrade or automatically resend a dispatched normal report. Expose that
+upgrade limitation truthfully. Scheduled report choices/timing remain unchanged.
 
 Report tracking matches the actual native delivery turn, including when the
 previous turn finishes during request preparation. Recognize completed summaries
@@ -780,9 +790,9 @@ from saved summaries. Native acknowledgement/outcome stays independent of save
 failure; visible errors and graceful write flushing are required. Existing native
 history remains full reference, without automatic retrospective import.
 
-## Working 0.48.0 candidate requirements
+## Version 0.48.0 requirements
 
-For missing Codex, the approved candidate uses a pinned npm global-prefix install
+For missing Codex, the approved installer uses a pinned npm global-prefix install
 under `~/.local` by default, with `--codex-prefix` for another writable location.
 Global mode selects npm's layout under that prefix, not a system-wide or multi-user
 installation. Existing compatible Codex, including app-local copies, is reused
@@ -797,8 +807,9 @@ the Coordinator heading stays unchanged. Put child activity in a default-collaps
 Subagents section below Tasks, preserving independently visible pending child
 cards/recovery warnings and backend/Coordinator state without a new store.
 
-These candidate requirements await final combined verification, publication and
-deployment. Installer/profile checks use the version-controlled deployed-source
+Version 0.48.0 is published and deployed; installed checks verified exact source,
+the managed Bash block, native CLI resolution and isolated report/check deadlines.
+Installer/profile checks use the version-controlled deployed-source
 test command documented in [installation](installation.md#verify-installer-and-bash-path-after-deployment);
 temporary profiles/stub installation do not prove fresh real Codex installation,
 native authentication, browser behavior or boot autostart.

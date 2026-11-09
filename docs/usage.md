@@ -285,6 +285,25 @@ bullets, covering all active workstreams and the project's release/publication
 status. This format is in [worker base instructions](../server/worker-instructions.md).
 Instruction guidance cannot guarantee perfect model compliance.
 
+Select **Detailed report** beside **Report now** for a one-off expanded report.
+It starts with the normal overview, then each linked Beads task actually marked
+in progress, with its title/ID and up to ten recent attributable actions indented
+beneath it. Actions use available timestamps and evidenced outcomes; fewer or
+missing entries and unknown times must be stated. This option does not change
+scheduled reports or save a new reporting interval.
+
+Only explicit detailed requests permit bounded read-only lookups of existing
+linked Beads records/notes and supported native history. They authorize no new
+project execution, tests, external checks, research, secret reads, model calls or
+permission changes. Task-update time is not action time, and launching or returning from a
+tool alone does not prove success. Details share the existing 32,000-character
+report limit; omitted detail must be identified.
+
+An unsent queued report can be upgraded to detailed, never downgraded. If a normal
+request is already dispatched or cannot safely be upgraded, visible feedback
+says it remains unchanged; CCNG does not send a second report automatically.
+Check its status before making a later explicit request.
+
 Internal report triggers are hidden in CCNG history; actual reports remain
 visible. Native provider history is not deleted. At most one report is
 outstanding per worker; Report now coalesces with a queued due report. Native

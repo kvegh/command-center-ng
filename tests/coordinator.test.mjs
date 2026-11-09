@@ -1479,7 +1479,7 @@ test('Report now queues immediately with Never, coalesces pending reports and le
   try {
     const worker = f.workspace.agent('worker'); assert.equal(worker.reportIntervalMinutes, 0);
     worker.turnId = 'busy'; worker.thread.status = { type: 'active' }; f.rpc.ask('pending-manual', 'worker');
-    assert.deepEqual(f.coordinator.requestUserReport('worker'), { queued: true });
+    assert.deepEqual(f.coordinator.requestUserReport('worker'), { queued: true, detailed: false });
     assert.equal(f.coordinator.requestUserReport('worker').alreadyPending, true);
     assert.equal(f.coordinator.deliveries.get('worker').length, 1);
     assert.equal(worker.reportIntervalMinutes, 0); assert.equal('nextReportAt' in worker, false);
@@ -1498,6 +1498,104 @@ test('Report now queues immediately with Never, coalesces pending reports and le
     f.workspace.summaryJobs.set('worker', {});
     assert.throws(() => f.coordinator.requestUserReport('worker'), /branch handoff/);
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
+  } finally { await f.close(); }
+});
+
+test('detailed reports validate their option and retain one queued request without changing cadence', async () => {
+  const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
+  try {
+    f.coordinator.paused = true;
+    for (const detailed of [null, 'true', 1, {}, []]) assert.throws(() => f.coordinator.requestUserReport('worker', { detailed }), error => error.status === 400);
+    assert.equal(f.coordinator.reportPending.has('worker'), false);
+    f.coordinator.setReportInterval('worker', 15, { notifyWorker: true });
+    clock.advance(15 * 60_000);
+    const deadline = f.coordinator.reportSchedules.get('worker').nextAt;
+    const queued = f.coordinator.deliveries.get('worker')[0];
+    assert.equal(queued.scheduledReport, true);
+    const upgraded = f.coordinator.requestUserReport('worker', { detailed: true });
+    assert.equal(upgraded.alreadyPending, true); assert.equal(upgraded.detailed, true);
+    assert.equal(queued.scheduledReport, false);
+    assert.equal(f.coordinator.requestUserReport('worker').detailed, true, 'a normal request never downgrades queued detail');
+    assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+    assert.match(queued.text, /Detailed task report/);
+    assert.equal(f.coordinator.reportSchedules.get('worker').nextAt, deadline);
+    await f.workspace.open('second');
+    assert.equal(f.coordinator.requestUserReport('second').detailed, false, 'detail is scoped to one worker request');
+    assert.doesNotMatch(f.coordinator.deliveries.get('second')[0].text, /Detailed task report/);
+    f.coordinator.setReportInterval('worker', 0);
+    assert.equal(f.coordinator.deliveries.get('worker').length, 1, 'Never retains the promoted explicit report');
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('detailed report delivery keeps native request gates, hidden input and evidence limits', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker');
+    f.rpc.ask('detail-choice', 'worker');
+    assert.deepEqual(f.coordinator.requestUserReport('worker', { detailed: true }), { queued: true, detailed: true });
+    await f.coordinator.flush('worker');
+    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer'].includes(call.method)), false);
+    f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: 'worker', requestId: 'detail-choice' } });
+    await delivered(f);
+    const report = f.rpc.calls.find(call => call.method === 'turn/start');
+    const text = report.params.input[0].text;
+    assert.match(text, /normal Standard Task Report first/);
+    assert.match(text, /every .*in_progress.*Beads task/);
+    assert.match(text, /up to 10/); assert.match(text, /timestamp.*outcome/);
+    assert.match(text, /receipt time/); assert.match(text, /time unknown/);
+    assert.match(text, /Never guess task associations/);
+    assert.match(text, /bounded read-only lookups/);
+    assert.match(text, /not proof of successful completion/);
+    assert.match(report.params.clientUserMessageId, /^ccng-report-/);
+    assert.ok(worker.messages.some(message => message.internalReport && message.text === text));
+    assert.equal(f.rpc.replies.length, 0); assert.equal(worker.reportIntervalMinutes, 0);
+    const turnId = worker.turnId;
+    f.rpc.emit('notification', { method: 'item/completed', params: { threadId: 'worker', turnId, item: { id: 'detail-result', type: 'agentMessage', text: standardReport + '\n\n- **Build the UI (example-1):**\n  - 2026-01-01T12:00:00Z — Started build; outcome not yet known.\n  - Time unknown — Reviewed implementation; only two attributable actions available.' } } });
+    assert.equal(f.coordinator.reportPending.has('worker'), false, 'the normal report with nested detail uses existing recognition');
+    assert.equal(f.coordinator.reportResponses.has('worker'), false);
+  } finally { await f.close(); }
+});
+
+test('a report already being sent exposes its actual detail mode without a duplicate or false upgrade', async () => {
+  for (const initialDetail of [false, true]) {
+    const f = await fixture(); let release;
+    try {
+      const send = f.workspace.send.bind(f.workspace);
+      const gate = new Promise(resolve => { release = resolve; });
+      let sending = false;
+      f.workspace.send = async (...args) => { sending = true; await gate; return send(...args); };
+      f.coordinator.requestUserReport('worker', { detailed: initialDetail });
+      await waitFor(() => sending);
+      const queued = f.coordinator.deliveries.get('worker')[0]; const originalText = queued.text;
+      const result = f.coordinator.requestUserReport('worker', { detailed: true });
+      assert.equal(result.detailed, initialDetail);
+      assert.equal(result.upgradeUnavailable, initialDetail ? undefined : true);
+      assert.equal(queued.text, originalText, 'the prompt captured by a send cannot be replaced');
+      assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+      release(); await delivered(f);
+      const afterAck = f.coordinator.requestUserReport('worker', { detailed: true });
+      assert.equal(afterAck.detailed, initialDetail); assert.equal(afterAck.upgradeUnavailable, result.upgradeUnavailable);
+      assert.equal(f.coordinator.reportResponses.get('worker').detailed, initialDetail);
+      assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
+      assert.equal(f.rpc.calls.some(call => ['turn/steer', 'turn/interrupt'].includes(call.method)), false);
+    } finally { release?.(); await f.close(); }
+  }
+});
+
+test('detailed requests never replace or retry an unconfirmed report send', async () => {
+  const f = await fixture();
+  try {
+    let sends = 0;
+    f.workspace.send = async () => { sends++; throw new Error('Synthetic uncertain report delivery.'); };
+    f.coordinator.requestUserReport('worker');
+    await waitFor(() => !!f.coordinator.deliveries.get('worker')?.[0]?.error);
+    const queued = f.coordinator.deliveries.get('worker')[0]; const text = queued.text;
+    const result = f.coordinator.requestUserReport('worker', { detailed: true });
+    assert.equal(result.detailed, false); assert.equal(result.upgradeUnavailable, true);
+    assert.equal(queued.text, text); assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+    await f.coordinator.flush('worker');
+    assert.equal(sends, 1); assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
 });
 

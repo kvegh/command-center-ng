@@ -1045,9 +1045,9 @@ kbd { font-family: inherit; }
   .worker-settings.compact .report-options { gap: 6px 8px; align-items: center; }
   .worker-settings.compact .field-note, .worker-settings.compact .error-text { margin: 6px 0 0; }
   .worker-settings.compact .worker-settings-disclosure { margin-top: 0; }
-  .worker-settings.compact .worker-settings-summary { display: list-item; min-height: 36px; padding: 7px 96px 7px 0; cursor: pointer; color: var(--ink); font-size: 13px; line-height: 1.6; }
+  .worker-settings.compact .worker-settings-summary { display: list-item; min-height: 36px; padding: 7px 0; cursor: pointer; color: var(--ink); font-size: 13px; line-height: 1.6; }
   .worker-settings-cadence { color: var(--muted); white-space: nowrap; }
-  .worker-settings.compact .worker-report-mobile { display: inline-flex; position: absolute; top: 0; right: 0; z-index: 1; }
+  .worker-settings.compact .worker-report-mobile { display: flex; margin-top: 6px; }
   .worker-settings.compact .worker-settings-disclosure[open] > fieldset { margin-top: 6px; }
   .worker-settings.compact .worker-settings-summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .worker-settings.compact .worker-model-settings { margin-top: 6px; padding-top: 6px; }

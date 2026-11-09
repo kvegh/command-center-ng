@@ -5,12 +5,13 @@ import { COORDINATOR_PROMPT, COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUID
 import { isBranchControlMessage } from './branch-summary.mjs';
 import { taskSummary } from './task-summary.mjs';
 import { progressWordCount, RECAP_WORD_LIMIT, RECAP_WORD_TARGET } from './progress-recap.mjs';
-import { WORKER_REPORT_REQUEST, WORKER_TASK_PING_REQUEST, REPORT_INTERVALS } from './worker-instructions.mjs';
+import { WORKER_REPORT_REQUEST, WORKER_DETAILED_REPORT_REQUEST, WORKER_TASK_PING_REQUEST, REPORT_INTERVALS } from './worker-instructions.mjs';
 import { approvalCommand, approvalWorkingDirectory, inspectApprovalSource, referencesApprovalSource } from './approval-source.mjs';
 import { nativeMessageQuestions } from './native-requests.mjs';
 
 const TASK_PING_INTERVAL_MS = 10 * 60_000;
 const fail = (message, status = 409) => Object.assign(new Error(message), { status });
+const userReportText = detailed => '[Command Center coordinator]\nThe user selected Report now. ' + WORKER_REPORT_REQUEST + (detailed ? '\n\n' + WORKER_DETAILED_REPORT_REQUEST : '');
 const textInput = text => [{ type: 'text', text, text_elements: [] }];
 const object = (properties, required = Object.keys(properties)) => ({ type: 'object', properties, required, additionalProperties: false });
 const str = { type: 'string' }; const target = { agentId: str };
@@ -232,22 +233,31 @@ export class Coordinator {
     // that the worker has started composing a report.
     return this.reportResponses.get(id)?.confirmed ? 'generating' : null;
   }
-  requestUserReport(id) {
+  requestUserReport(id, { detailed = false } = {}) {
+    if (typeof detailed !== 'boolean') throw fail('Choose true or false for a detailed report.', 400);
     const agent = this.worker(id);
     if (this.stopped || !this.workspace.readyFor(agent) || this.workspace.restoring) throw fail('Reconnect the worker before requesting a report.', 503);
     if (!agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) throw fail('Finish the branch handoff before requesting a report, or choose a worker that accepts direct input.');
     if (this.reportPending.has(id)) {
       // A manual request coalesces with an outstanding scheduled report, but
       // remains explicit work when Never cancels later timer requests.
-      const queued = this.deliveries.get(id)?.find(row => row.kind === 'report');
-      if (queued?.scheduledReport) { queued.scheduledReport = false; queued.text = '[Command Center coordinator]\nThe user selected Report now. ' + WORKER_REPORT_REQUEST; }
+      const rows = this.deliveries.get(id);
+      const queued = rows?.find(row => row.kind === 'report');
+      // send() captures its prompt before yielding. Only an unsent, unfailed
+      // request can be upgraded; an uncertain/in-flight send is never retried.
+      if (queued && !queued.error && !(rows[0] === queued && agent.coordinatorSending)) {
+        queued.detailed = !!queued.detailed || detailed;
+        queued.text = userReportText(queued.detailed);
+      }
+      if (queued) queued.scheduledReport = false;
       const response = this.reportResponses.get(id); if (response) response.scheduledReport = false;
+      const actualDetail = !!(response ? response.detailed : queued?.detailed);
       agent.scheduledReportInProgress = false;
       this.workspace.changed();
-      return { alreadyPending: true, state: this.reportState(id) };
+      return { alreadyPending: true, state: this.reportState(id), detailed: actualDetail, ...(detailed && !actualDetail ? { upgradeUnavailable: true } : {}) };
     }
     this.reportPending.add(id);
-    try { return this.queue(agent, '[Command Center coordinator]\nThe user selected Report now. ' + WORKER_REPORT_REQUEST, 'report'); }
+    try { return { ...this.queue(agent, userReportText(detailed), 'report', { detailed }), detailed }; }
     catch (error) { this.reportPending.delete(id); throw error; }
   }
   worker(id) { const agent = this.workspace.agent(id); if (agent.role === 'coordinator') throw fail('Choose an open worker conversation.', 400); return agent; }
@@ -469,9 +479,9 @@ export class Coordinator {
     files.set(source.path, { sha256: source.sha256, commandSha256: source.commandSha256, workingDirectory: cwd }); this.approvalSources.set(question.reviewToken, files);
     return source;
   }
-  queue(agent, text, kind, { scheduledReport = false, startupDashboard = false } = {}) {
+  queue(agent, text, kind, { scheduledReport = false, startupDashboard = false, detailed = false } = {}) {
     const rows = this.deliveries.get(agent.id) || []; if (rows.length >= 4) throw fail('This worker already has four queued coordinator messages.');
-    const message = { text, kind, id: randomUUID(), ...(scheduledReport ? { scheduledReport: true } : {}), ...(startupDashboard ? { startupDashboard: true } : {}) };
+    const message = { text, kind, id: randomUUID(), ...(scheduledReport ? { scheduledReport: true } : {}), ...(startupDashboard ? { startupDashboard: true } : {}), ...(detailed ? { detailed: true } : {}) };
     if (['report', 'report-setting', 'task-ping'].includes(kind)) {
       let index = Math.max(agent.coordinatorSending ? 1 : 0, rows.findLastIndex(row => row.error) + 1);
       if (kind === 'report-setting') while (rows[index]?.kind === 'report') index++;
@@ -533,7 +543,7 @@ export class Coordinator {
     const reportInProgress = agent.coordinatorDeliveryKind === 'report';
     const previousScheduled = !!agent.scheduledReportInProgress;
     const response = message.kind === 'report' ? {
-      requestId: message.id, turnId: agent.provider === 'claude' ? agent.turnId || null : null, confirmed: false, scheduledReport: !!message.scheduledReport, startupDashboard: !!message.startupDashboard,
+      requestId: message.id, turnId: agent.provider === 'claude' ? agent.turnId || null : null, confirmed: false, scheduledReport: !!message.scheduledReport, startupDashboard: !!message.startupDashboard, detailed: !!message.detailed,
       candidates: new Map(), completedTurns: new Set(),
       previousIds: new Set(agent.messages.filter(item => item.type === 'assistant').flatMap(item => [item.id, item.nativeMessageId].filter(Boolean)))
     } : null;

@@ -367,7 +367,16 @@ cover every currently active workstream, including delegated implementation,
 audits, research, documentation, verification and publication, even when unchanged.
 Group related work concisely without silently omitting it. Distinguish active,
 blocked, queued and deferred work; disclose uncertain coverage. Use known evidence
-without extra commands solely to prepare a report or expanding project scope.
+without extra commands solely to prepare an ordinary report or expanding project scope.
+For an explicit Detailed report only, give the normal summary first, then every
+actual linked `in_progress` Beads task by title/ID, with up to ten recent
+attributable timestamp/action/outcome entries in chronological order beneath it. Bounded
+read-only existing Beads records/notes and supported native history lookups are
+allowed for that request; no project execution, external checks, new research,
+secret reads, model calls or permission bypass. State fewer/none/unknown evidence,
+label receipt times, and never use task update time as action time or launch/tool
+completion as proof of success. Keep the combined report within 32,000 characters
+and identify omitted detail. Timed and ordinary reports retain their concise rule.
 IDs are optional supporting references beside names. Include the project's latest
 release version and verified publication status, separating a newer working
 version or unknown release evidence. Distinguish published code from deployed/live

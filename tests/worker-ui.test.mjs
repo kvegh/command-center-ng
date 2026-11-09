@@ -190,7 +190,7 @@ test('native requests identify the worker and render permission, MCP form, exter
 
 test('Report now follows Never and keeps the report cadence as four radio choices', () => {
   const html = renderToStaticMarkup(React.createElement(WorkerSettings, { agentId: 'manual-worker', disabled: false, paused: false, minutes: 0, save: async () => true, reportNow: async () => true }));
-  assert.match(html, /Never<\/span><\/label><button[^>]+>Report now<\/button>/);
+  assert.match(html, /Never<\/span><\/label><span class="report-options worker-report-desktop"><button[^>]+>Report now<\/button>/);
   assert.equal((html.match(/type="radio"/g) || []).length, 4);
 });
 

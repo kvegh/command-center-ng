@@ -159,14 +159,14 @@ test('responsive settings expose one Report now button and a focusable mobile di
   assert.notEqual(declarations('.worker-settings.compact .worker-report-desktop', [desktopQuery]).display, 'none');
   for (const media of [[compactQuery], [desktopQuery, compactQuery]]) {
     assert.equal(declarations('.worker-settings.compact .worker-report-desktop', media).display, 'none', 'opening mobile settings does not reveal a second Report now button');
-    assert.deepEqual(properties('.worker-settings.compact .worker-report-mobile', ['display', 'position', 'top', 'right'], media), {
-      display: 'inline-flex', position: 'absolute', top: '0', right: '0',
+    assert.deepEqual(properties('.worker-settings.compact .worker-report-mobile', ['display', 'position', 'margin-top'], media), {
+      display: 'flex', position: undefined, 'margin-top': '6px',
     });
     assert.equal(declarations('.worker-settings.compact', media).position, 'relative');
     const summary = declarations('.worker-settings.compact .worker-settings-summary', media);
     assert.equal(summary.display, 'list-item');
     assert.equal(summary['min-height'], '36px');
-    assert.equal(summary.padding, '7px 96px 7px 0', 'disclosure text leaves room for the separate report action');
+    assert.equal(summary.padding, '7px 0', 'the report row follows in normal flow without reserving overlapping header space');
     assert.ok(declarations('.worker-settings.compact .worker-settings-summary:focus-visible', media).outline, 'keyboard focus remains visible on the disclosure');
   }
 });

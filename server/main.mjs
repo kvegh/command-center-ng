@@ -247,7 +247,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
             return json(response, await workspace.recoverRequests(id, data.requestThreadId));
           }
           if (action === 'report-settings') { if (!workspace.coordinator) throw failure('Reporting is unavailable.', 503); return json(response, workspace.coordinator.setReportInterval(id, data.minutes, { notifyWorker: true })); }
-          if (action === 'report') { if (!workspace.coordinator) throw failure('Reporting is unavailable.', 503); return json(response, workspace.coordinator.requestUserReport(id)); }
+          if (action === 'report') { if (!workspace.coordinator) throw failure('Reporting is unavailable.', 503); return json(response, workspace.coordinator.requestUserReport(id, { detailed: data.detailed })); }
           if (action === 'answer') await workspace.answer(id, data.requestId, data, data.requestThreadId);
           if (action === 'review') {
             if (!workspace.coordinator || workspace.coordinator.paused) throw failure('Resume the coordinator before requesting a review.', 409);

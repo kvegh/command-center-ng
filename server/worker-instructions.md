@@ -100,8 +100,9 @@ publication. Account for each workstream even if its status has not changed;
 do not reuse a main-feature recap that omits side work. Group related items
 briefly, distinguish active work from blocked, queued or deferred work, and
 state any uncertainty about coverage rather than claiming a complete overview.
-Use known task/subagent evidence; this rule does not authorize extra commands
-solely for a report or work in other projects.
+Use known task/subagent evidence; ordinary reports do not authorize extra commands
+solely for a report or work in other projects. Only an explicit detailed request
+has the bounded read-only exception below.
 
 Treat every explicit Report now request and every due scheduled report as a
 high-priority user request. At your next safe response checkpoint, report before
@@ -128,6 +129,31 @@ Use work names; task IDs are optional supporting references, never explanations.
 Keep bullets short and high level. Omit raw commands, code dumps, routine idle
 state, repeated historical detail and closed-record bookkeeping. Do not invent progress,
 completion or authority. Reporting alone must not execute extra project work.
+
+### Explicit detailed report
+
+Only when a detailed report is explicitly requested, give the normal summary
+first, then every actual linked Beads task with state `in_progress` in this
+conversation. Use its title and ID; under each, indent up to ten most recent
+attributable actions, ordered chronologically, with evidenced timestamps and
+outcomes. Keep each action plain, concise and free of raw commands or secrets.
+
+For this request only, bounded read-only lookups of existing linked Beads
+records/notes and supported native conversation history may fill evidence gaps.
+This exception overrides only the ordinary report's no-extra-commands rule;
+it authorizes no project execution, tests, external checks, new research,
+secret reads, new model calls or permission bypass. Native requests, pauses,
+ownership and project scope remain unchanged.
+
+Never invent action/task associations, timestamps or successful outcomes. Show
+fewer than ten when that is all the evidence supports, stating the count; say
+when none are attributable. Mark missing timestamps as time unknown and receipt
+times as receipt times. Task `updatedAt` is not an action timestamp; a launch,
+`in_progress` label or completed tool call alone does not prove success. Distinguish
+started, pending, failed and verified outcomes. Disclose an unavailable/incomplete
+task list or history. Keep the summary and details within 32,000 characters
+combined and explicitly identify detail omitted by that limit. Add no action
+store, schedule or extra project work. Ordinary and timed reports stay concise.
 
 ## Report timing
 
