@@ -9,6 +9,32 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.1.0 — Answer eligible assistant questions
+
+- Answer eligible current Codex assistant-question cards with an option or free
+  text, using each original native message ID and question index. Require a live
+  completed message in the same known active turn; do not restart restored
+  turns. Keep other question editors available after a partial reply.
+- Use the proven ordinary native input envelope within that active turn.
+  Accepted input is not proof of an answer being applied or a task completing. Retired editors do not
+  imply resolution; uncertain/truncated/unbound cases stay read-only.
+- Preserve browser-memory answer drafts/latches across worker switches, without
+  persistence across refresh. Keep ordinary-send gates and explicit errors;
+  automatic controls preserve live decisions using the existing queues.
+- Preserve branch/draft information when a handoff encounters an unanswered or
+  uncertain question. Explicit retry rechecks the retained branch. Show readable
+  question/answer text while preserving original native history and Copy this.
+- Permit approval-authority quotes only from actual human answer text in native
+  reply envelopes, excluding model-written question text and protocol metadata.
+  Add no automatic follow-up, retry, question store or permission changes.
+
+The native0.167.0 source contract is verified. The final combined suite ran827
+cases:826 passed, one unavailable alternate-group case skipped, none failed.
+The production build is clean, with no browser Node-module warning; independent
+source/UI/provenance review is clear. Publication and installed verification
+will be recorded from actual outcomes. Real native/browser acceptance remains
+unverified;1.0.0 stays the installed release until the authorized update.
+
 ## 1.0.0 — Optional detailed task reports
 
 - Add a Detailed report choice beside Report now. Keep the normal overview first,

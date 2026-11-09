@@ -6,6 +6,7 @@ import { isAbsolute } from 'node:path';
 import { VERSION } from './version.mjs';
 import { WORKER_BASE_INSTRUCTIONS, WORKER_REPORT_INSTRUCTIONS, reportTimingContext } from './worker-instructions.mjs';
 import { isHumanRequest, manualRequestAnswer, nativeMessageQuestions } from './native-requests.mjs';
+import { asyncQuestionView, currentAsyncQuestion, asyncQuestionReply, retainAsyncQuestionState, observeAsyncQuestionInput, retireAsyncQuestions, setAsyncQuestionDelivery, assertAsyncQuestionsAllowControl, hasOpenAsyncQuestions } from './async-question-replies.mjs';
 import { isNativeToolApproval, nativeApprovalAnswer } from './approval-choices.mjs';
 import { readModelCatalog, validateModelChoice } from './worker-models.mjs';
 import { markInternalInput, reportMessageFlags } from './report-messages.mjs';
@@ -86,7 +87,7 @@ export class Workspace extends EventEmitter {
     rpc.on('disconnected', message => {
       this.error = message;
       for (const job of this.answerJobs.values()) job.finish(Object.assign(new Error('Codex disconnected before confirming the answer. Check the native session.'), { status: 503 }));
-      this.pending.clear(); for (const parent of this.agents.values()) for (const agent of this.requestContexts(parent, { includeUnverified: true })) if (agent.provider !== 'claude') { agent.questions = []; if (agent !== parent) agent.lineageNeedsRefresh = true; agent.historyRevision = (agent.historyRevision || 0) + 1; for (const message of agent.messages) delete message.fileChangeContext; }
+      this.pending.clear(); for (const parent of this.agents.values()) for (const agent of this.requestContexts(parent, { includeUnverified: true })) if (agent.provider !== 'claude') { agent.questions = []; retireAsyncQuestions(agent, 'The native connection changed; this question is read-only.', 'disconnect'); if (agent !== parent) agent.lineageNeedsRefresh = true; agent.historyRevision = (agent.historyRevision || 0) + 1; for (const message of agent.messages) delete message.fileChangeContext; }
       this.changed();
     });
     rpc.on('connected', () => { this.error = null; this.changed(); });
@@ -166,7 +167,7 @@ export class Workspace extends EventEmitter {
     return { backgroundQuestions: [...workers.values()].reduce((total, worker) => total + worker.questionCount, 0), backgroundWorkers: [...workers.values()] };
   }
   snapshot() {
-    return { connected: this.available(), codexConnected: this.rpc.ready, claudeAvailable: !!this.claude?.available, claudeError: this.claude?.error || null, error: this.error, nativeWarning: this.nativeWarning || null, version: VERSION, restoration: this.restoration, handoffCompletions: this.handoffs.completions, coordinator: this.coordinator?.snapshot() || null, ...this.backgroundRequests(), agents: [...this.agents.values()].map(agent => { const subagents = this.subagentViews(agent); const ownStatus = this.readyFor(agent) ? (agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline'; return ({ ...agent, workers: [...(agent.workers || []).map(worker => ({ ...worker, ...subagents.find(child => child.id === worker.id) })), ...subagents.filter(child => !(agent.workers || []).some(worker => worker.id === child.id))], ownStatus, messages: agent.messages.map(message => { const { fileChangeContext: internal, ...visible } = message; return imageReferences(agent.id, visible); }), questions: agent.questions.map(question => this.requestView(agent, question)), ...taskSummary(agent), reportState: this.coordinator?.reportState(agent.id) || null, reportSettingPending: !!this.coordinator?.deliveries.get(agent.id)?.some(row => row.kind === 'report-setting'), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), recoveringRequests: this.requestJobs.has(agent.id), status: this.readyFor(agent) && subagents.some(child => child.needsInput) ? 'attention' : ownStatus, thread: undefined }); }) };
+    return { connected: this.available(), codexConnected: this.rpc.ready, claudeAvailable: !!this.claude?.available, claudeError: this.claude?.error || null, error: this.error, nativeWarning: this.nativeWarning || null, version: VERSION, restoration: this.restoration, handoffCompletions: this.handoffs.completions, coordinator: this.coordinator?.snapshot() || null, ...this.backgroundRequests(), agents: [...this.agents.values()].map(agent => { const subagents = this.subagentViews(agent); const ownStatus = this.readyFor(agent) ? (agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline'; return ({ ...agent, workers: [...(agent.workers || []).map(worker => ({ ...worker, ...subagents.find(child => child.id === worker.id) })), ...subagents.filter(child => !(agent.workers || []).some(worker => worker.id === child.id))], ownStatus, messages: agent.messages.map(message => { const { fileChangeContext: internal, ...visible } = message; if (visible.nativeQuestions) visible.nativeQuestions = visible.nativeQuestions.map(question => asyncQuestionView(agent, message, question, this.asyncQuestionHandoffBlocked(agent))); return imageReferences(agent.id, visible); }), questions: agent.questions.map(question => this.requestView(agent, question)), ...taskSummary(agent), reportState: this.coordinator?.reportState(agent.id) || null, reportSettingPending: !!this.coordinator?.deliveries.get(agent.id)?.some(row => row.kind === 'report-setting'), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), recoveringRequests: this.requestJobs.has(agent.id), status: this.readyFor(agent) && subagents.some(child => child.needsInput) ? 'attention' : ownStatus, thread: undefined }); }) };
   }
   requestView(agent, question) {
     if (question.method !== 'item/fileChange/requestApproval') return question;
@@ -377,6 +378,9 @@ export class Workspace extends EventEmitter {
     }
     const record = { id: item.id, turnId, branchable, nativeType: item.type, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text: text || '', ...questionFields, ...(item.type === 'fileChange' ? { fileChangeContext: fileChangeContext(item.changes) } : {}), ...(images.length ? { images } : {}), state: item.status || 'completed', ...itemTime(item, previousRecord, live), ...reportMessageFlags(item, previousRecord) };
     if (previous >= 0) agent.messages[previous] = record; else agent.messages.push(record);
+    retainAsyncQuestionState(agent, record, previousRecord, { live, completed, item });
+    if (live && completed && record.nativeQuestions?.length) this.handoffs.observeQuestions(agent);
+    if (record.type === 'user') { observeAsyncQuestionInput(agent, record, item); if (live) void this.coordinator?.flush(agent.id); }
     if (live && completed && record.type === 'assistant') this.coordinator?.reportMessageCompleted(agent.id, record);
     if (agent.messages.length > 600) agent.messages = agent.messages.slice(-600);
     if (record.type === 'activity') agent.activity = { text: String(text).split('\n')[0].slice(0, 180), state: record.state };
@@ -552,11 +556,39 @@ export class Workspace extends EventEmitter {
       await this.send(thread.id, goal.trim()); return thread.id;
     } finally { if (reserved) this.creating--; }
   }
-  async send(id, text, { report = false, reportSetting = false, coordinatorEvent = false, taskPing = false, images: suppliedImages } = {}) {
+  async answerMessageQuestion(id, data) {
+    if (!data || Object.keys(data).some(key => !['messageId', 'questionIndex', 'answer'].includes(key))) throw Object.assign(new Error('Answer only the selected native message question.'), { status: 400, code: 'invalid_async_question_answer' });
     const agent = this.agent(id);
+    const context = currentAsyncQuestion(agent, data.messageId, data.questionIndex);
+    const text = asyncQuestionReply(context.binding, data.answer);
+    context.messageId = data.messageId; context.questionIndex = data.questionIndex;
+    setAsyncQuestionDelivery(context, 'submitting'); this.changed();
+    try {
+      const delivery = await this.send(id, text, { messageQuestion: context });
+      setAsyncQuestionDelivery(context, 'submitted'); this.changed(); void this.coordinator?.flush(id);
+      return { accepted: true, turnId: delivery.turnId };
+    } catch (error) {
+      if (context.attempted) {
+        setAsyncQuestionDelivery(context, 'unconfirmed'); this.changed();
+        throw Object.assign(new Error('The native answer delivery was not confirmed. Check the conversation before responding again.'), { status: error.status || 502, code: 'async_question_delivery_unconfirmed' });
+      }
+      if (context.binding.state === 'submitting') setAsyncQuestionDelivery(context, 'available');
+      this.changed();
+      throw Object.assign(error, { code: 'async_question_not_current' });
+    }
+  }
+  asyncQuestionHandoffBlocked(agent) {
+    const id = agent.id;
+    const ownWaitingHandoff = this.returnJobs.has(id) && ['waiting', 'stopping'].includes(agent.handoff?.phase);
+    return this.summaryJobs.has(id) || this.handoffs.incoming(id) || !!agent.returnSummary?.delivered || (this.returnJobs.has(id) && !ownWaitingHandoff);
+  }
+  async send(id, text, { report = false, reportSetting = false, coordinatorEvent = false, taskPing = false, preserveAsyncQuestions = false, messageQuestion, images: suppliedImages } = {}) {
+    const agent = this.agent(id);
+    const internalControl = report || reportSetting || coordinatorEvent || taskPing || preserveAsyncQuestions;
+    if (internalControl) assertAsyncQuestionsAllowControl(agent);
     if (taskPing && (agent.provider === 'claude' || agent.role === 'coordinator')) throw Object.assign(new Error('Silent task checks are supported only for Codex workers.'), { status: 409 });
     if (taskPing && agent.thread.status?.type === 'active' && !agent.turnId) throw Object.assign(new Error('Wait for the active native turn identity before a silent task check.'), { status: 409 });
-    if (this.summaryJobs.has(id) || this.returnJobs.has(id) || agent.returnSummary?.delivered) throw Object.assign(new Error('Finish the branch handoff before sending another message.'), { status: 409 });
+    if ((this.summaryJobs.has(id) || this.returnJobs.has(id) || agent.returnSummary?.delivered) && (!messageQuestion || this.asyncQuestionHandoffBlocked(agent))) throw Object.assign(new Error('Finish the branch handoff before sending another message.'), { status: 409 });
     if (!agent.canSend) throw Object.assign(new Error(agent.managementNotice || 'The native agent does not allow direct input to this session.'), { status: 409 });
     const images = validateImages(suppliedImages);
     if (typeof text !== 'string' || (!text.trim() && !images.length) || text.length > 32_000) throw Object.assign(new Error('Enter a message of up to 32000 characters or paste an image.'), { status: 400 });
@@ -571,7 +603,7 @@ export class Workspace extends EventEmitter {
     if (agent.provider === 'claude') {
       await this.claude.send(agent, text.trim(), { images, report, reportSetting, instructions: Object.values(context).map(part => part.value).join('\n\n'), stillOpen: () => this.agents.get(id) === agent, ...(report || reportSetting ? { priority: 'next' } : {}) }); return;
     }
-    if (agent.freshBranch && !report && !reportSetting && !taskPing) {
+    if (agent.freshBranch && !report && !reportSetting && !taskPing && !messageQuestion) {
       const title = text.trim().split('\n')[0].slice(0, 120) || 'Image message';
       await this.rpc.call('thread/name/set', { threadId: id, name: title });
       agent.name = title; agent.goal = title; agent.freshBranch = false;
@@ -593,6 +625,12 @@ export class Workspace extends EventEmitter {
     const clientUserMessageId = report || reportSetting || coordinatorEvent || taskPing ? (report ? 'ccng-report-' : reportSetting ? 'ccng-report-setting-' : coordinatorEvent ? 'ccng-event-' : 'ccng-task-ping-') + randomUUID() : null;
     const messageInput = markInternalInput(input(text.trim(), images), clientUserMessageId);
     const identity = clientUserMessageId ? { clientUserMessageId } : {};
+    if (internalControl) assertAsyncQuestionsAllowControl(agent);
+    if (messageQuestion) {
+      if (this.restoring || this.asyncQuestionHandoffBlocked(agent)) throw Object.assign(new Error('Finish restoration or branch handoff before answering this native question.'), { status: 409 });
+      currentAsyncQuestion(agent, messageQuestion.messageId, messageQuestion.questionIndex, messageQuestion);
+      messageQuestion.attempted = true;
+    }
     if (agent.thread.status?.type === 'active' && agent.turnId) {
       const turnId = agent.turnId;
       const delivery = await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: turnId, input: messageInput, ...identity });
@@ -678,7 +716,7 @@ export class Workspace extends EventEmitter {
       const finish = error => { clearTimeout(timer); this.off('change', check); error ? reject(error) : resolve(); };
       const check = () => {
         if (!this.rpc.ready) return finish(new Error('Codex disconnected while preparing the summary. The branch is still open.'));
-        if (branch.questions.length) return finish(new Error('Resolve the branch question before preparing its summary again.'));
+        if (branch.questions.length || hasOpenAsyncQuestions(branch)) return finish(new Error('Resolve the branch question before preparing its summary again.'));
         if (branch.finishedTurn?.id === turn.id) finish(branch.finishedTurn.status === 'completed' ? null : new Error('The summary turn did not complete. The branch is still open.'));
       };
       const timer = setTimeout(() => finish(new Error('Summary preparation timed out. The branch is still open; check its current turn before retrying.')), this.summaryTimeout);
@@ -706,10 +744,10 @@ export class Workspace extends EventEmitter {
       this.idleBranch(branch.id);
       const parentId = await this.parent(branch.id);
       if (!branch.returnSummary.delivered) {
-        try { await this.send(parentId, `Branch summary from "${branch.name}" (${branch.id}):\n\n${text}`); }
+        try { await this.send(parentId, `Branch summary from "${branch.name}" (${branch.id}):\n\n${text}`, { preserveAsyncQuestions: true }); }
         catch (error) {
           const parent = this.agent(parentId);
-          const waiting = parent.questions.length || statusOf(parent.thread) === 'attention';
+          const waiting = parent.questions.length || hasOpenAsyncQuestions(parent) || statusOf(parent.thread) === 'attention';
           const message = waiting
             ? `Parent chat "${parent.name}" has a pending question or approval. Open parent, answer it (or load its pending request), then return to this child and retry. Your summary is kept here.`
             : `Could not send the summary to parent chat "${parent.name}". ${error.message} Your summary is kept in this child; open the parent to check it, then retry.`;
@@ -832,6 +870,7 @@ export class Workspace extends EventEmitter {
     if (method === 'thread/settings/updated') this.syncModel(agent, p.threadSettings?.model, p.threadSettings?.effort);
     if (method === 'turn/started') { agent.turnId = p.turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; agent.tasks = []; agent.summary = null; if (!agent.returnSummary?.delivered) agent.returnSummary = null; }
     if (method === 'turn/completed') {
+      retireAsyncQuestions(agent, 'The originating native turn finished; this question is read-only.', 'terminal');
       agent.turnId = null; agent.thread.status = { type: 'idle' };
       agent.finishedTurn = { id: p.turn.id, status: p.turn.status };
       if (p.turn.error) agent.activity = { text: p.turn.error.message, state: 'failed' };

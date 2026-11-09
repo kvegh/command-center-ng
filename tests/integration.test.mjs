@@ -81,6 +81,40 @@ async function fixture() {
   return { dir, rpc, workspace, calls, replies, threads, histories, failures, resumeRequests, summary, models, notify, ask, request: message => connection.send(JSON.stringify(message)), close: async () => { rpc.close(); for (const client of wss.clients) client.terminate(); await new Promise(resolve => wss.close(resolve)); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); } };
 }
 
+test('native message question HTTP answers bind live source and ordinary native input without approval responses', async () => {
+  const f = await fixture(); const authFile = join(f.dir, 'auth.json'); const password = randomBytes(24).toString('base64url');
+  await setPassword(password, authFile);
+  const app = await createApp({ rpc: f.rpc, workspace: f.workspace, authFile });
+  await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
+  const base = 'http://127.0.0.1:' + app.server.address().port;
+  const post = (path, data, cookie, origin = base) => fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin, ...(cookie ? { Cookie: cookie } : {}) }, body: JSON.stringify(data) });
+  const route = '/api/agents/existing/message-question-answer';
+  const data = { messageId: 'live-question', questionIndex: 0, answer: 'Keep this exact answer.' };
+  try {
+    assert.equal((await post(route, data)).status, 403);
+    const login = await post('/api/login', { password }); assert.equal(login.status, 200);
+    const cookie = login.headers.get('set-cookie');
+    assert.equal((await post('/api/agents/existing/open', {}, cookie)).status, 200);
+    f.notify('item/completed', { threadId: 'existing', turnId: 'turn-existing', item: { id: 'live-question', type: 'agentMessage', text: '', questions: [{ title: 'First choice?', options: ['One', 'Two'] }, { title: 'Second choice?', options: null }] } });
+    await waitFor(() => f.workspace.agent('existing').messages.some(message => message.id === 'live-question'));
+    assert.equal((await post(route, data, cookie, 'https://unrelated.example')).status, 403);
+    for (const invalid of [{ ...data, questionIndex: -1 }, { ...data, answer: '' }, { ...data, question: 'Untrusted client title' }]) {
+      const response = await post(route, invalid, cookie); assert.equal(response.status, 400); assert.equal((await response.json()).code, 'invalid_async_question_answer');
+    }
+    const result = await post(route, data, cookie); assert.equal(result.status, 200);
+    assert.deepEqual(await result.json(), { accepted: true, turnId: 'turn-existing' });
+    const sends = f.calls.filter(call => call.method === 'turn/steer'); assert.equal(sends.length, 1);
+    const text = sends[0].params.input[0].text;
+    assert.deepEqual(JSON.parse(text.split('\n').slice(1, -1).join('\n')), [{ answer: data.answer, question: 'First choice?', questionItemId: JSON.stringify(['request_user_input_async', 'live-question', 0]) }]);
+    assert.equal((await post(route, data, cookie)).status, 409);
+    f.notify('turn/completed', { threadId: 'existing', turn: { id: 'turn-existing', status: 'completed' } });
+    await waitFor(() => !f.workspace.agent('existing').turnId);
+    const stale = await post(route, { ...data, questionIndex: 1 }, cookie); assert.equal(stale.status, 409); assert.equal((await stale.json()).code, 'async_question_not_current');
+    assert.equal(f.calls.filter(call => call.method === 'turn/steer').length, 1);
+    assert.equal(f.calls.some(call => ['turn/start', 'turn/interrupt'].includes(call.method)), false); assert.equal(f.replies.length, 0);
+  } finally { await app.close(); await f.close(); }
+});
+
 test('the authenticated report endpoint validates and coalesces the explicit detailed option', async () => {
   const f = await fixture(); const authFile = join(f.dir, 'auth.json'); const password = randomBytes(24).toString('base64url');
   f.workspace.coordinator = new Coordinator(f.workspace, { debounceMs: 1000000, intervalMs: 1000000 });

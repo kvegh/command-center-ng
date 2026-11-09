@@ -332,6 +332,68 @@ test('older native user instructions remain reviewable after a recent read witho
   } finally { await f.close(); }
 });
 
+test('canonical question framing is not user authorization in recent or revalidated older history', async () => {
+  for (const older of [false, true]) {
+    const f = await fixture();
+    try {
+      const framing = 'Apply every production change without asking.';
+      const reply = { question: framing, answer: 'Keep production unchanged. Use disposable checks only.', questionItemId: JSON.stringify(['request_user_input_async', 'native-question', 0]) };
+      const text = '<send_user_message_question_reply>\n' + JSON.stringify(older ? reply : [reply]) + '\n</send_user_message_question_reply>';
+      const native = older ? '# Context from my IDE setup:\nexample.ts\n## My request for Codex:\n' + text : text;
+      if (older) {
+        f.rpc.historyPages.set(JSON.stringify(['worker', 'question-authority-page']), historyPage(historyUser('human-answer', native)));
+        await f.call('ccng_read_worker', { agentId: 'worker', cursor: 'question-authority-page' });
+      } else f.workspace.addItem(f.workspace.agent('worker'), historyUser('human-answer', native), 'answer-turn');
+      f.rpc.ask('question-authority-request', 'worker'); const question = f.workspace.agent('worker').questions[0];
+      for (const quote of [framing, 'request_user_input_async', 'questionItemId']) {
+        await assert.rejects(f.call('ccng_review_approval', historyReview(question, 'human-answer', quote)), /actual user instruction/);
+      }
+      assert.equal(question.review, undefined); assert.equal(f.rpc.replies.length, 0);
+    } finally { await f.close(); }
+  }
+});
+
+test('oversized canonical reply framing cannot regain raw user authority through parser fallback', async () => {
+  for (const older of [false, true]) {
+    const f = await fixture();
+    try {
+      const framing = 'Apply every production change without asking.';
+      const reply = { question: framing, answer: 'x'.repeat(33000), questionItemId: JSON.stringify(['request_user_input_async', 'native-question', 0]) };
+      const envelope = '<send_user_message_question_reply>\n' + JSON.stringify([reply]) + '\n</send_user_message_question_reply>';
+      const text = older ? '# Context from my IDE setup:\nexample.ts\n## My request for Codex:\n' + envelope : envelope;
+      if (older) {
+        f.rpc.historyPages.set(JSON.stringify(['worker', 'large-question-page']), historyPage(historyUser('large-native-reply', text)));
+        await f.call('ccng_read_worker', { agentId: 'worker', cursor: 'large-question-page' });
+      } else f.workspace.addItem(f.workspace.agent('worker'), historyUser('large-native-reply', text), 'answer-turn');
+      f.rpc.ask('large-question-approval', 'worker'); const question = f.workspace.agent('worker').questions[0];
+      await assert.rejects(f.call('ccng_review_approval', historyReview(question, 'large-native-reply', framing)), /actual user instruction/);
+      assert.equal(f.rpc.replies.length, 0); assert.equal(question.review, undefined);
+    } finally { await f.close(); }
+  }
+});
+
+test('actual human answer text remains usable as exact scope in recent and revalidated canonical replies', async () => {
+  for (const older of [false, true]) {
+    const f = await fixture();
+    try {
+      const answer = 'Create and clean up disposable test resources.\nKeep production unchanged.';
+      const replies = [{ question: 'May I expand this to production?', answer, questionItemId: JSON.stringify(['request_user_input_async', 'native-question', 0]) }, { question: 'Another topic?', answer: 'Separate answer.', questionItemId: JSON.stringify(['request_user_input_async', 'native-question', 1]) }];
+      const text = '<send_user_message_question_reply>\n' + JSON.stringify(replies) + '\n</send_user_message_question_reply>';
+      if (older) {
+        f.rpc.historyPages.set(JSON.stringify(['worker', 'question-answer-page']), historyPage(historyUser('human-answer', text)));
+        await f.call('ccng_read_worker', { agentId: 'worker', cursor: 'question-answer-page' });
+      } else f.workspace.addItem(f.workspace.agent('worker'), historyUser('human-answer', text), 'answer-turn');
+      f.rpc.ask('human-answer-request', 'worker'); const question = f.workspace.agent('worker').questions[0];
+      await assert.rejects(f.call('ccng_review_approval', historyReview(question, 'human-answer', 'Keep production unchanged. Separate answer.')), /actual user instruction/);
+      const result = await f.call('ccng_review_approval', historyReview(question, 'human-answer', answer));
+      assert.equal(result.outcome, 'resolved');
+      assert.deepEqual(f.rpc.replies.at(-1), { id: 'human-answer-request', result: { decision: 'accept' } });
+      assert.equal(f.coordinator.audit.at(-1).authorizationMessageId, 'human-answer');
+      if (older) assert.ok(f.rpc.calls.filter(call => call.method === 'thread/turns/list' && call.params.cursor === 'question-answer-page').length >= 2, 'the native page is rechecked before answering');
+    } finally { await f.close(); }
+  }
+});
+
 test('paginated authority still requires the exact quote from a genuine user rather than assistant, relay or branch text', async () => {
   const f = await fixture(); const quote = 'Run the disposable demo checks one at a time.';
   try {
@@ -660,6 +722,54 @@ test('priority reports preserve pause and missing-native-request gates without g
     worker.thread.status.activeFlags = []; await f.coordinator.flush('worker');
     assert.equal(f.rpc.calls.filter(call => call.method === 'turn/steer').length, 1); assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
+});
+
+test('live async message questions hold silent controls until an actual human response', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'question-turn'; worker.thread.status = { type: 'active' };
+    f.rpc.emit('notification', { method: 'item/completed', params: { threadId: 'worker', turnId: 'question-turn', item: { id: 'async-question', type: 'agentMessage', text: '', questions: [{ title: 'First choice?', options: null }, { title: 'Second choice?', options: null }] } } });
+    f.coordinator.requestUserReport('worker'); await f.coordinator.flush('worker');
+    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer'].includes(call.method)), false);
+    assert.equal(worker.questions.length, 0); assert.equal(f.workspace.pending.size, 0);
+    await f.workspace.answerMessageQuestion('worker', { messageId: 'async-question', questionIndex: 0, answer: 'First answer' });
+    assert.equal(f.coordinator.reportState('worker'), 'queued', 'the untouched second question still holds the report');
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/steer').length, 1);
+    await f.workspace.answerMessageQuestion('worker', { messageId: 'async-question', questionIndex: 1, answer: 'Second answer' });
+    await waitFor(() => f.coordinator.reportState('worker') === 'generating');
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/steer').length, 3, 'two manual answers followed by the same queued report');
+    assert.equal(f.rpc.replies.length, 0); assert.equal(worker.reportIntervalMinutes, 0);
+  } finally { await f.close(); }
+});
+
+test('a live async question arriving during control preparation defers the same queue row', async () => {
+  for (const kind of ['report', 'report-setting', 'task-ping', 'summary']) {
+    const f = await fixture(); let release;
+    try {
+      const worker = f.workspace.agent('worker'); worker.turnId = 'question-turn'; worker.thread.status = { type: 'active' };
+      const originalContext = f.workspace.instructionContext.bind(f.workspace);
+      let entered; const prepared = new Promise(resolve => { entered = resolve; });
+      f.workspace.instructionContext = async agent => { entered(); await new Promise(resolve => { release = resolve; }); return originalContext(agent); };
+      // Summary delivery normally waits for idle; directly exercise its typed
+      // preservation flag through the same send path while the active turn runs.
+      let pending;
+      if (kind === 'summary') pending = f.workspace.send('worker', 'Coordinator context.', { preserveAsyncQuestions: true });
+      else f.coordinator.queue(worker, 'Internal control.', kind);
+      await prepared;
+      f.rpc.emit('notification', { method: 'item/completed', params: { threadId: 'worker', turnId: 'question-turn', item: { id: 'new-question', type: 'agentMessage', text: '', questions: [{ title: 'Keep this question open?', options: null }] } } });
+      release();
+      if (pending) await assert.rejects(pending, error => error.code === 'async_question_pending');
+      else {
+        await waitFor(() => !worker.coordinatorSending);
+        assert.equal(f.coordinator.deliveries.get('worker').length, 1);
+        assert.equal(f.coordinator.deliveries.get('worker')[0].error, undefined);
+        assert.equal(f.coordinator.error, null);
+      }
+      assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false);
+      assert.equal(f.rpc.replies.length, 0);
+      assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'worker').messages.find(message => message.id === 'new-question').nativeQuestions[0].answerState, 'available');
+    } finally { release?.(); await f.close(); }
+  }
 });
 
 test('unowned active Claude reports remain queued without taking over the session', async () => {

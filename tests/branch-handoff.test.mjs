@@ -99,6 +99,43 @@ test('branch pending requests are preserved and handoff begins after an answer',
   assert.deepEqual(f.archived, ['child']);
 });
 
+test('a parent live async question defers handoff without locking out its human answer', async () => {
+  const f = fixture(); f.parent.thread.status = { type: 'active' }; f.parent.turnId = 'parent-live';
+  f.w.addItem(f.parent, { id: 'parent-question', type: 'agentMessage', text: '', questions: [{ title: 'Continue existing work?', options: null }] }, 'parent-live', false, { live: true, completed: true });
+  f.w.startHandoff('child');
+  await until(() => f.branch.handoff?.phase === 'waiting' && !!f.branch.returnSummary);
+  assert.equal(f.w.handoffs.incoming('parent'), false, 'waiting cannot reserve the parent against its answer');
+  assert.equal(f.calls.some(call => call.method === 'turn/start' && call.params.threadId === 'parent'), false);
+  assert.ok(f.w.agents.has('child')); assert.deepEqual(f.archived, []);
+  const text = '<send_user_message_question_reply>\n' + JSON.stringify([{ answer: 'Continue', question: 'Continue existing work?', questionItemId: JSON.stringify(['request_user_input_async', 'parent-question', 0]) }]) + '\n</send_user_message_question_reply>';
+  f.w.addItem(f.parent, { id: 'parent-answer', type: 'userMessage', content: [{ type: 'text', text }] }, 'parent-live', false, { live: true, completed: true });
+  f.parent.thread.status = { type: 'idle' }; f.parent.turnId = null;
+  f.w.changed(); await done(f);
+  assert.deepEqual(f.archived, ['child']);
+});
+
+test('an own-branch question stays answerable while handoff waits for its checkpoint', async () => {
+  const f = fixture(); f.branch.thread.status = { type: 'active' }; f.branch.turnId = 'branch-live';
+  f.w.addItem(f.branch, { id: 'branch-question', type: 'agentMessage', text: '', questions: [{ title: 'Continue?', options: null }] }, 'branch-live', false, { live: true, completed: true });
+  f.w.startHandoff('child'); await until(() => f.branch.handoff?.phase === 'waiting');
+  assert.equal(f.calls.some(call => ['turn/start', 'turn/steer'].includes(call.method)), false);
+  assert.deepEqual(await f.w.answerMessageQuestion('child', { messageId: 'branch-question', questionIndex: 0, answer: 'Continue' }), { accepted: true, turnId: 'branch-live' });
+  await done(f); assert.deepEqual(f.archived, ['child']);
+});
+
+test('a question arriving during checkpoint preparation prevents a native checkpoint send', async () => {
+  const f = fixture();
+  f.w.instructionContext = async () => {
+    f.branch.thread.status = { type: 'active' }; f.branch.turnId = 'new-turn';
+    f.w.addItem(f.branch, { id: 'late-question', type: 'agentMessage', text: '', questions: [{ title: 'A real choice?', options: null }] }, 'new-turn', false, { live: true, completed: true });
+    return {};
+  };
+  f.w.startHandoff('child'); await done(f);
+  assert.equal(f.branch.handoff.phase, 'failed'); assert.equal(f.w.returnJobs.has('child'), false);
+  assert.equal(f.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false);
+  assert.equal(f.w.snapshot().agents.find(agent => agent.id === 'child').messages[0].nativeQuestions[0].answerState, 'available');
+});
+
 test('parent pending request defers delivery without deleting the branch', async () => {
   const f = fixture(); f.parent.questions = [{ id: 'parent-request' }];
   f.w.startHandoff('child');
@@ -107,6 +144,55 @@ test('parent pending request defers delivery without deleting the branch', async
   assert.ok(!f.calls.some(call => call.method === 'turn/start' && call.params.threadId === 'parent'));
   f.parent.questions = []; f.w.changed(); await done(f);
   assert.deepEqual(f.archived, ['child']);
+});
+
+test('an observed question ending without an accepted reply keeps the branch and explicit retry rebaselines it', async () => {
+  for (const ending of ['terminal', 'removed', 'changed']) {
+    const f = fixture(); f.branch.thread.status = { type: 'active' }; f.branch.turnId = 'branch-live';
+    const question = { id: 'observed-question', type: 'agentMessage', text: '', questions: [{ title: 'Keep my draft?', options: null }] };
+    f.w.addItem(f.branch, question, 'branch-live', false, { live: true, completed: true });
+    f.w.startHandoff('child');
+    if (ending === 'terminal') f.rpc.emit('notification', { method: 'turn/completed', params: { threadId: 'child', turn: { id: 'branch-live', status: 'completed' } } });
+    else {
+      f.w.addItem(f.branch, { ...question, questions: ending === 'removed' ? null : [{ title: 'A changed question', options: null }] }, 'branch-live', false, { live: true, completed: true });
+      f.w.changed();
+    }
+    await done(f);
+    assert.equal(f.branch.handoff.phase, 'failed'); assert.match(f.branch.handoff.detail, /unsent answer.*kept/);
+    assert.ok(f.w.agents.has('child')); assert.equal(f.w.returnJobs.has('child'), false);
+    assert.equal(f.links.length, 0); assert.deepEqual(f.archived, []);
+    if (ending === 'terminal') {
+      // This new user action represents review of the retained view; no draft
+      // content or browser storage is sent to the backend.
+      f.w.startHandoff('child'); await done(f);
+      assert.deepEqual(f.archived, ['child'], 'old read-only history does not permanently prevent an explicit retry');
+    }
+  }
+});
+
+test('an unconfirmed answer during stopping keeps the branch instead of closing a retained draft', async () => {
+  const f = fixture({ holdCheckpoint: true }); f.branch.thread.status = { type: 'active' }; f.branch.turnId = 'branch-live';
+  f.w.startHandoff('child');
+  await until(() => f.calls.some(call => call.method === 'turn/steer'));
+  f.w.addItem(f.branch, { id: 'stopping-question', type: 'agentMessage', text: '', questions: [{ title: 'Wait for me?', options: null }] }, 'branch-live', false, { live: true, completed: true });
+  const originalCall = f.rpc.call;
+  f.rpc.call = async (method, params) => {
+    if (method === 'turn/steer' && params.input[0].text.startsWith('<send_user_message_question_reply>')) throw new Error('Synthetic uncertain answer');
+    return originalCall(method, params);
+  };
+  await assert.rejects(f.w.answerMessageQuestion('child', { messageId: 'stopping-question', questionIndex: 0, answer: 'Typed answer' }), error => error.code === 'async_question_delivery_unconfirmed');
+  await done(f);
+  assert.equal(f.branch.handoff.phase, 'failed'); assert.ok(f.w.agents.has('child'));
+  assert.equal(f.w.returnJobs.has('child'), false); assert.deepEqual(f.archived, []);
+});
+
+test('an intentional accepted followup remains valid when the observed question turn later ends', async () => {
+  const f = fixture({ holdCheckpoint: true }); f.branch.thread.status = { type: 'active' }; f.branch.turnId = 'branch-live';
+  f.w.startHandoff('child'); await until(() => f.calls.some(call => call.method === 'turn/steer'));
+  f.w.addItem(f.branch, { id: 'followup-question', type: 'agentMessage', text: '', questions: [{ title: 'Which choice?', options: null }] }, 'branch-live', false, { live: true, completed: true });
+  f.w.addItem(f.branch, { id: 'human-followup', type: 'userMessage', content: [{ type: 'text', text: 'Keep the existing choice and finish the handoff.' }] }, 'branch-live', false, { live: true, completed: true });
+  f.rpc.emit('notification', { method: 'turn/completed', params: { threadId: 'child', turn: { id: 'branch-live', status: 'completed' } } });
+  await done(f); assert.deepEqual(f.archived, ['child']);
 });
 
 test('local background terminals keep the original branch and never transfer or archive', async () => {

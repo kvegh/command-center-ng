@@ -182,12 +182,42 @@ approvals. Events received before discovery, or request details never delivered
 to this connection, are not guaranteed recoverable. Unknown status or missing
 details stay explicit; a displayed count is not proof of every native request.
 
-Some newer Codex questions arrive as assistant-message metadata rather than a
-pending native request. Their titles/options remain visible even when the native
-message has no text. These are displayed read-only with a native-client answer
-instruction: the installed interface does not establish an exact reply binding
-for this message-only format. They do not create approval controls or claim an
-unanswered/blocking state. Supported native request forms remain interactive.
+Some Codex questions arrive as assistant-message metadata rather than a
+blocking approval request. Their titles/options remain visible even when the
+message has no text. Working 1.1.0 adds explicit **Send answer** controls only
+for eligible current Codex worker questions in a completed assistant message
+within the same known active turn, with complete original message/index
+bindings. The server rederives that binding rather than trusting a
+client-supplied question title. Restored/history-only questions cannot restart a
+turn. Choose an option to fill editable answer text, or enter a free-text
+answer; send each question separately. Partial replies preserve the other
+question editors.
+
+These replies use Codex's ordinary native input/steering path, not approval
+RPCs. An accepted input confirms submission/emission; it does not establish
+that the agent used it, completed a task or resolved an approval. Existing
+connection, ownership, pending-request and handoff gates still apply. Unknown,
+truncated, historical, terminal or unsafe bindings remain read-only with the
+native next action; Coordinator and postponed Claude questions do not gain
+this reply path. Input states distinguish available, submitting, submitted,
+unconfirmed and read-only. An uncertain send disables blind retry; failures
+stay explicit without automatic resending. Native terminal state ends reply
+eligibility. CCNG also conservatively retires its editor after an observed human
+ordinary follow-up; that is not proof of an answer or a claim that every native
+client handles other-client ordinary messages identically.
+
+Unsent answer text and submitting/submitted/uncertain/error states survive
+switching CCNG workers in existing browser memory only. Refresh discards those
+browser drafts and latches; none are saved in localStorage, workspace state or
+a new server store. Native history remains authoritative.
+
+The candidate must hold automatic Coordinator messages, reports, task checks,
+summaries and handoffs while a verified live question awaits human input,
+including ambiguous submission, using existing bounded queues and pre-send gates.
+Those ordinary control inputs must not retire an editor without user intent.
+No interval, timer, native RPC, permissions or separate model call is added.
+Final gate checks, combined verification, publication, deployment and actual
+native/browser acceptance remain pending.
 
 Manual answers retain the exact native request identity and wait for native
 resolution. Duplicate submissions are blocked while confirmation is pending.

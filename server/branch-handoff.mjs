@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { realpath } from 'node:fs/promises';
 import { readCodexGoal, pauseCodexGoal } from './branch-continuation.mjs';
 import { HANDOFF_CHECKPOINT_REQUEST } from './branch-summary.mjs';
+import { hasOpenAsyncQuestions, observeHandoffQuestions, handoffQuestionNeedsReview } from './async-question-replies.mjs';
 
 const sourceKinds = ['cli', 'vscode', 'exec', 'appServer', 'subAgent', 'subAgentReview', 'subAgentCompact', 'subAgentThreadSpawn', 'subAgentOther', 'unknown'];
 const fail = message => Object.assign(new Error(message), { status: 409 });
-const attention = agent => agent.questions.length || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag));
+const attention = agent => agent.questions.length || hasOpenAsyncQuestions(agent) || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag));
 const checkpoint = `${HANDOFF_CHECKPOINT_REQUEST} The user requested Hand back & close for this branch. Stop starting ordinary project work. At the next safe checkpoint, save useful progress and unfinished tasks, record exact external job IDs and who must monitor them, and settle branch-owned local background terminals and all spawned agents. Do not interrupt unsafe work, answer pending permissions, change task states to complete, or archive anything. Finish this turn when local work is safely settled. The application will transfer task links and request the handoff summary separately.`;
 
 // Process-local coordination only. Native history and Beads remain the durable
@@ -17,6 +18,13 @@ export class BranchHandoffs {
   }
   active(id) { return this.workspace.returnJobs.has(id); }
   incoming(id) { return this.deliveringParents.has(id); }
+  observeQuestions(branch) {
+    const record = this.records.get(branch.id);
+    if (record && this.active(branch.id) && ['waiting', 'stopping'].includes(branch.handoff?.phase)) observeHandoffQuestions(branch, record.observedAsyncQuestions);
+  }
+  checkQuestions(branch, record) {
+    if (handoffQuestionNeedsReview(branch, record.observedAsyncQuestions)) throw fail('A native question ended or its answer was unconfirmed. Your branch and any unsent answer are kept. Review them, then explicitly retry Hand back & close.');
+  }
   state(branch, record, phase, detail) {
     branch.handoff = { phase, detail, parentId: branch.parentId, ...(record.taskCount !== undefined ? { taskCount: record.taskCount } : {}) };
     this.workspace.changed();
@@ -30,6 +38,9 @@ export class BranchHandoffs {
     if (!branch.canSend || !w.rpc.ready) throw fail('Reconnect a branch that accepts input before handing back.');
     const record = this.records.get(id) || { clientId: `ccng-handoff-${randomUUID()}` };
     if (record.archiveUncertain) throw fail('Native archive confirmation was lost. Inspect the native branch before closing its retained view; the summary was already delivered.');
+    // A new explicit attempt follows user review; closed historical questions
+    // alone must not permanently block retry. Never infer whether a draft exists.
+    record.observedAsyncQuestions = new Map();
     this.records.set(id, record);
     this.state(branch, record, 'waiting', 'Handback queued. You can switch tabs; pending requests remain yours to answer.');
     // Reserve the existing handoff gate before any asynchronous work can race it.
@@ -39,7 +50,7 @@ export class BranchHandoffs {
       if (this.deliveringParents.get(branch.parentId) === id) this.deliveringParents.delete(branch.parentId);
       w.returnJobs.delete(id); w.changed();
     });
-    w.returnJobs.set(id, job); w.changed();
+    w.returnJobs.set(id, job); this.observeQuestions(branch); w.changed();
     return { id, parentId: branch.parentId };
   }
   async until(branch, check, detail, timeout = this.timeout) {
@@ -62,21 +73,28 @@ export class BranchHandoffs {
   async checkpoint(branch, record) {
     const w = this.workspace;
     this.state(branch, record, 'waiting', 'Waiting for branch requests to be answered before its safe checkpoint.');
-    await this.until(branch, async () => { await this.read(branch); return !attention(branch); }, 'The branch still needs an answer.');
+    await this.until(branch, async () => { await this.read(branch); this.observeQuestions(branch); this.checkQuestions(branch, record); return !attention(branch); }, 'The branch still needs an answer.');
     await w.activate(branch.id);
     await this.read(branch);
+    this.checkQuestions(branch, record);
+    if (attention(branch)) throw fail('The branch needs an answer before its checkpoint. The branch is kept.');
     if (record.checkpointUncertain) throw fail('Checkpoint acceptance is uncertain. Inspect the branch; no checkpoint request was repeated.');
     if (!record.checkpointTurn) {
       this.state(branch, record, 'stopping', 'Asking the branch to finish at a safe checkpoint and settle local work.');
       if (branch.thread.status?.type === 'active') {
         if (!branch.turnId) await w.history(branch.id);
         if (!branch.turnId) throw fail('The active native turn could not be identified. The branch is kept.');
+        this.checkQuestions(branch, record);
+        if (attention(branch)) throw fail('The branch needs an answer before its checkpoint. The branch is kept.');
         record.checkpointTurn = branch.turnId;
         try { await w.rpc.call('turn/steer', { threadId: branch.id, expectedTurnId: record.checkpointTurn, input: [{ type: 'text', text: checkpoint, text_elements: [] }] }); }
         catch (error) { record.checkpointUncertain = true; throw fail(`Checkpoint acceptance is uncertain. Check the branch before retrying. ${error.message}`); }
       } else {
+        const context = await w.instructionContext(branch);
+        this.checkQuestions(branch, record);
+        if (attention(branch) || branch.thread.status?.type !== 'idle') throw fail('The branch changed before its checkpoint. The branch is kept.');
         record.checkpointUncertain = true;
-        const { turn } = await w.rpc.call('turn/start', { threadId: branch.id, input: [{ type: 'text', text: checkpoint, text_elements: [] }], additionalContext: await w.instructionContext(branch) });
+        const { turn } = await w.rpc.call('turn/start', { threadId: branch.id, input: [{ type: 'text', text: checkpoint, text_elements: [] }], additionalContext: context });
         record.checkpointTurn = turn.id; record.checkpointUncertain = false;
         if (branch.finishedTurn?.id !== turn.id) { branch.turnId = turn.id; branch.thread.status = { type: 'active', activeFlags: [] }; }
       }
@@ -84,6 +102,7 @@ export class BranchHandoffs {
     if (record.checkpointUncertain) throw fail('Checkpoint acceptance is uncertain. Inspect the branch; no checkpoint request was repeated.');
     await this.until(branch, async () => {
       await this.read(branch);
+      this.observeQuestions(branch); this.checkQuestions(branch, record);
       if (attention(branch) || branch.thread.status?.type === 'active') return false;
       if (branch.finishedTurn?.id === record.checkpointTurn) {
         if (branch.finishedTurn.status !== 'completed') { delete record.checkpointTurn; throw fail('The checkpoint turn did not complete successfully. The branch remains open; retry requests a new safe checkpoint.'); }
@@ -98,6 +117,7 @@ export class BranchHandoffs {
     // safe way to interrupt a running native tool, and accounting is preserved.
     const goal = await readCodexGoal(w.rpc, branch.id);
     await this.read(branch);
+    this.checkQuestions(branch, record);
     if (branch.thread.status?.type !== 'idle' || attention(branch)) throw fail('Native work resumed before its goal could be paused. The branch is kept.');
     if (goal?.status === 'active') await pauseCodexGoal(w.rpc, branch.id);
     await this.settled(branch);
@@ -166,6 +186,7 @@ export class BranchHandoffs {
     if (await realpath(branch.cwd) !== await realpath(parent.cwd)) throw fail('Parent and branch use different project directories. Their task transfer needs review.');
     await this.settled(branch);
     this.state(branch, record, 'transferring', 'Linking every branch task to the parent while retaining the branch history.');
+    this.checkQuestions(branch, record);
     const linked = await w.beads.handoff(branch.cwd, branch.id, parent.id); record.taskCount = linked.taskIds.length;
     await Promise.all([w.refreshTasks(branch.id), w.refreshTasks(parent.id)]);
     this.state(branch, record, 'sending', 'Delivering the summary and task-history reference to the parent.');
@@ -209,6 +230,7 @@ export class BranchHandoffs {
     // Reverify all links immediately before archive, including work added since
     // the first transfer. Failed/partial transfers retain both views and data.
     await w.beads.handoff(branch.cwd, branch.id, parent.id);
+    this.checkQuestions(branch, record);
     record.archiveUncertain = true;
     const archived = await w.rpc.call('thread/archive', { threadId: branch.id });
     if (!archived || typeof archived !== 'object' || Array.isArray(archived)) throw fail('Codex did not confirm branch archiving. Its delivered summary and retained branch view remain available.');

@@ -1,8 +1,9 @@
 # Requirements for agents and harnesses
 
 This reference is derived from Command Center NG's source, tests and recorded
-decisions through 0.27.3. It is a guide for assessing another integration, not
-an implementation of one or a claim that another product is compatible.
+decisions initially captured through 0.27.3, with later updates including the
+working 1.1.0 question-reply contract below. It is a guide for assessing another
+integration, not a claim that another product is compatible.
 
 The main finding: **model access alone is insufficient**. A managed integration
 needs a native session interface, truthful state and history, safe input/control,
@@ -106,6 +107,33 @@ filesystem/network grants, MCP forms/external steps and internal machine
 exchanges. Internal tokens are not human questions. Status flags without
 delivered request details do not prove ownership or that no request exists.
 Recovery must obtain exact current details rather than invent an answer.
+
+A provider may emit nonblocking assistant-message questions separately from
+blocking approval requests. Require a proven native answer envelope, original
+message identity and original question indices; never manufacture approval
+IDs. Working 1.1.0 maps live completed assistant questions in the same known
+active Codex turn to ordinary native input/steering. Derive exact bindings
+server-side; restored/history-only questions cannot restart a turn. Input
+accepted is not question/task resolved; preserve partial replies, native
+terminal retirement, unknown/truncated read-only cases and ordinary-send gates.
+CCNG additionally retires editors after observed ordinary human follow-up as a
+conservative policy. Native TUI local submission clears its editor; replayed
+other-client ordinary input only explicitly matches canonical answered IDs.
+Do not claim those are identical cross-client lifecycles. Preserve answer text
+and send-state latches across worker switches in browser memory only; refresh
+may discard them. Automatic control messages/handoffs must preserve live human
+decisions through existing queues/pre-send gates, pending final verification.
+No auto-follow-up, new permission or separate question database is implied.
+
+Source proof at Codex 0.167.0 commit
+`086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a`: the
+[answer-fragment definition](https://github.com/openai/codex/blob/086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a/codex-rs/context-fragments/src/answered_question.rs#L17)
+bounds the title to 512 UTF-8 bytes before CR/LF normalization; the
+[question-state implementation](https://github.com/openai/codex/blob/086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a/codex-rs/tui/src/bottom_pane/async_questions/state.rs#L20)
+uses original message/index identities and exact partial-reply matching; and the
+[native submission path](https://github.com/openai/codex/blob/086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a/codex-rs/tui/src/chatwidget/questions.rs#L143)
+uses ordinary input. Source evidence establishes the contract, not deployed
+CCNG or actual model-answer acceptance.
 
 Agents must use the provider's structured question tool when it is available
 in the current mode. The existing

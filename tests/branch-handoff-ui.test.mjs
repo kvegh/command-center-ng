@@ -141,8 +141,9 @@ test('actual app wiring keeps background acceptance separate from navigation and
   }; visit(ast);
   assert.match(start, /api\(`agents\/\$\{id\}\/handoff`, \{\}\)/);
   assert.doesNotMatch(start, /choose\(|setSelected\(|setDrafts\(|setTabOrder\(/);
-  assert.equal(controls.get('BranchHandoff').start, '() => startHandoff(active.id)');
-  assert.equal(controls.get('BranchHandoff').unsentText, '!!draftText.trim()');
+  assert.match(controls.get('BranchHandoff').start, /if \(unsentQuestionText\) return Promise.reject/);
+  assert.match(controls.get('BranchHandoff').start, /return startHandoff\(active.id\)/);
+  assert.equal(controls.get('BranchHandoff').unsentText, '!!draftText.trim() || unsentQuestionText');
   assert.equal(controls.get('BranchHandoff').unsentImages, 'draftImages.length');
   assert.equal(controls.get('ChatDraft').disabled, 'draftLocked');
   assert.match(controls.get('TaskDiscussion').canSend, /!branchDraftLocked\(worker, handoffStarting.includes\(worker.id\)\)/);

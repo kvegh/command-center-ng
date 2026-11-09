@@ -10,8 +10,8 @@ export function requestKind(question) {
   if (question.method === MCP_REQUEST && ['form', 'openai/form', 'openaiForm'].includes(question.params.mode) && question.params._meta?.codex_approval_kind === 'mcp_tool_call') return 'MCP tool approval';
   return ({ 'claude/tool/requestApproval': 'Claude tool approval', 'claude/tool/requestUserInput': 'Claude question', 'claude/mcp/elicitation/request': question.params.mode === 'url' ? 'External step' : 'MCP form', [COMMAND_APPROVAL]: 'Command approval', [FILE_APPROVAL]: 'File approval', [CLARIFICATION]: 'Question', [PERMISSIONS]: 'Permission request', [MCP_REQUEST]: question.params.mode === 'url' ? 'External step' : 'MCP form' })[question.method] || 'Unsupported native request';
 }
-// Display-only assistant metadata has no request ID or verified answer route.
-// Keep it distinct from actionable server requests and never synthesize text.
+// Async message questions remain separate from blocking server requests. Keep
+// the original index; Workspace binds the untouched native source separately.
 export function nativeMessageQuestions(item) {
   if (item?.type !== 'agentMessage' || !Array.isArray(item.questions) || !item.questions.length) return {};
   const questions = []; let remaining = 8000, truncated = item.questions.length > 32;
@@ -20,7 +20,7 @@ export function nativeMessageQuestions(item) {
     remaining -= text.length; if (text.length < value.length) truncated = true;
     return text;
   };
-  for (const question of item.questions.slice(0, 32)) {
+  for (const [questionIndex, question] of item.questions.slice(0, 32).entries()) {
     if (!question || typeof question.title !== 'string' || !question.title.trim()) { truncated = true; continue; }
     const title = take(question.title, 1000); if (!title) { truncated = true; break; }
     let options = null;
@@ -33,7 +33,7 @@ export function nativeMessageQuestions(item) {
         });
       } else truncated = true;
     }
-    questions.push({ title, options });
+    questions.push({ title, options, questionIndex });
   }
   return questions.length ? { nativeQuestions: questions, ...(truncated ? { nativeQuestionsTruncated: true } : {}) } : {};
 }

@@ -442,6 +442,28 @@ persisted in workspace data.
 Report now after Never queues/coalesces one existing report without changing
 cadence, interrupting work or answering a pending request.
 
+For the working 1.1.0 assistant-question path, only eligible current Codex
+worker metadata from a completed assistant message within the same known
+active turn, with exact original message ID and zero-based question index,
+permits a manual ordinary native answer in that active turn. Derive the native
+title fragment server-side; do not trust client title text or restart a turn
+from restored/history-only metadata. Never fabricate an approval ID or use
+approval RPCs for it. Keep per-question drafts/partial replies independent and
+distinguish native input acceptance from an answered question or successful
+task. Unknown, truncated, unsafe, inactive or unbound metadata stays read-only
+with a truthful native next action. Native terminal state ends eligibility;
+CCNG ordinary-human-follow-up retirement is conservative policy, not a claim of
+identical native cross-client behavior or proof of an answer. Keep per-question
+unsent text and submission/error latches across worker switches only in existing
+browser memory; refresh may discard them, with no localStorage/workspace/server
+answer store. The candidate must hold automatic Coordinator/report/task-check/
+summary/handoff input while verified live human input or ambiguous submission is
+pending, using existing bounded queues and pre-send gates; verification remains
+pending. Preserve shared ordinary-send gates, native ownership/permissions and
+uncertain-send errors; no automatic follow-up/retry,
+question store, broader Coordinator authority or Claude support is introduced.
+Publication and deployed acceptance remain pending until actual verification.
+
 Retain known native Codex child status for backend/Coordinator readback. Show its
 activity in a default-collapsed Subagents section below Tasks. Delivered pending
 child approval/question cards and necessary recovery warnings stay outside that

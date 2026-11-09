@@ -365,9 +365,24 @@ answer scopes and reject review when the proposal changes while being checked.
 Preserve native assistant-message question titles/options even when their text
 is empty. Show bounded metadata literally and disclose truncation; do not merge
 it into pending approvals or infer whether a historical question remains open.
-Until a supported exact reply binding is established for message-only questions,
-show the native-client next action without fabricated IDs, reply markup or
-controls. Existing native server-request forms remain separately answerable.
+Working 1.1.0 adds manual per-question option/free-text replies only for
+eligible current Codex workers, only a completed assistant message within the
+same known active turn, with exact original native message ID and zero-based
+question index. Derive the bounded title fragment server-side; do not trust
+client title text. Restored/history-only metadata may not restart a turn. Send
+through supported ordinary native input/steering, not approval RPCs; native
+acceptance establishes emission, not task/question resolution. Partial replies
+keep other editors. Native terminal state ends eligibility; CCNG ordinary-human-
+follow-up retirement is conservative policy, not exact native cross-client
+parity or proof of an answer. Preserve unsent text and submission/error latches
+across worker switches only in existing browser memory, not localStorage,
+workspace or server storage; refresh may discard them. Automatic control input
+and handoffs must wait on verified live human decisions or ambiguous submissions
+through existing bounded queues and pre-send gates; gate verification is pending. Unknown, truncated, unsafe, inactive or unbound cases stay read-only with truthful next steps. Preserve connection, ownership, request and
+handoff gates, explicit errors and no automatic resend/follow-up. No new
+store, native permission or model call. Existing native server-request forms
+remain separately answerable; combined verification/publication/deployment of
+the new path remain pending.
 
 Escape interrupts the eligible native turn in the visible chat through the
 existing Interrupt action. It preserves unsent drafts and normal local Escape

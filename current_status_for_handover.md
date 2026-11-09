@@ -5,6 +5,36 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Working candidate **1.1.0** implements manual replies to eligible current
+Codex assistant-message questions from a completed message within the same
+known active turn. Restored/history-only metadata cannot restart a turn.
+Server-derived original native message IDs/zero-based indices bind per-
+question option/free-text answers through ordinary active-turn input, not
+approval RPCs. Partial replies preserve other editors. Native acceptance means
+accepted input, not successful task completion or confirmed question
+resolution. Native terminal retirement ends eligibility. CCNG ordinary-human-follow-up
+retirement is conservative policy, not exact native cross-client parity or proof
+of answering. Browser-memory drafts/latches survive worker switches but not
+refresh; no localStorage/workspace/server answer persistence is added. Automatic
+control/handoff gates must preserve live human decisions and ambiguous sends
+using existing queues. Per-attempt observations defer unsafe branch closure,
+retaining drafts and releasing the existing handoff job for explicit retry.
+Unsafe, truncated, inactive, historical or unbound questions stay read-only;
+normal ownership, connection, pending-request and handoff gates remain. No
+automatic follow-up/retry, new store, native permissions or Claude feature is
+added.
+
+Source proof uses native 0.167.0 commit
+`086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a`: the ordinary AppServer envelope
+binds the original message/index; its title is bounded to 512 UTF-8 bytes
+before CR/LF normalization to spaces. Native async `accepted: true` is
+emission, not an answer. The final combined827-test suite has826 passes, one
+alternate-group skip and no failure; the clean production build and independent
+review pass. Canonical replies authorize only through actual human answer text,
+never model-written framing. Publication and installed verification remain
+pending; real native/browser acceptance is unverified. Version1.0.0 below remains
+the live verified release.
+
 Published and installed **1.0.0** adds a one-off Detailed report checkbox beside
 Report now. Give the normal overview first, then every linked actual in-progress
 Beads task by title/ID with up to ten recent attributable timestamp/action/outcome

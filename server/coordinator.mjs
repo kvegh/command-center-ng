@@ -8,6 +8,7 @@ import { progressWordCount, RECAP_WORD_LIMIT, RECAP_WORD_TARGET } from './progre
 import { WORKER_REPORT_REQUEST, WORKER_DETAILED_REPORT_REQUEST, WORKER_TASK_PING_REQUEST, REPORT_INTERVALS } from './worker-instructions.mjs';
 import { approvalCommand, approvalWorkingDirectory, inspectApprovalSource, referencesApprovalSource } from './approval-source.mjs';
 import { nativeMessageQuestions } from './native-requests.mjs';
+import { hasOpenAsyncQuestions, nativeQuestionAnswerTexts } from './async-question-replies.mjs';
 
 const TASK_PING_INTERVAL_MS = 10 * 60_000;
 const fail = (message, status = 409) => Object.assign(new Error(message), { status });
@@ -532,7 +533,7 @@ export class Coordinator {
   }
   async flush(id) {
     const rows = this.deliveries.get(id); const agent = this.workspace.agents.get(id);
-    if (this.stopped || this.paused || this.workspace.restoring || !rows?.length || rows[0].error || !agent || !this.workspace.readyFor(agent) || (agent.provider === 'claude' && agent.externalSession) || agent.questions.length || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag)) || !agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) return;
+    if (this.stopped || this.paused || this.workspace.restoring || !rows?.length || rows[0].error || !agent || !this.workspace.readyFor(agent) || (agent.provider === 'claude' && agent.externalSession) || agent.questions.length || hasOpenAsyncQuestions(agent) || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag)) || !agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) return;
     if (rows[0].kind === 'task-ping' && !this.taskPingAllowed(agent)) return;
     const busy = !!agent.turnId || agent.thread.status?.type === 'active';
     const managedClaude = agent.provider === 'claude' && !agent.externalSession && this.workspace.claude?.runs?.has(id);
@@ -542,6 +543,7 @@ export class Coordinator {
     const message = rows[0];
     const reportInProgress = agent.coordinatorDeliveryKind === 'report';
     const previousScheduled = !!agent.scheduledReportInProgress;
+    const previousTaskPing = !!agent.taskPingInProgress;
     const response = message.kind === 'report' ? {
       requestId: message.id, turnId: agent.provider === 'claude' ? agent.turnId || null : null, confirmed: false, scheduledReport: !!message.scheduledReport, startupDashboard: !!message.startupDashboard, detailed: !!message.detailed,
       candidates: new Map(), completedTurns: new Set(),
@@ -552,7 +554,7 @@ export class Coordinator {
       if (!reportInProgress) agent.coordinatorDeliveryKind = message.kind;
       if (message.kind === 'report') agent.scheduledReportInProgress = !!message.scheduledReport;
       if (message.kind === 'task-ping') agent.taskPingInProgress = true;
-      const delivery = await this.workspace.send(id, message.text, { report: message.kind === 'report', reportSetting: message.kind === 'report-setting', ...(message.kind === 'task-ping' ? { taskPing: true } : {}) }); rows.shift(); if (!rows.length) this.deliveries.delete(id);
+      const delivery = await this.workspace.send(id, message.text, { report: message.kind === 'report', reportSetting: message.kind === 'report-setting', preserveAsyncQuestions: true, ...(message.kind === 'task-ping' ? { taskPing: true } : {}) }); rows.shift(); if (!rows.length) this.deliveries.delete(id);
       if (message.kind === 'task-ping') this.taskPingPending.delete(id);
       if (message.kind !== 'task-ping') this.record({ agentId: id, action: message.kind, outcome: 'delivered', ...(message.scheduledReport ? { scheduledReport: true } : {}), ...(message.startupDashboard ? { startupDashboard: true } : {}) }); if (['report', 'report-setting'].includes(message.kind)) agent.reportError = null;
       if (response && this.reportResponses.get(id) === response) {
@@ -566,7 +568,19 @@ export class Coordinator {
         response.confirmed = true;
         if (!this.finishReportResponse(id, response)) this.finishMissingReportResponse(id, response);
       }
-    } catch (error) { if (this.reportResponses.get(id) === response) this.reportResponses.delete(id); agent.coordinatorDeliveryKind = reportInProgress ? 'report' : null; agent.scheduledReportInProgress = previousScheduled; message.error = error.message; if (['report', 'report-setting'].includes(message.kind)) agent.reportError = error.message; if (message.startupDashboard) this.settleStartupDashboard(id, 'failed', agent); this.error = 'Coordinator message delivery was not confirmed; it will not retry automatically: ' + error.message; this.record({ agentId: id, action: message.kind, outcome: 'unconfirmed', rationale: error.message }); }
+    } catch (error) {
+      if (this.reportResponses.get(id) === response) this.reportResponses.delete(id);
+      agent.coordinatorDeliveryKind = reportInProgress ? 'report' : null;
+      agent.scheduledReportInProgress = previousScheduled;
+      // A live question can arrive during context preparation. Nothing was
+      // sent in this case: preserve the same queued control until it is safe.
+      if (error.code === 'async_question_pending') { agent.taskPingInProgress = previousTaskPing; return; }
+      message.error = error.message;
+      if (['report', 'report-setting'].includes(message.kind)) agent.reportError = error.message;
+      if (message.startupDashboard) this.settleStartupDashboard(id, 'failed', agent);
+      this.error = 'Coordinator message delivery was not confirmed; it will not retry automatically: ' + error.message;
+      this.record({ agentId: id, action: message.kind, outcome: 'unconfirmed', rationale: error.message });
+    }
     finally { agent.coordinatorSending = false; this.workspace.changed(); if (['report', 'report-setting', 'task-ping'].includes(this.deliveries.get(id)?.[0]?.kind) && !this.deliveries.get(id)[0].error) void this.flush(id); }
   }
   async review(agent, args) {
@@ -583,7 +597,10 @@ export class Coordinator {
       evidence = await this.authorizationMessage(agent, args.authorizationMessageId);
       if (this.workspace.requestContextFingerprint(context, question) !== contextFingerprint) throw fail('Native file-change details changed while the request was reviewed. Read the current request again.');
       if (!this.requestCurrent(agent, context, question) || question.responding || question.reviewToken !== args.reviewToken) throw fail('This approval changed or resolved while its user instruction was checked.');
-      if (!evidence || typeof args.authorizationQuote !== 'string' || args.authorizationQuote.trim().length < 8 || args.authorizationQuote.length > 500 || !evidence.text.includes(args.authorizationQuote)) throw fail('Approval requires an exact reference to an actual user instruction in this worker conversation.', 400);
+      // Native replies carry model-authored question/identity framing. Only a
+      // human answer may authorize work, never that framing or joined answers.
+      const authorityTexts = evidence && (nativeQuestionAnswerTexts(evidence.text) ?? [evidence.text]);
+      if (!evidence || typeof args.authorizationQuote !== 'string' || args.authorizationQuote.trim().length < 8 || args.authorizationQuote.length > 500 || !authorityTexts.some(text => text.includes(args.authorizationQuote))) throw fail('Approval requires an exact reference to an actual user instruction in this worker conversation.', 400);
       if (Array.isArray(question.params.availableDecisions) && !question.params.availableDecisions.includes('accept')) throw fail('This request does not offer an approve-once decision.', 400);
       const cwd = question.method === 'item/commandExecution/requestApproval' ? approvalWorkingDirectory(question, context.cwd) : null; const command = approvalCommand(question);
       for (const [path, previous] of this.approvalSources.get(question.reviewToken) || []) {
