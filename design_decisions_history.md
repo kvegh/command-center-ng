@@ -2294,3 +2294,32 @@ counter. No proxy/trust/credential/native-daemon change was made. This installed
 artifact evidence does not establish real scheduled worker adoption or rendered
 browser/phone acceptance; those remain recorded separately. Later documentation
 commits do not change the tested runtime artifact.
+
+
+## 2026-11-09 — Bound the desktop overview and anchor settings in 0.41.0
+
+The user requested that the overview use its available browser height without
+extending it, keeping report/model controls at the bottom while tasks and
+questions may scroll. The previous whole-sidebar scrolling let long content or
+saved section sizes push those controls below the visible pane.
+
+Worker overview sections now put upper content in a bounded scrolling group
+and keep the final settings section outside it. The sidebar fills its pane;
+settings are capped to55% of the available section height and scroll internally
+when short windows or long feedback require it. Existing adjacent resize,
+keyboard/cancel/reset controls and saved sizes are retained without rewriting
+preferences. The coordinator retains all content in its scrolling group. Mobile
+restores normal flow, including wide coarse-touch layouts, preserving its
+continuous page and compact settings. No native behavior or storage changed.
+
+Implementation: `fcbf2031155a32f609660f69f22250e700bce932`.
+All 585 application tests and the production build pass. Focused regressions
+cover markup/order, oversized saved heights, missing questions/settings,
+coordinator handling, keyboard/reset boundaries and responsive CSS constraints.
+Independent source review found no concrete blocker. These CSS/SSR results do
+not establish actual short-window geometry; rendered browser/phone acceptance
+remains separate. Production results will be recorded after actual verification.
+
+The existing unanswered Edit & rewind choice was also reconciled using its
+same blocked Beads Question record after no native form was exposed. No new
+form/task, answer, rewind action or expanded architecture authority followed.
