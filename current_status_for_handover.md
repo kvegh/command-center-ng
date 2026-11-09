@@ -5,12 +5,18 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working 0.41.0 implements the user's bounded desktop overview: report/model
+Version 0.41.0 implements the user's bounded desktop overview: report/model
 settings stay at the bottom while task/question content can scroll within the
 available pane. Preserve resize/reset, saved preferences and mobile's continuous
 page. All 585 application tests and the production build pass; focused review
 found no concrete blocker. Actual browser/phone geometry remains unverified.
-Publication and production update are pending.
+Implementation `fcbf2031155a32f609660f69f22250e700bce932` and installed payload
+`e9335e0a9859c93de373118cdd3c2a786bd60608` are SSH-published and independently
+readback verified. Authorized production update/restart and independent
+verification succeeded: 95 exact source files, two served assets, trusted HTTPS
+health0.41.0, login gates and both listeners. Eight protected files are unchanged.
+The new bounded overview CSS and bottom-settings wiring are installed/served;
+that artifact evidence does not replace actual rendered browser acceptance.
 
 Edit & rewind still needs the user's whole-turn versus per-message-support
 choice. No native form is currently exposed to the coordinator, so the same

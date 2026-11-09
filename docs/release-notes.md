@@ -23,6 +23,12 @@ without questions, saved oversized heights, keyboard/reset boundaries and mobile
 flow restoration. Source review found no concrete blocker. Actual short-window
 browser geometry remains unverified. Publication/deployment is recorded separately.
 
+Production payload `e9335e0a9859c93de373118cdd3c2a786bd60608` was published,
+installed and restarted through the existing authorized workflow. Independent
+verification matched95 source files and two assets, HTTPS health0.41.0,
+login gates, both listeners and eight unchanged protected files. Bounded overview
+styles/bottom settings are served; rendered desktop/phone acceptance stays open.
+
 ## 0.40.0 — Silent task checks and removal of native Goals
 
 - Removed native Goal controls, worker state/events, API routes, task Goal

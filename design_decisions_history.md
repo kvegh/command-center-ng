@@ -2323,3 +2323,13 @@ remains separate. Production results will be recorded after actual verification.
 The existing unanswered Edit & rewind choice was also reconciled using its
 same blocked Beads Question record after no native form was exposed. No new
 form/task, answer, rewind action or expanded architecture authority followed.
+
+
+Production update/restart and independent verification succeeded at payload
+`e9335e0a9859c93de373118cdd3c2a786bd60608` (SSH publication/readback verified).
+All95 checked source files and two served assets match, trusted HTTPS health
+reports0.41.0, login gates and both listeners pass; eight protected files are
+unchanged. Bounded overview CSS and bottom-settings wiring are installed/served.
+No native daemon, credential, proxy, trust or permission change occurred. Actual
+browser/phone geometry is still separate acceptance. Later status-documentation
+commits do not alter this tested runtime artifact.
