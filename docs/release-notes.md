@@ -18,7 +18,8 @@ is retrievable in the [README before this reorganization](https://github.com/kve
 - Preserve existing trackers, routing, profiles, authentication and explicitly
   configured installation paths. Fetch the current default source on deployment.
 
-Focused native-Ansible fixtures, syntax and strict lint pass. Real target
+All 585 application tests, the production build, focused native-Ansible
+fixtures, syntax and strict lint pass. Real target
 bootstrap and application acceptance remain unverified. Application/browser
 code and the separate first-opening password requirement are unchanged.
 

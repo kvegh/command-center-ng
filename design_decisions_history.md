@@ -2336,8 +2336,7 @@ commits do not alter this tested runtime artifact.
 
 ## 2026-11-09 — Prepare a fresh agent workspace through Ansible
 
-Deployment correction 0.41.1; the implementation commit is recorded in the
-publication follow-up.
+Implementation: `1b3c074029646c3224bbc98a6c4905741e8bcbb0` (0.41.1).
 
 The user selected the maintained default application installation directory,
 the newest application source at each deployment and a separate `~/ccng-wd`
@@ -2367,3 +2366,11 @@ Local real-Ansible fixtures verified first initialization, rerun preservation,
 native home telemetry, conflicting routing, default/overridden paths and rebuild
 selection. Syntax validation passed. These controlled fixture checks do not
 establish a deployed tracker or a successful target AAP job.
+
+Independent source review found no significant concrete defect. All 585
+application tests and the production build passed with the existing prepared
+dependencies. Deployment fixtures and focused reruns passed, including the
+Node CLI/unit check after correcting the initially empty test checkout's
+dependency setup. Strict lint passed across sixteen Ansible files. No production
+application or native daemon was restarted, and fresh target acceptance remains
+open, including the separate browser-first authentication requirement.
