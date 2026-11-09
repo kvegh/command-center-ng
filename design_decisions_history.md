@@ -2630,3 +2630,36 @@ instruction checks pass; no new dependency or parser was introduced. EXIF absenc
 unchanged compressed data and README image references are verified. Publication/
 deployment are pending at this checkpoint. Real future agent compliance and
 actual phone keyboard/touch/rotation behavior are not established by this change.
+
+SSH publication and independent remote readback matched installed payload
+`1c533b191706e9d0ffb94aedb1b00dfa7b4a152d`. AAP3438 update/restart preserved
+nine protected files, including session invalidation state. Independent3439
+verified105 source files, actual0.45.1 trusted backend HTTPS/assets/listeners/
+login gates, installed worker question guidance and both EXIF-free README images.
+The isolated installed authenticated404/history-preservation checks passed again
+with zero native calls. Real future agent compliance and browser/phone behavior
+remain unverified; no live question or user history was answered/changed for tests.
+
+
+## 2026-11-09 — Explain access protection before initial password creation
+
+Documentation implementation: `fa2b96d18d53d188a083f526f83ba5fa1e9bff22`.
+
+The user requested a prominent generic first-start warning without details of
+our infrastructure. README and installation guidance now explain that explicitly
+enabled browser-first enrollment has no pre-existing application password: the
+first successful visitor creates it, so external access protection must work
+before exposure. Normal startup instead refuses missing authentication. Existing
+passwords remain preserved; no default password or new setup mode is introduced.
+
+Default HTTP is unencrypted and HTTPS alone does not restrict access. Give generic
+examples such as a Basic Auth/htpasswd reverse proxy or a restricted network,
+while keeping the current browser-mode and deployment requirements explicit in
+the installation guide. Do not imply that CCNG installs external protections or
+that equivalent new authentication modes are implemented. No environment-specific
+nginx settings, private identifiers or configuration were added.
+
+Checked wording against current startup/authentication and deployment guards;
+warning placement, local links and diff checks pass. This is documentation only:
+no code, numeric version, dependency, service or security configuration changed,
+and no extra restart or successful browser acceptance is claimed.
