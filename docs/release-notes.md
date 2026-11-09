@@ -24,8 +24,13 @@ is retrievable in the [README before this reorganization](https://github.com/kve
 checks cover authenticated rejection of removed routes without native calls,
 unchanged messages, follow-up/copy/branch behavior and passive external-history
 refresh with stale-read/error recovery guards. Independent review found no
-remaining issue. Publication/deployment are pending at this checkpoint; no real
-native history was changed for testing.
+remaining issue. Source is SSH-published; AAP3436 update/restart preserved nine
+protected files including session invalidation state. AAP3437 verified103 exact
+source files, actual0.45.0 trusted HTTPS health/assets/both listeners/login gates.
+Four real authenticated HTTP requests against the installed app in an isolated
+temporary fixture confirmed404, unchanged messages and zero native calls. No
+real native history/login was changed for testing; browser rendering and the
+previous public network-path failure were not re-tested.
 
 ## 0.44.0 — Rewind inputs and preserve logins and decision history
 

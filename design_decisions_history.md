@@ -2591,3 +2591,14 @@ found no remaining issue. No real native history, permissions or credentials wer
 changed for testing. Publication/deployment are pending at this checkpoint;
 optional real browser/native exercises remain deferred. Shared instructions and
 current requirements withdraw the feature without deleting historical evidence.
+
+SSH publication/readback matched installed payload
+`3442e14fcf81cf5c96cee654226586d2ff0a56fc`. Authorized AAP3436 update/restart
+preserved nine protected files, including session invalidation state. Independent
+3437 verified103 exact source files, actual0.45.0 backend HTTPS health, served
+assets, both listeners and login gates. Four real authenticated HTTP requests
+against the installed app in an isolated temporary fixture returned404 for the
+withdrawn routes, retaining its original messages with zero native calls. Removed
+feature files/controls are absent; copy and branch controls remain served. No
+actual user history/login was modified for testing. Rendered browser review and
+the earlier refused public-origin path were not repeated.

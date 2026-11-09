@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working version0.45.0 removes Edit & rewind following the user's explicit
+Published and installed version0.45.0 removes Edit & rewind following the user's explicit
 withdrawal. Keep communication traceable by retaining earlier messages and
 recording corrections or changed decisions in follow-up messages. All rewind
 variants, including previously deferred individual-message and Claude proposals,
@@ -14,8 +14,18 @@ native conversation history and existing tasks, decisions, logins and permission
 Removal implementation and source review are complete: all718 application tests
 and the production build pass. Authenticated removed routes return404 without
 native calls; passive observation retains stale-history/error recovery guards.
-No actual native history rollback is authorized or performed. Publication/deployment evidence
-below still concerns0.44.0 until this release is verified.
+No actual native history rollback is authorized or performed. Implementation
+`ffa76e145225f0e022ef1721c894219a313f4082` and installed payload
+`3442e14fcf81cf5c96cee654226586d2ff0a56fc` are SSH-published/readback verified.
+AAP3436 updated/restarted the existing service, preserving nine protected files
+including session invalidation state. Independent3437 verified103 exact source
+files, actual0.45.0 trusted HTTPS health, two served assets, both listeners and
+login gates. Four real authenticated HTTP requests to the installed app in an
+isolated temporary fixture returned404 for the withdrawn routes, with unchanged
+fixture history and zero native calls. Removed feature files/served controls are
+absent; Copy this and branching remain served. No real user login/history or
+proxy settings were changed for testing; actual rendered browser review and the
+previously refused public-origin path were not re-tested.
 
 Historical rewind approval/choice statements below are superseded by this
 withdrawal and are not current implementation or future-work authority.
