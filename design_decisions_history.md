@@ -2189,3 +2189,44 @@ authentication, service and native-profile files retained their hashes. No
 credential, certificate trust, proxy, permission or native-daemon change was made.
 This verifies running installation and transport/access gates; browser rendering
 and an actual native branch handoff remain separate acceptance work.
+
+
+## 2026-11-08 — Use native Codex Goals for clarified work
+
+Implementation: `2ea1956c8ff83425e414ec8f5b92eeb6a80f97a0` (0.39.0).
+
+After discussing provider differences and a concrete release example, the user
+selected implementation with clarified Goals announced in chat. Codex owns
+execution, persistence and continuation; Beads owns task outcomes, finish checks
+and dependencies. CCNG adds native status and start/pause/resume/clear controls,
+with explicit replacement confirmation and no new Goal store or dispatcher.
+Newly authorized clarified worker tasks can use native Goal tools; ordinary
+questions, reports and backlog creation alone do not activate a Goal. Preserve
+an unfinished Goal, native accounting, user pause/clear and real scope. Reassess
+ready authorized work after actual task-state changes and use native parallelism
+where independent work permits it. Claude implementation stays postponed.
+
+The user selected an exact three-line announcement: New Goal, Task title and
+Beads ID. Only confirmed creation uses that message. Labels use active-task blue
+and values remain normal escaped text. Rendering is opt-in for worker assistant
+messages, preserving native source/copying and raw-HTML exclusion.
+
+Review identified stale UI confirmation, old native reads and delayed HTTP
+responses as concrete risks. Controls now compare the displayed objective,
+creation time and budget against fresh native evidence, preserve newer native
+state/errors, and invalidate old replacement confirmation. Branch handoff and
+Goal mutations are guarded against conflicting operations. Native APIs provide
+no atomic cross-client comparison; no such guarantee is claimed.
+
+All 606 tests and the production build pass. Focused review confirmed those
+three fixes. A real native Goal was set for this implementation through the
+supported Goal tool. A direct local app RPC probe was denied by the native
+sandbox; no escalation or alternative transport was used to bypass it. Actual
+installed Goal controls, continuation and rendered announcements still require
+legitimate runtime/browser acceptance. Deployment is recorded separately.
+
+The user also selected CCNG-only task cleanup. Completed features were already
+closed; two remaining verification records were renamed and three explicitly
+postponed requests deferred. Genuine unfinished implementation and acceptance
+remain. Documentation now separates the approved but unfinished browser-first
+password requirement from the current installer/startup behaviour.

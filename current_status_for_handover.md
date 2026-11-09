@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working version 0.39.0 implements native Codex Goal controls and worker lifecycle
+Version 0.39.0 (implementation `2ea1956c8ff83425e414ec8f5b92eeb6a80f97a0`) implements native Codex Goal controls and worker lifecycle
 guidance. Native state is separate from the descriptive chat title. Start,
 pause/resume, clear and explicit replacement preserve native requests, ownership,
 handoff and accounting. Prior-objective checks and revision guards address the
