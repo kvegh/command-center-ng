@@ -663,3 +663,14 @@ including a one-off summary for Never, and coalesce enabled-timer startup work.
 Publish available evidence first, update sidebar fields as fresh results arrive
 and preserve pause/native request/ownership boundaries. Refresh/reconnect must
 not duplicate requests, change intervals or cause routine chat spam.
+
+
+## Bounded desktop overview with bottom settings
+
+Use 100% of the overview's available desktop browser height and no more. Anchor
+report/model controls at the bottom. Tasks and Open questions may scroll within
+the remaining bounded area; oversized saved section heights must not grow the
+document or push settings outside the pane. Preserve user resizing/reset and
+keyboard access, natural task row reflow, native request controls and all themes.
+Keep long settings feedback reachable on short windows with internal overflow.
+The approved mobile continuous-page layout remains unchanged.

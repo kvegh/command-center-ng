@@ -632,3 +632,12 @@ actual requests or attention/recovery even without request details. Empty
 questions and static coordinator guidance may be omitted on mobile; tasks,
 input-needed titles and dashboard controls remain available. Preserve desktop
 layout, fonts, saved dimensions, three-task viewport and history/input bounds.
+
+
+The desktop overview must fit its available browser/pane height. Keep the report
+and model settings at its bottom, with independently bounded scrolling for upper
+content/tasks/questions as needed. Saved resize heights cannot force document
+overflow or push settings offscreen. Preserve resize keyboard/cancel/reset and
+make settings feedback reachable on short windows. Mobile retains its continuous
+page and compact settings; desktop pinning must not apply to narrow/coarse-touch
+layouts. Do not change native task/request semantics for layout work.

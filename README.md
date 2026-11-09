@@ -20,6 +20,7 @@ a coordinator overview so you can see where your attention is needed.
 - Request task reports immediately or choose a saved reporting interval.
 - Recheck overlooked tasks silently every 15 minutes, with the next check shown in the coordinator.
 - Read Markdown, copy messages/code, and paste or attach images to a draft.
+- Keep desktop settings at the bottom of a full-height overview, with scrollable tasks and questions.
 - Use desktop resizing, a continuous mobile layout and three colour themes.
 
 See the [usage guide](docs/usage.md) for controls and their limits.

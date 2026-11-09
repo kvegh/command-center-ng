@@ -48,3 +48,69 @@ test('overview section boundaries are named keyboard-accessible horizontal separ
   assert.match(resized, /data-section="tasks"[^]*?overview-section-body sized[^]*?--section-height:240px/);
   assert.match(resized, /aria-valuenow="240"/);
 });
+
+function captureOverview(props) {
+  let element;
+  function Capture() { element = OverviewSections(props); return null; }
+  renderToStaticMarkup(React.createElement(Capture));
+  return element;
+}
+function descendants(element, predicate) {
+  const found = [];
+  const visit = node => {
+    if (!React.isValidElement(node)) return;
+    if (predicate(node)) found.push(node);
+    React.Children.forEach(node.props.children, visit);
+  };
+  visit(element); return found;
+}
+const sectionsFor = ids => ids.map(id => ({ id, label: id, content: React.createElement('p', null, id + ' content') }));
+
+test('worker settings stay outside the scrolling group with their resize boundary, including without questions', () => {
+  for (const ids of [['goal', 'tasks', 'questions', 'settings'], ['goal', 'tasks', 'settings'], ['settings']]) {
+    const sections = sectionsFor(ids); const changes = [];
+    const heights = Object.fromEntries(ids.map(id => [id, 1200]));
+    const element = captureOverview({ sections, heights, bottomSection: 'settings', change: (...args) => changes.push(args) });
+    const [scrolling, bottom] = React.Children.toArray(element.props.children);
+    assert.equal(scrolling.props.className, 'overview-scroll-sections');
+    assert.deepEqual(descendants(scrolling, node => node.type === 'section').map(node => node.props['data-section']), ids.slice(0, -1));
+    assert.equal(descendants(scrolling, node => node.type === 'section' && node.props['data-section'] === 'settings').length, 0);
+    const footer = descendants(bottom, node => node.type === 'section')[0];
+    assert.equal(footer.props.className, 'overview-section overview-section-bottom');
+    assert.equal(footer.props['data-section'], 'settings');
+    assert.deepEqual(descendants(element, node => node.type === 'section').map(node => node.props['data-section']), ids, 'grouping preserves section order and content');
+    assert.equal(descendants(element, node => node.props.role === 'separator').length, ids.length - 1);
+    assert.equal(descendants(bottom, node => node.props.role === 'separator').length, ids.length > 1 ? 1 : 0);
+    assert.equal(descendants(footer, node => node.props.className?.includes('overview-section-body'))[0].props.style['--section-height'], '1200px');
+    assert.deepEqual(heights, Object.fromEntries(ids.map(id => [id, 1200])), 'layout constraints do not erase saved sizes');
+    assert.deepEqual(changes, [], 'rendering oversized saved sections does not write preferences');
+  }
+});
+
+test('coordinator and missing final settings retain every section inside the scrolling group', () => {
+  for (const [ids, bottomSection] of [
+    [['coordinator', 'workers', 'coordinator-questions', 'decisions'], undefined],
+    [['goal', 'tasks'], 'settings'], [['goal', 'tasks', 'settings'], 'tasks'], [[], 'settings'],
+  ]) {
+    const element = captureOverview({ sections: sectionsFor(ids), heights: {}, bottomSection, change: () => {} });
+    const scrolling = React.Children.toArray(element.props.children)[0];
+    assert.deepEqual(descendants(scrolling, node => node.type === 'section').map(node => node.props['data-section']), ids);
+    assert.equal(descendants(element, node => node.props.className?.includes('overview-section-bottom')).length, 0);
+    assert.equal(descendants(element, node => node.props.role === 'separator').length, Math.max(0, ids.length - 1));
+  }
+});
+
+test('the separated settings boundary retains keyboard resizing and resetting of the adjacent sections', () => {
+  const changes = [];
+  const element = captureOverview({ sections: sectionsFor(['tasks', 'settings']), heights: { tasks: 240, settings: 180 }, bottomSection: 'settings', change: (...args) => changes.push(args) });
+  const boundary = descendants(React.Children.toArray(element.props.children)[1], node => node.props.role === 'separator')[0];
+  assert.equal(boundary.props['aria-label'], 'Resize tasks and settings');
+  let prevented = false;
+  boundary.props.onKeyDown({ key: 'ArrowDown', shiftKey: false, preventDefault() { prevented = true; } });
+  assert.equal(prevented, true);
+  assert.deepEqual(changes.splice(0), [['tasks', 256], ['settings', 164]]);
+  boundary.props.onKeyDown({ key: 'End', shiftKey: false, preventDefault() {} });
+  assert.deepEqual(changes.splice(0), [['tasks', 1200], ['settings', 64]], 'large moves retain bounded saved heights');
+  boundary.props.onDoubleClick();
+  assert.deepEqual(changes, [['tasks', undefined], ['settings', undefined]]);
+});

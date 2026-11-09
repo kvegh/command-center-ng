@@ -99,8 +99,38 @@ test('wide coarse phones override saved section sizes while desktop sizing remai
   for (const media of [[compactQuery], [desktopQuery, compactQuery]]) {
     assert.deepEqual(properties(section, ['height', 'overflow'], media), { height: 'auto', overflow: 'visible' });
     assert.deepEqual(properties(tasks, ['max-height', 'flex'], media), { 'max-height': 'var(--task-viewport-height)', flex: 'none' });
+    assert.deepEqual(properties('.context', ['display', 'height'], media), { display: 'block', height: 'auto' });
+    assert.deepEqual(properties('.overview-sections', ['flex', 'overflow'], media), { flex: 'none', overflow: 'visible' });
+    assert.equal(declarations('.overview-scroll-sections', media).display, 'contents', 'the desktop scrolling group does not add a separate mobile scroll region');
+    assert.deepEqual(properties('.overview-section-bottom', ['display', 'flex', 'max-height', 'overflow'], media), { display: 'block', flex: 'none', 'max-height': 'none', overflow: 'visible' });
+    assert.deepEqual(properties('.overview-section-bottom > .overview-section-body', ['flex', 'overflow'], media), { flex: 'none', overflow: 'visible' });
   }
   assert.equal(declarations('.task-summary > .task-scroll')['overflow-y'], 'auto', 'the existing measured three-task viewport keeps its own scrolling');
+});
+
+test('desktop bounds both overview scroll regions and pins settings without losing coordinator content', () => {
+  assert.deepEqual(properties('.context', ['display', 'height', 'min-height', 'overflow'], [desktopQuery]), {
+    display: 'flex', height: '100%', 'min-height': '0', overflow: 'hidden',
+  });
+  assert.deepEqual(properties('.overview-sections', ['flex', 'min-height', 'overflow'], [desktopQuery]), {
+    flex: '1 1 0', 'min-height': '0', overflow: 'hidden',
+  });
+  assert.deepEqual(properties('.overview-scroll-sections', ['display', 'flex', 'min-height', 'overflow-y'], [desktopQuery]), {
+    display: 'flex', flex: '1 1 0', 'min-height': '0', 'overflow-y': 'auto',
+  });
+  assert.equal(declarations('.overview-scroll-sections > .overview-section', [desktopQuery]).flex, '0 0 auto', 'oversized saved content scrolls instead of shrinking or removing sections');
+  assert.deepEqual(properties('.overview-section-bottom', ['flex', 'min-height', 'max-height', 'overflow'], [desktopQuery]), {
+    flex: '0 1 auto', 'min-height': '0', 'max-height': '55%', overflow: 'hidden',
+  });
+  assert.deepEqual(properties('.overview-section-bottom > .overview-section-body', ['flex', 'min-height', 'overflow-y'], [desktopQuery]), {
+    flex: '1 1 auto', 'min-height': '0', 'overflow-y': 'auto',
+  });
+  const calls = findNodes(node => (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(main) === 'OverviewSections');
+  assert.equal(calls.length, 2, 'worker and coordinator each retain one overview');
+  const footer = node => node.attributes.properties.find(attribute => ts.isJsxAttribute(attribute) && attribute.name.text === 'bottomSection')?.initializer?.text;
+  const worker = calls.find(node => footer(node) === 'settings');
+  assert.ok(worker, 'worker settings are assigned to the bounded bottom section');
+  assert.equal(calls.filter(node => footer(node) === undefined).length, 1, 'coordinator remains wholly inside its scrolling group');
 });
 
 test('mobile overview reduces spacing while desktop retains its existing layout', () => {

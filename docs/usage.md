@@ -248,6 +248,17 @@ The palette menu offers **classic**, **contrastful** and **light** themes. Deskt
 overview width, section boundaries and the history/composer divider are resizable
 with keyboard controls. Preferences stay in the current browser.
 
+
+### Desktop overview height
+
+The desktop overview fills its available pane height without extending the page.
+Report and model controls stay at the bottom; the upper content, tasks and open
+questions scroll when necessary. Saved section heights remain bounded by the
+pane, so enlarging a section cannot push settings beyond the browser. Short
+windows and long feedback can scroll within the settings area. Existing divider
+keyboard controls and reset remain available. Mobile keeps its continuous page
+and compact expandable settings rather than a pinned desktop footer.
+
 Mobile uses one naturally scrolling full-width page with wrapped tabs, compact
 overview, bounded history of about 30 text lines and a six-line input. Long input
 scrolls internally. Mobile hides resize handles and worker coordinator recaps,

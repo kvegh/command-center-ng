@@ -436,7 +436,7 @@ kbd { font-family: inherit; }
 
 @media (min-width: 901px) {
   .workspace-frame .agent-panel { display: grid; grid-template-columns: minmax(0, 1fr) var(--overview-width, clamp(364px, 32.2vw, 448px)); grid-template-rows: minmax(0, 1fr) auto; }
-  .context { grid-column: 2; grid-row: 1 / 3; padding: 22px 18px; border-bottom: 0; border-left: 1px solid var(--line); overflow-y: auto; }
+  .context { grid-column: 2; grid-row: 1 / 3; min-height: 0; height: 100%; display: flex; flex-direction: column; padding: 22px 18px; border-bottom: 0; border-left: 1px solid var(--line); overflow: hidden; }
   .conversation { grid-column: 1; grid-row: 1; }
   .composer { grid-column: 1; grid-row: 2; }
   .goal-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
@@ -564,11 +564,19 @@ kbd { font-family: inherit; }
 .background-request > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .background-request small { display: block; margin-top: 3px; color: var(--muted); }
 .overview-sections { min-width: 0; display: flex; flex-direction: column; }
+.overview-scroll-sections { display: contents; }
 .overview-section { min-width: 0; }
 .overview-section-body { min-width: 0; }
 .overview-section-body > :is(.branch-context, .goal-row, .progress-recap, .task-summary, .open-questions, .worker-settings, .coordinator-workers, .coordinator-audit) { margin-top: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; border-top: 0; border-bottom: 0; }
 .overview-section-divider { display: none; }
 @media (min-width: 901px) {
+  /* Keep settings inside the available pane, even with oversized saved sections.
+     The earlier sections and a short-window settings body scroll independently. */
+  .overview-sections { flex: 1 1 0; min-height: 0; overflow: hidden; }
+  .overview-scroll-sections { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+  .overview-scroll-sections > .overview-section { flex: 0 0 auto; }
+  .overview-section-bottom { display: flex; flex-direction: column; flex: 0 1 auto; min-height: 0; max-height: 55%; overflow: hidden; }
+  .overview-section-bottom > .overview-section-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .overview-section-body.sized { height: var(--section-height); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
   .overview-section-divider { display: block; position: relative; height: 13px; flex: 0 0 13px; margin: 8px 0; cursor: row-resize; touch-action: none; }
   .overview-section-divider::after { content: ''; position: absolute; top: 6px; left: 0; right: 0; height: 1px; background: var(--line); }
@@ -1011,8 +1019,11 @@ kbd { font-family: inherit; }
   .workspace { flex: none; padding: 0 8px 8px; }
   .workspace-frame { flex: none; overflow: visible; }
   .workspace-frame .agent-panel { display: flex; flex-direction: column; height: auto; min-height: 0; max-height: none; }
-  .context { flex: none; width: 100%; max-height: none; overflow: visible; border-left: 0; border-bottom: 1px solid var(--line); padding: 8px 12px; }
-  .overview-sections { gap: 8px; }
+  .context { display: block; flex: none; width: 100%; height: auto; max-height: none; overflow: visible; border-left: 0; border-bottom: 1px solid var(--line); padding: 8px 12px; }
+  .overview-sections { flex: none; min-height: 0; overflow: visible; gap: 8px; }
+  .overview-scroll-sections { display: contents; }
+  .overview-section-bottom { display: block; flex: none; max-height: none; overflow: visible; }
+  .overview-section-bottom > .overview-section-body { flex: none; overflow: visible; }
   .overview-section-body.sized { height: auto; overflow: visible; }
   .goal-row { display: flex; gap: 8px; }
   .task-summary { flex-direction: column; gap: 4px; }

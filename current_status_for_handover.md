@@ -5,6 +5,19 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Working 0.41.0 implements the user's bounded desktop overview: report/model
+settings stay at the bottom while task/question content can scroll within the
+available pane. Preserve resize/reset, saved preferences and mobile's continuous
+page. All 585 application tests and the production build pass; focused review
+found no concrete blocker. Actual browser/phone geometry remains unverified.
+Publication and production update are pending.
+
+Edit & rewind still needs the user's whole-turn versus per-message-support
+choice. No native form is currently exposed to the coordinator, so the same
+blocked input task is labelled as an ordinary Question; no duplicate form/task
+or inferred answer was created. No rewind implementation/action is authorized
+by this visibility reconciliation.
+
 Version 0.40.0 removes the Goals feature at the user's explicit
 request. No Goal will be assigned to kept-open tasks and the earlier batch
 approval question is withdrawn. Removed worker Goal controls, HTTP routes,

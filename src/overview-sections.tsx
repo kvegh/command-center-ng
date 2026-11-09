@@ -10,10 +10,11 @@ export function sectionPairHeights(before: number, after: number, delta: number)
   return { before: Math.round(upper), after: Math.round(lower) };
 }
 
-export function OverviewSections({ sections, heights, change }: {
+export function OverviewSections({ sections, heights, change, bottomSection }: {
   sections: OverviewSection[];
   heights: Record<string, number>;
   change: (id: string, height: number | undefined) => void;
+  bottomSection?: string;
 }) {
   const instance = useId();
   const bodies = useRef(new Map<string, HTMLDivElement>());
@@ -28,15 +29,19 @@ export function OverviewSections({ sections, heights, change }: {
     const previous = drag.current; drag.current = null; setDragging(null);
     if (previous) { change(previous.before, previous.originalUpper); change(previous.after, previous.originalLower); }
   };
-  return <div className="overview-sections">{sections.map((section, index) => {
-    const next = sections[index + 1]; const height = heights[section.id];
-    return <React.Fragment key={section.id}>
-      <section className="overview-section" data-section={section.id} aria-label={section.label}>
+  const bottom = sections.at(-1)?.id === bottomSection ? sections.at(-1) : undefined;
+  const scrolling = bottom ? sections.slice(0, -1) : sections;
+  const renderSection = (section: OverviewSection) => {
+    const height = heights[section.id];
+    return <section className={`overview-section${section === bottom ? ' overview-section-bottom' : ''}`} data-section={section.id} aria-label={section.label}>
         <div id={`${instance}-${section.id}`} ref={node => { if (node) bodies.current.set(section.id, node); else bodies.current.delete(section.id); }} className={`overview-section-body${height === undefined ? '' : ' sized'}`} style={height === undefined ? undefined : { '--section-height': `${Math.max(minimum, Math.min(maximum, height))}px` } as React.CSSProperties}>
           {section.content}
         </div>
-      </section>
-      {next && <div role="separator" tabIndex={0} aria-orientation="horizontal" aria-label={`Resize ${section.label} and ${next.label}`} aria-controls={`${instance}-${section.id} ${instance}-${next.id}`} aria-valuemin={minimum} aria-valuemax={maximum} aria-valuenow={height === undefined ? undefined : Math.round(height)} aria-valuetext={height === undefined ? 'Automatic height' : `${Math.round(height)} pixels`}
+      </section>;
+  };
+  const renderDivider = (section: OverviewSection, next: OverviewSection) => {
+    const height = heights[section.id];
+    return <div role="separator" tabIndex={0} aria-orientation="horizontal" aria-label={`Resize ${section.label} and ${next.label}`} aria-controls={`${instance}-${section.id} ${instance}-${next.id}`} aria-valuemin={minimum} aria-valuemax={maximum} aria-valuenow={height === undefined ? undefined : Math.round(height)} aria-valuetext={height === undefined ? 'Automatic height' : `${Math.round(height)} pixels`}
         className={`overview-section-divider${dragging === section.id ? ' resizing' : ''}`}
         title="Drag to resize sections; use Up/Down arrows, Home/End; double-click to reset"
         onPointerDown={event => {
@@ -61,7 +66,16 @@ export function OverviewSections({ sections, heights, change }: {
           const delta = event.key === 'ArrowUp' ? -(event.shiftKey ? 64 : 16) : event.key === 'ArrowDown' ? (event.shiftKey ? 64 : 16) : event.key === 'Home' ? -maximum * 2 : event.key === 'End' ? maximum * 2 : null;
           if (delta === null) return;
           event.preventDefault(); resize(section.id, next.id, measure(section.id), measure(next.id), delta);
-        }} />}
-    </React.Fragment>;
-  })}</div>;
+        }} />;
+  };
+  return <div className="overview-sections">
+    <div className="overview-scroll-sections">{scrolling.map((section, index) => <React.Fragment key={section.id}>
+      {renderSection(section)}
+      {scrolling[index + 1] && renderDivider(section, scrolling[index + 1])}
+    </React.Fragment>)}</div>
+    {bottom && <>
+      {!!scrolling.length && renderDivider(scrolling[scrolling.length - 1], bottom)}
+      {renderSection(bottom)}
+    </>}
+  </div>;
 }
