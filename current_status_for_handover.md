@@ -11,7 +11,8 @@ refresh retained history before returning original text to the normal composer.
 Do not auto-send or undo files/tasks/commands/permissions. Selected images are
 blocked; stale, busy, pending/uncertain and handoff cases fail safely. Existing
 queues/schedules/drafts remain. Native cross-client atomicity is unavailable.
-Integrated tests/publication/deployment pending; no real native history was rewound.
+Automated verification is recorded below; publication/deployment are pending.
+No real native history was rewound.
 The same release integrates approved private decision-file persistence: new
 coordinator summaries reload at startup, retain older disk rows and never replay
 approvals/authority. Storage state/errors remain separate from native outcomes;

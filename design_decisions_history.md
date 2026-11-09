@@ -2490,3 +2490,59 @@ syntax, compilation, package/lock metadata and diff checks pass. Existing cached
 dependencies were reused without installation. The full application suite/build
 was not rerun for this Ansible-only correction. No production or target
 deployment/restart was performed, and fresh live enrollment remains unverified.
+
+## 2026-11-09 — Preserve workspace context and show native request content
+
+Implementation: `85517d8b3d461f1cdaea9d80fb0f85a90ec6b365`, integrated with
+the protected-frontend deployment patch and message-question display in
+`af453b2c1b6f11b15f0e0661312af63dc57445cc` (0.44.0).
+
+The user approved whole-turn Codex Edit and rewind. A preview and explicit
+confirmation use the supported native revert operation, refresh retained history
+after acknowledgement, and restore original text to the normal composer without
+sending it. Existing drafts, busy work, questions and handoffs remain protected.
+Files, tasks and permissions are not rolled back. Finer boundaries remain deferred;
+the native API cannot prevent another client racing the confirmation.
+
+The user approved private durable coordinator decision summaries so restart no
+longer loses that display history. The JSONL file retains explanations/references,
+not raw requests, credentials, authority quotes or replayable approvals. Storage
+failure remains separate from the real native outcome. Older history is not
+automatically imported, and normal shutdown cannot promise hard-kill durability.
+
+The user approved persistent application logins and `--clear-logins`. Private
+hashed session records preserve their original twelve-hour expiry; logout,
+password revision changes and an atomic generation marker invalidate sessions
+across processes and restarts. Application errors use HTTP 403 rather than
+HTTP 401; unavailable storage fails closed with HTTP 503. Drafts survive implicit
+expiry and stale login responses cannot override a newer sign-in. The old
+memory-only sessions still require one final login during migration.
+
+Native file paths/diffs were discarded separately from approval parameters.
+Retaining bounded context on existing native-message records restores an exact
+worker/turn/item view for the user and coordinator. Read-only reload, full-content
+fingerprints and stale-history guards prevent another edit from supplying the
+reviewed body. Missing/truncated content remains explicit; no new proposal store
+or approval authority was added. Actual pending-item inspection was unavailable
+under native socket permissions, so the original live case remains unverified.
+
+Message-only structured question titles/options were also dropped, sometimes
+with the entire empty-text message. They now remain visible and reach coordinator
+reads. A supported exact reply binding for this newer format was not established;
+the interface directs answers to the native client without fabricated IDs or
+reply encoding. Existing native server-request forms remain interactive.
+
+Report recognition now accepts ordered coloured topic summaries and binds receipt
+to the actual acknowledged delivery turn. This fixes formatting and turn-change
+false negatives without treating ordinary progress, quoted text or old messages
+as reports. The specific reported missing-event correlation remains unverified.
+The user explicitly approved the three original README screenshots after review;
+they retain authentic historical UI/status and accepted metadata.
+
+All 738 application tests and the production build pass. Independent reviews
+found no remaining blockers. Ansible syntax/strict production lint pass across 26
+files; 32 of 33 native Ansible fixtures pass, with one local TLS socket fixture
+blocked by execution permissions. Assertions and security controls were preserved.
+Publication/deployment are pending at this checkpoint. No real native conversation
+was rewound or native approval submitted for testing; optional native/browser
+exercises remain deferred.
