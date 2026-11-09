@@ -78,15 +78,20 @@ test('loading reports truthful unavailability if native history provides no matc
   assert.deepEqual(methods, ['thread/turns/list']); assert.equal(f.agent.questions.length, 1);
 });
 
-test('disconnection/replacement/rewind cannot reuse a stale native body', () => {
+test('disconnection and externally changed native history cannot reuse a stale approval body', async () => {
   const f = fixture(); f.w.request(f.request()); f.w.addItem(f.agent, f.item(), 'turn');
   const old = f.agent.questions[0];
   f.rpc.emit('disconnected', 'Synthetic disconnect');
   f.w.request(f.request());
   assert.equal(f.w.snapshot().agents[0].questions[0].nativeItem.state, 'unavailable');
   assert.equal(f.w.requestView(f.agent, old).nativeItem.state, 'unavailable');
-  f.w.addItem(f.agent, f.item(), 'turn'); f.w.clearRewoundHistory(f.agent);
+  f.w.addItem(f.agent, f.item(), 'turn');
+  const methods = []; f.rpc.call = async method => { methods.push(method); return { data: [], nextCursor: null }; };
+  f.w.notification({ method: 'thread/reverted', params: { threadId: 'worker' } });
   assert.equal(f.w.snapshot().agents[0].questions[0].nativeItem.state, 'unavailable');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(methods, ['thread/turns/list']);
+  assert.equal(f.agent.questions.length, 1, 'external history changes do not decide the current approval');
 });
 
 test('file count, byte budget and rename targets remain explicit without mutating raw native changes', () => {

@@ -112,18 +112,22 @@ test('withdrawn Goal control routes return 404 without native reads or writes', 
   } finally { await f.close(); }
 });
 
-test('authenticated rewind routes require an explicit preview and pass exact confirmation without sending input', async () => {
+test('withdrawn Edit/Rewind routes return 404 and leave native conversation history unchanged', async () => {
   const f = await fixture();
   try {
-    const calls = [], preview = { previewToken: 'preview-example', threadId: 'worker', selected: { messageId: 'input', turnId: 'turn', text: 'Editable input', imageCount: 0 }, affectedTurns: [], turnCount: 1, messageCount: 1, warning: 'Whole-turn history only' };
-    f.workspace.rewindPreview = async (id, selection) => { calls.push({ id, selection }); return preview; };
-    f.workspace.rewind = async (id, confirmation) => { calls.push({ id, confirmation }); return { id, draftText: 'Editable input', rewound: true }; };
-    const response = await f.request('/api/agents/worker/rewind-preview', { messageId: 'input', turnId: 'turn' }).finished;
-    assert.equal(response.statusCode, 200); assert.deepEqual(JSON.parse(response.chunks.join('')), preview);
-    const applied = await f.request('/api/agents/worker/rewind', { previewToken: preview.previewToken, confirm: true }).finished;
-    assert.equal(applied.statusCode, 200);
-    assert.deepEqual(calls, [{ id: 'worker', selection: { messageId: 'input', turnId: 'turn' } }, { id: 'worker', confirmation: { previewToken: preview.previewToken, confirm: true } }]);
-    assert.equal(f.rpc.replies.length, 0); assert.ok(!f.rpc.calls.some(call => ['turn/start', 'turn/steer', 'thread/revert'].includes(call.method)));
+    const agent = f.workspace.agent('worker');
+    f.workspace.addItem(agent, { id: 'input', type: 'userMessage', content: [{ type: 'text', text: 'Keep this decision.' }] }, 'turn');
+    const original = structuredClone(agent.messages), before = f.rpc.calls.length;
+    for (const route of ['rewind-preview', 'rewind']) {
+      assert.equal((await f.request(`/api/agents/worker/${route}`).finished).statusCode, 404);
+      assert.equal((await f.request(`/api/agents/worker/${route}`, { messageId: 'input', turnId: 'turn', previewToken: 'old-preview', confirm: true }).finished).statusCode, 404);
+    }
+    assert.equal(f.workspace.rewindPreview, undefined); assert.equal(f.workspace.rewind, undefined);
+    assert.equal(f.workspace.rewindJobs, undefined); assert.equal(f.workspace.rewinds, undefined);
+    const snapshot = f.workspace.snapshot().agents[0];
+    assert.equal(Object.hasOwn(snapshot, 'rewinding'), false); assert.equal(Object.hasOwn(snapshot, 'rewindBlockedReason'), false);
+    assert.equal(Object.hasOwn(snapshot.messages[0], 'rewindable'), false);
+    assert.deepEqual(agent.messages, original); assert.equal(f.rpc.calls.length, before); assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
 });
 

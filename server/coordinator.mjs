@@ -511,7 +511,6 @@ export class Coordinator {
     return true;
   }
   async flush(id) {
-    if (this.workspace.rewindJobs?.has(id)) return;
     const rows = this.deliveries.get(id); const agent = this.workspace.agents.get(id);
     if (this.stopped || this.paused || this.workspace.restoring || !rows?.length || rows[0].error || !agent || !this.workspace.readyFor(agent) || (agent.provider === 'claude' && agent.externalSession) || agent.questions.length || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag)) || !agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) return;
     if (rows[0].kind === 'task-ping' && !this.taskPingAllowed(agent)) return;

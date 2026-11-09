@@ -9,7 +9,28 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 0.45.0 — Preserve traceable conversations
+
+- Edit & rewind is withdrawn at the user's request. Original messages and
+  decisions stay visible; explain corrections and changed decisions in follow-up
+  messages.
+- Remove history-edit controls and CCNG native history-mutation endpoints.
+- Keep Copy this, ordinary follow-up input and separate conversation branching.
+- Individual-message and Claude rewind are withdrawn rather than future work.
+- Existing native history, task states, saved decision summaries and logins are
+  preserved; this release does not perform a rewind.
+
+**Validation:** all718 application tests and the production build pass. Regression
+checks cover authenticated rejection of removed routes without native calls,
+unchanged messages, follow-up/copy/branch behavior and passive external-history
+refresh with stale-read/error recovery guards. Independent review found no
+remaining issue. Publication/deployment are pending at this checkpoint; no real
+native history was changed for testing.
+
 ## 0.44.0 — Rewind inputs and preserve logins and decision history
+
+The rewind feature described below was subsequently withdrawn in0.45.0. Other
+0.44.0 features remain supported; this entry preserves the release history.
 
 - Edit & rewind previews every affected turn/input before explicit confirmation.
 - Native acknowledgement refreshes retained history and places the original text

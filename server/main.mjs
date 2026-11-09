@@ -222,11 +222,6 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
         const modelRoute = path.match(/^\/api\/agents\/([^/]+)\/model-settings$/);
         if (modelRoute && request.method === 'GET') return json(response, await workspace.modelSettings(decodeURIComponent(modelRoute[1])));
         if (modelRoute && request.method === 'POST') return json(response, await workspace.updateModel(decodeURIComponent(modelRoute[1]), await body(request)));
-        const rewindRoute = path.match(/^\/api\/agents\/([^/]+)\/(rewind-preview|rewind)$/);
-        if (rewindRoute && request.method === 'POST') {
-          const [, encoded, action] = rewindRoute, id = decodeURIComponent(encoded), data = await body(request);
-          return json(response, action === 'rewind-preview' ? await workspace.rewindPreview(id, data) : await workspace.rewind(id, data));
-        }
         const taskRoute = path.match(/^\/api\/agents\/([^/]+)\/tasks$/);
         if (taskRoute) {
           const id = decodeURIComponent(taskRoute[1]);

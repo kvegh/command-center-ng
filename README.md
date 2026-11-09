@@ -34,7 +34,6 @@ Paste or attach images while keeping the conversation and project tasks visible.
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
 - Chat, steer active work, interrupt a turn and answer native questions or approvals.
 - Branch a Codex conversation, then hand tasks and a summary back to its parent.
-- Edit earlier Codex text inputs using a confirmed whole-turn conversation rewind.
 - See linked Beads tasks, input needs, progress and optional task notifications.
 - Request task reports immediately or choose a saved interval; Never disables automatic startup and recurring reports.
 - Recheck overlooked tasks silently every 15 minutes, with the next check shown in the coordinator.
@@ -141,9 +140,8 @@ The installed launcher supports `service install`, `enable`, `start`, `stop`,
 - Session management is **local to the backend host**; no SSH or remote-agent monitoring.
 - Codex is the current operational focus. Official Claude Agent SDK code exists,
   but Claude completion and live validation remain **TODO**.
-- Codex Edit & rewind removes whole turns after a preview; files, commands and
-  deployments are not undone. Text-only initially; Claude and per-message rewind
-  remain future work. Avoid concurrent edits from another native client.
+- Conversations stay traceable: correct earlier inputs or decisions in follow-up
+  messages. Edit/Rewind is withdrawn; branching remains separate and available.
 - Native Goals controls and automatic Goal creation were withdrawn; tasks remain in Beads.
 - Closing a tab does not stop its native conversation. Backend shutdown stops
   CCNG-owned Claude runs; native history remains available for later resume.

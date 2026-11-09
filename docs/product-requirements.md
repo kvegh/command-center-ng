@@ -98,10 +98,9 @@ does not establish that its assigned work is complete.
 
 ## Conversation branching
 
-Assistant messages retain **Copy this** with its icon, immediately left of
-**Branch here** where available. Eligible original Codex user text inputs use
-**Edit & rewind** instead; unsupported/image inputs retain safe limitations.
-It copies that message's full text to the browser clipboard. Fenced and indented
+Messages retain **Copy this** with its icon, copying their full text to the
+browser clipboard. Eligible assistant replies also show **Branch here** immediately
+to its right. Fenced and indented
 code blocks have their own copy icon that copies only that block's exact text.
 Copying provides visible success/failure feedback and never executes commands.
 Inline code remains unchanged.
@@ -727,19 +726,15 @@ enabled schedules retain coalescing and their cadence. Changing to Never cancels
 only unsent automatic reports, preserving explicit manual, failed/unconfirmed
 and in-flight requests. Separate fifteen-minute task checks are unchanged.
 
-### Whole-turn Edit and rewind
+### Traceable conversation history
 
-The user approved native whole-turn rewind; finer per-message boundaries are
-optional future work. Offer Edit & rewind on original Codex text inputs, preview
-all removed turns/inputs, require explicit confirmation and only apply native
-thread/revert after current identity/history/native-request checks. Native
-acknowledgement and authoritative history refresh precede draft insertion.
-Editing happens in the ordinary composer, never automatic resubmission. Do not
-undo files, commands, deployments, tasks or saved permissions. Existing drafts,
-pending/uncertain inputs, ownership and handoffs remain protected. Reject image
-inputs and unsupported/incomplete histories rather than losing attachments or
-rewriting unsupported native storage. Document native cross-client concurrency
-limits and avoid claims of atomicity beyond CCNG's own operation gates.
+The user withdrew Edit/Rewind to keep communication and decisions traceable.
+Do not offer previous-message editing or conversation rewind. This supersedes
+the earlier whole-turn approval and withdraws individual-message and Claude
+rewind variants as well. Preserve original messages and decisions; corrections
+or changed instructions belong in follow-up text. Branching remains a separate
+supported action that preserves the original conversation. Other deferred Claude
+integration work is unchanged by this withdrawal.
 
 ### Durable coordinator decision summaries
 

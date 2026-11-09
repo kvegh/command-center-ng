@@ -231,8 +231,8 @@ burst of missed intervals. Closing a tab removes that worker's CCNG schedule.
 
 The Codex **Model** and **Effort** controls use the native runtime's catalog and
 supported choices. Changes apply to subsequent turns without interrupting the
-current turn or changing global permissions. Edit & rewind is described below;
-use the existing branch action for a separate conversation.
+current turn or changing global permissions. Use follow-up messages to correct
+earlier instructions, or the existing branch action for a separate conversation.
 
 ## Images, Markdown and copying
 
@@ -309,34 +309,17 @@ its absence does not establish that no blockers exist. Quoted/code examples,
 older messages and other turns cannot satisfy an outstanding request.
 
 
-## Edit a previous input and rewind
+## Correcting earlier messages
 
-On an eligible Codex text input, **Edit & rewind** replaces its Copy this action.
-A preview lists the entire selected turn and every later turn that will be removed,
-including any other inputs in the selected turn. A turn is one agent work cycle
-and may contain several inputs. Review the list, select the confirmation checkbox
-and choose **Rewind & edit input**. Only after native acknowledgement does the
-original text enter the normal chat draft; edit it there and send when ready.
-Nothing is sent automatically. Cancel leaves conversation history unchanged.
+Send a follow-up message to correct an earlier input or change a decision. State
+what has changed and which earlier instruction it supersedes, keeping the original
+communication traceable. Edit/Rewind was withdrawn, including whole-turn,
+individual-message and Claude variants.
 
-This changes conversation history, not files or the machine. Prior commands,
-commits, deployments, Beads tasks and saved permissions are not rolled back.
-Branching remains separate: it creates another conversation and preserves the
-original. Individual-message rewind and Claude support remain deferred.
-
-Rewind requires an idle editable worker, no pending native/coordinator requests,
-no prepared or incoming handoff, and an empty target chat draft. Existing text or
-image drafts are preserved. Selected image/attachment inputs are disabled because
-they cannot yet be restored to the draft. Larger or incomplete native history,
-legacy/ephemeral threads and unsupported runtimes fail with a specific explanation.
-There is no direct native-history-file rewrite or fallback.
-
-If history changes after preview, refresh and review it again. An uncertain
-native response may mean the rewind already happened: inspect history before
-another attempt; CCNG never retries it automatically. Other workers keep their
-drafts/focus, and stored report/task-check schedules remain active. Do not edit
-the same conversation from another native client during confirmation: the native
-API cannot atomically compare that client's changes against this preview.
+Use **Branch here** or **Branch chat** when you want a separate conversation.
+Branching preserves the original history and remains distinct from correcting
+instructions in the current chat. It does not undo files, commands, deployments,
+tasks or permissions.
 
 
 ## Saved coordinator decisions

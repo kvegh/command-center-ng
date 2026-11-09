@@ -310,19 +310,6 @@ kbd { font-family: inherit; }
 .return-dialog .button-row { justify-content: flex-end; }
 .branch-summary-review { padding: 20px; margin: 0 0 28px; background: var(--surface); border: 1px solid var(--accent); border-radius: 10px; }
 .branch-summary-review[hidden] { display: none; }
-.rewind-dialog { width: min(720px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; }
-.rewind-dialog > .rewind-warning { color: var(--amber); line-height: 1.6; }
-.rewind-dialog .rewind-affected { max-height: 30dvh; overflow-y: auto; margin: 14px 0; padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
-.rewind-affected details { margin: 8px 0; }
-.rewind-affected summary { cursor: pointer; line-height: 1.5; }
-.rewind-affected ul { margin: 8px 0; padding-left: 20px; font-size: 12px; line-height: 1.6; }
-.rewind-affected li { overflow-wrap: anywhere; }
-.rewind-input-text { white-space: pre-wrap; margin: 4px 0; }
-.rewind-dialog form > label { display: block; margin: 10px 0 6px; font-size: 12px; }
-.rewind-dialog textarea { width: 100%; resize: vertical; max-height: 35dvh; padding: 10px; font: inherit; line-height: 1.6; }
-.rewind-dialog form > .rewind-confirm { display: flex; align-items: flex-start; gap: 8px; line-height: 1.6; }
-.rewind-confirm input { width: auto; flex: 0 0 auto; margin-top: 4px; accent-color: var(--accent); }
-.rewind-dialog .button-row { flex-wrap: wrap; }
 .branch-summary-review .button-row { flex-wrap: wrap; }
 
 .login-page { min-height: 100dvh; display: grid; place-items: center; background: #0c121c; }
@@ -1070,5 +1057,4 @@ kbd { font-family: inherit; }
   .conversation { flex: none; min-height: 0; max-height: calc(30 * 1.8 * 14px + 40px); overflow-y: auto; overscroll-behavior-y: auto; padding: 17px 13px 23px; }
   .composer { flex: none; height: auto; max-height: none; overflow: visible; }
   .composer textarea { font-size: 16px; height: 9.6em; min-height: 9.6em; max-height: 9.6em; line-height: 1.6; overflow-y: auto; resize: none; }
-  .rewind-dialog textarea { font-size: 16px; }
 }

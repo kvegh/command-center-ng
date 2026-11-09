@@ -683,26 +683,16 @@ page and compact settings; desktop pinning must not apply to narrow/coarse-touch
 layouts. Do not change native task/request semantics for layout work.
 
 
-## Approved whole-turn Edit and rewind
+## Edit/Rewind withdrawn; preserve traceable communication
 
-The user approved native Codex whole-turn rewind with preview/confirmation.
-Use thread/revert(beforeTurnId) only for exact original text user input, with
-all affected turns/messages shown before explicit confirmation. Whole turns can
-contain multiple inputs. Refresh authoritative native history after acknowledgement,
-replace the old cache and return original text to the normal editable composer;
-never send it automatically. Preserve existing drafts/attachments and other chats.
-Images/other attachment-bearing inputs are disabled until restoration is supported.
-Files, commands, deployments, Beads states and saved permissions are not undone.
-
-Busy work, current/uncertain native requests, pending coordinator inputs and
-prepared/incoming branch handoffs block rewind. Recheck identity/revision/suffix
-immediately before the native mutation; no automatic retry after an uncertain
-outcome. Existing queues and report/task-check schedules remain, not cancelled.
-Native API has no cross-client compare-and-swap: warn against editing the same
-conversation from another client during confirmation. Do not claim cross-client
-atomicity or implement unsupported history rewrites/backups. Unsupported legacy,
-ephemeral or native-method cases fail visibly without alternate rewrites.
-Individual-message rewind and all Claude rewind work remain deferred.
+The user withdrew Edit/Rewind to keep original communication and decisions
+traceable. This supersedes the earlier whole-turn approval and withdraws all
+individual-message and Claude rewind variants. Do not offer previous-message
+editing, conversation rewind or history-edit controls in CCNG. Use follow-up
+messages to correct or supersede earlier instructions and decisions while
+preserving their original record. Branching remains separately supported and
+preserves the source conversation. Other deferred Claude integration work,
+native permissions, tasks and deployment ownership remain unchanged.
 
 
 ## Approved durable decision summaries

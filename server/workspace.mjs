@@ -14,7 +14,6 @@ import { BeadsTasks, sessionLabel } from './beads.mjs';
 import { Coordinator, COORDINATOR_NAME, isCoordinatorThread } from './coordinator.mjs';
 import { SUMMARY_LIMIT, SUMMARY_SCHEMA, summaryPrompt, readSummary } from './branch-summary.mjs';
 import { BranchHandoffs } from './branch-handoff.mjs';
-import { NativeRewind, editableNativeInput } from './native-rewind.mjs';
 import { ClaudeSessions, isClaudeId } from './claude.mjs';
 import { readEnvironmentInstructions, environmentInstructionContext } from './environment-instructions.mjs';
 import { messageTime } from './message-time.mjs';
@@ -73,7 +72,6 @@ export class Workspace extends EventEmitter {
     super(); this.rpc = rpc; this.agents = new Map(); this.pending = new Map(); this.opening = new Set(); this.watched = new Set(); this.creating = 0; this.error = null;
     this.summaryJobs = new Map(); this.returnJobs = new Map(); this.summaryTimeout = summaryTimeout;
     this.handoffs = new BranchHandoffs(this, handoffOptions);
-    this.rewindJobs = new Map(); this.rewinds = new NativeRewind(this);
     this.workerReads = new Set(); this.beads = beads; this.trackerReads = new Map();
     this.answerJobs = new Map(); this.answerTimeout = answerTimeout;
     this.requestJobs = new Map(); this.recoveryTimeout = recoveryTimeout;
@@ -115,7 +113,7 @@ export class Workspace extends EventEmitter {
     return { backgroundQuestions: [...workers.values()].reduce((total, worker) => total + worker.questionCount, 0), backgroundWorkers: [...workers.values()] };
   }
   snapshot() {
-    return { connected: this.available(), codexConnected: this.rpc.ready, claudeAvailable: !!this.claude?.available, claudeError: this.claude?.error || null, error: this.error, nativeWarning: this.nativeWarning || null, version: VERSION, restoration: this.restoration, handoffCompletions: this.handoffs.completions, coordinator: this.coordinator?.snapshot() || null, ...this.backgroundRequests(), agents: [...this.agents.values()].map(agent => ({ ...agent, messages: agent.messages.map(message => { const { fileChangeContext: internal, ...visible } = message; return imageReferences(agent.id, visible); }), questions: agent.questions.map(question => this.requestView(agent, question)), ...taskSummary(agent), rewinding: this.rewindJobs.has(agent.id), rewindBlockedReason: this.rewinds.blockedReason(agent), reportState: this.coordinator?.reportState(agent.id) || null, reportSettingPending: !!this.coordinator?.deliveries.get(agent.id)?.some(row => row.kind === 'report-setting'), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), recoveringRequests: this.requestJobs.has(agent.id), status: this.readyFor(agent) ? (agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline', thread: undefined })) };
+    return { connected: this.available(), codexConnected: this.rpc.ready, claudeAvailable: !!this.claude?.available, claudeError: this.claude?.error || null, error: this.error, nativeWarning: this.nativeWarning || null, version: VERSION, restoration: this.restoration, handoffCompletions: this.handoffs.completions, coordinator: this.coordinator?.snapshot() || null, ...this.backgroundRequests(), agents: [...this.agents.values()].map(agent => ({ ...agent, messages: agent.messages.map(message => { const { fileChangeContext: internal, ...visible } = message; return imageReferences(agent.id, visible); }), questions: agent.questions.map(question => this.requestView(agent, question)), ...taskSummary(agent), reportState: this.coordinator?.reportState(agent.id) || null, reportSettingPending: !!this.coordinator?.deliveries.get(agent.id)?.some(row => row.kind === 'report-setting'), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), recoveringRequests: this.requestJobs.has(agent.id), status: this.readyFor(agent) ? (agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline', thread: undefined })) };
   }
   requestView(agent, question) {
     if (question.method !== 'item/fileChange/requestApproval') return question;
@@ -132,15 +130,6 @@ export class Workspace extends EventEmitter {
     return context ? JSON.stringify([context.threadId, context.turnId, context.itemId, context.state, context.contentSha256 || null]) : null;
   }
   agent(id) { const agent = this.agents.get(id); if (!agent) throw Object.assign(new Error('Open this agent first.'), { status: 404 }); return agent; }
-  assertNotRewinding(id) { if (this.rewindJobs.has(id)) throw Object.assign(new Error('Wait for this worker’s rewind operation to finish.'), { status: 409 }); }
-  rewindPreview(id, selection) { return this.rewinds.preview(id, selection); }
-  rewind(id, confirmation) { return this.rewinds.commit(id, confirmation); }
-  clearRewoundHistory(agent) {
-    agent.historyRevision = (agent.historyRevision || 0) + 1;
-    agent.rewindRevision = (agent.rewindRevision || 0) + 1;
-    agent.messages = []; agent.tasks = []; agent.workers = []; agent.summary = null; agent.activity = null;
-    agent.turnId = null; agent.finishedTurn = null; agent.lastCompletedTurnId = null; agent.olderCursor = null; agent.returnSummary = null;
-  }
   messageImage(id, messageId, index) {
     const agent = this.agent(id);
     if (!Number.isInteger(index) || index < 0) throw Object.assign(new Error('Image not found.'), { status: 404 });
@@ -250,7 +239,6 @@ export class Workspace extends EventEmitter {
     try { return await job; } finally { this.requestJobs.delete(id); this.changed(); }
   }
   async refreshObserved(id) {
-    if (this.rewindJobs.has(id)) return;
     const agent = this.agents.get(id);
     if (agent?.provider === 'claude') { if (!this.claude?.available || this.restoring || this.observedReads.has(id)) return; const job = this.claude.refresh(agent); this.observedReads.set(id, job); try { await job; } catch (error) { agent.observeError = error.message; this.changed(); } finally { this.observedReads.delete(id); } return; }
     if (!agent?.observingOnly || !this.rpc.ready || this.restoring) return;
@@ -259,7 +247,7 @@ export class Workspace extends EventEmitter {
     const job = (async () => {
       try {
         const { thread } = await this.rpc.call('thread/read', { threadId: id });
-        if (this.agents.get(id) !== agent || this.rewindJobs.has(id) || (agent.historyRevision || 0) !== revision) return;
+        if (this.agents.get(id) !== agent || (agent.historyRevision || 0) !== revision) return;
         if (!thread) throw new Error('Saved conversation is unavailable.');
         const signature = value => JSON.stringify([value.status, value.updatedAt, value.preview, value.model, value.reasoningEffort]);
         const changed = signature(thread) !== signature(agent.thread); this.syncModel(agent, thread.model, thread.reasoningEffort); const recovered = !!agent.observeError; agent.thread = thread; agent.observeError = null;
@@ -300,14 +288,13 @@ export class Workspace extends EventEmitter {
       }
       return;
     }
-    const record = { id: item.id, turnId, branchable, nativeType: item.type, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text: text || '', ...questionFields, ...(item.type === 'fileChange' ? { fileChangeContext: fileChangeContext(item.changes) } : {}), ...(item.type === 'userMessage' ? { rewindable: editableNativeInput(item) } : {}), ...(images.length ? { images } : {}), state: item.status || 'completed', ...itemTime(item, previousRecord, live), ...reportMessageFlags(item, previousRecord) };
+    const record = { id: item.id, turnId, branchable, nativeType: item.type, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text: text || '', ...questionFields, ...(item.type === 'fileChange' ? { fileChangeContext: fileChangeContext(item.changes) } : {}), ...(images.length ? { images } : {}), state: item.status || 'completed', ...itemTime(item, previousRecord, live), ...reportMessageFlags(item, previousRecord) };
     if (previous >= 0) agent.messages[previous] = record; else agent.messages.push(record);
     if (live && completed && record.type === 'assistant') this.coordinator?.reportMessageCompleted(agent.id, record);
     if (agent.messages.length > 600) agent.messages = agent.messages.slice(-600);
     if (record.type === 'activity') agent.activity = { text: String(text).split('\n')[0].slice(0, 180), state: record.state };
   }
   async history(id, cursor, { replace = false } = {}) {
-    if (!replace) this.assertNotRewinding(id);
     const agent = this.agent(id);
     if (agent.provider === 'claude') { if (cursor) throw Object.assign(new Error('Claude history uses its native current transcript.'), { status: 400 }); await this.claude.refresh(agent); return; }
     const before = { turnId: agent.turnId, finishedTurn: agent.finishedTurn, status: agent.thread.status, revision: agent.historyRevision || 0 };
@@ -393,7 +380,6 @@ export class Workspace extends EventEmitter {
     return { models, model: agent.model, effort: agent.reasoningEffort ?? null, change: agent.modelChange || null };
   }
   async updateModel(id, choice) {
-    this.assertNotRewinding(id);
     const agent = this.agent(id);
     if (agent.provider === 'claude') return this.claude.updateModel(agent, choice);
     if (agent.role === 'coordinator' || !agent.canSend) throw Object.assign(new Error('Choose a worker that accepts direct input.'), { status: 400 });
@@ -415,7 +401,6 @@ export class Workspace extends EventEmitter {
     return this.beads.catalog(agent.cwd, id);
   }
   async linkTasks(id, ids) {
-    this.assertNotRewinding(id);
     const agent = this.agent(id);
     if (this.returnJobs.has(id)) throw Object.assign(new Error('Wait for the branch handoff before editing its task links.'), { status: 409 });
     if (!this.beads) throw Object.assign(new Error('Beads is unavailable.'), { status: 503 });
@@ -465,7 +450,6 @@ export class Workspace extends EventEmitter {
     } finally { if (reserved) this.creating--; }
   }
   async send(id, text, { report = false, reportSetting = false, coordinatorEvent = false, taskPing = false, images: suppliedImages } = {}) {
-    this.assertNotRewinding(id);
     const agent = this.agent(id);
     if (taskPing && (agent.provider === 'claude' || agent.role === 'coordinator')) throw Object.assign(new Error('Silent task checks are supported only for Codex workers.'), { status: 409 });
     if (taskPing && agent.thread.status?.type === 'active' && !agent.turnId) throw Object.assign(new Error('Wait for the active native turn identity before a silent task check.'), { status: 409 });
@@ -478,11 +462,9 @@ export class Workspace extends EventEmitter {
     await this.activate(id);
     const context = await this.instructionContext(agent);
     if (this.agents.get(id) !== agent) throw Object.assign(new Error('The worker was closed before message delivery.'), { status: 409 });
-    this.assertNotRewinding(id);
     if (!this.readyFor(agent)) throw Object.assign(new Error('Reconnect the native runtime before sending this message.'), { status: 503 });
     if (taskPing && agent.thread.status?.type === 'active' && !agent.turnId) throw Object.assign(new Error('Wait for the active native turn identity before a silent task check.'), { status: 409 });
     if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
-    this.assertNotRewinding(id);
     if (agent.provider === 'claude') {
       await this.claude.send(agent, text.trim(), { images, report, reportSetting, instructions: Object.values(context).map(part => part.value).join('\n\n'), stillOpen: () => this.agents.get(id) === agent, ...(report || reportSetting ? { priority: 'next' } : {}) }); return;
     }
@@ -491,7 +473,6 @@ export class Workspace extends EventEmitter {
       await this.rpc.call('thread/name/set', { threadId: id, name: title });
       agent.name = title; agent.goal = title; agent.freshBranch = false;
     }
-    this.assertNotRewinding(id);
     if (this.agents.get(id) !== agent) throw Object.assign(new Error('The worker was closed before message delivery.'), { status: 409 });
     if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
     if (taskPing) {
@@ -531,7 +512,6 @@ export class Workspace extends EventEmitter {
     await this.rpc.call('turn/interrupt', { threadId: id, turnId: agent.turnId });
   }
   async fork(id, lastTurnId) {
-    this.assertNotRewinding(id);
     const source = this.agent(id);
     if (source.provider === 'claude') throw Object.assign(new Error('Claude branching is not supported in Command Center yet. This session remains unchanged.'), { status: 400 });
     if (source.role === 'coordinator') throw Object.assign(new Error('Branch a worker conversation instead.'), { status: 400 });
@@ -551,7 +531,6 @@ export class Workspace extends EventEmitter {
     } finally { if (reserved) this.creating--; }
   }
   async parent(id) {
-    this.assertNotRewinding(id);
     const branch = this.agent(id); const parentId = branch.parentId;
     if (!parentId) throw Object.assign(new Error('This conversation has no parent branch.'), { status: 400 });
     if (this.agents.has(parentId)) return parentId;
@@ -572,7 +551,6 @@ export class Workspace extends EventEmitter {
     return branch;
   }
   async summarize(id) {
-    this.assertNotRewinding(id);
     if (this.handoffs.incoming(id) || this.agent(id).handoff) throw Object.assign(new Error('Use Hand back & close to finish this branch handoff; an incoming delivery must finish first.'), { status: 409 });
     if (this.summaryJobs.has(id)) return this.summaryJobs.get(id);
     const branch = this.idleBranch(id, { allowUnloaded: true });
@@ -581,7 +559,7 @@ export class Workspace extends EventEmitter {
     const job = this.generateSummary(branch); this.summaryJobs.set(id, job); this.changed();
     try { return await job; } finally { this.summaryJobs.delete(id); this.changed(); }
   }
-  startHandoff(id) { this.assertNotRewinding(id); return this.handoffs.start(id); }
+  startHandoff(id) { return this.handoffs.start(id); }
   async generateSummary(branch) {
     // Return summary is an explicit user action; restoring a tab stays read-only.
     await this.activate(branch.id);
@@ -609,7 +587,6 @@ export class Workspace extends EventEmitter {
     return branch.returnSummary;
   }
   async returnToParent(id, text) {
-    this.assertNotRewinding(id);
     if (this.handoffs.incoming(id) || this.agent(id).handoff) throw Object.assign(new Error('Use Hand back & close to finish this branch handoff; the older return flow cannot bypass its safety checks.'), { status: 409 });
     if (this.returnJobs.has(id)) return this.returnJobs.get(id);
     const branch = this.idleBranch(id, { allowUnloaded: true });
@@ -650,7 +627,7 @@ export class Workspace extends EventEmitter {
       throw error;
     }
   }
-  close(id) { this.assertNotRewinding(id); const agent = this.agent(id); if (agent.role === 'coordinator') throw Object.assign(new Error('Pause the coordinator using its controls.'), { status: 409 }); if (this.summaryJobs.has(id) || this.returnJobs.has(id)) throw Object.assign(new Error('Wait for the branch handoff to finish before closing its tab.'), { status: 409 }); this.agents.delete(id); this.rewinds.previews.delete(id); this.coordinator?.closed(id); this.changed(); }
+  close(id) { const agent = this.agent(id); if (agent.role === 'coordinator') throw Object.assign(new Error('Pause the coordinator using its controls.'), { status: 409 }); if (this.summaryJobs.has(id) || this.returnJobs.has(id)) throw Object.assign(new Error('Wait for the branch handoff to finish before closing its tab.'), { status: 409 }); this.agents.delete(id); this.coordinator?.closed(id); this.changed(); }
   request(message) {
     const p = message.params || {};
     if (['execCommandApproval', 'applyPatchApproval'].includes(message.method) && typeof p.conversationId === 'string' && !p.threadId) p.threadId = p.conversationId;
@@ -712,9 +689,17 @@ export class Workspace extends EventEmitter {
   notification({ method, params: p = {} }) {
     if (method === 'thread/reverted') {
       const agent = this.agents.get(p.threadId); if (!agent) return;
-      if (this.rewinds.applying.has(agent.id)) return; // The confirmed operation hydrates exactly once after its ACK.
-      this.clearRewoundHistory(agent);
-      void this.history(agent.id, undefined, { replace: true }).catch(error => { agent.rewindError = error.message; this.changed(); });
+      // A different native client changed history. Invalidate prior reads and
+      // approval-item bodies before observing the new native transcript.
+      const revision = agent.historyRevision = (agent.historyRevision || 0) + 1;
+      agent.messages = []; agent.tasks = []; agent.workers = []; agent.summary = null; agent.activity = null;
+      agent.turnId = null; agent.finishedTurn = null; agent.lastCompletedTurnId = null; agent.olderCursor = null; agent.returnSummary = null;
+      const current = () => this.agents.get(agent.id) === agent && agent.historyRevision === revision;
+      void this.history(agent.id, undefined, { replace: true }).then(() => {
+        if (current()) { agent.observeError = null; this.changed(); }
+      }, error => {
+        if (current()) { agent.observeError = error.message; this.changed(); }
+      });
       this.changed(); return;
     }
     if (method === 'serverRequest/resolved') { this.removeQuestion(p.threadId, p.requestId); this.changed(); return; }
@@ -728,7 +713,6 @@ export class Workspace extends EventEmitter {
       this.changed(); return;
     }
     const id = p.threadId || p.thread?.id; const agent = this.agents.get(id); if (!agent) return;
-    if (method.startsWith('turn/') || method.startsWith('item/')) agent.rewindRevision = (agent.rewindRevision || 0) + 1;
     if (method === 'thread/status/changed' || method.startsWith('turn/') || method.startsWith('item/')) {
       this.nativeActivity(agent, method === 'turn/started' ? undefined : p.turnId || p.turn?.id);
     }

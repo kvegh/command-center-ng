@@ -167,7 +167,7 @@ capability guards; this table is not an already-implemented generic adapter API.
 | --- | --- | --- |
 | Model/reasoning controls | Discover real native choices, validate per-session changes and confirm the result without global permission/settings changes. | Codex uses per-thread settings; Claude uses controls on an existing managed query. Claude restart persistence is unverified. |
 | Branching and return | Native context/cutoff, parent identity and explicit summary delivery; archive only after accepted handoff, without duplicate confirmed sends. | Codex integrated; Claude branching not integrated. Completed-reply cutoff differs from branching current history. |
-| Edit & rewind | Native conversation cutoff and edited resubmission, with exact input/turn semantics and clear history effects. | Codex integrated in 0.44.0 at the native whole-turn boundary, with preview/confirmation and unsent text draft. Individual-message and Claude variants remain deferred. Files/external actions are separate; cross-client atomic revision guards are not provided by the native API. |
+| Traceable history | Preserve original messages and decisions; use follow-up text for corrections or changed instructions. | Edit/Rewind is withdrawn for every provider, including whole-turn and individual-message variants. It is not a future harness requirement. Native branching remains separate. |
 | Images | Native image input/history, validated size/type, authenticated exact message references and visible send failures. | Current clipboard limits are four images, 4 MiB each, 8 MiB total. Unsent drafts are memory-only; no remote fetch or attachment database. |
 | Timestamps | Preserve native historical times; label live receipt fallback and leave unavailable history unknown. | A new provider must not fabricate old timestamps. |
 | Subagents and parallel work | Surface real child identities/state where exposed; distinguish waiting for a child from waiting for the user. | No inference that every occupied slot is useful or that CCNG's tab limit controls native concurrency. |
@@ -192,8 +192,9 @@ Sources: [model validation](../server/worker-models.mjs), [branch lifecycle](../
   workspace adapter. Do not describe it as complete infinite history.
 - A loaded instruction file does not establish agent compliance. An existing
   Claude query retains its process-startup context.
-- Native SDK capabilities are not automatically CCNG features. Conversation
-  rewind, filesystem checkpoint rewind and native session fork are different.
+- Native SDK capabilities are not automatically CCNG features. Edit/Rewind is
+  withdrawn; filesystem checkpoints and native session forks are separate
+  capabilities and do not authorize history-edit controls.
 - Most control tests use protocol/SDK fixtures. Native-history fixtures do not
   prove live model authentication, browser behavior or unattended continuation.
 

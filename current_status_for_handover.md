@@ -5,6 +5,21 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Working version0.45.0 removes Edit & rewind following the user's explicit
+withdrawal. Keep communication traceable by retaining earlier messages and
+recording corrections or changed decisions in follow-up messages. All rewind
+variants, including previously deferred individual-message and Claude proposals,
+are withdrawn. Copy this, normal input and branching remain available. Preserve
+native conversation history and existing tasks, decisions, logins and permissions.
+Removal implementation and source review are complete: all718 application tests
+and the production build pass. Authenticated removed routes return404 without
+native calls; passive observation retains stale-history/error recovery guards.
+No actual native history rollback is authorized or performed. Publication/deployment evidence
+below still concerns0.44.0 until this release is verified.
+
+Historical rewind approval/choice statements below are superseded by this
+withdrawal and are not current implementation or future-work authority.
+
 Published and installed version 0.44.0 integrates the approved whole-turn Codex Edit & rewind.
 Preview full affected turns/inputs, require confirmation, use native revert and
 refresh retained history before returning original text to the normal composer.
