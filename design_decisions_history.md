@@ -2845,3 +2845,46 @@ These checks do not establish real fresh Codex download, provider sign-in,
 rendered phone/browser behavior, daemon reboot survival or complete native child
 approval delivery. Publication and installed verification will be recorded from
 actual outcomes. Detailed reports remain separate follow-up work.
+
+## 2026-11-09 — Release the combined detailed-report workflow as 1.0.0
+
+Implementation `e7432ed5d4442d7608618c0d207b05636ed1c04a` adds the user's
+Detailed report checkbox beside Report now on desktop and mobile. Keep the
+normal concise report first, followed by every actual linked in-progress task
+and up to ten attributable recent actions with evidenced timestamps and outcomes.
+Unavailable history, fewer actions, receipt times and unknown results remain
+explicit. Task update time is not action time; starting a tool is not success.
+Only this explicit request permits bounded existing task/history reads.
+
+Reuse the existing HTTP route and bounded queue. Upgrade an unsent request
+without duplicates or downgrades; preserve the mode captured by a dispatched or
+uncertain send and display truthful feedback rather than resending. Keep native
+questions, pause, ownership, authentication/origin checks, silent request markers,
+report confirmation and independent schedules. No new action store, service,
+timer, native permission or model call is introduced. Mobile uses a natural-flow
+checkbox/button row below the collapsed settings header rather than squeezing
+controls into fixed absolute space. The choice remains local to the chat view.
+
+The user rejected fragmenting related changes into separate deployments and
+selected1.0.0 for the completed usable single-engineer, Codex-focused application.
+Backend, UI, instructions and tests therefore ship together. This number does
+not establish previously unverified live approval recovery, asynchronous provider
+question replies, complete phone workflows or reboot survival. The user explicitly
+accepted releasing this feature set and continuing other fixes afterward.
+
+The combined suite ran792 tests:791 passed, one unavailable alternate-group case
+skipped, none failed. The production build and independent source/docs review
+pass. An HTTP fixture initially paused before startup restoration, which correctly
+restored its saved unpaused state; the fixture now waits for restoration before
+using the real pause control. Production gates were not weakened for the test.
+Authenticated HTTP/queue/native-gate/ACK and actual desktop/mobile component
+regressions pass with synthetic transport; no real provider call was created.
+Publication and installed verification will be recorded from actual outcomes.
+
+The preceding0.48.0 source checkpoint82e7861 was SSH-published/readback verified.
+AAP3455 completed update/restart with nine protected files and unrelated Bash
+bytes/uid/gid/mode retained;3456 independently matched105 files, running HTTPS
+assets/listeners/auth gates,17 deployed-source checks plus one alternate-group
+skip, actual Codex0.167.0 PATH lookup and the ten-minute timer. The user confirmed
+the collapsible Subagents section was visible. AAP3454's command syntax failure
+occurred before installer execution and was corrected before3455.
