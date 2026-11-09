@@ -2602,3 +2602,31 @@ withdrawn routes, retaining its original messages with zero native calls. Remove
 feature files/controls are absent; copy and branch controls remain served. No
 actual user history/login was modified for testing. Rendered browser review and
 the earlier refused public-origin path were not repeated.
+
+
+## 2026-11-09 — Keep input decisions independent and illustrate the mobile interface
+
+Implementation: `6c79c8f367cd434d6cd0aa83dd1eaa0b69e1f4ef` (0.45.1).
+
+The user rejected a Needs input prompt that combined a Vault-source choice with
+approval of configuration scope. Shared and worker guidance now asks for one
+independently answerable decision/action per structured question item or ordinary
+Beads input record. Alternatives for one decision remain together; separate
+questions can be answered and resolved independently. Preserve exact native
+approval payloads, pending choices and originating-worker ownership. This is
+instruction guidance, not an automatic semantic parser or a claim of guaranteed
+agent compliance. No other conversation's input record was changed.
+
+The user supplied two mobile screenshots for the README and approved removal of
+hidden EXIF after visual/metadata review. The originals contained Android build,
+capture time/timezone and per-image identifiers; no GPS tag was present. A
+lossless metadata-only script removed EXIF while preserving all compressed image
+data and other JPEG segments, including colour profiles. Visible internal
+project/deployment text remains as authorized; captions identify historical UI
+versions and task states. The existing three desktop screenshots are unchanged.
+
+All718 application tests and the production build pass. Four existing worker-
+instruction checks pass; no new dependency or parser was introduced. EXIF absence,
+unchanged compressed data and README image references are verified. Publication/
+deployment are pending at this checkpoint. Real future agent compliance and
+actual phone keyboard/touch/rotation behavior are not established by this change.
