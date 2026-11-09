@@ -5,12 +5,17 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working version 0.43.0 implements the user's explicit correction: Never also
+Published/deployed version 0.43.0 implements the user's explicit correction: Never also
 excludes automatic startup reports. Keep manual Report now, stored dashboard
 summary/task reads, enabled cadence/coalescing and separate task checks.
 Unsent automatic startup reports can be cancelled without dropping manual,
 failed/unconfirmed or in-flight work. All 618 application tests and the production
-build pass; publication/deployment are pending.
+build pass. Implementation ea9d917 and payload
+cdc969fe02b15f8adedf154d0d476d628a3f8712 are SSH-published/readback-verified.
+Production update/restart and independent verification passed: 96 matching files,
+two served assets, trusted HTTPS0.43.0, login gates, both listeners and eight
+unchanged protected files. Installed startup-skip code/instructions match; no
+extra model turn or live native grant was started for validation.
 The user deferred optional installed/native/browser workflow exercises; do not
 install Playwright/Chromium or run real native grants merely for acceptance.
 Whole-turn Edit and rewind is now approved with preview/confirmation; its isolated

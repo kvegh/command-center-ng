@@ -2450,3 +2450,11 @@ Ansible bootstrap changes; all17 disposable native-Ansible fixtures pass on the
 combined source. Fresh browser/proxy first enrollment remains unverified and
 belongs to the selected fresh deployment's acceptance, not this existing-login
 preservation check.
+
+0.43.0 publication/deployment outcome: payload
+`cdc969fe02b15f8adedf154d0d476d628a3f8712` is SSH-published/readback-verified.
+Authorized production update/restart and independent verification succeeded:
+96 source files/two assets match, trusted HTTPS0.43.0 and mandatory login work,
+both listeners remain available, eight protected files are unchanged, and the
+Never startup-skip source/instructions are installed. This is runtime/artifact
+and preservation evidence, not an additional live native model/browser exercise.

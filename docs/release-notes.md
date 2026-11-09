@@ -21,7 +21,11 @@ is retrievable in the [README before this reorganization](https://github.com/kve
 **Validation:** all 618 application tests and the production build pass. Checks
 cover Never startup with stored input needs, manual Report now after Never,
 cancelled automatic versus retained manual/uncertain/in-flight work, enabled
-startup coalescing and unchanged task checks. Publication/deployment are pending.
+startup coalescing and unchanged task checks. Published/deployed payload
+`cdc969fe02b15f8adedf154d0d476d628a3f8712` was independently checked:
+96 source files, two served assets, trusted HTTPS0.43.0, login gates, both
+listeners and eight unchanged protected files. Startup-skip code/instructions
+match; no extra model or live permission exercise was started.
 Optional installed/native browser exercises are deferred by the user.
 
 ## 0.42.0 — Protected first-browser password setup and native approval choices
