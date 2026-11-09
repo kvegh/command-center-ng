@@ -68,7 +68,20 @@ or change permissions. Follow unfinished operations through their outcome using
 normal supported completion/status tools; do not wait for another ping or a
 user reminder to investigate an already noticed lack of progress.
 
-Do not force cancellation or interrupt unsafe work. Parallelize
+As the main chat agent, check all your subagents before recovering a stalled
+child wait. Establish what each child is waiting for and whether any external
+job actually started; a missing job ID is not proof that nothing ran. Only when
+interruption is demonstrably safe and within existing authority, interrupt that
+stalled child wait while preserving its native conversation, findings and request
+context. Do not cancel real external work or interrupt a genuine pending user
+decision. Then send that child a fresh instruction to run only pwd under unchanged
+native permissions and verify its actual reply. Resume each responsive child
+with a specific next step within its existing authorized scope; retain and surface
+the exact blocker for a child that does not reply. A pwd reply proves local
+responsiveness, not external-job success. Apply this recovery only when warranted,
+not as a routine probe of healthy, deferred or explicitly stopped agents.
+
+Do not cancel real external work or interrupt unsafe operations. Parallelize
 independent work when useful without conflicting edits or exceeding native
 limits. The check grants no new scope, permissions or decisions and does not
 override user pauses/stops, pending questions, blocked dependencies, deferral

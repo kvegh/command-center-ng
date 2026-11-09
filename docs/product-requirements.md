@@ -168,6 +168,14 @@ or surface the exact blocker and next action. Preserve approvals and forbid blin
 cancellation, duplication or retries. The prompt cannot guarantee recovery when
 the worker cannot reach a safe checkpoint.
 
+For warranted recovery, the main agent checks all children and actual external-job
+state before safely interrupting a stalled child wait. Preserve conversation,
+findings, pending decisions and real external work. Use existing native controls
+for a pwd-only responsiveness probe under unchanged permissions; verify actual
+replies and resume specific authorized work. Retain exact nonreply blockers.
+Never infer job success from a probe or job absence from a missing ID. No routine
+probe, new timer/dispatcher, approval bypass or user-stop override is introduced.
+
 Expose “Next chat task-ping to send” and the next scheduled time in the
 coordinator overview. Backend startup begins a fresh cycle with no missed-check
 burst. Coalesce outstanding worker checks and retain existing pause, ownership,

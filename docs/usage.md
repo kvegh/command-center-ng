@@ -78,6 +78,15 @@ and collect results or identify the exact blocker and next action. Age alone doe
 not prove execution started, an approval is pending, or a call is stuck. The
 reminder never authorizes blind retries/cancellation or answering approvals.
 
+The main chat agent owns recovery of its children. For a diagnosed stalled wait,
+it first checks what each child awaits and whether an external job started. If
+safe within existing authority, it interrupts only that child wait, preserving
+native history/findings/request context, then requests only `pwd` under unchanged
+permissions. Verify each child's actual reply before resuming its specific
+approved next step. A nonreply remains an explicit blocker; a `pwd` reply proves
+responsiveness, not job success. Keep real external work, pending decisions and
+user stops intact. This is conditional recovery, not a probe on every ping.
+
 The coordinator overview shows **Next chat task-ping to send** with the next
 scheduled local time. It is a schedule, not a guarantee of immediate delivery:
 a pending question, paused coordinator, disconnected session, unknown active
@@ -87,6 +96,24 @@ when CCNG restarts. Explicit user stops and project permissions remain in force;
 the reminder does not authorize an arbitrary backlog task or native Goal.
 This is an instruction at a safe checkpoint, not a watchdog that can recover a
 worker unable to reach that checkpoint or guarantee model compliance.
+
+### Coordinator control messages
+
+| Message | Recipient | Trigger |
+| --- | --- | --- |
+| Silent task check | Main worker chat | Existing fifteen-minute cycle |
+| Scheduled Standard Task Report | Worker chat | Saved enabled report interval |
+| Startup dashboard report | Worker chat | Startup/restoration, enabled report intervals only |
+| Report now | Worker chat | User presses Report now |
+| Coordinator-requested report | Worker chat | Coordinator requests missing status evidence |
+| Workspace events | Coordinator chat | Worker/task/request changes, with bounded review/recap/source/startup reminders |
+
+These control inputs are hidden in CCNG history; actual reports and useful replies
+stay visible. Informational summaries/handoffs use a separate, visible message
+path. Changing the report interval sends no standalone message: the backend
+updates its schedule and subsequent turn context. The older report-setting marker
+remains supported for compatibility, but is not currently queued. Base/shared
+instructions are injected as runtime context, not standalone chat messages.
 
 ## Branch and return a summary
 

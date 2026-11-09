@@ -55,7 +55,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Branch a Codex conversation, then hand tasks and a summary back to its parent.
 - See linked Beads tasks, input needs, progress and optional task notifications.
 - Request task reports immediately or choose a saved interval; Never disables automatic startup and recurring reports.
-- Recheck overlooked tasks and stalled delegated work silently every 15 minutes, with the next check shown in the coordinator.
+- Recheck overlooked tasks and stalled delegated work silently every 15 minutes, including safe recovery of stalled child waits, with the next check shown in the coordinator.
 - Keep coordinator decision summaries across restarts in a private local file.
 - Read Markdown, copy messages/code, and paste or attach images to a draft.
 - Keep desktop settings at the bottom of a full-height overview, with scrollable tasks and questions.

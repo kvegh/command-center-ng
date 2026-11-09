@@ -612,6 +612,13 @@ targeted follow-up; identify approval/input waits, evidenced running, completion
 failure or unknown state without inferring them from age alone. Collect results
 and update tasks or surface the exact blocker/next action. Do not blindly cancel,
 duplicate/retry uncertain operations, answer approvals or change permissions.
+For diagnosed stalled children, the main agent may use existing native controls
+to interrupt only a demonstrably safe stalled child wait, preserving history,
+findings and request context. First establish actual waits and external-job state;
+missing job IDs prove no absence. Preserve real external work and genuine user
+decisions. Use a conditional pwd-only probe under unchanged permissions, verify
+each affected child's reply and resume its specific authorized next step. No
+blanket periodic probes, approval bypass, blind retries or user-stop overrides.
 This is a reminder to the agent, not a dispatcher selecting or executing tasks.
 Do not echo triggers/acknowledgements in either chat history. Show the coordinator
 counter “Next chat task-ping to send” with the next scheduled local time.

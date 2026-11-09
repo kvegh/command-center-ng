@@ -5,6 +5,22 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Working correction0.46.1 adds the user-requested conditional recovery sequence
+to the fifteen-minute main-agent ping and coordinator/base guidance. Inspect
+actual child waits/jobs, safely interrupt only a stalled child wait, retain
+history/findings/native request context, verify a pwd-only reply and resume a
+specific authorized next step. Unknown outcomes, external jobs, pending user
+decisions and explicit stops remain protected. No periodic probing or new timer.
+Six focused regression files and production build pass; independent review
+found no blocking issue. The native message tool confirmed sending the requested
+guidance to the current Coordinator; adoption is not independently verified.
+Publication remains pending. The user asked to retry ordinary Git commit/push;
+a fresh read-only SSH attempt still
+rejected system configuration ownership before connecting to GitHub. No settings,
+credentials, transport or execution permissions were changed. Production0.45.1
+remains the last verified deployment; earlier publication input is not an answer.
+
+
 Working version0.46.0 strengthens silent task checks for outstanding delegated
 work, tool calls and external jobs. Inspect actual timing/progress and status,
 investigate stale/unknown waits, collect results or surface a precise blocker;
