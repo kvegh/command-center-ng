@@ -1,7 +1,8 @@
 ---
 # SYNTHETIC EXAMPLE ONLY. Store real settings in the private Vault companion.
 command_center_user: example_operator
-command_center_project_dir: /home/example_operator/projects/example-project
+# Default agent workspace is <account-home>/ccng-wd, created on first setup.
+# command_center_project_dir: /home/example_operator/projects/existing-project
 command_center_repository: git@github.com:EXAMPLE_OWNER/command-center-ng.git
 command_center_revision: main
 # Defaults: localhost:4242; preserve existing Codex/Beads login/profile/services.

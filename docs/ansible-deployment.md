@@ -8,9 +8,15 @@ in `package.json`.
 
 ## Existing target prerequisites
 
-The playbook reuses an existing unprivileged Linux account, its home, existing
-project and working Beads tracker. It does not create the account, initialize a
-tracker, migrate project data or manage a Codex/Dolt service. Codex availability,
+The playbook reuses an existing unprivileged Linux account and its home. The
+default agent workspace is `~/ccng-wd`; first setup creates that directory and
+initializes its native Beads tracker when none exists. Existing trackers and
+authentication are preserved. It does not create the account, migrate project
+data or manage a Codex service. Native Beads owns its shared Dolt server.
+Compatible `bd` and `dolt` programs on the application PATH are reused. With
+package management enabled, missing programs are provisioned unattended using
+the same versions as the maintained installer, without answering terminal prompts.
+Codex availability,
 login and native daemon checks produce warnings when unavailable; they do not
 prevent CCNG installation. Agent operation still needs a usable native runtime.
 When package management is enabled, deployment attempts a missing Codex CLI in
@@ -29,8 +35,9 @@ their existing protection. The Ansible PATH includes both target-local
 `tools/bin` (Dolt) and `tools/node_modules/.bin` (Codex/Beads).
 
 Ansible connects using an existing Machine credential with become permission.
-The playbook can install `acl`, `ca-certificates`, `coreutils`, `git`, `gzip` and
-`tar`, plus RHEL's Node.js 22 common module profile when the selected Node does
+The playbook can install `acl`, `ca-certificates`, `coreutils`, `gcc`, `gcc-c++`,
+`git`, `gzip`, `make`, `python3` and `tar`, plus RHEL's Node.js 22 common module
+profile when the selected Node does
 not meet 22.12+. It does not reset a conflicting module stream. Set
 `command_center_manage_packages: false` when prerequisites are managed separately.
 HTTPS mode also requires OpenSSL; the playbook installs the existing utility's
@@ -56,9 +63,9 @@ variables.
 | Variable | Meaning/default |
 | --- | --- |
 | `command_center_user` | Required existing non-root application account |
-| `command_center_project_dir` | Required existing project used by the native agent and Beads |
+| `command_center_project_dir` | Agent workspace; default `<account-home>/ccng-wd`; retain an existing selected project/tracker on updates |
 | `command_center_repository` | Required SSH or credential-free HTTPS application source URL |
-| `command_center_revision` | Git revision to deploy; default `main`; pin a reviewed revision for reproducibility |
+| `command_center_revision` | Git revision to deploy; default `main`, fetched on every deployment for the newest source; an explicit existing pin remains supported |
 | `command_center_source_dir` | Default `<account-home>/.local/src/command-center-ng` |
 | `command_center_install_dir` | Default `<account-home>/commandcenter-ng` |
 | `command_center_config_dir` | Default `<account-home>/.config/command-center-ng`; private auth/workspace metadata |
@@ -115,6 +122,52 @@ htpasswd, firewall rules or a browser access route. Those environment operations
 and deployment acceptance belong to the infrastructure owner. For an existing
 HTTPS proxy, supply the actual `command_center_public_origin` from protected
 configuration and arrange explicit backend certificate trust there.
+
+## Fresh workspace
+
+The default application directory remains `~/commandcenter-ng`; the separate
+`~/ccng-wd` directory is for agents and Beads, with no demo repository checkout
+required. Existing explicit installation/workspace paths remain supported.
+The default `main` revision is fetched on each deployment. Existing source
+commits still advance by fast-forward only, without discarding local changes.
+
+For the first default-workspace setup, Ansible creates only a missing private
+directory, checks native tracker resolution and runs
+`bd init --shared-server --non-interactive --skip-agents --skip-hooks` once.
+The short shell invocation supplies `umask 077`, which the command module
+cannot set; native Beads performs all initialization and server management.
+Beads 1.3.2 may initialize local `.git` metadata in the fresh workspace; this is
+its native setup behavior, not an AAP demonstration-repository checkout. No
+source repository, remote, imported tasks or copied tracker is supplied. The
+issue prefix defaults to the workspace directory name; no explicit prefix is
+needed for `ccng-wd`. See the maintained version's
+[initialization source](https://github.com/gastownhall/beads/blob/v1.3.2/cmd/bd/init.go#L1058-L1074).
+Ansible adds no tracker database, server wrapper or background service of its
+own. The final native read must succeed before application installation proceeds.
+
+Reruns reuse a working tracker and preserve directory permissions, instructions,
+hooks and authentication. A partial tracker, inherited tracker for the default
+workspace, or conflicting user routing stops with a clear error instead of
+being reset. The exact native home-telemetry layout described above is allowed.
+Fresh initialization is limited to the default workspace; custom workspaces
+must already have a usable tracker.
+
+When task programs are absent and package management is enabled, Ansible uses
+the installer's existing `@beads/bd@1.3.2` package and standalone Dolt 2.2.0
+archives/checksums. Existing programs are not upgraded. `npm` installs Beads
+because no builtin npm module exists; native `get_url`/`unarchive` handle the
+HTTPS and SHA-256-verified Dolt archive. The pinned versions/checksums are
+cross-checked against the maintained installer by a focused test. A short
+shell-builtin `command -v` lookup checks the selected PATH without mistaking a
+present but incompatible program for a missing program that may be replaced.
+
+Missing tools first go into a private temporary target directory so the
+standalone installer can use them without an interactive prompt or a misleading
+tools-only application directory. After application installation they are
+retained in `INSTALLDIR/tools`, then native tracker initialization uses that
+stable PATH. Temporary downloads are removed on success or failure. No tool
+installation, tracker or server is created on the Ansible operator machine.
+With package management disabled, missing programs stop with a clear error.
 
 ## Backend certificates and native tools
 

@@ -5,6 +5,7 @@
     command_center_revision: "{{ command_center_revision | default(ccng_default_revision) }}"
     command_center_manage_packages: "{{ command_center_manage_packages | default(ccng_default_manage_packages) }}"
     command_center_force_install: "{{ command_center_force_install | default(ccng_default_force_install) }}"
+    command_center_project_dir: "{{ command_center_project_dir | default(ccng_default_project_dir) }}"
     command_center_source_dir: "{{ command_center_source_dir | default(ccng_default_source_dir) }}"
     command_center_install_dir: "{{ command_center_install_dir | default(ccng_default_install_dir) }}"
     command_center_config_dir: "{{ command_center_config_dir | default(ccng_default_config_dir) }}"

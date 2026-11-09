@@ -1,0 +1,101 @@
+---
+# Match the installer: a present command is validated later, never replaced just
+# because it returns an error. PATH lookup needs the shell's command builtin;
+# see docs/ansible-deployment.md#fresh-workspace.
+- name: Locate existing Beads and Dolt commands without running or updating them
+  ansible.builtin.command:
+    argv: [/bin/sh, -c, 'command -v "$1"', command-center-tool, "{{ item }}"]
+  loop: [bd, dolt]
+  register: ccng_task_tools
+  changed_when: false
+  failed_when: false
+
+- name: Provision only missing approved task programs
+  when: ccng_task_tools.results | selectattr('rc', 'ne', 0) | list | length > 0
+  block:
+    - name: Require package-management approval for missing task tools
+      ansible.builtin.assert:
+        that: command_center_manage_packages | bool
+        quiet: true
+        fail_msg: Beads or Dolt is missing; enable approved package management or provide the tools on the selected PATH.
+
+    - name: Allocate a private temporary target bootstrap directory
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: command-center-tools-
+      register: ccng_tool_bootstrap
+
+    # No builtin npm module exists. Use the maintained installer's exact pin;
+    # see docs/ansible-deployment.md#fresh-workspace.
+    - name: Install the maintained native Beads package only when missing
+      ansible.builtin.command:
+        argv:
+          - npm
+          - install
+          - --prefix
+          - "{{ ccng_tool_bootstrap.path }}/tools"
+          - --no-fund
+          - --no-audit
+          - '@beads/bd@1.3.2'
+        creates: "{{ ccng_tool_bootstrap.path }}/tools/node_modules/.bin/bd"
+      when: ccng_task_tools.results[0].rc != 0
+
+    - name: Provision the maintained standalone Dolt binary only when missing
+      when: ccng_task_tools.results[1].rc != 0
+      vars:
+        ccng_dolt_archives:
+          x86_64:
+            arch: amd64
+            sha256: 1f7ad8c2622995789420a3fb0f2d16b4aa7430000a825dd91d5938f36480cbf6
+          aarch64:
+            arch: arm64
+            sha256: a49a566d7c1ee9fdff553644855737f9d87047557c1ce1951aa7e7053277f4af
+      block:
+        - name: Read the target architecture for the maintained archive selection
+          ansible.builtin.command:
+            argv: [uname, -m]
+          register: ccng_dolt_machine
+          changed_when: false
+
+        - name: Require an architecture provided by the maintained installer
+          ansible.builtin.assert:
+            that: ccng_dolt_machine.stdout | trim in ccng_dolt_archives
+            quiet: true
+
+        - name: Download the exact standalone release with trusted HTTPS and checksum
+          ansible.builtin.get_url:
+            url: >-
+              https://github.com/dolthub/dolt/releases/download/v2.2.0/dolt-linux-{{
+                ccng_dolt_archives[ccng_dolt_machine.stdout | trim].arch }}.tar.gz
+            checksum: "sha256:{{ ccng_dolt_archives[ccng_dolt_machine.stdout | trim].sha256 }}"
+            dest: "{{ ccng_tool_bootstrap.path }}/dolt.tar.gz"
+            mode: '0600'
+            timeout: 180
+            validate_certs: true
+          register: ccng_dolt_download
+          until: ccng_dolt_download is succeeded
+          retries: 3
+          delay: 5
+
+        - name: Extract only the verified native Dolt program
+          ansible.builtin.unarchive:
+            src: "{{ ccng_tool_bootstrap.path }}/dolt.tar.gz"
+            dest: "{{ ccng_tool_bootstrap.path }}"
+            remote_src: true
+            include:
+              - "dolt-linux-{{ ccng_dolt_archives[ccng_dolt_machine.stdout | trim].arch }}/bin/dolt"
+
+        - name: Create the temporary native tool directory
+          ansible.builtin.file:
+            path: "{{ ccng_tool_bootstrap.path }}/tools/bin"
+            state: directory
+            mode: '0700'
+
+        - name: Retain the verified Dolt binary for the managed installation
+          ansible.builtin.copy:
+            src: >-
+              {{ ccng_tool_bootstrap.path }}/dolt-linux-{{
+                ccng_dolt_archives[ccng_dolt_machine.stdout | trim].arch }}/bin/dolt
+            dest: "{{ ccng_tool_bootstrap.path }}/tools/bin/dolt"
+            remote_src: true
+            mode: '0755'

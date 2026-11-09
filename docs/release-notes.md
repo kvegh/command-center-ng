@@ -35,6 +35,19 @@ passes; a redirected run hit known subprocess/socket environment restrictions.
 Publication/deployment outcomes are recorded separately.
 Actual browser/proxy first-enrollment acceptance remains separate from tests and
 from production preservation checks on an installation with an existing password.
+## 0.41.1 — Repair fresh Ansible workspace and tool preparation
+
+- Prepare the separate default agent workspace and its first native Beads
+  tracker without requiring a demonstration-repository checkout.
+- Provision only missing approved target tools using the maintained installer
+  versions; include compiler prerequisites and remove temporary downloads.
+- Preserve existing trackers, routing, profiles, authentication and explicitly
+  configured installation paths. Fetch the current default source on deployment.
+
+All 585 application tests, the production build, focused native-Ansible
+fixtures, syntax and strict lint pass. Real target
+bootstrap and application acceptance remain unverified. Application/browser
+code and the separate first-opening password requirement are unchanged.
 
 ## 0.41.0 — Keep overview settings at the bottom
 

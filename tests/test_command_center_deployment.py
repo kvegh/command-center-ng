@@ -4,6 +4,7 @@ The production playbook is parsed but not applied. Password integration uses the
 """
 
 import base64
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -133,6 +135,7 @@ class CommandCenterDeploymentTests(unittest.TestCase):
                 "command_center_port | int == 8181", "command_center_revision == 'selected-ref'",
                 "not (command_center_manage_packages | bool)",
                 "command_center_install_dir == ccng_user_home ~ '/custom-app'",
+                "command_center_project_dir == ccng_user_home ~ '/ccng-wd'",
                 "command_center_path.startswith(command_center_install_dir ~ '/tools/')",
                 "(command_center_install_dir ~ '/tools/bin') in command_center_path.split(':')",
                 "(command_center_install_dir ~ '/tools/node_modules/.bin') in command_center_path.split(':')",
@@ -144,10 +147,23 @@ class CommandCenterDeploymentTests(unittest.TestCase):
                                "command_center_manage_packages": False,
                                "command_center_install_dir": str(self.work / "custom-app")})
 
+    def test_fresh_deployment_uses_main_and_separate_default_app_and_workspace(self):
+        self.run_tasks([
+            {"name": "Load maintained defaults", "ansible.builtin.include_vars":
+             str(ANSIBLE / "vars/command_center_defaults.yml")},
+            self.include("command_center_defaults.yml"),
+            {"name": "Verify the selected first-deployment defaults", "ansible.builtin.assert": {"that": [
+                "command_center_revision == 'main'",
+                "command_center_install_dir == ccng_user_home ~ '/commandcenter-ng'",
+                "command_center_project_dir == ccng_user_home ~ '/ccng-wd'",
+                "command_center_install_dir != command_center_project_dir",
+            ]}},
+        ], {"ccng_user_home": str(self.work)})
+
     def test_source_repository_accepts_existing_ssh_or_credential_free_https(self):
         play = yaml.safe_load((ANSIBLE / "deploy_command_center.yml").read_text())[0]
         tasks = [task for task in play["pre_tasks"] if task["name"] in (
-            "Require the account, project and supported source repository inputs",
+            "Require the account and supported source repository inputs",
             "Require credential-free HTTPS source URLs when using public Git access",
         )]
         for repository, accepted in [
@@ -164,6 +180,166 @@ class CommandCenterDeploymentTests(unittest.TestCase):
                 self.run_tasks(tasks, {"command_center_user": "fixture_operator",
                                       "command_center_project_dir": str(self.work),
                                       "command_center_repository": repository}, success=accepted)
+
+    def workspace_fixture(self):
+        home = self.work / "home"
+        home.mkdir()
+        bin_dir = self.work / "bin"
+        bin_dir.mkdir()
+        calls = self.work / "native-calls"
+        bd = bin_dir / "bd"
+        bd.write_text("""#!/bin/sh
+set -eu
+printf '%s\\n' "$*" >> "$CCNG_FIXTURE_CALLS"
+case "$*" in
+  '--version') echo 'bd version 1.3.2' ;;
+  '--readonly where --json') [ "${CCNG_FIXTURE_PARENT:-0}" = 1 ] || [ -f .beads/metadata.json ] ;;
+  'init --help') echo '--shared-server --non-interactive --skip-agents --skip-hooks' ;;
+  'init --shared-server --non-interactive --skip-agents --skip-hooks')
+    mkdir .beads .git
+    printf 'native synthetic tracker' > .beads/metadata.json ;;
+  '--sandbox --readonly list --json --brief --flat --limit 1')
+    [ -f .beads/metadata.json ]; echo '[]' ;;
+  *) exit 98 ;;
+esac
+""")
+        bd.chmod(0o755)
+        dolt = bin_dir / "dolt"
+        dolt.write_text("#!/bin/sh\n[ \"$*\" = version ] || exit 99\necho 'dolt version fixture'\n")
+        dolt.chmod(0o755)
+        variables = {"ccng_home": str(home), "ccng_project_dir": str(home / "ccng-wd"),
+                     "ccng_user_uid": os.getuid()}
+        environment = {"PATH": str(bin_dir) + ":/usr/bin:/bin",
+                       "CCNG_FIXTURE_CALLS": str(calls)}
+        return home, calls, variables, environment
+
+    def test_fresh_workspace_initializes_once_and_preserves_tracker_on_update(self):
+        home, calls, variables, environment = self.workspace_fixture()
+        telemetry = home / ".beads"
+        (telemetry / "eventsData").mkdir(parents=True)
+        (telemetry / "machine-id").write_text("synthetic telemetry identity")
+        tasks = [self.include("command_center_directory.yml"), self.include("command_center_workspace.yml")]
+        self.run_tasks(tasks, variables, environment)
+        workspace = home / "ccng-wd"
+        metadata = workspace / ".beads/metadata.json"
+        self.assertTrue((workspace / ".git").is_dir(),
+                        "native Beads may create local Git metadata without checking out a source repository")
+        before = metadata.read_bytes()
+        self.assertEqual(metadata.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(workspace.stat().st_mode & 0o777, 0o700)
+        workspace.chmod(0o750)
+        self.run_tasks(tasks, variables, environment)
+        self.assertEqual(metadata.read_bytes(), before)
+        self.assertEqual(workspace.stat().st_mode & 0o777, 0o750)
+        self.assertEqual((telemetry / "machine-id").read_text(), "synthetic telemetry identity")
+        self.assertEqual(calls.read_text().splitlines().count(
+            "init --shared-server --non-interactive --skip-agents --skip-hooks"), 1)
+
+    def test_partial_or_ambient_tracker_configuration_is_preserved(self):
+        for conflict in ["partial", "home-routing", "user-config", "parent-resolved"]:
+            with self.subTest(conflict=conflict):
+                case = self.work / conflict
+                case.mkdir()
+                previous = self.work
+                self.work = case
+                try:
+                    home, calls, variables, environment = self.workspace_fixture()
+                    workspace = home / "ccng-wd"
+                    workspace.mkdir()
+                    if conflict == "partial":
+                        protected = workspace / ".beads/redirect"
+                    elif conflict in ["home-routing", "parent-resolved"]:
+                        protected = home / ".beads/config.yaml"
+                    else:
+                        protected = home / ".config/beads/config.yaml"
+                    protected.parent.mkdir(parents=True)
+                    protected.write_text("synthetic existing routing")
+                    if conflict == "parent-resolved":
+                        environment["CCNG_FIXTURE_PARENT"] = "1"
+                    self.run_tasks([self.include("command_center_workspace.yml")],
+                                   variables, environment, success=False)
+                    self.assertEqual(protected.read_text(), "synthetic existing routing")
+                    self.assertNotIn("init --shared-server", calls.read_text())
+                finally:
+                    self.work = previous
+
+    def test_tool_pins_match_the_maintained_interactive_installer(self):
+        tools = yaml.safe_load((ANSIBLE / "tasks/command_center_tools.yml").read_text())
+        install = tools[1]["block"]
+        package = install[2]["ansible.builtin.command"]["argv"][-1]
+        self.assertIn(package, (ROOT / "installer/prerequisites.sh").read_text())
+        dolt = install[3]
+        source = (ROOT / "installer/beads.sh").read_text()
+        for archive in dolt["vars"]["ccng_dolt_archives"].values():
+            self.assertRegex(source, "CCNG_DOLT_ARCH=" + archive["arch"] +
+                             "; CCNG_DOLT_SHA=" + archive["sha256"])
+        download = dolt["block"][2]["ansible.builtin.get_url"]
+        self.assertIn("/v2.2.0/", download["url"])
+        self.assertIn("/v2.2.0/", source)
+        self.assertIs(download["validate_certs"], True)
+
+    def test_existing_native_tools_are_reused_without_bootstrap_or_package_management(self):
+        _, calls, variables, environment = self.workspace_fixture()
+        variables["command_center_manage_packages"] = False
+        self.run_tasks([
+            self.include("command_center_tools.yml"),
+            {"name": "Confirm no tool bootstrap was allocated", "ansible.builtin.assert": {
+                "that": ["ccng_tool_bootstrap.path is not defined"]}},
+        ], variables, environment)
+        self.assertFalse(calls.exists(), "existing commands must not be invoked or changed during lookup")
+
+    def test_missing_tools_bootstrap_persist_and_initialize_without_network_or_operator_installs(self):
+        home, calls, variables, environment = self.workspace_fixture()
+        bin_dir = Path(environment["PATH"].split(":")[0])
+        bd_template = self.work / "bd-template"
+        (bin_dir / "bd").rename(bd_template)
+        dolt_template = self.work / "dolt-template"
+        (bin_dir / "dolt").rename(dolt_template)
+        npm = bin_dir / "npm"
+        npm.write_text("#!/bin/sh\nset -eu\n[ \"$1 $2\" = 'install --prefix' ]\n"
+                       "mkdir -p \"$3/node_modules/.bin\"\n"
+                       "cp \"$CCNG_FIXTURE_BD\" \"$3/node_modules/.bin/bd\"\n")
+        npm.chmod(0o755)
+        archive = self.work / "dolt.tar.gz"
+        with tarfile.open(archive, "w:gz") as output:
+            output.add(dolt_template, arcname="dolt-linux-amd64/bin/dolt")
+        tools = yaml.safe_load((ANSIBLE / "tasks/command_center_tools.yml").read_text())
+        download = tools[1]["block"][3]["block"][2]["ansible.builtin.get_url"]
+        # Exercise real native download/checksum/extraction with a synthetic
+        # local archive. The separate pin test checks production HTTPS settings.
+        download["url"] = archive.as_uri()
+        download["checksum"] = "sha256:" + hashlib.sha256(archive.read_bytes()).hexdigest()
+        app = home / "app"
+        app.mkdir()
+        variables.update({"ccng_install_dir": str(app), "command_center_manage_packages": True})
+        environment.update({"CCNG_FIXTURE_BD": str(bd_template),
+                            "PATH": f"{app}/tools/bin:{app}/tools/node_modules/.bin:" + environment["PATH"]})
+        play = yaml.safe_load((ANSIBLE / "deploy_command_center.yml").read_text())[0]
+        app_tasks = next(task["block"] for task in play["tasks"]
+                         if task["name"] == "Install and configure the application as its existing user")
+        bootstrap = next(task for task in app_tasks if task["name"] ==
+                         "Bootstrap missing task tools and install through the maintained installer")
+        retained = [task for task in bootstrap["block"] if task["name"] in [
+            "Inspect the final managed tools directory before copying prerequisites",
+            "Preserve an unrelated final tools directory",
+            "Retain newly provisioned native tools in the maintained installation"]]
+        for task in retained:
+            task.pop("notify", None)
+        self.run_tasks([
+            self.include("command_center_directory.yml"),
+            {"name": "Exercise native bootstrap and final placement with fixture programs",
+             "block": tools + retained + [self.include("command_center_workspace.yml")],
+             "always": bootstrap["always"]},
+            {"name": "Inspect bootstrap cleanup", "ansible.builtin.stat": {
+                "path": "{{ ccng_tool_bootstrap.path }}"}, "register": "cleanup"},
+            {"name": "Require temporary download cleanup", "ansible.builtin.assert": {
+                "that": ["not cleanup.stat.exists"]}},
+        ], variables, environment)
+        self.assertEqual((app / "tools/bin/dolt").stat().st_mode & 0o777, 0o755)
+        self.assertTrue((app / "tools/node_modules/.bin/bd").is_file())
+        self.assertTrue((home / "ccng-wd/.beads/metadata.json").is_file())
+        self.assertEqual(calls.read_text().splitlines().count(
+            "init --shared-server --non-interactive --skip-agents --skip-hooks"), 1)
 
     def runtime_ciphertext(self, instances):
         password = self.work / "runtime-vault-password"

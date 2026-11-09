@@ -1,0 +1,24 @@
+---
+- name: Inspect the selected workspace without following links
+  ansible.builtin.stat:
+    path: "{{ ccng_project_dir }}"
+    follow: false
+  register: ccng_workspace
+
+- name: Preserve only an existing directory owned by the application account
+  ansible.builtin.assert:
+    that:
+      - >-
+        not ccng_workspace.stat.exists or
+        (ccng_workspace.stat.isdir | default(false) and
+         not (ccng_workspace.stat.islnk | default(false)) and
+         ccng_workspace.stat.uid == ccng_user_uid | int)
+    quiet: true
+    fail_msg: The selected workspace must be a directory owned by the application account.
+
+- name: Create the missing selected workspace without changing existing permissions
+  ansible.builtin.file:
+    path: "{{ ccng_project_dir }}"
+    state: directory
+    mode: '0700'
+  when: not ccng_workspace.stat.exists
