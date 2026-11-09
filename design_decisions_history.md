@@ -2458,3 +2458,35 @@ Authorized production update/restart and independent verification succeeded:
 both listeners remain available, eight protected files are unchanged, and the
 Never startup-skip source/instructions are installed. This is runtime/artifact
 and preservation evidence, not an additional live native model/browser exercise.
+
+## 2026-11-09 — Require the protected frontend before Ansible deployment
+
+Implementation: `ec10ae0d4207079c382803621010f100e5e81635` (0.43.1).
+
+The owner requires htpasswd protection before every CCNG AAP deployment. The
+existing playbook now checks its exact configured HTTPS public origin before
+managed target writes. A single unauthenticated request must receive HTTP 401
+with a Basic challenge, using normal certificate verification and no redirects
+or automatic netrc login. Failed frontend verification stops deployment rather
+than exposing a fresh application. Proxy provisioning and restrictions on all
+routes/direct backend access remain the infrastructure owner's responsibility;
+the probe does not claim to establish those complete network boundaries.
+
+The application already supports explicit protected-proxy password creation.
+Ansible now accepts that existing option through its protected per-instance
+settings and renders it into the installed runtime configuration. The default
+remains disabled. Explicit browser-first mode leaves a missing auth file for the
+user's first protected browser opening; it creates no default password or setup
+code. Existing valid auth remains validated and preserved, and unsafe files are
+refused. Backend/UI auth code, the installer and native daemon ownership stay
+unchanged. Default latest-source, installation and fresh agent workspace behavior
+are retained.
+
+All 20 native Ansible deployment fixtures pass, including real trusted/untrusted
+TLS, incorrect/missing challenge refusal before writes, credential-free probes,
+fresh browser-first configuration, retained passwords and existing tool/tracker
+setup. Strict production lint passes across 17 encountered Ansible files;
+syntax, compilation, package/lock metadata and diff checks pass. Existing cached
+dependencies were reused without installation. The full application suite/build
+was not rerun for this Ansible-only correction. No production or target
+deployment/restart was performed, and fresh live enrollment remains unverified.
