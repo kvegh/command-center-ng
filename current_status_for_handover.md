@@ -16,8 +16,8 @@ branch handoff retains only its earlier safe continuation checks. No replacement
 execution engine is selected. The user separately approved a fixed15-minute
 silent task-attention reminder through the existing coordinator timer/queue,
 with a next-dispatch counter and existing native/pause/stop/handoff guards.
-Codex-only for now; Claude stays deferred. All578 application tests and the
-production build pass; independent review is finishing and publication/deployment
+Codex-only for now; Claude stays deferred. All581 application tests and the
+production build pass; independent review is complete and publication/deployment
 are pending. Earlier socket/home/subprocess capture restrictions did not recur
 in the final complete run; do not retain them as an active test blocker.
 

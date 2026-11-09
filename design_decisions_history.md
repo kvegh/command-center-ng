@@ -2269,3 +2269,17 @@ limits; the final complete run passed without weakening those checks. These are
 application/fixture results, not formal review acceptance or rendered browser/
 real scheduled-native adoption proof. Publication and actual production update
 are recorded separately after their results are known.
+
+
+Focused review found that asynchronous activation/instruction loading could race
+a user stop, handoff or coordinator pause after initial scheduling eligibility.
+Correction `e6871479bb475b6353eadd225ff25e8bdafb792d` rechecks the exact worker,
+control and native-turn conditions immediately before native input, with no
+intervening await. Deferred-context regressions cover stopped/failed work,
+handoffs, ownership, pause/restoration and valid active/completed transitions;
+all14 transport/provenance tests pass. No native permissions or delivery path
+was broadened. Final complete regression results are recorded with publication.
+
+Final full regression run after the race fix: all581 tests pass, no skips or
+failures. Production TypeScript/Vite build passed; focused review confirms the
+identified race is corrected. Actual native/browser acceptance remains separate.

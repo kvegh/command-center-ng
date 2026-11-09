@@ -24,7 +24,7 @@ is retrievable in the [README before this reorganization](https://github.com/kve
   steering for known active Codex turns at their next safe checkpoint.
 - No replacement execution loop, dispatcher, service or dependency added.
 
-**Validation:** all578 application tests and the production build pass. Focused
+**Validation:** all581 application tests and the production build pass. Focused
 coverage includes15-minute cadence, active steering, coalescing, stop/request/
 handoff guards, uncertain sends, hidden replay/provenance and the next-time UI.
 Earlier restricted attempts could not use sockets/home fixtures or capture Node
