@@ -2888,3 +2888,15 @@ assets/listeners/auth gates,17 deployed-source checks plus one alternate-group
 skip, actual Codex0.167.0 PATH lookup and the ten-minute timer. The user confirmed
 the collapsible Subagents section was visible. AAP3454's command syntax failure
 occurred before installer execution and was corrected before3455.
+
+1.0.0 publication and installed verification: implementation
+`e7432ed5d4442d7608618c0d207b05636ed1c04a` and payload
+`59036d99c96866bc80a2a4cc0eac0182340698ab` are SSH-published/readback verified.
+AAP3457 completed update/restart in19.888s, retaining nine protected files and
+unrelated Bash bytes/uid/gid/mode. Independent3459 passed in5.362s:105 files
+matched, running1.0.0 trusted HTTPS/assets/listeners/auth gates, five installed
+report regressions and served checkbox/instructions. Earlier3458's optional
+TS-based UI fixture lacked the intentionally omitted production development
+compiler; backend checks passed. No new compiler was installed. Actual component
+checks passed before publication; final deployed checks cover backend behavior
+and delivered UI artifacts, not a real browser-generated model report.

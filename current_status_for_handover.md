@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working candidate **1.0.0** adds a one-off Detailed report checkbox beside
+Published and installed **1.0.0** adds a one-off Detailed report checkbox beside
 Report now. Give the normal overview first, then every linked actual in-progress
 Beads task by title/ID with up to ten recent attributable timestamp/action/outcome
 entries. Missing/fewer/unknown evidence must be explicit. Only this request may
@@ -16,8 +16,19 @@ Unsent requests may upgrade but never downgrade; an already dispatched normal
 request remains normal with visible feedback and no automatic resend. Related
 backend, UI, instructions and tests ship together. The combined suite ran792
 cases:791 passed, one alternate-group case skipped, none failed. The production
-build and independent source review pass; publication and installed verification
-remain pending.
+build and independent source review pass.
+
+Implementation e7432ed and payload59036d9 are SSH-published/readback verified.
+AAP3457 updated/restarted production in19.888s, preserving nine protected files
+and unrelated Bash content/permissions. Independent3459 matched105 installed
+files, running1.0.0, trusted HTTPS/assets/both listeners/auth gates and five
+installed report HTTP/queue/native-gate regressions. The served build contains
+the detailed checkbox and installed instructions preserve timestamp-evidence
+limits. Attempt3458 passed its backend checks but could not run a TS-based UI
+fixture because production omits the development compiler. No compiler was
+installed: desktop/mobile component tests passed before publication, and the
+served build was verified independently. Actual browser-generated report content
+and complete phone/native workflows remain unverified.
 
 Published and installed **0.48.0** offers missing Codex under the user's `~/.local`
 prefix or a writable `--codex-prefix`, reuses compatible existing installations,

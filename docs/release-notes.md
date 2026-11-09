@@ -22,8 +22,18 @@ is retrievable in the [README before this reorganization](https://github.com/kve
 The combined suite ran792 tests:791 passed, one alternate-group case skipped,
 and none failed. The production build and independent source review pass,
 including authenticated HTTP, queue/ACK/native-gate and desktop/mobile component
-regressions. Publication and installed verification will be recorded from actual
-outcomes. This option does not guarantee complete action history or change the
+regressions. Implementation e7432ed and payload59036d9 are SSH-published/readback verified.
+AAP3457 updated/restarted production in19.888s, preserving nine protected files
+and unrelated Bash content/permissions. Independent3459 matched105 installed
+files, running1.0.0, trusted HTTPS/assets/both listeners/auth gates and five
+installed report HTTP/queue/native-gate regressions. The served build contains
+the detailed checkbox and installed instructions preserve timestamp-evidence
+limits. Attempt3458 passed its backend checks but could not run a TS-based UI
+fixture because production omits the development compiler. No compiler was
+installed: desktop/mobile component tests passed before publication, and the
+served build was verified independently. Actual browser-generated report content
+and complete phone/native workflows remain unverified.
+ This option does not guarantee complete action history or change the
 existing 32,000-character report recognition bound. This release supports the
 current single-engineer, Codex-focused scope; full live approval recovery,
 provider question replies and phone acceptance remain separate verification.
