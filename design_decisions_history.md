@@ -2230,3 +2230,42 @@ closed; two remaining verification records were renamed and three explicitly
 postponed requests deferred. Genuine unfinished implementation and acceptance
 remain. Documentation now separates the approved but unfinished browser-first
 password requirement from the current installer/startup behaviour.
+
+
+## 2026-11-09 — Withdraw native Goals and add silent task checks in 0.40.0
+
+The user withdrew the Goals idea and implementation after learning that one
+conversation can have only one active native Goal. Per-task Beads objectives
+were not equivalent to independently active runtime Goals. Earlier approvals
+for Goal controls, automatic creation/announcements and future harness
+requirements are superseded. Existing native data remains untouched; the
+implementation Goal was paused before withdrawal. Only the existing branch
+handoff's narrowly scoped continuation read/pause safety remains.
+
+The user separately selected a fixed fifteen-minute controller nudge asking
+workers to review neglected tasks and independent parallel opportunities without
+conflicting writes or resources. Reuse the existing coordinator backend clock,
+queue and native input path rather than introduce another execution engine.
+Known active Codex turns use native steering at safe checkpoints; requests,
+pauses/stops, ownership, unknown turns and handoffs retain their guards.
+Outstanding unsent checks coalesce. Confirmed native acceptance allows the next
+scheduled check, without claiming that the worker has completed it. Failed or
+uncertain sends are not automatically retried, startup starts a fresh interval
+and missed cycles do not burst. Claude work remains deferred.
+
+The coordinator displays “Next chat task-ping to send” with the next local time.
+Typed native message identities keep triggers hidden across history reloads
+without hiding real user lookalikes or useful worker responses. Routine checks
+do not fill the coordinator's delivery history or wake its model for an echo.
+Existing report intervals remain independent; Never applies to reports only.
+Ordinary task outcomes, lifecycle updates and ready-work guidance stay in Beads.
+
+Implementation: `43780d183436cf05d862ffe96927872ddc084c38`.
+All578 application tests and the production build passed. Coverage includes
+cadence, safe steering, exact provenance/replay, coalescing, stopped restoration,
+native-question and handoff gates, uncertain sends and the next-time display.
+Initial restricted test attempts encountered socket/home/subprocess-capture
+limits; the final complete run passed without weakening those checks. These are
+application/fixture results, not formal review acceptance or rendered browser/
+real scheduled-native adoption proof. Publication and actual production update
+are recorded separately after their results are known.
