@@ -2135,3 +2135,45 @@ These are real installed-app version, artifact, transport and access-gate
 checks. They do not establish fresh native request recovery or Android Firefox
 interaction; those acceptance records remain open. No new code/version changed,
 so the existing 520-test/build baseline was not rerun.
+
+
+## 2026-11-08 — Hand branch work back safely without holding the tab open
+
+Implementation: `e7bb5e0e12d5363626609893d3d53a712baeecde` (0.38.0).
+
+The user selected one-click Hand back & close, usable while work is running,
+with background completion after leaving the tab. This supersedes the mandatory
+idle-before-click and manual-summary-review steps for the new action. Back to
+parent remains navigation only. The backend requests a safe checkpoint rather
+than forcing interruption, checks spawned work, background terminals and native
+Goals, and leaves pending permissions manual. Goal pause follows actual idle;
+it is not assumed to be a safe way to interrupt a tool.
+
+The user prioritized avoiding task or information loss. Every branch task gains
+the parent label without losing branch provenance, metadata or state. Summary
+receipt is verified against exact native identity, with a unique complete-message
+reference when native history omits clientId. Fresh lifecycle and task-link
+checks precede archive. Uncertain checkpoint/send/archive outcomes retain the
+branch and avoid blind retries. Parent/child handoff serialization prevents an
+outgoing parent summary from racing an incoming child result. Background closure
+only navigates when that exact removed branch is still selected.
+
+Coordination stays in the existing backend process; no new service, task store
+or continuation engine was added. Restart does not replay in-memory handoffs.
+Unsupported safety APIs and unresolved local work keep the branch available.
+A full workspace needs another tab closed before an absent parent can open.
+Unsent images block handback until sent/removed; unsent text remains local and
+is explicitly excluded from the native summary.
+
+The user separately narrowed chat colouring to a compact title folder tab
+attached to the composer. Activity/connection text and the selector retain the
+normal theme background. Blue replaces amber, which is reserved for attention;
+teal and rose expand the palette to six. Existing amber preferences migrate to
+blue without changing unrelated settings. All three themes retain readable text.
+
+All 560 application tests and the production build passed. Final provenance
+changes also passed 20 handoff, 58 coordinator and four source-review regressions;
+the final CSS build passed. Focused independent review confirmed the identified
+retry, receipt, serialization, legacy-path and capacity fixes. Actual rendered
+browser geometry and native end-to-end handoff remain unverified. Publication
+and installation are recorded separately from this implementation evidence.
