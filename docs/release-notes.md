@@ -27,9 +27,12 @@ is retrievable in the [README before this reorganization](https://github.com/kve
   and deferral. Explain later Beads workspace setup using the existing installer.
 
 Validation: all761 application tests and the production build pass. Independent
-source review found no remaining blocking issue. Source publication and production
-update are being completed; real native approval delivery, browser interaction
-and an organization-managed sign-in were not exercised for this release.
+source review found no remaining blocking issue. Payload8a26850 is SSH-published
+and independently read back. AAP3452 updated/restarted production with nine
+protected files unchanged; independent3453 matched105 installed files, actual
+0.47.0 trusted HTTPS/assets/both listeners/login gates and isolated installed
+child routing/ACK identity. Real provider delivery, browser interaction and an
+organization-managed sign-in were not exercised for this release.
 
 ## 0.46.1 — Guide safe recovery of stalled subagent waits
 

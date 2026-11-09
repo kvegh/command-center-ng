@@ -2801,3 +2801,14 @@ subsequently requested a separate per-user Codex installation and persistent
 Bash PATH; its exact location is still being clarified. That later change is not
 implemented or implied by this release. Publication and installed verification
 are recorded separately after their actual outcomes.
+
+
+0.47.0 publication and installed verification: payload
+`8a26850d762b5c1e9d8ec0fdda7ff38a989e01de` was SSH-pushed and independently
+read back. AAP3452 completed update/restart in21.13s with nine protected files
+unchanged. Independent3453 passed in5.089s:105 source files matched, actual
+0.47.0 process/start ordering, trusted backend HTTPS, served assets, both listeners
+and authentication gates. An isolated fixture using installed modules verified
+child-only ACK routing and parent request isolation without extra tabs or real
+provider/model calls. This does not establish real native request delivery,
+rendered browser behavior, organization login or reboot acceptance.

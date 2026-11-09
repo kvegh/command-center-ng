@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working0.47.0 implements user-approved native child request/status visibility
+Published and installed0.47.0 implements user-approved native child request/status visibility
 under the main chat and existing Coordinator. Verified native lineage, original
 child IDs/tokens/turn/item bindings and exact native confirmation remain required.
 Child attention does not lock the main composer. Recovery reads native metadata
@@ -21,8 +21,11 @@ The combined suite passed761 tests and the production build;
 independent review found and verified corrections for UI projection, exact detail
 reload IDs, nullable bindings, stale ownership and delayed status reads. Installer
 login/defer/Beads fixtures pass without real authentication or tracker changes.
-Implementation `c76502dfb01070fbfda7672c3bf06043332278c2` is committed; source is not yet published or
-installed; verified0.46.1 below remains the production baseline. Synthetic/native
+Implementation `c76502dfb01070fbfda7672c3bf06043332278c2` is committed. Payload `8a26850d762b5c1e9d8ec0fdda7ff38a989e01de` is
+SSH-published/readback verified. AAP3452 updated/restarted production in21.13s,
+preserving nine protected files. Independent3453 finished in5.089s and verified
+105 exact files, actual0.47.0 trusted HTTPS/assets/both listeners/login gates and
+isolated installed child request/ACK routing. Synthetic/native
 protocol fixtures do not establish real provider event delivery or rendered phone
 acceptance. No live native approval was created or answered for testing.
 
@@ -1426,3 +1429,8 @@ installer update path with positional destination compatibility. Earlier advice
 using the installed app launcher with --update was incorrect. The source wrapper
 and installer entry points must be distinguished; do not request more logs merely
 to establish the command already supplied.
+
+
+The separate per-user Codex location/persistent Bash PATH request remains blocked
+on its existing native location question. This release retains CCNG-local tools;
+it does not change shell profiles or enable native daemon boot management.
