@@ -5,16 +5,19 @@ The production playbook is parsed but not applied. Password integration uses the
 
 import base64
 import hashlib
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
 import pwd
 import secrets
 import shutil
+import ssl
 import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -157,6 +160,7 @@ class CommandCenterDeploymentTests(unittest.TestCase):
                 "command_center_install_dir == ccng_user_home ~ '/commandcenter-ng'",
                 "command_center_project_dir == ccng_user_home ~ '/ccng-wd'",
                 "command_center_install_dir != command_center_project_dir",
+                "command_center_first_password_setup == 'disabled'",
             ]}},
         ], {"ccng_user_home": str(self.work)})
 
@@ -359,6 +363,7 @@ esac
     def test_native_runtime_loader_selects_one_instance_and_removes_ciphertext(self):
         ciphertext, password = self.runtime_ciphertext({
             "selected-fixture": {"command_center_user": "fixture_operator",
+                                 "command_center_first_password_setup": "htpasswd-proxy",
                                  "command_center_port": 8181,
                                  "command_center_password": "synthetic-runtime-canary"},
             "other-fixture": {"command_center_user": "must_not_select", "command_center_port": 9999},
@@ -369,6 +374,7 @@ esac
                 {"name": "Check selected inputs", "ansible.builtin.assert": {"that": [
                     "command_center_user == 'fixture_operator'", "command_center_port | int == 8181",
                     "command_center_password == 'synthetic-runtime-canary'",
+                    "command_center_first_password_setup == 'htpasswd-proxy'",
                 ]}},
                 {"name": "Inspect temporary ciphertext cleanup", "ansible.builtin.stat": {
                     "path": "{{ ccng_runtime_temporary_file.path }}"}, "register": "runtime_cleanup"},
@@ -505,8 +511,92 @@ esac
         self.assertNotIn(password, original.decode())
         # An existing password must survive even a different/short supplied value.
         variables["command_center_password"] = "short"
+        variables["command_center_first_password_setup"] = "htpasswd-proxy"
         self.run_tasks([self.include("command_center_password.yml")], variables, environment)
         self.assertEqual(auth.read_bytes(), original)
+
+    def test_fresh_proxy_setup_needs_no_supplied_password_and_creates_no_auth_file(self):
+        config = self.work / "config"
+        config.mkdir(mode=0o700)
+        rendered = self.work / "config.conf"
+        tasks = [self.include("command_center_password.yml"), {
+            "name": "Render the selected browser-first application settings",
+            "ansible.builtin.template": {"src": str(ANSIBLE / "templates/command-center-ng.conf.j2"),
+                                         "dest": str(rendered), "mode": "0600"},
+        }]
+        result = self.run_tasks(tasks, {
+            "ccng_install_dir": str(self.app_source()), "ccng_config_dir": str(config),
+            "ccng_user_uid": os.getuid(), "command_center_first_password_setup": "htpasswd-proxy",
+            "command_center_connection_type": "http", "command_center_bind_address": "127.0.0.1",
+            "command_center_port": 4242, "command_center_public_origin": "https://frontend.example.invalid",
+            "ccng_tls_certificate": "/unused/fixture.crt", "ccng_tls_private_key": "/unused/fixture.key",
+        }, {"CCNG_CONFIG_DIR": str(config)})
+        self.assertFalse((config / "auth.json").exists())
+        self.assertIn("first_password_setup: htpasswd-proxy", rendered.read_text())
+        self.assertIn("public_origin: https://frontend.example.invalid", rendered.read_text())
+        self.assertIn("failed=0", result.stdout)
+
+    def test_trusted_basic_frontend_is_required_before_a_disposable_write(self):
+        certificate, key = self.work / "frontend.crt", self.work / "frontend.key"
+        created = subprocess.run([
+            "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+            "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost",
+            "-keyout", str(key), "-out", str(certificate),
+        ], capture_output=True, text=True, timeout=20)
+        self.assertEqual(created.returncode, 0, created.stderr)
+        received_authorization = []
+
+        class Frontend(BaseHTTPRequestHandler):
+            status = 401
+            challenge = 'Basic realm="fixture"'
+
+            def do_GET(self):
+                received_authorization.append(self.headers.get("Authorization"))
+                self.send_response(self.status)
+                self.send_header("WWW-Authenticate", self.challenge)
+                self.end_headers()
+
+            def log_message(self, *_):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Frontend)
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(certificate, key)
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            for status, challenge, trust, expected in [
+                (200, Frontend.challenge, True, False), (401, "Bearer", True, False),
+                (401, Frontend.challenge, False, False), (401, Frontend.challenge, True, True),
+            ]:
+                with self.subTest(status=status, challenge=challenge, trusted=trust):
+                    Frontend.status, Frontend.challenge = status, challenge
+                    tasks = yaml.safe_load((ANSIBLE / "tasks/command_center_frontend.yml").read_text())
+                    probe = next(t["ansible.builtin.uri"] for t in tasks if "ansible.builtin.uri" in t)
+                    self.assertTrue(probe["validate_certs"])
+                    self.assertFalse(probe["use_netrc"])
+                    if trust:
+                        probe["ca_path"] = str(certificate)
+                    sentinel = self.work / f"after-{status}-{challenge.startswith('Basic')}-{trust}"
+                    tasks.append({"name": "Write only after the actual frontend guard passes",
+                                  "ansible.builtin.copy": {"dest": str(sentinel), "content": "allowed", "mode": "0600"}})
+                    self.run_tasks(tasks, {"command_center_public_origin": f"https://localhost:{server.server_port}"}, success=expected)
+                    self.assertEqual(sentinel.exists(), expected)
+            self.assertTrue(received_authorization)
+            self.assertTrue(all(value is None for value in received_authorization))
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+
+    def test_frontend_guard_precedes_all_managed_target_writes(self):
+        play = yaml.safe_load((ANSIBLE / "deploy_command_center.yml").read_text())[0]
+        guard = next(i for i, task in enumerate(play["pre_tasks"])
+                     if task.get("ansible.builtin.import_tasks") == "tasks/command_center_frontend.yml")
+        self.assertGreater(guard, 0)
+        self.assertEqual(play["pre_tasks"][guard - 1]["ansible.builtin.import_tasks"], "tasks/command_center_defaults.yml")
+        self.assertNotIn("when", play["pre_tasks"][guard])
 
     def test_password_symlink_is_refused_without_touching_its_target(self):
         config = self.work / "config"

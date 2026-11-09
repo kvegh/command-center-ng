@@ -42,20 +42,45 @@ is retrievable in the [README before this reorganization](https://github.com/kve
 - File approvals retain matching native paths/change kinds/diffs for the card and
   coordinator, with explicit missing/truncated content and read-only detail loading.
   Current request identity, native answers and changed-content guards remain.
+- Message-only native question titles/options remain visible, including empty-text
+  messages. Their answer route remains the native client; no fake request IDs,
+  approval controls or unverified reply encoding is added.
 - Three user-approved original development screenshots illustrate the README;
   captions identify historical UI versions and task states.
 
-**Validation:** the rewind/decision integration passed all 668 application tests
-and the production build; the report correction baseline passed all 672 tests.
-An independently found compatibility correction passes focused regressions.
-Persistent-login and file-approval-content checks and the final combined run are
-in progress. Existing checks
-cover native whole-turn/stale/uncertain/concurrency guards, preserved drafts,
-HTTP auth/origin gates, private append/reload/retention, corrupt/changed logs,
-save failure versus native acknowledgement and graceful shutdown draining.
-Independent source reviews continue for the new authentication changes. Publication/deployment
-are pending. No actual native conversation was rewound; optional installed
-native/browser exercises are deferred.
+**Validation:** all 738 application tests and the production build pass, including
+real HTTP/TLS authentication checks, restart/logout/clear/password-rotation
+fixtures, stale login responses, file-content matching/review/history races,
+message-only question display, report delivery and native whole-turn guards.
+Private decision append/reload/failure and graceful shutdown checks also pass.
+Independent source reviews found no remaining blockers. Ansible syntax and strict
+production lint pass across 26 files; 32 of 33 native Ansible fixtures pass. The
+remaining protected-frontend TLS fixture cannot create its local test socket
+under the current permissions; no assertion was relaxed. Publication/deployment
+are pending at this checkpoint. No actual native conversation was rewound;
+browser login retention and the original pending RHEL body remain unverified.
+Optional installed/native browser exercises remain deferred.
+
+## 0.43.1 — Require the protected frontend before Ansible deployment
+
+- Every application deployment verifies the selected HTTPS public origin returns
+  HTTP 401 with a Basic challenge before managed target writes. The probe uses
+  normal certificate verification and sends no credentials or netrc login.
+- Protected per-instance settings can explicitly select the existing
+  `htpasswd-proxy` first-password mode. The application configuration receives
+  that mode and exact origin; fresh setup leaves password creation to the first
+  protected browser opening without a supplied password or setup code.
+- Browser-first setup remains disabled by default. Existing authentication is
+  validated and preserved. Backend/UI authentication, installer behavior and
+  native daemon lifecycle are unchanged.
+
+**Validation:** all 20 existing/extended native Ansible deployment fixtures pass,
+including trusted/untrusted TLS, missing challenge/refusal before writes,
+credential-free probing, fresh browser-first configuration, retained passwords
+and native workspace/tool setup. Strict production lint passes across 17
+encountered Ansible files; syntax, compilation and diff checks pass. The full
+application suite/build was not rerun for this Ansible-only correction. Actual
+frontend provisioning and fresh browser enrollment remain deployment acceptance.
 
 ## 0.43.0 — Honor Never for startup reports
 

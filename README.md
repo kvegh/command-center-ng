@@ -64,6 +64,8 @@ preserved. [Check prerequisites](docs/rhel9-prerequisites.md) for the details.
 The [Ansible deployment](docs/ansible-deployment.md#fresh-workspace) prepares a
 missing `~/ccng-wd` agent workspace and its first Beads tracker without requiring
 an application-demo repository checkout; updates retain the tracker.
+It requires an existing trusted HTTPS htpasswd frontend before target writes;
+explicit browser-first setup uses the app's existing protected-proxy mode.
 
 ## Install
 
@@ -146,6 +148,8 @@ The installed launcher supports `service install`, `enable`, `start`, `stop`,
 - Closing a tab does not stop its native conversation. Backend shutdown stops
   CCNG-owned Claude runs; native history remains available for later resume.
 - Unsent image drafts disappear on browser refresh; text drafts use browser storage.
+- Newer message-only Codex questions show their titles/options, but currently
+  require the native client for answers; supported native request forms remain interactive.
 - Automated tests/builds do not establish phone rendering or every installed-runtime
   workflow. See [release notes](docs/release-notes.md) for recorded checks and gaps.
 

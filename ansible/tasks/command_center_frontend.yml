@@ -1,0 +1,32 @@
+---
+- name: Require the selected exact HTTPS public origin before deployment
+  ansible.builtin.assert:
+    that:
+      - command_center_public_origin is string
+      - command_center_public_origin is match('^https://[^/\s"%@?#]+$')
+    quiet: true
+    fail_msg: Configure the selected HTTPS frontend with Basic authentication before deploying Command Center.
+
+- name: Verify the public frontend refuses an unauthenticated request with trusted HTTPS
+  ansible.builtin.uri:
+    url: "{{ command_center_public_origin }}/"
+    method: GET
+    status_code: 401
+    validate_certs: true
+    follow_redirects: none
+    use_netrc: false
+    return_content: false
+    timeout: 15
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_connection: local
+  register: ccng_frontend_guard
+
+- name: Require an HTTP Basic authentication challenge before any managed write
+  ansible.builtin.assert:
+    that:
+      - ccng_frontend_guard.status == 401
+      - ccng_frontend_guard.www_authenticate | default('') is match('(?i)^Basic(?:\s|$)')
+    quiet: true
+    fail_msg: The selected HTTPS frontend must return 401 with an HTTP Basic challenge before deployment.

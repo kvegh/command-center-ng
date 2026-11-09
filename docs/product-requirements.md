@@ -334,6 +334,13 @@ Disclose truncation or unavailable native content; explicit detail loading reads
 history without approving, executing or fetching arbitrary files. Preserve native
 answer scopes and reject review when the proposal changes while being checked.
 
+Preserve native assistant-message question titles/options even when their text
+is empty. Show bounded metadata literally and disclose truncation; do not merge
+it into pending approvals or infer whether a historical question remains open.
+Until a supported exact reply binding is established for message-only questions,
+show the native-client next action without fabricated IDs, reply markup or
+controls. Existing native server-request forms remain separately answerable.
+
 Escape interrupts the eligible native turn in the visible chat through the
 existing Interrupt action. It preserves unsent drafts and normal local Escape
 behavior for dialogs, questions, selects, summary review, resizing and IME.

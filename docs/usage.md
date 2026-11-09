@@ -120,6 +120,13 @@ sends a summary, archives a branch or answers a question.
 Open one to reach its existing answer card. A request with several questions
 shows each question. Opening a card does not answer or dismiss it.
 
+Some newer Codex questions arrive as assistant-message metadata rather than a
+pending native request. Their titles/options remain visible even when the native
+message has no text. These are displayed read-only with a native-client answer
+instruction: the installed interface does not establish an exact reply binding
+for this message-only format. They do not create approval controls or claim an
+unanswered/blocking state. Supported native request forms remain interactive.
+
 Manual answers retain the exact native request identity and wait for native
 resolution. Duplicate submissions are blocked while confirmation is pending.
 A failed or unconfirmed answer stays visible with an error. Answers made in

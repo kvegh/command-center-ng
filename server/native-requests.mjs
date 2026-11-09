@@ -10,6 +10,33 @@ export function requestKind(question) {
   if (question.method === MCP_REQUEST && ['form', 'openai/form', 'openaiForm'].includes(question.params.mode) && question.params._meta?.codex_approval_kind === 'mcp_tool_call') return 'MCP tool approval';
   return ({ 'claude/tool/requestApproval': 'Claude tool approval', 'claude/tool/requestUserInput': 'Claude question', 'claude/mcp/elicitation/request': question.params.mode === 'url' ? 'External step' : 'MCP form', [COMMAND_APPROVAL]: 'Command approval', [FILE_APPROVAL]: 'File approval', [CLARIFICATION]: 'Question', [PERMISSIONS]: 'Permission request', [MCP_REQUEST]: question.params.mode === 'url' ? 'External step' : 'MCP form' })[question.method] || 'Unsupported native request';
 }
+// Display-only assistant metadata has no request ID or verified answer route.
+// Keep it distinct from actionable server requests and never synthesize text.
+export function nativeMessageQuestions(item) {
+  if (item?.type !== 'agentMessage' || !Array.isArray(item.questions) || !item.questions.length) return {};
+  const questions = []; let remaining = 8000, truncated = item.questions.length > 32;
+  const take = (value, limit) => {
+    const text = value.slice(0, Math.max(0, Math.min(limit, remaining)));
+    remaining -= text.length; if (text.length < value.length) truncated = true;
+    return text;
+  };
+  for (const question of item.questions.slice(0, 32)) {
+    if (!question || typeof question.title !== 'string' || !question.title.trim()) { truncated = true; continue; }
+    const title = take(question.title, 1000); if (!title) { truncated = true; break; }
+    let options = null;
+    if (question.options != null) {
+      if (Array.isArray(question.options)) {
+        if (question.options.length > 16) truncated = true;
+        options = question.options.slice(0, 16).flatMap(option => {
+          if (typeof option !== 'string' || !remaining) { truncated = true; return []; }
+          return [take(option, 300)];
+        });
+      } else truncated = true;
+    }
+    questions.push({ title, options });
+  }
+  return questions.length ? { nativeQuestions: questions, ...(truncated ? { nativeQuestionsTruncated: true } : {}) } : {};
+}
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
 const options = schema => {
   if (Array.isArray(schema.enum) && schema.enum.every(value => typeof value === 'string')) return schema.enum.map((value, index) => ({ value, label: schema.enumNames?.[index] || value }));

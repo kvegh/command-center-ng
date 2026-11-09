@@ -80,6 +80,9 @@
     - name: Resolve defaults while preserving inventory and extra variables
       ansible.builtin.import_tasks: tasks/command_center_defaults.yml
 
+    - name: Require the approved HTTPS Basic authentication boundary before managed writes
+      ansible.builtin.import_tasks: tasks/command_center_frontend.yml
+
     - name: Inspect any existing systemd unit before taking ownership
       ansible.builtin.stat:
         path: /etc/systemd/system/command-center-ng.service

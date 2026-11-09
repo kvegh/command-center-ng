@@ -5,7 +5,7 @@ import { stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { VERSION } from './version.mjs';
 import { WORKER_BASE_INSTRUCTIONS, WORKER_REPORT_INSTRUCTIONS, reportTimingContext } from './worker-instructions.mjs';
-import { isHumanRequest, manualRequestAnswer } from './native-requests.mjs';
+import { isHumanRequest, manualRequestAnswer, nativeMessageQuestions } from './native-requests.mjs';
 import { isNativeToolApproval, nativeApprovalAnswer } from './approval-choices.mjs';
 import { readModelCatalog, validateModelChoice } from './worker-models.mjs';
 import { markInternalInput, reportMessageFlags } from './report-messages.mjs';
@@ -288,10 +288,19 @@ export class Workspace extends EventEmitter {
       if (!worker.detailLoaded) void this.readWorker(agent, worker.id);
     }
     const images = item.type === 'userMessage' ? codexImages(item.content) : [];
-    const text = itemText(item); if (!text && !images.length) return;
     const previous = agent.messages.findIndex(m => m.id === item.id && m.turnId === turnId);
     const previousRecord = agent.messages[previous] || prior;
-    const record = { id: item.id, turnId, branchable, nativeType: item.type, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text: text || '', ...(item.type === 'fileChange' ? { fileChangeContext: fileChangeContext(item.changes) } : {}), ...(item.type === 'userMessage' ? { rewindable: editableNativeInput(item) } : {}), ...(images.length ? { images } : {}), state: item.status || 'completed', ...itemTime(item, previousRecord, live), ...reportMessageFlags(item, previousRecord) };
+    const questionFields = item.type === 'agentMessage' && !Object.hasOwn(item, 'questions') && previousRecord?.nativeQuestions?.length
+      ? { nativeQuestions: previousRecord.nativeQuestions, ...(previousRecord.nativeQuestionsTruncated ? { nativeQuestionsTruncated: true } : {}) } : nativeMessageQuestions(item);
+    const text = itemText(item);
+    if (!text && !images.length && !questionFields.nativeQuestions?.length) {
+      if (item.type === 'agentMessage' && item.questions === null && previousRecord?.nativeQuestions?.length) {
+        if (previous >= 0 && !previousRecord.text) agent.messages.splice(previous, 1);
+        else { delete previousRecord.nativeQuestions; delete previousRecord.nativeQuestionsTruncated; }
+      }
+      return;
+    }
+    const record = { id: item.id, turnId, branchable, nativeType: item.type, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text: text || '', ...questionFields, ...(item.type === 'fileChange' ? { fileChangeContext: fileChangeContext(item.changes) } : {}), ...(item.type === 'userMessage' ? { rewindable: editableNativeInput(item) } : {}), ...(images.length ? { images } : {}), state: item.status || 'completed', ...itemTime(item, previousRecord, live), ...reportMessageFlags(item, previousRecord) };
     if (previous >= 0) agent.messages[previous] = record; else agent.messages.push(record);
     if (live && completed && record.type === 'assistant') this.coordinator?.reportMessageCompleted(agent.id, record);
     if (agent.messages.length > 600) agent.messages = agent.messages.slice(-600);

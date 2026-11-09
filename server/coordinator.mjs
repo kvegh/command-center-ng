@@ -7,6 +7,7 @@ import { taskSummary } from './task-summary.mjs';
 import { progressWordCount, RECAP_WORD_LIMIT, RECAP_WORD_TARGET } from './progress-recap.mjs';
 import { WORKER_REPORT_REQUEST, WORKER_TASK_PING_REQUEST, REPORT_INTERVALS } from './worker-instructions.mjs';
 import { approvalCommand, approvalWorkingDirectory, inspectApprovalSource, referencesApprovalSource } from './approval-source.mjs';
+import { nativeMessageQuestions } from './native-requests.mjs';
 
 const fail = (message, status = 409) => Object.assign(new Error(message), { status });
 const textInput = text => [{ type: 'text', text, text_elements: [] }];
@@ -51,7 +52,7 @@ export const COORDINATOR_TOOLS = [
 ];
 export function isCoordinatorMessage(message) { return message.type === 'user' && (message.internalTaskPing === true || message.text.startsWith('[Command Center coordinator]')); }
 const isUserAuthority = message => message.type === 'user' && !isCoordinatorMessage(message) && !isBranchControlMessage(message.text);
-const pageMessages = page => [...page.data].reverse().flatMap(turn => (turn.items || []).filter(item => ['userMessage', 'agentMessage'].includes(item.type)).map(item => ({ id: item.id, type: item.type === 'userMessage' ? 'user' : 'assistant', text: item.text || item.content?.filter(part => part.type === 'text').map(part => part.text).join('\n') || '' })));
+const pageMessages = page => [...page.data].reverse().flatMap(turn => (turn.items || []).filter(item => ['userMessage', 'agentMessage'].includes(item.type)).map(item => ({ id: item.id, type: item.type === 'userMessage' ? 'user' : 'assistant', text: item.text || item.content?.filter(part => part.type === 'text').map(part => part.text).join('\n') || '', ...nativeMessageQuestions(item) })));
 
 export class Coordinator {
   constructor(workspace, { debounceMs = 1500, intervalMs = 30000, reportClock = {} } = {}) {
@@ -399,7 +400,7 @@ export class Coordinator {
     }
     if (this.workspace.agents.get(agent.id) !== agent) throw fail('This worker closed while its history was read.');
     let budget = 40000;
-    const bounded = [...messages].reverse().map(message => { const text = message.text.slice(0, Math.max(0, Math.min(5000, budget))); budget -= text.length; return { id: message.id, role: isCoordinatorMessage(message) ? 'coordinator' : message.type, text, truncated: text.length < message.text.length }; }).filter(message => message.text).reverse();
+    const bounded = [...messages].reverse().map(message => { const text = message.text.slice(0, Math.max(0, Math.min(5000, budget))); budget -= text.length; return { id: message.id, role: isCoordinatorMessage(message) ? 'coordinator' : message.type, text, truncated: text.length < message.text.length, ...(message.nativeQuestions?.length ? { nativeQuestions: message.nativeQuestions, ...(message.nativeQuestionsTruncated ? { nativeQuestionsTruncated: true } : {}) } : {}) }; }).filter(message => message.text || message.nativeQuestions?.length).reverse();
     if (cursor) {
       const pages = this.authorityPages.get(agent) || new Map();
       for (const message of bounded) if (typeof message.id === 'string' && message.id && isUserAuthority({ type: message.role, text: message.text })) {

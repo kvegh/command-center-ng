@@ -347,6 +347,13 @@ decision-log data. Recheck its fingerprint across asynchronous review; changed
 content invalidates that review. No filesystem reads or answer submission are
 used to fill missing proposal details.
 
+Worker reads also retain bounded native question titles/options from assistant
+message metadata, including messages with no text. This exposes questions that
+previously disappeared, without inventing pending-request IDs or answer status.
+Message-only questions remain read-only in CCNG until a supported exact reply
+interface is verified; use the native client for those answers. Real
+`item/tool/requestUserInput` requests keep their existing JSON-RPC answer path.
+
 
 ## Local providers and recorded chat questions in0.19.0
 

@@ -16,7 +16,7 @@ The same release integrates approved private decision-file persistence: new
 coordinator summaries reload at startup, retain older disk rows and never replay
 approvals/authority. Storage state/errors remain separate from native outcomes;
 normal shutdown flushes queued records. Older native history is not imported.
-The rewind/decision baseline passed all 668 application tests and the production
+Final combined verification passed all 738 application tests and the production
 build. Publication/deployment pending. Individual-message rewind and
 optional installed/native/browser exercises remain deferred. Public screenshots
 are now explicitly approved unchanged and placed in the README gallery with
@@ -30,11 +30,21 @@ An independently found managed-provider early-acknowledgement compatibility edge
 was corrected and reviewed; correlation with the reported AAP warning remains
 unverified. No duplicate report or native answer was submitted.
 The user approved login persistence and --clear-logins. Backend and frontend
-implementation/tests/review are in progress; no production restart is underway.
+implementation/tests/review are complete; no production restart is underway.
 The user supplied a current RHEL file-approval example containing identifiers but
-no paths/diff/reason. Native file-change projection loss is being repaired for
-both cards and coordinator reads. Direct raw pending-item reads are unavailable
-under current native socket permissions; no access workaround is authorized.
+no paths/diff/reason. Exact native file-change projection and read-only detail
+loading are implemented for cards and coordinator reads, with full-content review
+fingerprints and stale-history guards. Direct raw pending-item reads are unavailable
+under current native socket permissions; the original live case is not verified.
+Assistant message-only question metadata is also retained/displayed, including
+empty text. No supported exact reply binding was established, so those questions
+explicitly require the native client; no fabricated IDs/answer controls exist.
+
+The incoming published 0.43.1 Ansible protected-frontend patch at22cff73 is
+integrated without lowering0.44.0 metadata. Its Basic401 probe remains distinct
+from application-auth403. Ansible syntax/strict production lint pass (26 files);
+32 of33 native Ansible fixtures pass. One TLS fixture is blocked by local socket
+permissions, with assertions unchanged. No source-review blockers remain.
 
 Published/deployed version 0.43.0 implements the user's explicit correction: Never also
 excludes automatic startup reports. Keep manual Report now, stored dashboard

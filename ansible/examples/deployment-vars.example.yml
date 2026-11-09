@@ -7,8 +7,11 @@ command_center_repository: git@github.com:EXAMPLE_OWNER/command-center-ng.git
 command_center_revision: main
 # Defaults: localhost:4242; preserve existing Codex/Beads login/profile/services.
 # command_center_codex_home: /home/example_operator/.codex
-# command_center_public_origin: https://command-center.example.invalid
+command_center_public_origin: https://command-center.example.invalid
+# Provision trusted HTTPS and Basic authentication on every proxy route first.
+# The playbook verifies the unauthenticated frontend before managed writes.
+command_center_first_password_setup: htpasswd-proxy
 # command_center_manage_packages: true
 # command_center_force_install: false
-# Initial command_center_password is required only when auth.json is absent.
-# Supply it through Vault; never put an actual password into this example.
+# Create the fresh application password through the protected browser opening.
+# Existing application authentication is preserved; no setup code is used.
