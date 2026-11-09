@@ -8,6 +8,16 @@ in `package.json`.
 
 ## Existing target prerequisites
 
+Provision the selected HTTPS frontend with htpasswd before running this playbook.
+Every deployment verifies its exact `command_center_public_origin` through one
+unauthenticated, certificate-verified request from the execution environment.
+The response must be HTTP 401 with a Basic challenge. Redirects and automatic
+netrc credentials are disabled. A missing or incorrect frontend stops before
+package installation or other managed target writes. This probe does not prove
+every proxy route or direct-backend firewall restriction: the infrastructure
+owner must enforce htpasswd on all routes and restrict direct backend access.
+Proxy/TLS configuration remains outside this application playbook.
+
 The playbook reuses an existing unprivileged Linux account and its home. The
 default agent workspace is `~/ccng-wd`; first setup creates that directory and
 initializes its native Beads tracker when none exists. Existing trackers and
@@ -73,13 +83,14 @@ variables.
 | `command_center_path` | Existing account tool paths plus target-local tools and system executables |
 | `command_center_bind_address` | Default `127.0.0.1` |
 | `command_center_port` | Default `4242` |
-| `command_center_public_origin` | Empty by default; set the approved HTTPS origin when using an existing proxy |
+| `command_center_public_origin` | Exact approved HTTPS origin; required for the pre-write frontend guard |
+| `command_center_first_password_setup` | `disabled` by default; explicit `htpasswd-proxy` enables the existing first-browser password creation |
 | `command_center_connection_type` | `http` by default; explicitly select `https` for a managed backend certificate |
 | `command_center_tls_server_name` | Required in HTTPS mode; the selected DNS/IP certificate identity |
 | `command_center_tls_days` | New self-signed certificate lifetime; default `365` days, from 1 to 3650 |
 | `command_center_codex_package` | Default `@openai/codex@0.167.0`; used only for a missing local CLI |
 | `command_center_manage_packages` | Default `true`; set `false` when system and CLI prerequisites are managed separately |
-| `command_center_password` | User-chosen initial password from protected input, 12–4096 characters; required only when no private auth file exists |
+| `command_center_password` | Protected 12–4096-character initial password only when no auth file exists and browser-first setup is disabled |
 | `command_center_force_install` | Default `false`; rebuild the selected revision explicitly |
 
 All actual settings, inventory data and AAP configuration belong as whole-file
@@ -89,7 +100,12 @@ auth files are validated and preserved; supplying a different password does not
 rotate an existing login. Initial password creation uses the maintained password
 helper's stdin interface, with protected logging, never a password command-line
 argument. There is no shared default password or forced first-login password
-change. Service environment files contain no password.
+change. With explicit `command_center_first_password_setup: htpasswd-proxy`, a
+fresh deployment instead leaves the auth file absent and writes that existing
+app option plus the exact HTTPS public origin into `INSTALLDIR/etc/config.conf`.
+The user chooses the application password on first browser opening; no initial
+password or setup code is requested by Ansible. Existing auth files are still
+validated and preserved. Service environment files contain no password.
 
 ## Behavior and boundaries
 

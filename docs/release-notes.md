@@ -9,6 +9,27 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 0.43.1 — Require the protected frontend before Ansible deployment
+
+- Every application deployment verifies the selected HTTPS public origin returns
+  HTTP 401 with a Basic challenge before managed target writes. The probe uses
+  normal certificate verification and sends no credentials or netrc login.
+- Protected per-instance settings can explicitly select the existing
+  `htpasswd-proxy` first-password mode. The application configuration receives
+  that mode and exact origin; fresh setup leaves password creation to the first
+  protected browser opening without a supplied password or setup code.
+- Browser-first setup remains disabled by default. Existing authentication is
+  validated and preserved. Backend/UI authentication, installer behavior and
+  native daemon lifecycle are unchanged.
+
+**Validation:** all 20 existing/extended native Ansible deployment fixtures pass,
+including trusted/untrusted TLS, missing challenge/refusal before writes,
+credential-free probing, fresh browser-first configuration, retained passwords
+and native workspace/tool setup. Strict production lint passes across 17
+encountered Ansible files; syntax, compilation and diff checks pass. The full
+application suite/build was not rerun for this Ansible-only correction. Actual
+frontend provisioning and fresh browser enrollment remain deployment acceptance.
+
 ## 0.43.0 — Honor Never for startup reports
 
 - Never skips automatic startup reports as well as recurring reports.

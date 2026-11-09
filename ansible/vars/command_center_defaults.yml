@@ -11,6 +11,7 @@ ccng_default_codex_home: "{{ ccng_user_home }}/.codex"
 ccng_default_bind_address: 127.0.0.1
 ccng_default_port: 4242
 ccng_default_public_origin: ""
+ccng_default_first_password_setup: disabled
 ccng_default_connection_type: http
 ccng_default_tls_days: 365
 ccng_default_codex_package: "@openai/codex@0.167.0"

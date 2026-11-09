@@ -44,6 +44,8 @@ preserved. [Check prerequisites](docs/rhel9-prerequisites.md) for the details.
 The [Ansible deployment](docs/ansible-deployment.md#fresh-workspace) prepares a
 missing `~/ccng-wd` agent workspace and its first Beads tracker without requiring
 an application-demo repository checkout; updates retain the tracker.
+It requires an existing trusted HTTPS htpasswd frontend before target writes;
+explicit browser-first setup uses the app's existing protected-proxy mode.
 
 ## Install
 
