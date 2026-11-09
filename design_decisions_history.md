@@ -2663,3 +2663,19 @@ Checked wording against current startup/authentication and deployment guards;
 warning placement, local links and diff checks pass. This is documentation only:
 no code, numeric version, dependency, service or security configuration changed,
 and no extra restart or successful browser acceptance is claimed.
+
+
+## 2026-11-09 — State the single-engineer deployment boundary
+
+Documentation implementation: `d383bc78d9b86e13288d623d87779193ac43f2f4`.
+
+The user clarified that CCNG is currently an application for one engineer per
+deployment, without multi-tenant isolation. README and installation guidance now
+state this prominently. Tabs organize projects/conversations, while people using
+the same backend share its runtime/account/application workspace. Separate
+reverse-proxy logins restrict entry but do not create isolated CCNG users.
+
+This describes the existing product boundary, not a new multi-user design or
+security mechanism. Existing protection guidance and all five screenshots remain
+intact. Documentation links and diff checks pass; no runtime code, numeric version,
+dependency, configuration or deployment changed for this clarification.
