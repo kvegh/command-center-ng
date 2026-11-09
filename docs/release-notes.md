@@ -9,6 +9,24 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 0.45.1 — Separate independent questions and show mobile screenshots
+
+- Worker guidance asks for one independent decision or action per structured
+  question item and per ordinary Needs input task. Independent answers remain
+  separate; related options can stay together. Existing native approvals retain
+  their exact content and controls.
+- The README includes two user-approved mobile screenshots showing the overview
+  and chat input. Hidden EXIF data was removed with a lossless metadata-only
+  script; compressed image data and the other JPEG segments are unchanged.
+- Captions mark their earlier UI/version/task state as historical. No other
+  conversation's questions or task records are automatically rewritten.
+
+**Validation:** all718 application tests and the production build pass, including
+the existing worker-instruction checks. JPEG inspection confirms EXIF is absent
+and the compressed image data/non-EXIF segments are preserved. README image
+references resolve. Publication/deployment are pending at this checkpoint;
+instruction guidance does not guarantee every future agent question complies.
+
 ## 0.45.0 — Preserve traceable conversations
 
 - Edit & rewind is withdrawn at the user's request. Original messages and

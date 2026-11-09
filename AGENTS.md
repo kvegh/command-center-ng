@@ -147,11 +147,13 @@ runtime state, or environment-specific usernames, addresses, hostnames, paths,
 and configuration. Use synthetic, generic examples. Keep credentials outside
 the repository, including its history. Review staged files before publication.
 
-Specific screenshot exception: the user approved publication of the three supplied
-development screenshots after being shown their visible host/target aliases,
-account path, operational context and creation metadata. Keep those approved
-images authentic and label their historical UI/status context. This does not
-authorize other screenshots, private exports or credential disclosure.
+Specific screenshot exception: the user approved the three supplied desktop
+development screenshots after reviewing their visible private/operational data.
+The user also approved two supplied mobile screenshots after review of their
+visible internal project/deployment text and host alias, with EXIF removed by a
+lossless metadata-only script. Preserve original pixels and label historical
+UI/status context. This does not authorize other screenshots, private exports
+or credential disclosure.
 
 Do not copy local agent settings or another project's environment files into
 this repository. Keep screenshots and fixtures free of private data.
@@ -350,6 +352,14 @@ current mode. Do not ask only in chat when a supported question form is availabl
 Do not disguise preferences as command approvals. If the tool is unavailable,
 state the needed input plainly; keep existing pending questions and do not create
 duplicates or assume an answer. Continue independent authorized work while waiting.
+
+Ask for one independently answerable decision or action per structured question
+item and per ordinary Beads input record. Keep related alternatives as options
+for that same decision; use separate items/records for independent decisions so
+each answer can be processed and resolved separately. A provider may batch
+separate question items in one tool call. Do not guess how to split or rewrite
+native approval commands, modify another worker's input records, or treat a
+partial reply as resolving unanswered choices. Preserve pending native controls.
 
 Task reports use concise vivid bullets with explicit labels: 🟩 Done, 🟨 In
 progress, 🟥 Blocked/needs input, and 🟦 Next. Name actual work and useful outcomes;

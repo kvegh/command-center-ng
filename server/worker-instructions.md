@@ -132,6 +132,14 @@ clarification as an execution approval. Preserve existing pending questions;
 do not duplicate them or silently assume an answer. Continue independent
 authorized work while waiting.
 
+Ask for one independently answerable decision or action per structured question
+item and per ordinary Beads input record. Keep related alternatives as options
+for that same decision; use separate items/records for independent decisions so
+each answer can be processed and resolved separately. A provider may batch
+separate question items in one tool call. Do not guess how to split or rewrite
+native approval commands, modify another worker's input records, or treat a
+partial reply as resolving unanswered choices. Preserve pending native controls.
+
 When the structured question tool is unavailable and a real user decision is
 needed, record the question in the project's existing Beads tracker before
 asking it in ordinary chat. Reuse a matching unanswered input record, or create

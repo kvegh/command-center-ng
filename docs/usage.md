@@ -192,6 +192,13 @@ context; **Ask what is needed** requests clarification. Input dialogs lead with
 The worker must process the answer and update Beads. Sending it neither closes
 the record automatically nor grants execution outside the existing scope.
 
+Each structured question item or ordinary input task asks for one independently
+answerable decision or action. Options are alternatives for that decision;
+independent decisions use separate items/tasks, even when a provider displays
+several items together. The worker processes each answer separately and leaves
+unanswered choices open. Native approval commands and controls keep their exact
+scope; this rule does not split or rewrite them.
+
 Ordinary prose questions are not guessed from transcripts. When native question
 tools are unavailable, agents record input needs in Beads; those appear once in
 Tasks with a **Question** label. Native approvals remain in Open questions.

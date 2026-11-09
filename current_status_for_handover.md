@@ -5,6 +5,17 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Working correction0.45.1 adds the single-decision question rule to worker/shared
+guidance and two approved mobile README screenshots. Exact original JPEG pixels,
+compressed scan data and non-EXIF segments are preserved; Android build, capture
+time/timezone and unique-image EXIF identifiers are removed. No GPS tag was
+present. The user approved this metadata-only method after disclosure review.
+Existing questions remain with their originating workers; this is instruction
+guidance, not automatic semantic splitting or answer inference. All718 tests and
+the production build pass, including existing instruction checks. EXIF absence,
+preserved compressed data and README image references are verified.
+Publication/deployment for this correction remain in progress.
+
 Published and installed version0.45.0 removes Edit & rewind following the user's explicit
 withdrawal. Keep communication traceable by retaining earlier messages and
 recording corrections or changed decisions in follow-up messages. All rewind

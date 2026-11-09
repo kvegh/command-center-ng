@@ -28,6 +28,20 @@ Paste or attach images while keeping the conversation and project tasks visible.
 
 </details>
 
+<details>
+<summary>See the mobile interface</summary>
+
+| Overview and tasks | Chat and input |
+| --- | --- |
+| <img src="docs/screenshots/mobile-overview.jpg" alt="Mobile wrapped tabs, project tasks and compact worker settings" width="280"> | <img src="docs/screenshots/mobile-chat-input.jpg" alt="Mobile conversation, activity status and chat input controls" width="280"> |
+
+[Full-size overview](docs/screenshots/mobile-overview.jpg) · [Full-size chat](docs/screenshots/mobile-chat-input.jpg)
+
+Mobile development screenshots from the0.44.0 era; displayed versions and task
+states are historical. EXIF metadata was removed without changing image pixels.
+
+</details>
+
 ## What you can do
 
 - Open existing Codex conversations or start new agents in explicit project directories.
