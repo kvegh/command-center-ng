@@ -38,6 +38,13 @@ coordinator and four source-review regressions passed again. Focused review
 confirmed the identified uncertainty, parent-serialization and capacity fixes.
 Actual rendered title-tab geometry and native end-to-end handoff remain unverified.
 
+Production update/restart through AAP and independent verification succeeded.
+All 94 checked installed source files match published payload
+`e22f020bd1400fe65007ebe5d211e3e49533fb93`; actual trusted HTTPS health reports
+0.38.0, both listeners and login gates work, and two served assets match.
+Eight protected configuration/authentication/service/native-profile files stayed
+unchanged. This does not establish the browser/native interaction checks above.
+
 ## 0.37.0 — Image picker and pending-request visibility
 
 Published implementation:

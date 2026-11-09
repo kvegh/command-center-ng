@@ -2177,3 +2177,15 @@ the final CSS build passed. Focused independent review confirmed the identified
 retry, receipt, serialization, legacy-path and capacity fixes. Actual rendered
 browser geometry and native end-to-end handoff remain unverified. Publication
 and installation are recorded separately from this implementation evidence.
+
+
+Production outcome for this release: payload
+`e22f020bd1400fe65007ebe5d211e3e49533fb93` was SSH-published and independently
+read back, then installed through the existing authorized AAP ad hoc workflow.
+The existing service restarted successfully. All 94 checked installed source
+files match, actual trusted HTTPS health reports 0.38.0, both listeners and login
+gates work, and the two served assets match. Eight protected configuration,
+authentication, service and native-profile files retained their hashes. No
+credential, certificate trust, proxy, permission or native-daemon change was made.
+This verifies running installation and transport/access gates; browser rendering
+and an actual native branch handoff remain separate acceptance work.

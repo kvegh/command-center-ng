@@ -16,10 +16,16 @@ replayed on restart. Native APIs that cannot establish safety retain the branch.
 Only the title is tinted; the selector/status remain neutral. Six choices are
 cyan/violet/green/blue/teal/rose; legacy amber migrates to blue. All 560 tests and
 the production build passed, with final authority-related focused regressions
-passing again. Production update is pending; publication is checked separately. Real native handoff and rendered desktop/phone acceptance remain
+passing again. Published payload `e22f020bd1400fe65007ebe5d211e3e49533fb93` is SSH-pushed and
+remote-readback verified. AAP update/restart and independent verification both
+succeeded: all 94 checked installed source files match, actual HTTPS health is
+0.38.0, two served assets match, login gates and both listeners work. Eight
+protected configuration/authentication/service/native-profile files were
+unchanged. Real native handoff and rendered desktop/phone acceptance remain
 unverified; do not infer them from fixtures or health checks.
 
-Production verification now confirms 0.37.0 is already installed and running.
+Previous production verification confirmed 0.37.0 was installed and running;
+the 0.38.0 result above supersedes that version checkpoint.
 The user configured the previously missing sudo access; authorized AAP ad hoc
 checks succeeded. All 92 checked installed source files match published payload
 `ce587a3fd29e191d5960425ce5d38095a8b09845`, and the actual HTTPS health endpoint
