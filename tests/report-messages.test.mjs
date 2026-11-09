@@ -179,6 +179,71 @@ test('task checks recheck native turn identity and pending requests after asynch
   }
 });
 
+test('a stop, failed turn, handoff or management change during context loading prevents task-ping delivery', async () => {
+  for (const change of ['interrupted', 'failed', 'handoff', 'summary', 'return', 'delivered', 'cannot-send', 'unknown-outcome', 'paused', 'stopped', 'restoring']) {
+    const f = await fixture();
+    let releaseContext, contextEntered;
+    const entered = new Promise(resolve => { contextEntered = resolve; });
+    f.workspace.instructionContext = () => {
+      contextEntered();
+      return new Promise(resolve => { releaseContext = resolve; });
+    };
+    const sending = f.workspace.send('worker', WORKER_TASK_PING_REQUEST, { taskPing: true });
+    await entered;
+    if (['interrupted', 'failed'].includes(change)) f.workspace.notification({ method: 'turn/completed', params: { threadId: 'worker', turn: { id: 'stopped-turn', status: change } } });
+    if (change === 'handoff') f.agent.handoff = { state: 'waiting' };
+    if (change === 'summary') f.workspace.summaryJobs.set('worker', Promise.resolve());
+    if (change === 'return') f.workspace.returnJobs.set('worker', Promise.resolve());
+    if (change === 'delivered') f.agent.returnSummary = { delivered: true };
+    if (change === 'cannot-send') f.agent.canSend = false;
+    if (change === 'unknown-outcome') delete f.agent.finishedTurn;
+    if (change === 'paused') f.workspace.coordinator = { paused: true };
+    if (change === 'stopped') f.workspace.coordinator = { stopped: true };
+    if (change === 'restoring') f.workspace.restoring = true;
+    releaseContext({});
+    await assert.rejects(sending, /cannot restart|handoff|does not allow direct input|task checks are paused/, change);
+    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false, change);
+  }
+});
+
+test('an active turn changing during context loading uses its current exact native identity', async () => {
+  const f = await fixture();
+  f.agent.thread.status = { type: 'active' }; f.agent.turnId = 'previous-active-turn';
+  let releaseContext, contextEntered;
+  const entered = new Promise(resolve => { contextEntered = resolve; });
+  f.workspace.instructionContext = () => {
+    contextEntered();
+    return new Promise(resolve => { releaseContext = resolve; });
+  };
+  const sending = f.workspace.send('worker', WORKER_TASK_PING_REQUEST, { taskPing: true });
+  await entered;
+  f.workspace.notification({ method: 'turn/started', params: { threadId: 'worker', turn: { id: 'current-active-turn' } } });
+  releaseContext({});
+  await sending;
+  const call = f.rpc.calls.at(-1);
+  assert.equal(call.method, 'turn/steer');
+  assert.equal(call.params.expectedTurnId, 'current-active-turn');
+  assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/interrupt'].includes(call.method)), false);
+});
+
+test('successful completion during context loading permits the authorized task check to start normally', async () => {
+  const f = await fixture();
+  f.agent.thread.status = { type: 'active' }; f.agent.turnId = 'finishing-turn';
+  let releaseContext, contextEntered;
+  const entered = new Promise(resolve => { contextEntered = resolve; });
+  f.workspace.instructionContext = () => {
+    contextEntered();
+    return new Promise(resolve => { releaseContext = resolve; });
+  };
+  const sending = f.workspace.send('worker', WORKER_TASK_PING_REQUEST, { taskPing: true });
+  await entered;
+  f.workspace.notification({ method: 'turn/completed', params: { threadId: 'worker', turn: { id: 'finishing-turn', status: 'completed' } } });
+  releaseContext({});
+  await sending;
+  assert.equal(f.rpc.calls.at(-1).method, 'turn/start');
+  assert.equal(f.rpc.calls.some(call => ['turn/steer', 'turn/interrupt'].includes(call.method)), false);
+});
+
 test('task-ping provenance excludes real-user authority without hiding identical real-user prose or useful replies', async () => {
   const f = await fixture();
   const item = { id: 'silent-check', type: 'userMessage', clientId: `ccng-task-ping-${id}`, content: input(WORKER_TASK_PING_REQUEST) };

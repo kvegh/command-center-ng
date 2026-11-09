@@ -404,6 +404,18 @@ export class Workspace extends EventEmitter {
     }
     if (this.agents.get(id) !== agent) throw Object.assign(new Error('The worker was closed before message delivery.'), { status: 409 });
     if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
+    if (taskPing) {
+      // Activation/context reads can race a stop, handoff or management change.
+      // Recheck immediately before the native call, with no await in between.
+      if (agent.handoff || this.handoffs.incoming(id) || this.summaryJobs.has(id) || this.returnJobs.has(id) || agent.returnSummary?.delivered) throw Object.assign(new Error('Finish the branch handoff before a silent task check.'), { status: 409 });
+      if (!agent.canSend) throw Object.assign(new Error(agent.managementNotice || 'The native agent does not allow direct input to this session.'), { status: 409 });
+      if (this.coordinator?.paused || this.coordinator?.stopped || this.restoring) throw Object.assign(new Error('Silent task checks are paused.'), { status: 409 });
+      if (agent.thread.status?.type === 'active') {
+        if (!agent.turnId) throw Object.assign(new Error('Wait for the active native turn identity before a silent task check.'), { status: 409 });
+      } else if (agent.thread.status?.type !== 'idle' || agent.turnId || agent.finishedTurn?.status !== 'completed') {
+        throw Object.assign(new Error('A silent task check cannot restart stopped, failed or unverified work.'), { status: 409 });
+      }
+    }
     const clientUserMessageId = report || reportSetting || coordinatorEvent || taskPing ? (report ? 'ccng-report-' : reportSetting ? 'ccng-report-setting-' : coordinatorEvent ? 'ccng-event-' : 'ccng-task-ping-') + randomUUID() : null;
     const messageInput = markInternalInput(input(text.trim(), images), clientUserMessageId);
     const identity = clientUserMessageId ? { clientUserMessageId } : {};
