@@ -5,14 +5,20 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working **1.3.1** corrects the observed false Needs your answer footer and amber
+Published and installed **1.3.1** corrects the observed false Needs your answer footer and amber
 classification for native attention without a delivered request. It reuses the
 existing tab request evidence for the input header; native states and execution
 gates remain unchanged. Empty-card placement is still a discussed recommendation,
 not a selected layout change. Exact AAP cold-call investigation remains in46mk;
 no native resume, answer, job retry or permission change is authorized by this
 presentation correction. Final suite867:866passed,1alternate-group skip,0failed;
-build and independent review pass. Publication/deployment remain pending.
+build and independent review pass. Implementation62ad95f/payloade31c1f1 are
+SSH-published/readback verified. AAP3478 completed in24.637s preserving9protected
+files; independent3481 completed in6.882s with107sourcefilematches, actual1.3.1
+HTTPS/assets/auth/listeners and75installedsyntheticbackendregressions passing.
+Physical browser acceptance remains unverified. A fresh native read after update
+still reports the original AAP child waitingOnApproval with no actionable request
+envelope or returned execution result. Never claim the UI correction recovered it.
 
 Published and installed **1.3.0** integrates the unpublished 1.2.0 approval-button grouping
 and Coordinator-aware tab attention with user-selected one-page mobile history,

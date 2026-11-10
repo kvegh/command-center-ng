@@ -9,7 +9,7 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
-## 1.3.1 working — Distinguish native waits from user decisions
+## 1.3.1 — Distinguish native waits from user decisions
 
 - Use the same request evidence in the input header and agent tabs. A native
   attention flag without a delivered request is a neutral missing-details
@@ -21,8 +21,15 @@ is retrievable in the [README before this reorganization](https://github.com/kve
 
 The final combined suite ran 867 tests:866 passed, one unavailable alternate-
 group case skipped, zero failed. Production build and independent review pass.
-Publication and installed verification remain pending. The existing cold-callback
-recovery decision and physical browser acceptance remain separate.
+Implementation62ad95f and payloade31c1f1 are SSH-published/readback verified.
+AAP3478 updated the existing installation in24.637s, preserving nine protected
+files and unrelated Bash bytes/ownership/mode. Independent3481 passed in6.882s:
+107 installed source files match, actual running1.3.1 trusted HTTPS/assets,
+authentication gates and both listeners pass;75 installed synthetic backend
+regressions pass. The served build includes the corrected missing-details
+composer guidance. Physical browser acceptance remains unverified. The existing
+cold-callback recovery decision remains unanswered; the native wait still reports
+waitingOnApproval and has no current actionable approval envelope.
 
 ## 1.3.0 — Clearer requests, task input and mobile scrolling
 
@@ -65,7 +72,8 @@ The user confirms version 1.3.0 is visible. Physical phone behavior and recovery
 of already-lost native callbacks remain unverified. A subsequent user screenshot
 still shows unknown native waits and exposes a separate footer classification
 error: aggregate native attention is incorrectly called Needs your answer even
-without a delivered question. That correction remains in progress.
+without a delivered question. That presentation correction shipped in1.3.1;
+the underlying missing native request remains unresolved.
 
 ## 1.1.0 — Answer eligible assistant questions
 

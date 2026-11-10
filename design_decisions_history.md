@@ -3079,3 +3079,15 @@ establish its outcome. Start and outcome remain unknown. The existing native
 reconnection decision remains unanswered because reconnect can also trigger
 idle continuation. The UI patch does not recover that call or authorize a
 permission grant, retry, cancellation, job change or other worker teardown.
+
+
+1.3.1 publication/installation checkpoint: implementation62ad95f and payload
+e31c1f1 are SSH-published and remote-readback verified. AAP3478 completed in24.637s
+and preserved nine protected files plus unrelated Bash content/ownership/mode.
+Independent3481 completed in6.882s:107 installed source files match; actual
+running1.3.1 trusted HTTPS/assets, authentication gates, both listeners and75
+installed synthetic backend regressions pass. The served bundle includes the
+corrected composer guidance. Physical browser behavior remains unverified. A
+fresh native read still reports the existing AAP child waitingOnApproval with no
+request body or returned execution result. The UI correction does not establish
+recovery; the existing reconnection side-effect decision remains pending.
