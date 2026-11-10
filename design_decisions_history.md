@@ -3274,3 +3274,14 @@ review confirms unchanged access checks. All eight bounded pages of the real
 hook reconstruct its complete contents with matching digest; no contents were
 printed. Publication and installed checks remain pending at this checkpoint;
 1.4.2's broader-suite execution limitations remain explicitly unverified.
+
+1.4.3 publication/installation checkpoint: payloadb863d24 is SSH-published and
+readback verified. AAP3497 succeeded in53.075s preserving nine protected files
+and unrelated Bash bytes/ownership/mode;3498 succeeded in8.366s. All108 checked
+installed source files match, running1.4.3 trusted HTTPS/assets/authentication
+gates/both listeners pass, and149 installed synthetic cases pass. The actual
+Coordinator's own-hook read already succeeded through the old tool in1.4.2;
+1.4.3's complete-file paging is verified by lossless real-file reconstruction.
+No new native file approval was manufactured, retried or answered. Fresh native
+recovery and physical-browser acceptance remain separate, as do the documented
+broader full-suite execution limitations. All release jobs are terminal.

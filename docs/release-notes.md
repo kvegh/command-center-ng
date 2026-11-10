@@ -17,8 +17,11 @@ silently skip context. Explicitly mark an overlong single-line excerpt.
 This changes paging only; the own-conversation, ownership, link and credential
 checks remain unchanged. Five focused cases and the production build pass.
 All eight pages of the real338-line hook file reconstruct its complete contents
-with a matching digest; no contents were printed. Publication and installed
-checks are pending. The1.4.2 broader-suite execution limitations still apply.
+with a matching digest; no contents were printed. Source is published and
+running1.4.3 is verified:108 matching installed files, trusted HTTPS/assets,
+authentication gates/both listeners and149 installed synthetic cases pass.
+The1.4.2 broader-suite execution limitations and actual new-callback/physical-
+browser acceptance gaps still apply.
 
 ## 1.4.2 — Retain request explanations and recover missing context
 
