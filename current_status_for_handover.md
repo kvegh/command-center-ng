@@ -5,25 +5,48 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working **1.4.0** implements the actual user-approved automatic native waiting-
-session reconnection. The reconnection decision is answered;46mk is in progress
-and has no remaining Question label. Existing polling covers open worker roots
-and verified known children with fresh active state with waitingOnApproval and no
-delivered current request. Coalesced attempts stop after an empty/failed replay
-until a new wait episode/connection or explicit manual retry. Ownership, native
-pause/stop/cancel, handoff, current epoch/history and newer live events remain
-protected; no answer, command retry, config/permission override or intentional
-idle load occurs. The accepted idle-continuation race remains documented.
+Published and installed **1.4.0** implements the user-approved automatic
+reconnection of open local Codex worker roots and verified known children freshly
+active with waitingOnApproval and no delivered request. The reconnection choice
+is answered. Existing polling/jobs coalesce one attempt per connection and wait
+episode; empty/failed replay does not create a hot retry loop. Pause/stop,
+ownership, handoff, current history/connection and newer live outcomes remain
+protected. Native resume can continue existing work during the accepted idle race.
+No approval answer, uncertain command retry or permission/configuration override
+is part of reconnection.
 
-Receive native humanCommand prompts through requiredHumanApproval client support
-with hard manual-only choices/Coordinator queue-review denial. Unsupported kinds
-fail closed. Replayed worker dynamic-tool/internal callbacks are ignored without
-reply/refusal to preserve their existing executor; CCNG-owned Coordinator tools
-retain their handler. Empty-card placement remains an unselected recommendation.
-The combined suite passes: 890 tests, 889 passed, one alternate-group skip and
-zero failures; production build and independent review pass. Publication,
-deployment and genuine live request recovery remain pending.
-No real reconnection or approval answer has been sent merely from source changes.
+Implementation6947ad3 and payload98560b7 are SSH-published and remote-readback
+verified. The final suite has 890 tests: 889 passed, one alternate-group skip,
+zero failures; production build and independent review pass. AAP3490 succeeded
+in23.483s, preserving nine protected files and unrelated Bash bytes/ownership/mode.
+Independent3491 succeeded in7.097s:108 source files match, running1.4.0 trusted
+HTTPS/assets/authentication gates/both listeners pass, and110 installed synthetic
+backend regressions pass. No native daemon restart or security change occurred.
+
+Real recovery evidence: fresh Coordinator readback after installation contained
+four original RHEL command/file approvals, including both known child sessions.
+The original AAP connection-check callback also returned, and its worker followed
+the actual process through exit0. This proves delivery and an actual native
+outcome, rather than just a successful resume response. Project-specific AAP/RHEL
+results remain owned by those workers. One recovered file approval was correctly
+referred to the user; do not answer it in this repair task.
+
+A separate older AAP MCP wait remains unresolved: no current request body or
+original tool return has been observed. Bounded native source inspection shows
+ordinary MCP elicitations are replayable, so do not invent a generic MCP replay
+limitation. An older child can be absent from the graph reconstructed from the
+latest20 parent turns; current runtime graph membership and the exact pending
+envelope remain unknown for this case. No exact matching currently retained
+AAP ad hoc job was found in the bounded100-record audit; this is not proof that
+nothing ever ran. Do not interrupt a genuine gate, answer an absent prompt or
+retry that uncertain external operation.46mk remains unfinished for this residual.
+
+Human-only native command checkpoints retain manual-only choices and hard
+Coordinator queue/review denial; unknown kinds fail closed. Foreign replayed
+worker tool callbacks retain their original executor. Empty-card placement remains
+unselected, and physical browser acceptance remains separate. The strict read-only
+CLI checker correctly declines the current combined/truncated Coordinator log
+projections; live evidence above was inspected directly with exact call identities.
 
 Published and installed **1.3.1** corrects the observed false Needs your answer footer and amber
 classification for native attention without a delivered request. It reuses the

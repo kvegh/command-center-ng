@@ -241,7 +241,7 @@ answer a request or guarantee recovery of a lost callback.
 
 ### Automatic native reconnection
 
-Working 1.4.0 permits a bounded reconnection attempt for an already-open local
+Since 1.4.0, CCNG permits a bounded reconnection attempt for an already-open local
 Codex worker or a known child whose native parent lineage is verified. A fresh
 native status must show active work with `waitingOnApproval`, and the wait must
 have no delivered current request. An existing actionable card keeps its native

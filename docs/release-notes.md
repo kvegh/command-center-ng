@@ -9,7 +9,7 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
-## 1.4.0 working — Reconnect eligible native waits automatically
+## 1.4.0 — Reconnect eligible native waits automatically
 
 - Use the existing five-second poll to attempt native reattachment for open local
   Codex workers and verified known children with fresh active state with `waitingOnApproval`
@@ -32,11 +32,14 @@ is retrievable in the [README before this reorganization](https://github.com/kve
 - Keep the current missing-details cards and diagnostics. Failed attempts retain
   existing manual controls; no new timer or persistent store is introduced.
 
-**Source validation:** 890 tests, 889 passed, one alternate-group skip and zero
-failures; production build and independent review pass. Publication, deployment
-and live recovery remain pending. The user's approval resolves the reconnection choice left
-open in 1.3.1; it does not establish that earlier waits or lost cold callbacks
-have recovered.
+**Validation/publication:** 890 tests, 889 passed, one alternate-group skip and
+zero failures; production build and independent review pass. Source is published
+and production1.4.0 is verified:108 matching source files, trusted HTTPS/assets,
+authentication gates/both listeners and110 installed synthetic backend cases.
+Fresh live readback received four original RHEL approvals automatically, and the
+original AAP connection-check callback returned and completed its process.
+One separate older MCP wait remains unresolved; do not equate this release with
+recovery of every cold callback. Phone/browser acceptance remains separate.
 
 ## 1.3.1 — Distinguish native waits from user decisions
 

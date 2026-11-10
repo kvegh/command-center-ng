@@ -3125,3 +3125,25 @@ The bounded read-only evidence checker rejects ambiguous readbacks, stale
 invocations and missing native bindings. Synthetic transport proves regressions,
 not real provider recovery. Publication, deployment, genuine request delivery and
 physical browser acceptance remain unverified at this implementation checkpoint.
+
+
+1.4.0 publication/installation checkpoint: implementation6947ad3 and payload
+98560b7 are SSH-published/readback verified. AAP3490 succeeded in23.483s preserving
+nine protected files and unrelated Bash content/ownership/mode. Independent3491
+succeeded in7.097s:108 installed source files match; running1.4.0 HTTPS/assets,
+authentication gates/both listeners and110 installed synthetic backend cases pass.
+Fresh live Coordinator readback contained four real original RHEL command/file
+approvals including both known children. The original AAP connection-check tool
+callback returned after reconnection; its worker followed its actual process
+through exit0. Recovered requests still use normal review/manual decision gates.
+
+One separate older MCP wait remains unresolved, without its original return or
+current request body. Native source says ordinary thread-scoped MCP elicitations
+can replay; the nested tool name does not establish the pending envelope's type.
+Restoration reconstructs children from a bounded recent-history window, so old
+child discovery needs diagnosis before selecting any broader recovery design.
+A bounded exact-intent audit found no matching currently retained external job;
+this is not proof of nonexecution. No uncertain operation was retried/cancelled
+and no absent prompt was answered. The strict CLI evidence checker rejects the
+current combined/truncated Coordinator projections; the live evidence above was
+inspected directly. Physical browser acceptance remains unverified.

@@ -820,7 +820,7 @@ request set.
 
 ### Approved automatic native reconnection
 
-Working 1.4.0 may reconnect an already-open local Codex worker root or a verified
+Since 1.4.0, reconnect an already-open local Codex worker root or a verified
 known native child when fresh native state is active with `waitingOnApproval` and
 the waiting context has no delivered current request. Never reconnect merely
 because an actionable card is already waiting for a manual answer.
@@ -835,8 +835,8 @@ retry commands. An eligible active context becoming idle before the native call
 arrives may continue through native resume; the user approved that race. Add no
 new timer or persistent store, and do not extend this to deferred Claude work.
 Keep missing-details cards and diagnostics; reattachment does not prove recovery
-of lost cold callbacks or resolution of a request. Combined verification,
-publication and live recovery evidence remain pending.
+of lost cold callbacks or resolution of a request. Combined tests, publication, installed checks and real request delivery are
+verified; one older MCP wait and physical browser acceptance remain unresolved.
 
 ### Never includes startup reports
 
