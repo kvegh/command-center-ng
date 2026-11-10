@@ -3246,3 +3246,31 @@ operations are restricted in the current execution environment, and some child
 CLI output is unavailable. Those restrictions were preserved. Publication,
 installed verification and genuine new callback acceptance remain pending at
 this source checkpoint; physical-browser acceptance remains separate.
+
+1.4.2 publication/installation checkpoint: payloadb67bed6 is SSH-published and
+readback verified. AAP3495 succeeded in52.589s, preserving nine protected files
+and unrelated Bash content/ownership/mode;3496 succeeded in9.740s. All108 checked
+installed files match, running1.4.2 trusted HTTPS/assets/authentication gates/both
+listeners pass, and148 installed synthetic cases pass. A genuine Coordinator call
+through the existing tool returned16000 characters from its own hook text.
+These checks do not establish a new delivered-file callback's recovery or physical
+browser acceptance. The broader local full-suite limitations above remain.
+
+## 2026-11-10 — Preserve complete generated-hook pages in1.4.3
+
+Implementation `3fece96459bc4403691a623153f9e085d902a2f3` corrects an observed
+paging gap in the same approved reader. The real hook file has338 mixed-length
+lines. Its first nominal160-line page exceeds the16000-character limit, so a
+final string slice cuts a line without supplying the next original line.
+
+Pack complete lines under both existing bounds and return nextLine. Report a
+single overlong line explicitly as an incomplete excerpt rather than claiming
+full context. Restored Coordinator guidance tells the caller to follow the
+cursor. No path, ownership, link, credential, execution or approval boundary
+changes; no new tool, input format, store or timer.
+
+Five focused cases, production build and diff checks pass. Independent root
+review confirms unchanged access checks. All eight bounded pages of the real
+hook reconstruct its complete contents with matching digest; no contents were
+printed. Publication and installed checks remain pending at this checkpoint;
+1.4.2's broader-suite execution limitations remain explicitly unverified.
