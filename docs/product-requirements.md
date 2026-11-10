@@ -826,8 +826,12 @@ the waiting context has no delivered current request. Never reconnect merely
 because an actionable card is already waiting for a manual answer.
 Reuse the existing five-second backend poll; coalesce once per context,
 connection and wait episode, without automatic retry on error or missing replay.
-Use the native `thread/resume` call with only `threadId` and `excludeTurns: true`;
-retain replayed original request identities and existing answer controls.
+Use the native `thread/resume` call with the original `threadId`,
+`excludeTurns: true` and a bounded one-turn full initial page. Use that same
+response for exact pending file-change items omitted by durable history; match
+current request/thread/turn/item, preserve newer live bodies and retain original
+request identities and answer controls. Never add a second attachment merely
+for an already-delivered card.
 
 Exclude intentional idle/unloaded, foreign, paused/stopped, Coordinator and
 handoff contexts. Do not answer approvals, change permissions/configuration or

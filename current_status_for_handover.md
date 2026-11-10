@@ -5,6 +5,16 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Working **1.4.1** addresses the delivered RHEL file approval with missing diff.
+Native source confirms paginated history omits transient pending patch events;
+the same approved resume response can include a bounded live snapshot. Match
+only the original current request/thread/turn/item and preserve newer live data;
+no second attachment, answer, profile change or inferred shell patch. Source,
+regressions and independent review pass:894 tests,893 passed, one alternate-
+group skip, zero failures; build passes. Publication, deployment and real proposal
+verification remain pending. The separate AAP child-
+membership structured question is still unanswered.
+
 Published and installed **1.4.0** implements the user-approved automatic
 reconnection of open local Codex worker roots and verified known children freshly
 active with waitingOnApproval and no delivered request. The reconnection choice

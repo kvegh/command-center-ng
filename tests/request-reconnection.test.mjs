@@ -46,7 +46,7 @@ test('existing poll reconnects attached and restored roots and preserves callbac
   for (const observed of [false, true]) {
     const f = fixture({ observed });
     await f.workspace.refreshObserved('worker');
-    assert.deepEqual(f.resumes().map(call => call.params), [{ threadId: 'worker', excludeTurns: true }]);
+    assert.deepEqual(f.resumes().map(call => call.params), [{ threadId: 'worker', excludeTurns: true, initialTurnsPage: { limit: 1, sortDirection: 'desc', itemsView: 'full' } }]);
     const original = f.requests.get('worker'), question = f.worker.questions[0];
     assert.equal(question.id, original.id); assert.equal(question.params, original.params); assert.equal(question.method, original.method);
     assert.equal(f.worker.observingOnly, false); assert.equal(f.workspace.agents.size, 1); f.assertNoExecution();
@@ -61,7 +61,7 @@ test('native child discovery is read-only and the next existing poll detects its
   const child = f.workspace.resolveRequestContext(f.worker, 'child'); assert.equal(child.canSend, false, 'local no-chat flag is not a native ownership refusal');
   f.threads.get('child').status = waiting();
   await f.workspace.refreshObserved('worker');
-  assert.deepEqual(f.resumes().map(call => call.params), [{ threadId: 'child', excludeTurns: true }]);
+  assert.deepEqual(f.resumes().map(call => call.params), [{ threadId: 'child', excludeTurns: true, initialTurnsPage: { limit: 1, sortDirection: 'desc', itemsView: 'full' } }]);
   assert.equal(child.questions[0].id, 73); assert.equal(child.questions[0].params, f.requests.get('child').params);
   assert.deepEqual(f.worker.questions, []); assert.equal(f.workspace.agents.size, 1); f.assertNoExecution();
 });

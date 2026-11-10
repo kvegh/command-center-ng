@@ -478,7 +478,10 @@ The user approved automatic native reconnection for open worker sessions and
 verified children freshly reported active and waiting for approval, accepting
 that the native resume operation can also continue existing work if the session
 becomes idle. Use only metadata-only thread/resume with the original thread ID,
-without config, permission or input overrides. Native replay must supply the
+without config, permission or input overrides. A one-turn full initial page in
+that same response can supply exact pending file changes omitted by durable
+history; preserve newer live bodies and never add an attachment for a delivered
+card. Native replay must supply the
 original request IDs/bodies; never construct an approval or answer automatically.
 Respect explicit pause/stop, ownership, handoff, current connection/history and
 session identity. Do not intentionally reconnect idle, not-loaded, unrelated,

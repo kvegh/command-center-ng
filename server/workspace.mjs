@@ -368,13 +368,29 @@ export class Workspace extends EventEmitter {
       if (!current()) throw stale();
       episode.attempted = true; agent.requestError = null;
       const resumedBefore = { status: agent.thread.status, turnId: agent.turnId, finishedTurn: agent.finishedTurn };
-      const resumed = await this.rpc.call('thread/resume', { threadId: agent.id, excludeTurns: true });
+      const beforeItems = new Map(agent.messages.map(message => [JSON.stringify([message.turnId, message.id]), message]));
+      // Paginated durable history can omit an unapproved patch. The same native
+      // attachment can return its live item without another resume or answer.
+      const resumed = await this.rpc.call('thread/resume', { threadId: agent.id, excludeTurns: true, initialTurnsPage: { limit: 1, sortDirection: 'desc', itemsView: 'full' } });
       if (!current()) throw stale();
       merge(resumed.thread, resumedBefore);
       if (agent === parent) agent.observingOnly = false;
       // Original callbacks can arrive before the resume acknowledgement. Keep
       // them in the existing pending map; never reconstruct IDs from history.
       agent.questions = this.pendingQuestions(agent.id);
+      const hydrateFileItems = () => {
+        if (!current() || !Array.isArray(resumed.initialTurnsPage?.data)) return;
+        for (const question of agent.questions) {
+          if (!this.fileRequestCurrent(parent, agent, question)) continue;
+          const { turnId, itemId } = question.params, key = JSON.stringify([turnId, itemId]);
+          const latest = agent.messages.findLast(message => message.turnId === turnId && message.id === itemId);
+          if (latest !== beforeItems.get(key)) continue;
+          const turn = resumed.initialTurnsPage.data.find(turn => turn?.id === turnId);
+          const item = Array.isArray(turn?.items) ? turn.items.findLast(item => item?.id === itemId) : null;
+          if (item?.type === 'fileChange') this.addItem(agent, item, turnId);
+        }
+      };
+      hydrateFileItems();
       await new Promise((resolve, reject) => {
         let timer;
         const finish = error => { clearTimeout(timer); this.off('change', check); error ? reject(error) : resolve(); };
@@ -384,6 +400,8 @@ export class Workspace extends EventEmitter {
         };
         timer = setTimeout(() => finish(), this.recoveryTimeout); this.on('change', check); check();
       });
+      // Native resume normally responds before replaying its original callbacks.
+      hydrateFileItems();
       if (!agent.questions.length && waiting(agent.thread)) {
         const beforeRefresh = { status: agent.thread.status, turnId: agent.turnId, finishedTurn: agent.finishedTurn };
         const refreshed = await this.rpc.call('thread/read', { threadId: agent.id });

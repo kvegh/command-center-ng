@@ -251,8 +251,10 @@ wait episode. Missing details or an error do not start a repeated retry loop;
 the diagnostic and existing manual controls remain available.
 
 This reattaches the existing native conversation and can replay original request
-IDs. It sends no approval answer, permission/configuration override or command
-retry. Intentionally idle/unloaded, foreign, paused, stopped, Coordinator and
+IDs. Since 1.4.1, that same response requests one full recent turn so pending
+file changes can be matched by exact thread, turn and item IDs even when durable
+history omits them. Later live changes take precedence. It sends no approval
+answer, permission/configuration override or command retry. Intentionally idle/unloaded, foreign, paused, stopped, Coordinator and
 handoff contexts are excluded. If an eligible active context becomes idle before
 reattachment arrives, native resume may continue that conversation; this race is
 included in the approved behavior. There is no new timer, persistent store or

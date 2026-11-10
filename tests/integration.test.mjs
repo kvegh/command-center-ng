@@ -595,7 +595,7 @@ test('request recovery rejoins only the selected waiting worker and preserves th
     assert.equal(f.workspace.agent('existing').questions[0].id, 71);
     assert.equal(f.workspace.agent('other').questions.length, 0);
     const resumes = f.calls.filter(call => call.method === 'thread/resume');
-    assert.deepEqual(resumes.map(call => call.params), [{ threadId: 'existing', excludeTurns: true }]);
+    assert.deepEqual(resumes.map(call => call.params), [{ threadId: 'existing', excludeTurns: true, initialTurnsPage: { limit: 1, sortDirection: 'desc', itemsView: 'full' } }]);
     assert.equal(f.replies.length, 0);
     assert.equal(f.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false);
   } finally { await f.close(); }

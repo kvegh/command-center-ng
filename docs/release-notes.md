@@ -9,6 +9,19 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.4.1 working — Recover pending file changes from the live snapshot
+
+Pending native patch approvals can outlive their transient file-change events,
+while durable paginated history omits those events. Request one full recent turn
+in the already-approved reconnect response and match only its exact current
+pending file item. Preserve newer live bodies and existing request identity,
+permission, ownership and replay guards. No extra reconnect, answer or command
+retry is added for delivered cards. Missing/nonmatching data remains unavailable.
+
+Source validation:894 tests,893 passed, one alternate-group skip, zero failures;
+production build and independent review pass. Publication, installation and
+actual recovery of the outstanding file proposal remain pending.
+
 ## 1.4.0 — Reconnect eligible native waits automatically
 
 - Use the existing five-second poll to attempt native reattachment for open local

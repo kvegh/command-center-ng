@@ -285,3 +285,75 @@ test('an async worker-read response binds the body actually exposed, not a newer
   assert.deepEqual(exposed.questions[0].nativeItem.changes, f.changes);
   assert.notEqual(f.agent.questions[0].coordinatorFileContext, f.w.requestContextFingerprint(f.agent, f.agent.questions[0]));
 });
+
+function resumePageFixture({ afterAck = false, returnedThreadId = 'worker', pageTurnId = 'turn', pageItem, liveItem } = {}) {
+  const f = fixture(), calls = [], answers = [], original = f.request();
+  f.coordinator.paused = false; f.coordinator.mark = () => {}; f.coordinator.flush = async () => {};
+  f.w.coordinator = f.coordinator; f.w.recoveryTimeout = 200;
+  f.agent.thread = { id: 'worker', parentThreadId: null, status: { type: 'active', activeFlags: ['waitingOnApproval'] } };
+  f.rpc.respond = (id, result) => answers.push({ id, result });
+  f.rpc.call = async (method, params) => {
+    calls.push({ method, params });
+    if (method === 'thread/read') return { thread: structuredClone(f.agent.thread) };
+    if (method === 'thread/turns/list') return { data: [], nextCursor: null };
+    if (method !== 'thread/resume') throw new Error('Unexpected native operation: ' + method);
+    const deliver = () => f.rpc.emit('request', original);
+    if (afterAck) setImmediate(deliver); else deliver();
+    if (liveItem) f.rpc.emit('notification', { method: 'item/started', params: { threadId: 'worker', turnId: 'turn', item: liveItem } });
+    return { thread: { ...structuredClone(f.agent.thread), id: returnedThreadId }, initialTurnsPage: { data: [{ id: pageTurnId, status: 'inProgress', itemsView: 'full', items: [pageItem || f.item()] }], nextCursor: null } };
+  };
+  return { ...f, calls, answers, original };
+}
+
+test('resume initial full-turn page hydrates original file callbacks delivered before or after acknowledgement', async () => {
+  for (const afterAck of [false, true]) {
+    const f = resumePageFixture({ afterAck }); await f.w.refreshObserved('worker'); await tick();
+    const question = f.agent.questions[0], visible = f.w.requestView(f.agent, question);
+    assert.equal(question.id, f.original.id); assert.equal(question.params, f.original.params);
+    assert.equal(visible.nativeItem.state, 'available'); assert.deepEqual(visible.nativeItem.changes, f.changes);
+    assert.deepEqual(f.coordinator.pendingRequests(f.agent).questions[0].nativeItem, visible.nativeItem);
+    const resumed = f.calls.filter(call => call.method === 'thread/resume');
+    assert.equal(resumed.length, 1); assert.deepEqual(resumed[0].params.initialTurnsPage, { limit: 1, sortDirection: 'desc', itemsView: 'full' });
+    assert.equal(f.calls.filter(call => call.method === 'thread/turns/list').length, 0, 'the existing resume page supplies the body without another history read');
+    assert.deepEqual(f.answers, []); assert.ok(f.calls.every(call => ['thread/read', 'thread/resume'].includes(call.method)));
+  }
+});
+
+test('resume page never supplies a file diff across a mismatched thread, turn, item or native type', async () => {
+  const variants = [
+    { returnedThreadId: 'other-worker' }, { pageTurnId: 'other-turn' },
+    { pageItem: { type: 'fileChange', id: 'other-item', changes: [{ path: '/example/unrelated', kind: { type: 'add' }, diff: '+unrelated' }] } },
+    { pageItem: { type: 'commandExecution', id: 'changes', command: 'example-command' } },
+  ];
+  for (const variant of variants) {
+    const f = resumePageFixture(variant); await f.w.refreshObserved('worker'); await tick();
+    const question = f.agent.questions[0]; assert.equal(question.params, f.original.params);
+    assert.equal(f.w.requestView(f.agent, question).nativeItem.state, 'unavailable');
+    assert.equal(f.calls.filter(call => call.method === 'thread/resume').length, 1); assert.deepEqual(f.answers, []);
+  }
+});
+
+test('newer live exact file details take precedence over an older resume-page snapshot', async () => {
+  const newer = [{ path: '/example/project/config.yml', kind: { type: 'update', move_path: null }, diff: '+newer live proposal' }];
+  for (const liveItem of [
+    { id: 'changes', type: 'fileChange', status: 'inProgress', changes: newer },
+    { id: 'changes', type: 'fileChange', status: 'inProgress' },
+    { id: 'changes', type: 'commandExecution', command: 'newer native item' },
+  ]) {
+    const f = resumePageFixture({ liveItem }); await f.w.refreshObserved('worker'); await tick();
+    const context = f.w.requestView(f.agent, f.agent.questions[0]).nativeItem;
+    assert.equal(context.state, liveItem.changes ? 'available' : 'unavailable');
+    assert.deepEqual(context.changes, liveItem.changes || []);
+    if (liveItem.changes) assert.equal(f.calls.filter(call => call.method === 'thread/turns/list').length, 0);
+    assert.deepEqual(f.answers, []);
+  }
+});
+
+test('an already delivered missing-body card does not trigger an additional native resume', async () => {
+  const f = resumePageFixture(); f.w.request(f.original); await tick();
+  await f.w.refreshObserved('worker'); await tick();
+  assert.equal(f.agent.questions[0].params, f.original.params);
+  assert.equal(f.w.requestView(f.agent, f.agent.questions[0]).nativeItem.state, 'unavailable');
+  assert.equal(f.calls.filter(call => call.method === 'thread/resume').length, 0); assert.deepEqual(f.answers, []);
+  assert.ok(f.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)));
+});
