@@ -176,15 +176,17 @@ source child and retain its original thread/request IDs and native answer choice
 manual and Coordinator approval limits remain unchanged. Child-only waiting does
 not prevent input to a parent that can otherwise accept it.
 
-This child context is temporary, reusing the existing pending-request map without
-another store, timer or worker slot. Discovery does not resume a child or replay
-approvals. Events received before discovery, or request details never delivered
-to this connection, are not guaranteed recoverable. Unknown status or missing
-details stay explicit; a displayed count is not proof of every native request.
+This child context is temporary. Early native requests can be retained in bounded
+process memory before discovery; their contents stay private until native
+metadata proves the parent lineage. Verified requests then appear automatically
+with their original identities. Discovery does not resume a child or replay
+approvals. Request details never delivered to this connection, or callbacks lost
+after a cold restart, cannot be reconstructed from a waiting status. Unknown or
+missing details stay explicit; a displayed count is not proof of every request.
 
 Some Codex questions arrive as assistant-message metadata rather than a
 blocking approval request. Their titles/options remain visible even when the
-message has no text. Working 1.1.0 adds explicit **Send answer** controls only
+message has no text. **Send answer** controls are available only
 for eligible current Codex worker questions in a completed assistant message
 within the same known active turn, with complete original message/index
 bindings. The server rederives that binding rather than trusting a
@@ -211,13 +213,13 @@ switching CCNG workers in existing browser memory only. Refresh discards those
 browser drafts and latches; none are saved in localStorage, workspace state or
 a new server store. Native history remains authoritative.
 
-The candidate must hold automatic Coordinator messages, reports, task checks,
+CCNG holds automatic Coordinator messages, reports, task checks,
 summaries and handoffs while a verified live question awaits human input,
 including ambiguous submission, using existing bounded queues and pre-send gates.
 Those ordinary control inputs must not retire an editor without user intent.
 No interval, timer, native RPC, permissions or separate model call is added.
-Final gate checks, combined verification, publication, deployment and actual
-native/browser acceptance remain pending.
+See the release notes for completed source/installed checks and remaining
+actual native/browser acceptance gaps.
 
 Manual answers retain the exact native request identity and wait for native
 resolution. Duplicate submissions are blocked while confirmation is pending.
@@ -226,21 +228,20 @@ another client clear here after the corresponding native resolution arrives.
 Some external steps or unsupported answer formats still require the exact
 native action shown by the card.
 
-If attention is reported without details, use **Load pending request**. It
-recovers current requests for that selected active conversation, reusing details
-already held by the connection when available. Loading submits no decision,
-starts no worker turn and changes no native permissions. Missing details alone
-do not prove another client owns the request. Failed recovery retains the
-waiting state and an error rather than inventing an approval card.
+Received requests appear automatically. A native wait without its details is
+shown as **Waiting for request details**, loading or unavailable status; it does
+not establish a question you can answer or another client's ownership. There is
+no normal Load/Retry step and no child recovery button. An optional parent-only
+**Advanced recovery** action reconnects that session explicitly; it does not
+answer a request or guarantee recovery of a lost callback.
 
-File approvals show the native proposed paths, change types and diffs when Codex
-supplies the matching file-change item. CCNG joins it only to that conversation's
-exact turn/item/request; the coordinator receives the same content. Large
-proposals show explicit file-count and size limits rather than implying the
-visible excerpt is complete. If content is unavailable, **Load change details**
-uses native read-only history without approving or executing the edit. Native
-backends that do not supply the item still show an explicit unavailable notice.
-Request identifiers alone do not describe the proposed changes.
+File approvals automatically load available native proposed paths, change types
+and diffs. CCNG joins them only to the exact conversation, turn, item and current
+request; the coordinator receives the same content. Loading reads bounded native
+history, without approving, executing or opening arbitrary files. Loading,
+unavailable content and truncation remain explicit. Large proposals show their
+limits rather than claiming the excerpt is complete. Request identifiers alone
+do not describe the proposed changes.
 
 Alongside **Allow once**, an offered Codex rule can expose **Allow always**.
 The buttons stay together in a compact wrapping row. Exact saved-rule scopes
@@ -279,6 +280,9 @@ maintain task states; chat prose, plans and idle status do not close tasks.
 Totals describe all linked current work. Actual **Needs input** items come first;
 **Queued** means unfinished dependencies and does not mean a user decision.
 Three natural-height rows are visible by default; scroll for the rest.
+An ordinary **Blocked** task can await tools, resources or other work; it is not
+automatically relabelled Needs input or shown as a question. Explicit input
+states or worker-recorded Question tasks identify human input needs.
 
 **Link tasks** associates existing records with this conversation through Beads
 labels. It changes no task state, ownership, content or other labels. Link only
@@ -291,6 +295,8 @@ context; **Ask what is needed** requests clarification. Input dialogs lead with
 **Needed** and **Why**, with steps and background under expandable **Details**.
 The worker must process the answer and update Beads. Sending it neither closes
 the record automatically nor grants execution outside the existing scope.
+Needed/Why must come from the task's recorded information. If the worker has not
+recorded the question or reason, the dialog says so; it does not invent them.
 
 Each structured question item or ordinary input task asks for one independently
 answerable decision or action. Options are alternatives for that decision;
@@ -407,8 +413,9 @@ keyboard controls and reset remain available. Mobile keeps its continuous page
 and compact expandable settings rather than a pinned desktop footer.
 
 Mobile uses one naturally scrolling full-width page with wrapped tabs, compact
-overview, bounded history of about 30 text lines and a six-line input. Long input
-scrolls internally. Mobile hides resize handles and worker coordinator recaps,
+overview and the chat history in the page flow, followed by a six-line input.
+There is no separate 30-line history scroll area. Long input scrolls internally.
+Mobile hides resize handles and worker coordinator recaps,
 ignores desktop sizes without erasing them, and keeps the actual coordinator
 dashboard. Worker settings collapse to a cadence/Report now row; expand for the
 other controls. Phone keyboard and rotation acceptance remain separate checks.

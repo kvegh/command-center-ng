@@ -1055,9 +1055,9 @@ kbd { font-family: inherit; }
   .overview-section[data-section="tasks"] .overview-section-body.sized > .task-summary { height: auto; }
   .overview-section[data-section="tasks"] .overview-section-body.sized .task-scroll { max-height: var(--task-viewport-height); flex: none; }
   .overview-section[data-section="recap"], .sidebar-divider, .overview-section-divider, .composer-divider { display: none; }
-  /* Approximate text-line limit: message headings, tables and images also use
-     space. Keep the existing history scroll element for per-chat restoration. */
-  .conversation { flex: none; min-height: 0; max-height: calc(30 * 1.8 * 14px + 40px); overflow-y: auto; overscroll-behavior-y: auto; padding: 17px 13px 23px; }
+  /* Let document swipes reach page controls without a nested history scroller.
+     Reset both overflow axes so the desktop shorthand cannot retain a trap. */
+  .conversation { flex: none; min-height: 0; max-height: none; overflow: visible; padding: 17px 13px 23px; }
   .composer { flex: none; height: auto; max-height: none; overflow: visible; }
   .composer textarea { font-size: 16px; height: 9.6em; min-height: 9.6em; max-height: 9.6em; line-height: 1.6; overflow-y: auto; resize: none; }
 }

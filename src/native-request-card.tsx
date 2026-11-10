@@ -102,13 +102,14 @@ export function NativePermissionControls({ question, busy, readOnlyCoordinator =
   </>;
 }
 
-export function NativeFileChanges({ question, agentId, busy, load }: { question: Question; agentId: string; busy: boolean; load: () => void }) {
+export function NativeFileChanges({ question, agentId }: { question: Question; agentId: string }) {
   const context = question.nativeItem;
   const matched = !!context && question.params.threadId === agentId && typeof question.params.turnId === 'string' && typeof question.params.itemId === 'string'
     && context.threadId === agentId && context.turnId === question.params.turnId && context.itemId === question.params.itemId && context.type === 'fileChange';
   if (!context || !matched || context.state !== 'available') return <div className="native-file-changes">
-    <p className="field-note">{matched && context.notice ? context.notice : 'File paths and diff have not been loaded for this exact native request. No changes were inferred.'}</p>
-    <button type="button" className="button subtle small" disabled={busy} onClick={() => { if (!busy) load(); }}>Load change details</button>
+    <p className="field-note" role={matched && context.loading ? 'status' : undefined}>{matched && context.loading
+      ? 'Loading the proposed file changes automatically…'
+      : matched && context.notice ? context.notice : 'File paths and diff are unavailable for this exact native request. No changes were inferred.'}</p>
   </div>;
   return <div className="native-file-changes">
     <p>{context.totalChanges} proposed file change{context.totalChanges === 1 ? '' : 's'}</p>
@@ -158,7 +159,7 @@ function NativeRequestFields({ question, agentId, requestThreadId, workerName, r
     </form> : approval ? <>
       {question.params.command && <pre><code>{typeof question.params.command === 'string' ? question.params.command : JSON.stringify(question.params.command)}</code></pre>}
       {question.params.grantRoot && <p>Requested change root: {question.params.grantRoot}</p>}
-      {question.method === FILE_APPROVAL && <NativeFileChanges question={question} agentId={nativeThreadId} busy={busy} load={() => void act(`agents/${agentId}/requests`, requestThreadId ? { requestId: question.id, ...binding } : {})} />}
+      {question.method === FILE_APPROVAL && <NativeFileChanges question={question} agentId={nativeThreadId} />}
       <NativeApprovalControls question={question} busy={busy} readOnlyCoordinator={readOnlyCoordinator} submit={submit} prepareApprovalFocus={prepareApprovalFocus} review={toolApproval ? undefined : () => void act(`agents/${agentId}/review`, { requestId: question.id, ...binding })} />
     </> : permissions ? <NativePermissionControls question={question} busy={busy} readOnlyCoordinator={readOnlyCoordinator} submit={submit} prepareApprovalFocus={prepareApprovalFocus} /> : mcp ? <>
       {fields !== null ? <form onSubmit={event => { event.preventDefault(); void submit({ decision: 'accept', content }); }}>

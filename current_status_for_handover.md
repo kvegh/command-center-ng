@@ -5,17 +5,33 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working **1.2.0** groups approval buttons with scopes below and implements
-Coordinator-aware tab attention. Both changes passed independent source review,
-42 focused approval/child/tab regressions and the production build. Publication
-and deployment remain pending; the latest verified production release is 1.1.0.
-The full test command did not pass in the current sandbox: 77 of 84 test files
-passed; remaining failures involve socket/subprocess or home-directory access.
-Authentication passed separately after its combined-run failure. These checks
-do not establish phone rendering or a fully passing integration suite.
-Mobile scrolling awaits a choice between a Top controls shortcut and removing
-the bounded inner history. Existing child request recovery remains blocked on
-the separate native-reattachment choice; no live request was replayed or answered.
+Working **1.3.0** integrates the unpublished 1.2.0 approval-button grouping
+and Coordinator-aware tab attention with user-selected one-page mobile history,
+automatic exact native file-detail loading and truthful blocked-task wording.
+Mobile input remains six lines with internal overflow; saved desktop dimensions
+and reading positions survive compact mode and same-chat rotation. Missing
+request details show a status, without ordinary child Load/Retry controls or a
+claim the original native client has a question. Parent reconnect remains an
+explicit Advanced recovery action. Early delivered child request retention is
+implemented privately in the existing bounded pending map, exposed only
+after fresh native parent proof; no speculative foreign reads or child resume.
+
+The final combined suite ran 864 tests: 863 passed, one unavailable alternate-
+group case skipped, zero failed. Production build and independent integration
+review pass. Publication and installed verification remain pending. The initial compound
+Git command failed in the restricted sandbox; standalone git fetch origin then
+succeeded with unchanged SSH configuration. Likewise standalone bd show works
+after a compound Git/Beads inspection failed on the Dolt socket. Use separate
+tool calls for approved Git/Beads operations so their existing command rules
+apply. No security/configuration workaround or permission change is needed.
+The latest verified published/production release remains 1.1.0; no new deployment
+job has yet been launched.
+
+Automatic reconnection of already-missing child callbacks is not approved by
+"no extra click" or the separate mobile choice. Native thread/resume can invoke
+idle continuation. No real request was resumed, answered, cancelled or declared
+recovered by this candidate. Real phone rendering/provider delivery and cold
+callback recovery remain unverified.
 
 Published and installed **1.1.0** implements manual replies to eligible current
 Codex assistant-message questions from a completed message within the same

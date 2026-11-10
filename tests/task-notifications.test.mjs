@@ -37,13 +37,24 @@ test('queued dependencies are not input needs, and a later real input transition
   const engine = new TaskNotificationEngine();
   engine.update([worker()], [watch]);
   assert.deepEqual(engine.update([worker([task('blocked', { blockedBy: ['prerequisite'] })])], [watch]), []);
-  const first = engine.update([worker([task('blocked')])], [watch]);
+  assert.deepEqual(engine.update([worker([task('blocked')])], [watch]), [], 'ordinary blocked work is not a request for input');
+  const first = engine.update([worker([task('blocked', { isChatQuestion: true })])], [watch]);
   assert.equal(first[0].kind, 'needs-input');
   assert.deepEqual(engine.update([worker([task('needs_input')])], [watch]), []);
   engine.update([worker([task('in_progress')])], [watch]);
   const second = engine.update([worker([task('waiting_on_input')])], [watch]);
   assert.equal(second[0].kind, 'needs-input');
   assert.notEqual(first[0].id, second[0].id);
+});
+
+test('question labels respect dependency waiting, actual clearing and terminal outcomes', () => {
+  const engine = new TaskNotificationEngine(); engine.update([worker()], [watch]);
+  assert.deepEqual(engine.update([worker([task('blocked', { isChatQuestion: true, blockedBy: ['base'] })])], [watch]), []);
+  assert.equal(engine.update([worker([task('blocked', { isChatQuestion: true })])], [watch])[0].kind, 'needs-input');
+  assert.deepEqual(engine.update([worker([task('blocked')])], [watch]), [], 'clearing the question leaves unfinished blocked work');
+  assert.equal(engine.update([worker([task('in_progress', { isChatQuestion: true, blockedBy: ['base'] })])], [watch])[0].kind, 'needs-input', 'active work keeps the same classification as the sidebar');
+  assert.equal(engine.update([worker([task('closed', { isChatQuestion: true })])], [watch])[0].kind, 'completed');
+  for (const state of ['cancelled', 'withdrawn']) assert.deepEqual(engine.update([worker([task(state, { isChatQuestion: true })])], [watch]), []);
 });
 
 test('only authoritative explicit task failure produces a task error', () => {

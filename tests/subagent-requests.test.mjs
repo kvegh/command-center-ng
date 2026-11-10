@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { Workspace } from '../server/workspace.mjs';
+import { Coordinator } from '../server/coordinator.mjs';
 
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
@@ -55,14 +56,96 @@ test('known native candidate retains an exact request arriving during lineage ve
 test('unrelated interaction targets and ordinary forked branches do not gain child request authority', async () => {
   const f = fixture();
   for (const tool of ['wait', 'sendInput', 'sendMessage']) f.workspace.addItem(f.parent, { id: tool, type: 'collabAgentToolCall', tool, agentsStates: { stranger: { status: 'running' } } }, 'turn');
-  f.workspace.request(f.request(7, 'stranger')); assert.equal(f.workspace.pending.size, 0);
-  f.workspace.request(f.request(8, 'undiscovered')); assert.equal(f.workspace.pending.size, 0);
+  f.workspace.request(f.request(7, 'stranger')); assert.equal(f.workspace.pending.size, 1);
+  f.workspace.request(f.request(8, 'undiscovered')); assert.equal(f.workspace.pending.size, 2);
   f.threads.set('branch', { id: 'branch', forkedFromId: 'parent', parentThreadId: null, status: { type: 'active' } });
-  f.discover('branch'); f.workspace.request(f.request(9, 'branch')); assert.equal(f.workspace.pending.size, 1);
+  f.discover('branch'); f.workspace.request(f.request(9, 'branch')); assert.equal(f.workspace.pending.size, 3);
   await tick();
-  assert.equal(f.workspace.pending.size, 0); assert.throws(() => f.workspace.resolveRequestContext(f.parent, 'branch'), /verified native subagent/);
+  assert.equal(f.workspace.pending.size, 3); assert.throws(() => f.workspace.resolveRequestContext(f.parent, 'branch'), /verified native subagent/);
+  assert.equal(f.workspace.snapshot().backgroundQuestions, 0, 'unassociated callbacks stay private even after a foreign lineage result');
   assert.deepEqual(f.workspace.snapshot().agents[0].workers.find(worker => worker.id === 'branch').questions, []);
   assert.deepEqual(f.replies, []);
+});
+
+test('requests delivered before child discovery stay private and become visible only after fresh native proof', async () => {
+  const f = fixture(), incoming = f.request();
+  f.workspace.request(incoming);
+  const original = [...f.workspace.pending.values()][0], token = original.reviewToken;
+  assert.equal(original.params, incoming.params); assert.equal(original.unassociated, true);
+  assert.equal(Object.keys(original).includes('unassociated'), false); assert.equal(f.calls.length, 0);
+  assert.equal(f.workspace.snapshot().backgroundQuestions, 0); assert.deepEqual(f.parent.questions, []);
+  const coordinator = new Coordinator(f.workspace);
+  assert.equal(coordinator.pendingRequests(f.parent).requestSummary.totalRequests, 0);
+  assert.ok(!JSON.stringify(f.workspace.snapshot()).includes('example-command'));
+  assert.throws(() => f.workspace.answer('parent', 7, {}, 'child'), /verified native subagent/);
+  f.discover(); await tick();
+  const child = f.workspace.resolveRequestContext(f.parent, 'child');
+  assert.equal(child.questions[0], original); assert.equal(child.questions[0].reviewToken, token);
+  assert.equal(child.questions[0].params, incoming.params); assert.equal(coordinator.pendingRequests(f.parent).requestSummary.totalRequests, 1);
+  assert.equal(f.calls.length, 1); assert.equal(f.calls[0].method, 'thread/read'); assert.deepEqual(f.replies, []);
+});
+
+test('foreign private callbacks preserve typed identities and a bounded cache without evicting associated requests', () => {
+  const f = fixture();
+  f.workspace.request(f.request(7, 'foreign')); const numeric = [...f.workspace.pending.values()][0];
+  f.workspace.request(f.request('7', 'foreign')); f.workspace.request(f.request(7, 'foreign', { command: 'must-not-replace-original' }));
+  for (let i = 0; i < 126; i++) f.workspace.request(f.request('private-' + i, 'foreign'));
+  assert.equal(f.workspace.pending.size, 128); assert.equal([...f.workspace.pending.values()][0], numeric);
+  f.workspace.request(f.request('overflow', 'foreign')); assert.equal(f.workspace.pending.size, 128);
+  f.workspace.request(f.request('associated', 'parent')); assert.equal(f.workspace.pending.size, 129);
+  assert.equal(f.parent.questions.length, 1); assert.equal(f.workspace.snapshot().backgroundQuestions, 0);
+  assert.equal(f.calls.length, 0); assert.deepEqual(f.replies, []);
+  f.workspace.notification({ method: 'serverRequest/resolved', params: { threadId: 'foreign', requestId: 7 } });
+  assert.equal(f.workspace.pending.size, 128);
+  assert.ok([...f.workspace.pending.values()].some(question => question.params.threadId === 'foreign' && question.id === '7'));
+  f.workspace.request(f.request('replacement-slot', 'foreign')); assert.equal(f.workspace.pending.size, 129);
+});
+
+test('resolved, disconnected, closed and wrong-parent proof cannot expose an early callback', async () => {
+  for (const ending of ['resolved', 'disconnected', 'closed', 'wrong-parent']) {
+    const f = fixture(), read = deferred(); f.workspace.request(f.request());
+    f.rpc.call = async (method, params) => { f.calls.push({ method, params }); assert.equal(method, 'thread/read'); return read.promise; };
+    f.discover();
+    if (ending === 'resolved') f.workspace.notification({ method: 'serverRequest/resolved', params: { threadId: 'child', requestId: 7 } });
+    if (ending === 'disconnected') { f.rpc.ready = false; f.rpc.emit('disconnected', 'Synthetic disconnect'); f.rpc.ready = true; }
+    if (ending === 'closed') f.workspace.close('parent');
+    read.resolve({ thread: { ...f.threads.get('child'), parentThreadId: ending === 'wrong-parent' ? 'foreign-parent' : 'parent' } }); await tick();
+    assert.equal(f.workspace.snapshot().backgroundQuestions, 0);
+    assert.ok(f.workspace.snapshot().agents.every(agent => !JSON.stringify(agent).includes('example-command')));
+    assert.equal(f.calls.length, 1); assert.deepEqual(f.replies, []);
+  }
+});
+
+test('explicit native open admits only matching current metadata and preserves watched closed backgrounds', async () => {
+  const f = fixture(); f.workspace.request(f.request()); const original = [...f.workspace.pending.values()][0];
+  const child = await f.workspace.open('child', { observeOnly: true });
+  assert.equal(child.questions[0], original); assert.equal(original.unassociated, false);
+  f.workspace.close('child'); f.workspace.request(f.request('closed-watch', 'child'));
+  assert.equal(f.workspace.snapshot().backgroundQuestions, 2, 'explicitly watched closed conversations retain their normal attention cards');
+  const g = fixture(), read = deferred(); g.workspace.request(g.request());
+  g.rpc.call = async () => read.promise;
+  const opening = g.workspace.open('child', { observeOnly: true });
+  g.rpc.ready = false; g.rpc.emit('disconnected', 'Synthetic disconnect'); g.rpc.ready = true;
+  g.workspace.request(g.request()); read.resolve({ thread: g.threads.get('child') });
+  await assert.rejects(opening, /connection changed|conversation changed/);
+  assert.equal(g.workspace.watched.has('child'), false); assert.equal(g.workspace.snapshot().backgroundQuestions, 0);
+  assert.equal([...g.workspace.pending.values()][0].unassociated, true); assert.deepEqual(g.replies, []);
+});
+
+test('nested early callbacks wait for the complete current ancestry proof without extra metadata calls', async () => {
+  const f = fixture(), childRead = deferred();
+  f.workspace.request(f.request(44, 'grandchild'));
+  f.rpc.call = async (method, params) => {
+    f.calls.push({ method, params }); assert.equal(method, 'thread/read');
+    if (params.threadId === 'child') return childRead.promise;
+    return { thread: { id: 'grandchild', parentThreadId: 'child', status: { type: 'active' } } };
+  };
+  f.discover(); f.discover('grandchild', 'child'); await tick();
+  assert.equal(f.workspace.snapshot().backgroundQuestions, 0);
+  assert.ok(f.workspace.snapshot().agents[0].workers.every(worker => !worker.questions?.length));
+  childRead.resolve({ thread: f.threads.get('child') }); await tick();
+  assert.equal(f.workspace.resolveRequestContext(f.parent, 'grandchild').questions[0].id, 44);
+  assert.equal(f.calls.length, 2); assert.deepEqual(f.replies, []);
 });
 
 test('manual child answers preserve typed IDs and wait for the exact native resolution', async () => {
@@ -94,6 +177,49 @@ test('child file-change detail loading reads only the exact native child and kee
   assert.ok(f.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method))); assert.deepEqual(f.replies, []);
   assert.ok(f.calls.filter(call => call.method === 'thread/turns/list').every(call => call.params.threadId === 'child' && call.params.itemsView === 'full'));
   assert.ok(!JSON.stringify(f.workspace.snapshot().agents[0].workers).includes('fileChangeContext'));
+});
+
+test('a delivered verified child file approval hydrates automatically without a Load action', async () => {
+  const f = fixture(); f.discover(); await tick();
+  const original = f.rpc.call;
+  const changes = [{ path: '/example/project/child-file', kind: { type: 'update', move_path: null }, diff: '-old\n+child' }];
+  f.rpc.call = async (method, params) => {
+    if (method !== 'thread/turns/list') return original(method, params);
+    f.calls.push({ method, params });
+    return { data: [{ id: 'child-turn', items: [{ id: 'changes', type: 'fileChange', changes }] }], nextCursor: null };
+  };
+  const request = { ...f.request(41, 'child', { itemId: 'changes' }), method: 'item/fileChange/requestApproval' };
+  f.workspace.request(request);
+  assert.equal(f.workspace.snapshot().agents[0].workers[0].questions[0].nativeItem.loading, true);
+  await tick();
+  const parent = f.workspace.snapshot().agents[0], question = parent.workers[0].questions[0];
+  assert.equal(question.nativeItem.state, 'available'); assert.equal(question.nativeItem.loading, false);
+  assert.deepEqual(question.nativeItem.changes, changes); assert.deepEqual(question.params, request.params);
+  assert.equal(parent.questions.length, 0); assert.equal(f.workspace.agents.size, 1);
+  assert.equal(f.calls.filter(call => call.method === 'thread/turns/list').length, 1);
+  assert.ok(f.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method))); assert.deepEqual(f.replies, []);
+});
+
+test('automatic child file hydration waits for verified lineage and never reads foreign child content', async () => {
+  for (const verified of [false, true]) {
+    const f = fixture(); let release;
+    f.rpc.call = async (method, params) => {
+      f.calls.push({ method, params });
+      if (method === 'thread/read') return new Promise(resolve => { release = resolve; });
+      assert.equal(method, 'thread/turns/list'); assert.equal(params.threadId, 'child');
+      return { data: [{ id: 'child-turn', items: [{ id: 'changes', type: 'fileChange', changes: [{ path: '/example/project/child-file', kind: { type: 'add' }, diff: '+child' }] }] }], nextCursor: null };
+    };
+    f.discover();
+    f.workspace.request({ ...f.request(42, 'child', { itemId: 'changes' }), method: 'item/fileChange/requestApproval' });
+    await tick(); assert.equal(f.calls.filter(call => call.method === 'thread/turns/list').length, 0);
+    release({ thread: { ...f.threads.get('child'), parentThreadId: verified ? 'parent' : 'foreign-parent' } });
+    await tick(); await tick();
+    assert.equal(f.calls.filter(call => call.method === 'thread/turns/list').length, verified ? 1 : 0);
+    const child = f.workspace.snapshot().agents[0].workers[0];
+    if (verified) assert.equal(child.questions[0].nativeItem.state, 'available');
+    else assert.deepEqual(child.questions, []);
+    assert.deepEqual(f.replies, []);
+  }
 });
 
 test('nested native descendants retain lineage, reject cross-parent access and bound cycles', async () => {

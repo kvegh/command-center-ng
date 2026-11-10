@@ -22,6 +22,7 @@ import { validateImages, codexImages, imageReferences, readInlineImage } from '.
 
 export const input = (text, images = []) => [...(text ? [{ type: 'text', text, text_elements: [] }] : []), ...images.map(image => ({ type: 'image', url: image.dataUrl }))];
 const requestKey = (threadId, requestId) => JSON.stringify([threadId, requestId]);
+const MAX_UNASSOCIATED_REQUESTS = 128;
 export function statusOf(thread, requests = []) {
   if (requests.length || thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag))) return 'attention';
   return ({ active: 'running', idle: 'idle', notLoaded: 'offline', systemError: 'error' })[thread.status?.type] || 'offline';
@@ -70,7 +71,7 @@ function itemTime(item, previous, live) {
 
 export class Workspace extends EventEmitter {
   constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, recoveryTimeout = 2000, beads = new BeadsTasks(), coordinator = false, claude = null, handoffOptions } = {}) {
-    super(); this.rpc = rpc; this.agents = new Map(); this.pending = new Map(); this.opening = new Set(); this.watched = new Set(); this.creating = 0; this.error = null;
+    super(); this.rpc = rpc; this.agents = new Map(); this.pending = new Map(); this.requestEpoch = 0; this.opening = new Set(); this.watched = new Set(); this.creating = 0; this.error = null;
     this.summaryJobs = new Map(); this.returnJobs = new Map(); this.summaryTimeout = summaryTimeout;
     this.handoffs = new BranchHandoffs(this, handoffOptions);
     this.workerReads = new Set(); this.beads = beads; this.trackerReads = new Map();
@@ -85,6 +86,7 @@ export class Workspace extends EventEmitter {
     rpc.on('notification', message => this.notification(message));
     rpc.on('request', message => this.request(message));
     rpc.on('disconnected', message => {
+      this.requestEpoch++;
       this.error = message;
       for (const job of this.answerJobs.values()) job.finish(Object.assign(new Error('Codex disconnected before confirming the answer. Check the native session.'), { status: 503 }));
       this.pending.clear(); for (const parent of this.agents.values()) for (const agent of this.requestContexts(parent, { includeUnverified: true })) if (agent.provider !== 'claude') { agent.questions = []; retireAsyncQuestions(agent, 'The native connection changed; this question is read-only.', 'disconnect'); if (agent !== parent) agent.lineageNeedsRefresh = true; agent.historyRevision = (agent.historyRevision || 0) + 1; for (const message of agent.messages) delete message.fileChangeContext; }
@@ -116,7 +118,7 @@ export class Workspace extends EventEmitter {
     const contexts = [], seen = new Set();
     const visit = context => {
       if (seen.has(context.id) || contexts.length >= 128) return;
-      if (context !== parent) context.questions = [...this.pending.values()].filter(question => question.params.threadId === context.id);
+      if (context !== parent) context.questions = this.pendingQuestions(context.id);
       seen.add(context.id); contexts.push(context);
       if (context.role === 'coordinator' || context.provider === 'claude') return;
       for (const worker of context.workers || []) {
@@ -140,6 +142,22 @@ export class Workspace extends EventEmitter {
   requestContextCurrent(parent, context) {
     return this.agents.get(parent.id) === parent && this.requestContexts(parent).some(current => current === context);
   }
+  pendingQuestions(id) { return [...this.pending.values()].filter(question => !question.unassociated && question.params.threadId === id); }
+  admitPendingQuestions(context, epoch) {
+    if (!this.rpc.ready || epoch !== this.requestEpoch) return false;
+    let admitted = false;
+    for (const question of this.pending.values()) if (question.unassociated && question.receivedRequestEpoch === epoch && question.params.threadId === context.id && this.pending.get(requestKey(context.id, question.id)) === question) { question.unassociated = false; admitted = true; }
+    context.questions = this.pendingQuestions(context.id);
+    return admitted;
+  }
+  admitVerifiedChildQuestions(parent, epoch) {
+    const contexts = this.requestContexts(parent), admitted = [];
+    for (const context of contexts.slice(1)) {
+      const proof = context.nativeRequestProof;
+      if (proof?.epoch === epoch && proof.revision === (context.historyRevision || 0) && contexts.includes(proof.parent) && context.thread.parentThreadId === proof.parent.id && this.admitPendingQuestions(context, epoch)) admitted.push(context);
+    }
+    return admitted;
+  }
   requestOwner(threadId, { includeUnverified = false } = {}) {
     const direct = this.agents.get(threadId); if (direct) return { parent: direct, context: direct };
     for (const parent of this.agents.values()) {
@@ -159,7 +177,7 @@ export class Workspace extends EventEmitter {
   }
   backgroundRequests() {
     const workers = new Map();
-    for (const question of this.pending.values()) if (!this.requestOwner(question.params.threadId)) {
+    for (const question of this.pending.values()) if (!question.unassociated && !this.requestOwner(question.params.threadId)) {
       const id = question.params.threadId, previous = workers.get(id);
       workers.set(id, { id, name: 'Codex session', provider: 'codex', questionCount: (previous?.questionCount || 0) + 1 });
     }
@@ -172,12 +190,12 @@ export class Workspace extends EventEmitter {
   requestView(agent, question) {
     if (question.method !== 'item/fileChange/requestApproval') return question;
     const p = question.params, binding = { threadId: agent.id, turnId: p.turnId, itemId: p.itemId, type: 'fileChange' };
-    const pending = this.pending.get(requestKey(agent.id, question.id)) === question && agent.questions.includes(question);
+    const pending = !question.unassociated && this.pending.get(requestKey(agent.id, question.id)) === question && agent.questions.includes(question);
     const message = pending && p.threadId === agent.id && typeof p.turnId === 'string' && typeof p.itemId === 'string'
       ? agent.messages.findLast(row => row.id === p.itemId && row.turnId === p.turnId) : null;
     const context = message?.nativeType === 'fileChange' ? message.fileChangeContext : null;
     const notice = question.detailError || (message?.nativeType && message.nativeType !== 'fileChange' ? `The exact native item is ${message.nativeType}, not fileChange. No file diff was inferred.` : 'File paths and diff are not available for this exact native request yet. No answer has been sent.');
-    return { ...question, nativeItem: context ? { ...binding, state: 'available', ...structuredClone(context) } : { ...binding, state: 'unavailable', changes: [], totalChanges: null, truncated: false, notice } };
+    return { ...question, nativeItem: context ? { ...binding, state: 'available', loading: false, ...structuredClone(context) } : { ...binding, state: 'unavailable', loading: !!question.fileDetailsLoading, changes: [], totalChanges: null, truncated: false, notice } };
   }
   requestContextFingerprint(agent, question) {
     const context = this.requestView(agent, question).nativeItem;
@@ -204,6 +222,7 @@ export class Workspace extends EventEmitter {
     if (role === 'worker' && this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error(`All ${limits.maxWorkers} worker tabs are open. Close a tab to open another; its agent keeps running.`), { status: 409 });
     if (this.opening.has(id)) throw Object.assign(new Error('This agent is already opening.'), { status: 409 });
     this.opening.add(id);
+    const epoch = this.requestEpoch;
     try {
       if (isClaudeId(id)) {
         if (!this.claude) throw Object.assign(new Error('Local Claude support is unavailable.'), { status: 503 });
@@ -212,14 +231,16 @@ export class Workspace extends EventEmitter {
         return agent;
       }
       const observed = await this.rpc.call('thread/read', { threadId: id });
-      if (!observed.thread) throw Object.assign(new Error('The saved conversation is unavailable.'), { status: 404 });
+      if (!observed.thread || observed.thread.id !== id) throw Object.assign(new Error('The saved conversation is unavailable or its native identity changed.'), { status: 404 });
+      if (!this.rpc.ready || this.requestEpoch !== epoch) throw Object.assign(new Error('The native connection changed while opening. No retained request was admitted.'), { status: 409 });
       if (role === 'worker' && isCoordinatorThread(observed.thread)) throw Object.assign(new Error('A coordinator conversation cannot be opened as a worker. Open a worker conversation instead.'), { status: 409 });
       if (role === 'coordinator' && !isCoordinatorThread(observed.thread)) throw Object.assign(new Error('The saved coordinator ID belongs to a worker or an unrecognized coordinator. Check the saved workspace before continuing.'), { status: 409 });
       // Native resume may replay requests before the awaiting continuation runs.
       this.watched.add(id);
       const { thread, instructionSources } = observeOnly ? observed : await this.rpc.call('thread/resume', { threadId: id, excludeTurns: true });
+      if (!thread || thread.id !== id || !this.rpc.ready || this.requestEpoch !== epoch) throw Object.assign(new Error('The native conversation changed while opening. No retained request was admitted.'), { status: 409 });
       const agent = { id, name: thread.name || 'Codex agent', goal: thread.name || thread.preview?.split('\n')[0] || 'No goal recorded', cwd: thread.cwd, model: thread.model || null, reasoningEffort: thread.reasoningEffort ?? null, thread, parentId: thread.forkedFromId || null, canSend: thread.canAcceptDirectInput !== false, messages: [], tasks: [], workers: [], questions: [], turnId: null, lastCompletedTurnId: null, olderCursor: null, activity: null, summary: null, reportIntervalMinutes: 0, reportError: null };
-      agent.questions = [...this.pending.values()].filter(q => q.params.threadId === id);
+      this.admitPendingQuestions(agent, epoch);
       agent.role = role; agent.observingOnly = observeOnly; agent.instructionSources = instructionSources || [];
       this.agents.set(id, agent);
       try { await this.history(id); await this.refreshTasks(id); } catch (error) { this.agents.delete(id); throw error; }
@@ -237,6 +258,65 @@ export class Workspace extends EventEmitter {
     agent.observingOnly = false; agent.canSend = resumed.thread.canAcceptDirectInput !== false;
     this.changed();
   }
+  fileRequestCurrent(parent, agent, question, binding = question.params) {
+    return !question.unassociated && this.readyFor(agent) && this.requestContextCurrent(parent, agent) && this.pending.get(requestKey(agent.id, question.id)) === question && agent.questions.includes(question)
+      && question.method === 'item/fileChange/requestApproval' && binding.threadId === agent.id && typeof binding.turnId === 'string' && typeof binding.itemId === 'string'
+      && question.params.threadId === binding.threadId && question.params.turnId === binding.turnId && question.params.itemId === binding.itemId;
+  }
+  async loadFileDetails(parent, agent) {
+    if (this.requestJobs.has(agent.id)) return this.requestJobs.get(agent.id);
+    const missing = agent.questions.filter(question => this.fileRequestCurrent(parent, agent, question) && this.requestView(agent, question).nativeItem.state === 'unavailable');
+    const bindings = new Map(missing.map(question => [question, { threadId: question.params.threadId, turnId: question.params.turnId, itemId: question.params.itemId, reviewToken: question.reviewToken }]));
+    const current = question => this.fileRequestCurrent(parent, agent, question, bindings.get(question)) && question.reviewToken === bindings.get(question).reviewToken;
+    const job = Promise.resolve().then(async () => {
+      const needed = missing.filter(question => current(question) && this.requestView(agent, question).nativeItem.state === 'unavailable');
+      if (needed.length) {
+        for (const question of needed) { question.fileDetailsAttempted = true; question.fileDetailsLoading = true; }
+        const revision = agent.historyRevision || 0;
+        const before = new Map(agent.messages.map(message => [JSON.stringify([message.turnId, message.id]), message]));
+        const page = await this.rpc.call('thread/turns/list', { threadId: agent.id, limit: 20, itemsView: 'full' });
+        if (!Array.isArray(page?.data)) throw new Error('Native history did not return file detail records.');
+        if ((agent.historyRevision || 0) === revision && this.requestContextCurrent(parent, agent)) for (const question of needed) {
+          if (!current(question)) continue;
+          const binding = bindings.get(question), key = JSON.stringify([binding.turnId, binding.itemId]);
+          const latest = agent.messages.findLast(message => message.turnId === binding.turnId && message.id === binding.itemId);
+          // A newer live body (including a newer unavailable/non-file body)
+          // takes precedence over the snapshot this read started with.
+          if (latest !== before.get(key)) continue;
+          const item = page.data.find(turn => turn.id === binding.turnId)?.items?.findLast(item => item.id === binding.itemId);
+          if (item?.type === 'fileChange') this.addItem(agent, item, binding.turnId);
+        }
+      }
+      for (const question of missing) if (current(question)) question.detailError = this.requestView(agent, question).nativeItem.state === 'available' ? null : 'Codex did not provide file paths and diff for this exact pending item. The request remains open; no answer was sent.';
+      return { requests: agent.questions.length, fileDetailsLoaded: missing.filter(question => current(question) && this.requestView(agent, question).nativeItem.state === 'available').length };
+    }).finally(() => {
+      for (const question of missing) question.fileDetailsLoading = false;
+      if (this.requestJobs.get(agent.id) === job) this.requestJobs.delete(agent.id);
+      this.changed();
+    });
+    this.requestJobs.set(agent.id, job); this.changed();
+    return job;
+  }
+  scheduleFileDetails(parent, agent, question) {
+    if (!this.fileRequestCurrent(parent, agent, question) || question.fileDetailsScheduled || this.requestView(agent, question).nativeItem.state === 'available') return false;
+    const binding = { threadId: question.params.threadId, turnId: question.params.turnId, itemId: question.params.itemId, reviewToken: question.reviewToken };
+    const current = () => this.fileRequestCurrent(parent, agent, question, binding) && question.reviewToken === binding.reviewToken;
+    question.fileDetailsScheduled = true; question.fileDetailsLoading = true;
+    // Wait for an existing scoped read, then make at most one read for this new
+    // request if that read did not cover it. Later bodies use normal events.
+    void Promise.resolve().then(async () => {
+      const previous = this.requestJobs.get(agent.id);
+      if (previous) await previous.catch(() => {});
+      if (current() && !question.fileDetailsAttempted && this.requestView(agent, question).nativeItem.state === 'unavailable') await this.loadFileDetails(parent, agent);
+    }).catch(() => {
+      if (current() && this.requestView(agent, question).nativeItem.state === 'unavailable') question.detailError = 'Native file details could not be loaded automatically. The request remains open; no answer was sent.';
+    }).finally(() => {
+      question.fileDetailsLoading = false;
+      if (current() && this.requestView(agent, question).nativeItem.state === 'unavailable') this.coordinator?.mark(parent.id, 'Approval or question needs review', true);
+      this.changed();
+    });
+    return true;
+  }
   async recoverRequests(id, requestThreadId = id) {
     const parent = this.agent(id);
     if (requestThreadId !== id) return this.recoverSubagentRequests(parent, requestThreadId);
@@ -245,24 +325,13 @@ export class Workspace extends EventEmitter {
     if (agent.provider === 'claude') { await this.claude.refresh(agent); return { requests: agent.questions.length }; }
     if (!agent.questions.length) {
       // Recover a cleared view from current-connection requests, never from history or guessed IDs.
-      agent.questions = [...this.pending.values()].filter(question => question.params.threadId === id);
+      agent.questions = this.pendingQuestions(id);
     }
     if (agent.questions.length) {
       const missing = agent.questions.filter(question => question.method === 'item/fileChange/requestApproval' && this.requestView(agent, question).nativeItem.state === 'unavailable');
       if (!missing.length) { agent.requestError = null; this.changed(); return { requests: agent.questions.length }; }
-      // An already-delivered file approval may lack its separately delivered
-      // item body. Explicit loading reads native history only: never resume,
-      // replay a request, infer a diff from a command or submit an answer.
-      const job = (async () => {
-        await this.history(id);
-        if (this.agents.get(id) !== agent) throw Object.assign(new Error('The worker changed while its file details were loaded.'), { status: 409 });
-        for (const question of missing) if (this.pending.get(requestKey(id, question.id)) === question && agent.questions.includes(question)) {
-          question.detailError = this.requestView(agent, question).nativeItem.state === 'available' ? null : 'Codex did not provide file paths and diff for this exact pending item. The request remains open; no answer was sent.';
-        }
-        agent.requestError = null; this.changed(); return { requests: agent.questions.length, fileDetailsLoaded: missing.filter(question => this.requestView(agent, question).nativeItem.state === 'available').length };
-      })().catch(error => { agent.requestError = error.message; this.changed(); throw error; });
-      this.requestJobs.set(id, job); this.changed();
-      try { return await job; } finally { this.requestJobs.delete(id); this.changed(); }
+      // Details are a read-only native-history lookup, never request replay.
+      const result = await this.loadFileDetails(parent, agent); agent.requestError = null; return result;
     }
     agent.requestError = null;
     const job = (async () => {
@@ -287,7 +356,7 @@ export class Workspace extends EventEmitter {
       if (!agent.questions.length) {
         const refreshed = await this.rpc.call('thread/read', { threadId: id });
         if (refreshed.thread?.id === id) agent.thread = refreshed.thread;
-        if (!agent.questions.length && statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Codex still reports a pending request but did not resend its details. No response was submitted. Try loading the request again.'), { status: 504 });
+        if (!agent.questions.length && statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Codex still reports a pending request but did not provide its details to this connection. The request remains unresolved; no response was submitted.'), { status: 504 });
       }
       return { requests: agent.questions.length };
     })().catch(error => { agent.requestError = error.message; throw error; });
@@ -312,12 +381,14 @@ export class Workspace extends EventEmitter {
       if (!this.requestContextCurrent(parent, context) || thread?.id !== id || thread.parentThreadId !== context.thread.parentThreadId) { context.lineageNeedsRefresh = true; throw Object.assign(new Error('The native subagent relationship changed while loading its request.'), { status: 409 }); }
       if ((context.historyRevision || 0) !== before.revision) throw Object.assign(new Error('The native subagent history changed while loading its request. Refresh before continuing.'), { status: 409 });
       context.thread = context.thread.status !== before.status || context.turnId !== before.turnId ? { ...thread, status: context.thread.status } : thread;
-      context.questions = [...this.pending.values()].filter(question => question.params.threadId === id);
+      context.questions = this.pendingQuestions(id);
       const missing = context.questions.filter(question => question.method === 'item/fileChange/requestApproval' && this.requestView(context, question).nativeItem.state === 'unavailable');
-      if (missing.length) await this.history(id, undefined, { parent });
+      for (const question of missing) { question.fileDetailsAttempted = true; question.fileDetailsLoading = true; }
+      try { if (missing.length) await this.history(id, undefined, { parent }); }
+      finally { for (const question of missing) question.fileDetailsLoading = false; }
       if (!this.requestContextCurrent(parent, context)) throw Object.assign(new Error('The originating worker closed or its subagent changed.'), { status: 409 });
       for (const question of missing) if (this.pending.get(requestKey(id, question.id)) === question) question.detailError = this.requestView(context, question).nativeItem.state === 'available' ? null : 'Codex did not provide file details for this exact subagent request. No answer was sent.';
-      context.requestError = !context.questions.length && statusOf(context.thread) === 'attention' ? 'Codex reports a waiting subagent, but did not deliver request details to this client. Open the original native client; no request was replayed or answered.' : null;
+      context.requestError = !context.questions.length && statusOf(context.thread) === 'attention' ? 'Codex reports a waiting subagent, but did not deliver request details to this connection. The request remains unresolved; no response was sent.' : null;
       this.changed(); return { requests: context.questions.length, fileDetailsLoaded: missing.filter(question => this.requestView(context, question).nativeItem.state === 'available').length };
     })().catch(error => { if (this.requestContextCurrent(parent, context)) { context.requestError = error.message; this.changed(); } throw error; });
     this.requestJobs.set(id, job); this.changed();
@@ -378,6 +449,14 @@ export class Workspace extends EventEmitter {
     }
     const record = { id: item.id, turnId, branchable, nativeType: item.type, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text: text || '', ...questionFields, ...(item.type === 'fileChange' ? { fileChangeContext: fileChangeContext(item.changes) } : {}), ...(images.length ? { images } : {}), state: item.status || 'completed', ...itemTime(item, previousRecord, live), ...reportMessageFlags(item, previousRecord) };
     if (previous >= 0) agent.messages[previous] = record; else agent.messages.push(record);
+    if ((record.fileChangeContext || previousRecord?.fileChangeContext) && record.fileChangeContext?.contentSha256 !== previousRecord?.fileChangeContext?.contentSha256) {
+      const owner = this.requestOwner(agent.id);
+      const matching = owner && agent.questions.filter(question => this.fileRequestCurrent(owner.parent, agent, question) && question.params.turnId === turnId && question.params.itemId === item.id);
+      if (matching?.length) {
+        for (const question of matching) { question.detailError = null; if (record.fileChangeContext) question.fileDetailsLoading = false; }
+        this.coordinator?.mark(owner.parent.id, 'File approval details changed', true);
+      }
+    }
     retainAsyncQuestionState(agent, record, previousRecord, { live, completed, item });
     if (live && completed && record.nativeQuestions?.length) this.handoffs.observeQuestions(agent);
     if (record.type === 'user') { observeAsyncQuestionInput(agent, record, item); if (live) void this.coordinator?.flush(agent.id); }
@@ -429,22 +508,28 @@ export class Workspace extends EventEmitter {
     const worker = agent.workers.find(worker => worker.id === id); if (!worker?.requestContext) return;
     const context = this.childRequestContext(agent, worker);
     const revision = context.historyRevision || 0;
+    const epoch = this.requestEpoch;
     const previousStatus = context.thread.status, previousTurn = context.turnId;
     const key = owner.parent.id + ':' + id; if (this.workerReads.has(key)) return;
     this.workerReads.add(key);
     try {
       const { thread } = await this.rpc.call('thread/read', { threadId: id });
-      if (!this.rpc.ready || (context.historyRevision || 0) !== revision || this.agents.get(owner.parent.id) !== owner.parent || !this.requestContexts(owner.parent, { includeUnverified: true }).includes(context)) return;
+      if (!this.rpc.ready || this.requestEpoch !== epoch || (context.historyRevision || 0) !== revision || this.agents.get(owner.parent.id) !== owner.parent || !this.requestContexts(owner.parent, { includeUnverified: true }).includes(context)) return;
       if (!thread || thread.id !== id || thread.parentThreadId !== agent.id) {
-        if (!this.watched.has(id)) for (const [pendingKey, question] of this.pending) if (question.params.threadId === id) this.pending.delete(pendingKey);
+        if (!this.watched.has(id)) for (const question of this.pending.values()) if (question.params.threadId === id) question.unassociated = true;
         context.questions = []; context.lineageNeedsRefresh = true; throw new Error('Native thread does not verify this parent/subagent relationship. No request is actionable here.');
       }
       context.thread = context.thread.status !== previousStatus || context.turnId !== previousTurn ? { ...thread, status: context.thread.status } : thread;
       context.cwd = thread.cwd || agent.cwd; context.name = thread.name || worker.name;
-      context.questions = [...this.pending.values()].filter(question => question.params.threadId === id);
       context.observeError = null; context.lineageNeedsRefresh = false;
+      Object.defineProperty(context, 'nativeRequestProof', { configurable: true, value: { epoch, revision, parent: agent } });
+      const admitted = this.admitVerifiedChildQuestions(owner.parent, epoch);
+      context.questions = this.pendingQuestions(id);
       worker.task = thread.name || thread.preview?.split('\n')[0] || worker.task; worker.detailLoaded = true;
-      if (context.questions.length) this.coordinator?.mark(owner.parent.id, 'Subagent approval or question needs review', true);
+      for (const target of new Set([context, ...admitted])) if (target.questions.length) {
+        const deferred = target.questions.filter(question => this.scheduleFileDetails(owner.parent, target, question) || question.fileDetailsLoading);
+        if (deferred.length !== target.questions.length) this.coordinator?.mark(owner.parent.id, 'Subagent approval or question needs review', true);
+      }
     } catch (error) {
       if ((context.historyRevision || 0) === revision && this.agents.get(owner.parent.id) === owner.parent && this.requestContexts(owner.parent, { includeUnverified: true }).includes(context)) { context.observeError = error.message; worker.detailError = error.message; }
     }
@@ -775,20 +860,30 @@ export class Workspace extends EventEmitter {
     if (message.method === 'currentTime/read') { this.rpc.respond(message.id, { currentTime: new Date().toISOString() }); return; }
     if (message.method === 'item/tool/call' && p.threadId === this.coordinator?.id) { void this.coordinator.handle(message); return; }
     const owner = this.requestOwner(p.threadId, { includeUnverified: true });
-    if (!this.watched.has(p.threadId) && !owner) return;
-    if (!isHumanRequest(message.method)) { this.rpc.refuse(message.id, 'This client does not implement this internal tool. Use the original client for it.'); return; }
-    const question = { id: message.id, method: message.method, params: p, reviewToken: randomUUID() };
+    const watched = this.watched.has(p.threadId);
+    if (!isHumanRequest(message.method)) { if (watched || owner) this.rpc.refuse(message.id, 'This client does not implement this internal tool. Use the original client for it.'); return; }
     const key = requestKey(p.threadId, message.id);
     if (this.pending.has(key)) return;
+    const unassociated = !watched && (!owner || !this.requestContextCurrent(owner.parent, owner.context));
+    // New native threads can deliver requests before their parent activity. Keep
+    // the original callback privately; receipt alone proves no project ownership.
+    if (unassociated && (!this.rpc.ready || typeof p.threadId !== 'string' || !p.threadId || !['string', 'number'].includes(typeof message.id) || [...this.pending.values()].filter(question => question.unassociated).length >= MAX_UNASSOCIATED_REQUESTS)) return;
+    const question = { id: message.id, method: message.method, params: p, reviewToken: randomUUID() };
+    Object.defineProperties(question, { unassociated: { value: unassociated, writable: true }, receivedRequestEpoch: { value: this.requestEpoch } });
+    if (message.method === 'item/fileChange/requestApproval') Object.defineProperties(question, { fileDetailsAttempted: { value: false, writable: true }, fileDetailsScheduled: { value: false, writable: true }, fileDetailsLoading: { value: false, writable: true } });
     const agent = owner?.context || this.agents.get(p.threadId);
-    this.pending.set(key, question); agent?.questions.push(question);
-    this.nativeActivity(agent, p.turnId); this.changed();
-    if (!owner || this.requestContextCurrent(owner.parent, agent)) this.coordinator?.mark(owner?.parent.id || p.threadId, 'Approval or question needs review', true);
+    this.pending.set(key, question);
+    if (unassociated) return;
+    agent?.questions.push(question);
+    this.nativeActivity(agent, p.turnId);
+    const deferred = owner && agent && this.scheduleFileDetails(owner.parent, agent, question);
+    this.changed();
+    if (!deferred && (!owner || this.requestContextCurrent(owner.parent, agent))) this.coordinator?.mark(owner?.parent.id || p.threadId, 'Approval or question needs review', true);
   }
   answer(id, requestId, answer, requestThreadId = id) {
     const parent = this.agent(id), agent = this.resolveRequestContext(parent, requestThreadId); if (agent.provider === 'claude') return this.claude.answer(agent, requestId, answer);
     const key = requestKey(requestThreadId, requestId); const question = this.pending.get(key);
-    if (!question || question.params.threadId !== requestThreadId) throw Object.assign(new Error('This question has already been resolved.'), { status: 409 });
+    if (!question || question.unassociated || question.params.threadId !== requestThreadId) throw Object.assign(new Error('This question has already been resolved or its native ownership is not verified.'), { status: 409 });
     if (requestThreadId !== id && answer.reviewToken !== question.reviewToken) throw Object.assign(new Error('The subagent request changed. Refresh it before answering.'), { status: 409 });
     for (const field of ['turnId', 'itemId']) if ((answer[field] !== undefined || (requestThreadId !== id && question.params[field] !== undefined)) && answer[field] !== question.params[field]) throw Object.assign(new Error('The native request binding changed. Refresh before answering.'), { status: 409 });
     const { requestId: ignoredId, requestThreadId: ignoredThread, reviewToken: ignoredToken, turnId: ignoredTurn, itemId: ignoredItem, ...nativeAnswer } = answer;

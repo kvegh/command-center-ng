@@ -659,8 +659,9 @@ test('a request that cannot be replayed keeps its attention state and a scoped r
     await f.workspace.open('existing', { observeOnly: true });
     f.threads.set('other', { ...f.threads.get('existing'), id: 'other', status: { type: 'idle' } });
     await f.workspace.open('other', { observeOnly: true });
-    await assert.rejects(f.workspace.recoverRequests('existing'), /did not resend/i);
-    assert.match(f.workspace.agent('existing').requestError, /did not resend/i);
+    await assert.rejects(f.workspace.recoverRequests('existing'), /did not provide its details/i);
+    assert.match(f.workspace.agent('existing').requestError, /did not provide its details/i);
+    assert.doesNotMatch(f.workspace.agent('existing').requestError, /Try loading|Open the original native client/i);
     assert.equal(f.workspace.agent('other').requestError, undefined);
     assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'existing').status, 'attention');
     assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'existing').recoveringRequests, false);

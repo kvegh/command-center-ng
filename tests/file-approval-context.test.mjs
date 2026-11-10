@@ -90,8 +90,96 @@ test('disconnection and externally changed native history cannot reuse a stale a
   f.w.notification({ method: 'thread/reverted', params: { threadId: 'worker' } });
   assert.equal(f.w.snapshot().agents[0].questions[0].nativeItem.state, 'unavailable');
   await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(methods, ['thread/turns/list']);
+  assert.ok(methods.every(method => method === 'thread/turns/list'));
+  assert.equal(methods.length, 2, 'external history refresh and one automatic request-body read are separate bounded reads');
   assert.equal(f.agent.questions.length, 1, 'external history changes do not decide the current approval');
+});
+
+const tick = () => new Promise(resolve => setImmediate(resolve));
+
+test('delivered file approvals automatically hydrate their exact body and postpone review until content is available', async () => {
+  const f = fixture(), calls = [], marks = [];
+  f.w.coordinator = f.coordinator; f.coordinator.mark = (...args) => marks.push(args);
+  f.agent.messages.push({ id: 'keep', turnId: 'older', nativeType: 'agentMessage', type: 'assistant', text: 'Unrelated history stays intact.', state: 'completed' });
+  f.rpc.call = async (method, params) => {
+    calls.push({ method, params });
+    return { data: [{ id: 'turn', status: 'inProgress', items: [f.item(), { id: 'unrelated-command', type: 'commandExecution', command: 'Never merge unrelated history here.' }] }], nextCursor: null };
+  };
+  const request = f.request(); f.w.request(request);
+  const original = f.agent.questions[0], token = original.reviewToken;
+  assert.equal(f.w.snapshot().agents[0].questions[0].nativeItem.loading, true); assert.equal(marks.length, 0);
+  await tick();
+  const view = f.w.snapshot().agents[0].questions[0];
+  assert.equal(view.nativeItem.state, 'available'); assert.equal(view.nativeItem.loading, false);
+  assert.deepEqual(view.nativeItem.changes, f.changes); assert.deepEqual(view.params, request.params);
+  assert.equal(view.reviewToken, token); assert.equal(f.agent.turnId, 'turn');
+  assert.deepEqual(f.agent.messages.map(message => message.id), ['keep', 'changes']);
+  assert.deepEqual(calls, [{ method: 'thread/turns/list', params: { threadId: 'worker', limit: 20, itemsView: 'full' } }]);
+  assert.equal(marks.length, 1); assert.equal(original.responding, undefined); assert.equal(original.review, undefined);
+});
+
+test('automatic file hydration coalesces new requests and handles a request arriving during an older read once', async () => {
+  const f = fixture(), calls = [];
+  f.rpc.call = async (method, params) => { calls.push({ method, params }); return { data: [{ id: 'turn', items: [f.item(), f.item({ id: 'second' })] }], nextCursor: null }; };
+  f.w.request(f.request()); f.w.request({ ...f.request({ itemId: 'second' }), id: 18 });
+  await tick(); assert.equal(calls.length, 1);
+  assert.ok(f.w.snapshot().agents[0].questions.every(question => question.nativeItem.state === 'available'));
+  const g = fixture(); let release; let reads = 0;
+  g.rpc.call = async method => {
+    assert.equal(method, 'thread/turns/list'); reads++;
+    if (reads === 1) return new Promise(resolve => { release = resolve; });
+    return { data: [{ id: 'turn', items: [g.item({ id: 'second' })] }], nextCursor: null };
+  };
+  g.w.request(g.request()); await tick();
+  g.w.request({ ...g.request({ itemId: 'second' }), id: 18 });
+  release({ data: [{ id: 'turn', items: [g.item()] }], nextCursor: null });
+  await tick(); assert.equal(reads, 2);
+  assert.ok(g.w.snapshot().agents[0].questions.every(question => question.nativeItem.state === 'available'));
+  await tick(); assert.equal(reads, 2, 'there is no retry or polling loop');
+});
+
+test('automatic hydration never replaces a newer live body or attaches stale request evidence', async () => {
+  for (const change of ['token', 'binding', 'resolved', 'revision', 'closed', 'live']) {
+    const f = fixture(); let release;
+    f.rpc.call = async () => new Promise(resolve => { release = resolve; });
+    f.w.request(f.request()); await tick(); const question = f.agent.questions[0];
+    if (change === 'token') question.reviewToken = 'changed-token';
+    if (change === 'binding') question.params.itemId = 'different-item';
+    if (change === 'resolved') f.w.removeQuestion('worker', question.id);
+    if (change === 'revision') f.agent.historyRevision = (f.agent.historyRevision || 0) + 1;
+    if (change === 'closed') f.w.agents.delete('worker');
+    if (change === 'live') f.w.notification({ method: 'item/started', params: { threadId: 'worker', turnId: 'turn', item: f.item({ changes: [{ ...f.changes[0], diff: '+newer-live' }] }) } });
+    release({ data: [{ id: 'turn', items: [f.item()] }], nextCursor: null }); await tick();
+    if (change === 'live') assert.equal(f.w.requestView(f.agent, question).nativeItem.changes[0].diff, '+newer-live');
+    else assert.ok(f.agent.messages.every(message => !message.fileChangeContext), 'no stale file body is merged');
+    assert.equal(question.responding, undefined); assert.equal(question.review, undefined);
+  }
+});
+
+test('automatic detail loading truthfully stops on unavailable or failed native history and late items still update', async () => {
+  for (const failure of [false, true]) {
+    const f = fixture(); let reads = 0;
+    f.rpc.call = async method => { reads++; assert.equal(method, 'thread/turns/list'); if (failure) throw new Error('Synthetic history read failed.'); return { data: [], nextCursor: null }; };
+    f.w.request(f.request()); await tick();
+    let view = f.w.snapshot().agents[0].questions[0];
+    assert.equal(view.nativeItem.state, 'unavailable'); assert.equal(view.nativeItem.loading, false);
+    assert.match(view.nativeItem.notice, failure ? /could not be loaded automatically/ : /did not provide file paths and diff/);
+    f.w.snapshot(); f.coordinator.pendingRequests(f.agent); await tick(); assert.equal(reads, 1);
+    f.w.notification({ method: 'item/started', params: { threadId: 'worker', turnId: 'turn', item: f.item() } });
+    view = f.w.snapshot().agents[0].questions[0]; assert.equal(view.nativeItem.state, 'available'); assert.equal(view.detailError, null);
+    assert.equal(reads, 1); assert.equal(f.agent.questions.length, 1);
+  }
+});
+
+test('already delivered or immediately arriving exact items avoid an unnecessary history read', async () => {
+  for (const beforeRequest of [false, true]) {
+    const f = fixture(); let reads = 0;
+    f.rpc.call = async () => { reads++; return { data: [], nextCursor: null }; };
+    if (beforeRequest) f.w.addItem(f.agent, f.item(), 'turn');
+    f.w.request(f.request());
+    if (!beforeRequest) f.w.notification({ method: 'item/started', params: { threadId: 'worker', turnId: 'turn', item: f.item() } });
+    await tick(); assert.equal(reads, 0); assert.equal(f.w.snapshot().agents[0].questions[0].nativeItem.state, 'available');
+  }
 });
 
 test('file count, byte budget and rename targets remain explicit without mutating raw native changes', () => {

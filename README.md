@@ -52,15 +52,15 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Open existing Codex conversations or start new agents in explicit project directories.
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
 - Chat, steer active work, interrupt a turn and answer supported native questions or approvals, including eligible current assistant-question cards.
-- Review delivered requests from known native Codex children in their parent chat, without child tabs.
+- See received native requests and matching file-change details automatically, including verified Codex child requests in their parent chat.
 - Branch a Codex conversation, then hand tasks and a summary back to its parent.
-- See linked Beads tasks, input needs, progress and optional task notifications.
+- See linked Beads tasks, explicit input needs, ordinary blockers and optional task notifications.
 - Request concise task reports or optional detailed action histories; choose a saved interval, or Never to disable automatic startup and recurring reports.
 - Recheck overlooked tasks and stalled delegated work silently every 10 minutes, including safe recovery of stalled child waits, with the next check shown in the coordinator.
 - Keep coordinator decision summaries across restarts in a private local file.
 - Read Markdown, copy messages/code, and paste or attach images to a draft.
 - Keep desktop settings at the bottom of a full-height overview, with scrollable tasks and questions.
-- Use desktop resizing, a continuous mobile layout and three colour themes.
+- Use desktop resizing, natural mobile page scrolling through the chat, and three colour themes.
 
 See the [usage guide](docs/usage.md) for controls and their limits.
 
@@ -215,8 +215,9 @@ The installed launcher supports `service install`, `enable`, `start`, `stop`,
   CCNG-owned Claude runs; native history remains available for later resume.
 - Unsent image drafts disappear on browser refresh; text drafts use browser storage.
 - Eligible live Codex assistant-question cards accept independent option/free-text
-  answers. Restored, terminal or unbound questions remain read-only; request
-  recovery and complete browser/provider acceptance remain separate checks.
+  answers. Restored, terminal or unbound questions remain read-only. Missing native
+  request details cannot be answered or reconstructed from a waiting status;
+  child discovery does not resume agents or recover lost native callbacks.
 - Automated tests/builds do not establish phone rendering or every installed-runtime
   workflow. See [release notes](docs/release-notes.md) for recorded checks and gaps.
 

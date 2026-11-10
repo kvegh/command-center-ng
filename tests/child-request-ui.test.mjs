@@ -93,17 +93,18 @@ test('native nullable binding fields remain exact rather than disappearing from 
   assert.deepEqual(cards.childRequestBinding(absent, 'child-a'), { requestThreadId: 'child-a', reviewToken: 'current-review' });
 });
 
-test('file details and detail recovery use the child native item without weakening exact matches', () => {
+test('automatic file details use the child native item without weakening exact matches or requiring a load action', () => {
   const calls = [], q = { ...question(), method: 'item/fileChange/requestApproval', nativeItem: { threadId: 'child-a', turnId: 'native-turn', itemId: 'native-item', type: 'fileChange', state: 'available', totalChanges: 1, truncated: false, changes: [{ path: '/example/file', kind: { type: 'update' }, diff: '-before\n+after' }] } };
   const props = { agentId: 'parent', requestThreadId: 'child-a', workerName: 'Child', question: q, act: async (...args) => { calls.push(args); return true; } };
   const { tree, html } = capture(props);
   assert.match(html, /1 proposed file change/); assert.match(html, /\/example\/file/);
-  all(tree).find(node => node.type === NativeFileChanges).props.load();
-  assert.deepEqual(calls, [['agents/parent/requests', { requestId: 1, requestThreadId: 'child-a', reviewToken: 'current-review', turnId: 'native-turn', itemId: 'native-item' }]]);
+  assert.equal(all(tree).find(node => node.type === NativeFileChanges).props.agentId, 'child-a');
+  assert.doesNotMatch(html, /Load change details/);
+  assert.deepEqual(calls, [], 'rendering a delivered body requires no manual request or native answer');
   assert.doesNotMatch(capture({ ...props, question: { ...q, nativeItem: { ...q.nativeItem, threadId: 'other-child' } } }).html, /1 proposed file change/);
   const own = capture({ ...props, requestThreadId: undefined, question: { ...q, params: { ...q.params, threadId: 'parent' } } });
-  all(own.tree).find(node => node.type === NativeFileChanges).props.load();
-  assert.deepEqual(calls.at(-1), ['agents/parent/requests', {}]);
+  assert.equal(all(own.tree).find(node => node.type === NativeFileChanges).props.agentId, 'parent');
+  assert.deepEqual(calls, []);
 });
 
 test('child clarification, MCP form and permission responses retain their existing native answer formats', async () => {
@@ -119,7 +120,7 @@ test('child clarification, MCP form and permission responses retain their existi
   assert.equal(calls.at(-1)[1].scope, 'turn'); assert.equal(calls.at(-1)[1].itemId, 'native-item');
 });
 
-test('children render inside the parent with native-target overview links and independently recover missing details', async () => {
+test('children render inside the parent with native-target overview links and automatic missing-detail guidance', async () => {
   const workers = [worker('child-a'), worker('child-b'), worker('missing', { questions: [], requestError: 'Details unavailable' }), worker('idle', { questions: [], needsInput: false, status: 'idle' }), worker('unverified', { questions: [], needsInput: false, status: 'error', detailError: 'Lineage not verified' })];
   const calls = [], props = { workers, parentId: 'parent', connected: true, act: () => assert.fail('Rendering cannot answer'), recover: async id => calls.push(id), prepareApprovalFocus: () => () => {} };
   const tree = NativeSubagentRequests(props), html = renderToStaticMarkup(tree);
@@ -127,7 +128,8 @@ test('children render inside the parent with native-target overview links and in
   assert.match(html, /Details unavailable/); assert.doesNotMatch(html, /Worker idle|Worker unverified/);
   const requests = all(tree).filter(node => node.type === NativeRequestCard);
   assert.deepEqual(requests.map(node => [node.props.agentId, node.props.requestThreadId]), [['parent', 'child-a'], ['parent', 'child-b']]);
-  const recovery = all(tree).find(node => node.type === RequestRecovery); await recovery.props.recover(); assert.deepEqual(calls, ['missing']);
+  const recovery = all(tree).find(node => node.type === RequestRecovery); assert.notEqual(recovery.props.allowManualRecovery, true); assert.deepEqual(calls, []);
+  assert.doesNotMatch(html, /Load pending request|Retry loading request|Reconnect and check details/);
   const overview = NativeSubagentOverview({ workers });
   assert.deepEqual(all(overview).filter(node => node.type === OpenQuestions).map(node => node.props.agentId), ['child-a', 'child-b', 'missing']);
   assert.doesNotMatch(renderToStaticMarkup(overview), /Lineage not verified|Worker idle|Worker unverified|data-status/);
@@ -196,7 +198,7 @@ test('routine subagent rows stay out of the independent pending-question view', 
   assert.doesNotMatch(overview + cards, /routine-|data-status/);
   assert.match(overview, /Worker needs-answer|Worker needs-details/);
   assert.ok(cards.includes(`id="${questionTarget('needs-answer', 1)}"`));
-  assert.match(cards, /Allow once/); assert.match(cards, /Request details unavailable/); assert.match(cards, /Load pending request|Retry loading request/);
+  assert.match(cards, /Allow once/); assert.match(cards, /Request details unavailable/); assert.match(cards, /Waiting for request details|Request details are unavailable/); assert.doesNotMatch(cards, /Load pending request|Retry loading request/);
 });
 
 test('the optional roster is a default-closed native disclosure below Tasks with requests outside it', () => {

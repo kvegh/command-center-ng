@@ -31,25 +31,26 @@ test('only matching worker, request turn and native file item can render a body'
     const q = question(); Object.assign(q.nativeItem, change);
     const html = card(q);
     assert.doesNotMatch(html, /\/example\/before.yml|literal text/);
-    assert.match(html, /Load change details/); assert.match(html, /No changes were inferred/);
+    assert.doesNotMatch(html, /Load change details/); assert.match(html, /No changes were inferred/);
   }
 });
 
 test('unavailable and truncated native source remain explicit without claiming a recovered body', () => {
   const missing = question(); missing.nativeItem = { ...missing.nativeItem, state: 'unavailable', changes: [], notice: 'Codex did not provide this exact file body.' };
   assert.match(card(missing), /Codex did not provide this exact file body/);
-  assert.match(card(missing), /Load change details/);
+  assert.doesNotMatch(card(missing), /Load change details/);
   const limited = question(); Object.assign(limited.nativeItem, { truncated: true, notice: 'Showing 1 of 40 files; diff truncated. Review the rest natively.' });
   const html = card(limited);
   assert.match(html, /role="alert"/); assert.match(html, /diff truncated/);
 });
 
-test('explicit file-body loading uses its own callback and disabled controls never submit', () => {
-  const q = question(); q.nativeItem.state = 'unavailable'; let loads = 0;
-  for (const busy of [false, true]) {
-    const node = NativeFileChanges({ question: q, agentId: 'worker', busy, load: () => { loads++; } });
-    const button = React.Children.toArray(node.props.children).find(child => React.isValidElement(child) && child.type === 'button');
-    button.props.onClick(); assert.equal(button.props.disabled, busy);
-  }
-  assert.equal(loads, 1);
+test('file-body retrieval is automatic, with truthful loading and no extra load button', () => {
+  const q = question(); q.nativeItem.state = 'unavailable'; q.nativeItem.loading = true;
+  const html = card(q);
+  assert.match(html, /role="status"/);
+  assert.match(html, /Loading the proposed file changes automatically/);
+  assert.doesNotMatch(html, /Load change details/);
+  const mismatched = card({ ...q, nativeItem: { ...q.nativeItem, threadId: 'other' } });
+  assert.doesNotMatch(mismatched, /Loading the proposed file changes automatically/);
+  assert.match(mismatched, /No changes were inferred/);
 });

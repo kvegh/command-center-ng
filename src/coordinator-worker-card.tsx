@@ -6,6 +6,7 @@ type WorkerTask = {
   state: string;
   displayState?: string;
   blockedBy?: string[];
+  isChatQuestion?: boolean;
 };
 type CoordinatorWorker = {
   id: string;
@@ -17,7 +18,8 @@ type CoordinatorWorker = {
   tracker?: { status: string };
 };
 
-const inputStates = new Set(['blocked', 'needsinput', 'waitingoninput', 'waitingonapproval']);
+const inputStates = new Set(['needsinput', 'waitingoninput', 'waitingonapproval']);
+const terminalStates = new Set(['closed', 'completed', 'failed', 'error', 'cancelled', 'withdrawn']);
 const cadences: Record<number, string> = { 0: 'Never', 5: '5min', 15: '15min', 60: '1h' };
 
 export function CoordinatorWorkerCard({ worker, statusBadge, choose }: {
@@ -26,9 +28,11 @@ export function CoordinatorWorkerCard({ worker, statusBadge, choose }: {
   choose: (id: string) => void;
 }) {
   // Only current tracker records establish input needs; native attention is separate.
-  const inputTasks = worker.tracker?.status === 'ready' ? worker.tasks.filter(task =>
-    !task.blockedBy?.length && inputStates.has((task.displayState || task.state).replace(/[ _-]/g, '').toLowerCase())
-  ) : [];
+  const inputTasks = worker.tracker?.status === 'ready' ? worker.tasks.filter(task => {
+    const state = (task.displayState || task.state).replace(/[ _-]/g, '').toLowerCase();
+    if (state === 'queued' || terminalStates.has(state) || (task.blockedBy?.length && task.state !== 'in_progress')) return false;
+    return task.isChatQuestion === true || inputStates.has(state);
+  }) : [];
 
   return <button type="button" className="coordinator-worker" onClick={() => choose(worker.id)}>
     <span className="coordinator-worker-heading">

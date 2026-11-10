@@ -65,15 +65,18 @@ export function taskInputPreview(value: string | null, wordLimit: number, senten
 }
 
 function queuedTask(detail: Detail) { return detail.blockers.length > 0 && detail.state !== 'in_progress'; }
-function taskStatus(detail: Detail) {
+export function taskStatus(detail: Detail) {
   if (queuedTask(detail)) return 'queued';
-  if (detail.isChatQuestion || ['blocked', 'needs_input', 'waiting_on_input', 'waiting_on_approval'].includes(detail.state)) return 'needs input';
+  const state = detail.state.replace(/[ _-]/g, '').toLowerCase();
+  if (!['closed', 'completed', 'failed', 'error', 'cancelled', 'withdrawn'].includes(state)
+    && (detail.isChatQuestion === true || ['needsinput', 'waitingoninput', 'waitingonapproval'].includes(state))) return 'needs input';
   return detail.state.replaceAll('_', ' ');
 }
 
 export function TaskDetailBody({ detail }: { detail: Detail }) {
   const input = parseTaskInputContext(detail.description);
   const queued = queuedTask(detail);
+  const needsInput = taskStatus(detail) === 'needs input';
   const needed = taskInputPreview(input.inputNeeded, 30, 2);
   const why = taskInputPreview(input.context, 20, 1);
   return <div className="task-detail-body">
@@ -81,9 +84,11 @@ export function TaskDetailBody({ detail }: { detail: Detail }) {
       <div className="task-input-field"><h3 className="context-label">Needed</h3><p>{needed.text || (input.inputNeeded
         ? 'Read the recorded action in Details.'
         : queued ? 'No answer is needed while this task waits for dependencies.'
-        : 'The exact input needed is not recorded. Use “Ask what is needed” for a short question.')}</p></div>
+        : needsInput ? 'The exact input needed is not recorded. Use “Ask what is needed” for a short question.'
+        : 'No user input is recorded for this task.')}</p></div>
       <div className="task-input-field"><h3 className="context-label">Why</h3><p>{why.text || (queued
-        ? 'Prerequisite work must finish first.' : 'The worker has not recorded a short explanation.')}</p></div>
+        ? 'Prerequisite work must finish first.' : needsInput ? 'The worker has not recorded a short explanation.'
+        : detail.state === 'blocked' ? 'The task is blocked; read Details for its recorded context.' : 'This task has no recorded request for an answer.')}</p></div>
       {(needed.shortened || why.shortened || input.truncated) && <p className="field-note">Short preview. Read Details for the full wording.</p>}
     </section>
     <details><summary>Details</summary>
@@ -137,7 +142,7 @@ export function TaskDiscussion({ taskId, workerName, canSend, load, send, dismis
     {error && <p className="error-text" role="alert">{error}</p>}
     {detail && <><p className="field-note">Status: {taskStatus(detail)} · {detail.id}</p>
       <TaskDetailBody detail={detail} />
-      <form onSubmit={event => { event.preventDefault(); void submit(); }}><label htmlFor="task-answer">{queuedTask(detail) && !parseTaskInputContext(detail.description).inputNeeded ? 'Optional direction to worker' : 'Your answer or direction'}</label><textarea id="task-answer" rows={4} maxLength={8000} value={answer} onChange={event => setAnswer(event.target.value)} />
+      <form onSubmit={event => { event.preventDefault(); void submit(); }}><label htmlFor="task-answer">{taskStatus(detail) !== 'needs input' && !parseTaskInputContext(detail.description).inputNeeded ? 'Optional direction to worker' : 'Your answer or direction'}</label><textarea id="task-answer" rows={4} maxLength={8000} value={answer} onChange={event => setAnswer(event.target.value)} />
         <p className="field-note">The worker will process your answer and update the task. {canSend ? '' : 'Resolve pending native requests or restore the connection before sending; you can keep drafting here.'}</p>
         <div className="button-row"><button type="submit" className="button primary" disabled={!canSend || busy || !answer.trim()}>Send to worker</button><button type="button" className="button subtle" disabled={!canSend || busy} onClick={() => void submit(true)}>Ask what is needed</button></div>
       </form></>}

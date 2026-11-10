@@ -9,6 +9,7 @@ export type Question = {
   nativeItem?: {
     threadId: string; turnId: string; itemId: string; type: 'fileChange';
     state: 'available' | 'unavailable'; totalChanges: number | null; truncated: boolean;
+    loading?: boolean;
     notice?: string | null; contentSha256?: string;
     changes: { path: string; kind: { type: string; move_path?: string | null }; diff: string }[];
   };
@@ -25,17 +26,23 @@ export function revealQuestion(agentId: string, requestId: string | number) {
   (control || card).focus({ preventScroll: true });
 }
 
-export function RequestRecovery({ recovering, error, disabled, recover, provider = 'codex' }: { recovering: boolean; error?: string | null; disabled: boolean; recover: () => Promise<unknown>; provider?: 'codex' | 'claude' }) {
+export function RequestRecovery({ recovering, error, disabled, recover, provider = 'codex', allowManualRecovery = false }: { recovering: boolean; error?: string | null; disabled: boolean; recover: () => Promise<unknown>; provider?: 'codex' | 'claude'; allowManualRecovery?: boolean }) {
   const [busy, setBusy] = useState(false); const [localError, setError] = useState('');
   const loading = busy || recovering;
+  const loadDetails = async () => {
+    if (provider === 'codex' && (disabled || loading)) return;
+    setBusy(true); setError('');
+    try { await recover(); } catch (problem) { setError((problem as Error).message); } finally { setBusy(false); }
+  };
   return <section className="request-recovery" aria-label="Pending request details">
-    <strong>{provider === 'claude' ? 'Claude' : 'Codex'} is waiting for your response.</strong>
-    <span>{provider === 'claude' ? 'Waiting for Claude’s request details. Refresh them here if needed.' : 'The request details are not loaded in Command Center. Load them to review the request here.'}</span>
+    <strong role={provider === 'codex' ? 'status' : undefined}>{provider === 'claude' ? 'Claude is waiting for your response.' : loading ? 'Loading request details…' : localError || error ? 'Request details are unavailable.' : 'Waiting for request details.'}</strong>
+    <span>{provider === 'claude' ? 'Waiting for Claude’s request details. Refresh them here if needed.' : 'Received requests appear here automatically. There is no answer to submit until their details arrive.'}</span>
     {(localError || error) && <span className="error-text" role="alert">{localError || error}</span>}
-    <button type="button" className="button subtle small" disabled={disabled || loading} onClick={async () => {
-      setBusy(true); setError('');
-      try { await recover(); } catch (problem) { setError((problem as Error).message); } finally { setBusy(false); }
-    }}>{loading ? 'Loading request…' : localError || error ? 'Retry loading request' : provider === 'claude' ? 'Refresh request details' : 'Load pending request'}</button>
+    {provider === 'claude' ? <button type="button" className="button subtle small" disabled={disabled || loading} onClick={loadDetails}>{loading ? 'Loading request…' : localError || error ? 'Retry loading request' : 'Refresh request details'}</button>
+      : allowManualRecovery && <details className="native-request-details"><summary>Advanced recovery</summary>
+        <p className="field-note">Reconnect this parent session and check for request details. This does not answer or dismiss a request.</p>
+        <button type="button" className="button subtle small" disabled={disabled || loading} onClick={loadDetails}>{loading ? 'Checking request details…' : 'Reconnect and check details'}</button>
+      </details>}
   </section>;
 }
 
@@ -62,6 +69,6 @@ export function OpenQuestions({ agentId, questions, attention, provider = 'codex
         {question.error && <span className="error-text">{question.error}</span>}
         <span className="open-question-action">{question.responding ? 'Confirming answer…' : question.error ? 'Review answer error →' : 'Go to question →'}</span>
       </button>
-    </li>)}</ul> : <p className="open-questions-empty">{attention ? provider === 'claude' ? 'Claude reports that it needs input; the request details have not arrived. Refresh request details in the conversation.' : 'Codex reports a pending request. Its details are not loaded here; use Load pending request in the conversation.' : 'No pending requests.'}</p>}
+    </li>)}</ul> : <p className="open-questions-empty">{attention ? provider === 'claude' ? 'Claude reports that it needs input; the request details have not arrived. Refresh request details in the conversation.' : 'A native wait is reported, but its request details have not arrived. Received requests appear automatically.' : 'No pending requests.'}</p>}
   </section>;
 }

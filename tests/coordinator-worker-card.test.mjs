@@ -16,7 +16,7 @@ const worker = values => ({ id: 'worker-one', name: 'Example project', goal: 'Fi
 const card = values => renderToStaticMarkup(React.createElement(CoordinatorWorkerCard, { worker: worker(values), statusBadge: React.createElement('span', { className: 'existing-badge' }, 'Running'), choose() { assert.fail('Rendering must not navigate.'); } }));
 
 test('current input task titles replace the old summary and include every pending task', () => {
-  const tasks = [task('blocked'), task('waiting_on_input', { id: 'task-two', text: 'Confirm the maintenance window' })];
+  const tasks = [task('blocked', { isChatQuestion: true }), task('waiting_on_input', { id: 'task-two', text: 'Confirm the maintenance window' })];
   const html = card({ tasks });
   assert.match(html, /Needs input/);
   for (const item of tasks) assert.ok(html.includes(item.text));
@@ -38,14 +38,24 @@ test('normalized display states identify actual input needs without queued or or
 });
 
 test('all supported input spellings are accepted while noninput work keeps the summary', () => {
-  for (const state of ['blocked', 'needs_input', 'waiting-on-input', 'waitingOnApproval']) assert.match(card({ tasks: [task(state)] }), /Choose the target/);
+  for (const state of ['needs_input', 'waiting-on-input', 'waitingOnApproval']) assert.match(card({ tasks: [task(state)] }), /Choose the target/);
   assert.match(card({ tasks: [task('in_progress')] }), /Earlier useful outcome/);
   assert.doesNotMatch(card({ tasks: [task('in_progress')] }), /Needs input/);
 });
 
+test('ordinary blocked work never takes over the recap as a guessed human question', () => {
+  const html = card({ tasks: [task('blocked')] });
+  assert.match(html, /Earlier useful outcome/);
+  assert.doesNotMatch(html, /Needs input|Choose the target/);
+  assert.match(card({ tasks: [task('blocked', { isChatQuestion: true })] }), /Needs input/);
+  assert.doesNotMatch(card({ tasks: [task('blocked', { isChatQuestion: true, displayState: 'queued' })] }), /Needs input/);
+  for (const state of ['closed', 'completed', 'failed', 'error', 'cancelled', 'withdrawn']) assert.doesNotMatch(card({ tasks: [task(state, { isChatQuestion: true })] }), /Needs input/);
+  assert.match(card({ tasks: [task('in_progress', { isChatQuestion: true, blockedBy: ['base'] })] }), /Needs input/);
+});
+
 test('missing and unavailable trackers never present stale task needs', () => {
   for (const tracker of [undefined, { status: 'unavailable' }]) {
-    const html = card({ tracker, tasks: [task('blocked')] });
+    const html = card({ tracker, tasks: [task('blocked', { isChatQuestion: true })] });
     assert.match(html, /Earlier useful outcome/);
     assert.doesNotMatch(html, /Choose the target|Needs input/);
   }
@@ -68,7 +78,7 @@ test('name and cadence share the heading, with the supplied native badge preserv
 
 test('each card renders and navigates only its own worker', () => {
   const chosen = [];
-  const first = CoordinatorWorkerCard({ worker: worker({ tasks: [task('blocked')] }), statusBadge: null, choose: id => chosen.push(id) });
+  const first = CoordinatorWorkerCard({ worker: worker({ tasks: [task('blocked', { isChatQuestion: true })] }), statusBadge: null, choose: id => chosen.push(id) });
   const second = CoordinatorWorkerCard({ worker: worker({ id: 'worker-two', name: 'Second project', tasks: [] }), statusBadge: null, choose: id => chosen.push(id) });
   first.props.onClick(); second.props.onClick();
   assert.deepEqual(chosen, ['worker-one', 'worker-two']);
@@ -76,7 +86,7 @@ test('each card renders and navigates only its own worker', () => {
 });
 
 test('project names and task titles remain escaped text', () => {
-  const html = card({ name: '<script>example()</script>', tasks: [task('blocked', { text: '<img src=x onerror=example()>' })] });
+  const html = card({ name: '<script>example()</script>', tasks: [task('blocked', { isChatQuestion: true, text: '<img src=x onerror=example()>' })] });
   assert.doesNotMatch(html, /<script>|<img /);
   assert.match(html, /&lt;script&gt;/); assert.match(html, /&lt;img/);
 });

@@ -3,7 +3,7 @@ export const MAX_TASK_WATCHES = 32 * 128;
 const requestLimit = 128;
 
 export type TaskWatch = { workerId: string; taskId: string };
-export type NotificationTask = { id: string; text: string; state: string; blockedBy?: readonly string[] };
+export type NotificationTask = { id: string; text: string; state: string; blockedBy?: readonly string[]; isChatQuestion?: boolean };
 export type NotificationWorker = {
   id: string;
   name: string;
@@ -24,7 +24,7 @@ export type TaskNotification = {
 
 type TaskState = 'other' | 'needs-input' | 'completed' | 'error';
 type WorkerState = { currentRequests: Set<string>; seenRequests: Set<string>; errorKey: string | null };
-const inputStates = new Set(['blocked', 'needsinput', 'waitingoninput', 'waitingonapproval']);
+const inputStates = new Set(['needsinput', 'waitingoninput', 'waitingonapproval']);
 const watchKey = ({ workerId, taskId }: TaskWatch) => JSON.stringify([workerId, taskId]);
 const compact = (text: string, fallback: string) => text.replace(/\s+/g, ' ').trim().slice(0, 200) || fallback;
 
@@ -32,7 +32,9 @@ function taskState(task: NotificationTask): TaskState {
   const state = task.state.replace(/[ _-]/g, '').toLowerCase();
   if (['closed', 'completed'].includes(state)) return 'completed';
   if (['failed', 'error'].includes(state)) return 'error';
-  if (inputStates.has(state) && !task.blockedBy?.length) return 'needs-input';
+  if (['cancelled', 'withdrawn'].includes(state)) return 'other';
+  if (task.blockedBy?.length && task.state !== 'in_progress') return 'other';
+  if (task.isChatQuestion === true || inputStates.has(state)) return 'needs-input';
   return 'other';
 }
 

@@ -69,7 +69,9 @@ test('stored states drive all current rows and totals; closed tasks disappear wi
   f.add('demo-done', 'Closed work', 'closed', [label]);
   await w.refreshTasks('alpha');
   let agent = w.snapshot().agents[0]; assert.equal(agent.taskCount, 4); assert.equal(agent.tasks.length, 4);
-  assert.deepEqual(agent.tasks.map(task => task.id), ['demo-blocked', 'demo-running', 'demo-open', 'demo-later']);
+  assert.deepEqual(agent.tasks.map(task => task.id), ['demo-running', 'demo-blocked', 'demo-open', 'demo-later']);
+  assert.equal(agent.tasks.find(task => task.id === 'demo-blocked').displayState, 'blocked');
+  assert.equal(agent.taskCounts.needsInput, 0); assert.equal(agent.taskCounts.other, 1);
   f.rows.get('/project:demo-running').status = 'closed'; await w.refreshTasks('alpha');
   agent = w.snapshot().agents[0]; assert.equal(agent.taskCount, 3); assert.ok(!agent.tasks.some(task => task.id === 'demo-running'));
   f.rows.get('/project:demo-blocked').status = 'closed'; f.rows.get('/project:demo-open').status = 'closed'; f.rows.get('/project:demo-later').status = 'closed';
@@ -139,14 +141,16 @@ test('poll refreshes are deduplicated, unchanged records do not rebroadcast, and
 
 test('unfinished dependencies become queued separately from manual input and all eight tasks are returned', async () => {
   const f = fixture(); const { w } = workspace(f.beads); const label = sessionLabel('alpha');
-  for (let i = 0; i < 8; i++) f.add('demo-' + i, 'Work ' + i, i < 3 ? 'in_progress' : 'blocked', [label]);
+  for (let i = 0; i < 8; i++) f.add('demo-' + i, 'Work ' + i, i < 3 ? 'in_progress' : 'blocked', [label, ...(i >= 3 && i < 6 ? ['ccng-chat-question'] : [])]);
   f.rows.get('/project:demo-7').blocked_by = ['prerequisite'];
   await w.refreshTasks('alpha'); const agent = w.snapshot().agents[0];
-  assert.equal(agent.tasks.length, 8); assert.equal(agent.taskCounts.inProgress, 3); assert.equal(agent.taskCounts.needsInput, 4); assert.equal(agent.taskCounts.queued, 1);
-  assert.deepEqual(agent.tasks.map(task => task.id), ['demo-3', 'demo-4', 'demo-5', 'demo-6', 'demo-0', 'demo-1', 'demo-2', 'demo-7']);
+  assert.equal(agent.tasks.length, 8); assert.equal(agent.taskCounts.inProgress, 3); assert.equal(agent.taskCounts.needsInput, 3); assert.equal(agent.taskCounts.queued, 1); assert.equal(agent.taskCounts.other, 1);
+  assert.deepEqual(agent.tasks.map(task => task.id), ['demo-3', 'demo-4', 'demo-5', 'demo-0', 'demo-1', 'demo-2', 'demo-6', 'demo-7']);
   assert.equal(agent.tasks.find(task => task.id === 'demo-7').displayState, 'queued');
   assert.equal(f.rows.get('/project:demo-7').status, 'blocked', 'display classification must not mutate the tracker');
-  f.rows.get('/project:demo-7').blocked_by = []; await w.refreshTasks('alpha'); assert.equal(w.snapshot().agents[0].taskCounts.needsInput, 5);
+  f.rows.get('/project:demo-7').blocked_by = []; await w.refreshTasks('alpha');
+  assert.equal(w.snapshot().agents[0].taskCounts.needsInput, 3, 'finishing a dependency does not invent an input request');
+  assert.equal(w.snapshot().agents[0].tasks.find(task => task.id === 'demo-7').displayState, 'blocked');
 });
 
 test('task detail reads only a linked task and does not change labels or state', async () => {
@@ -161,6 +165,28 @@ test('task detail reads only a linked task and does not change labels or state',
   assert.ok(f.calls.every(call => call.args.includes('--readonly')));
 });
 
+test('explicit input states and question metadata drive promotion without changing owner records', async () => {
+  const f = fixture(); const { w } = workspace(f.beads); const label = sessionLabel('alpha');
+  f.add('work', 'A tool wait remains blocked', 'blocked', [label]);
+  f.add('choice', 'Choose the environment', 'blocked', [label, 'ccng-chat-question']);
+  f.add('explicit', 'Confirm the window', 'waiting_on_input', [label]);
+  f.add('queued-choice', 'Choose after prerequisites', 'blocked', [label, 'ccng-chat-question']);
+  f.rows.get('/project:queued-choice').blocked_by = ['base'];
+  await w.refreshTasks('alpha');
+  let snapshot = w.snapshot().agents[0];
+  assert.deepEqual(snapshot.tasks.slice(0, 2).map(task => task.id), ['choice', 'explicit']);
+  assert.equal(snapshot.taskCounts.needsInput, 2); assert.equal(snapshot.taskCounts.queued, 1); assert.equal(snapshot.taskCounts.other, 1);
+  assert.equal(snapshot.tasks.find(task => task.id === 'choice').state, 'blocked');
+  assert.equal(snapshot.tasks.find(task => task.id === 'choice').displayState, 'needs_input');
+  assert.equal(snapshot.tasks.find(task => task.id === 'queued-choice').displayState, 'queued');
+  f.rows.get('/project:choice').labels = [label];
+  await w.refreshTasks('alpha'); snapshot = w.snapshot().agents[0];
+  assert.equal(snapshot.taskCounts.needsInput, 1);
+  assert.equal(snapshot.tasks.find(task => task.id === 'choice').displayState, 'blocked');
+  assert.equal(f.rows.get('/project:choice').status, 'blocked');
+  assert.ok(f.calls.every(call => call.args.includes('--readonly')), 'classification never writes task records');
+});
+
 test('recorded chat questions are visible during an active turn and stay open until the worker resolves their Beads records', async () => {
   const f = fixture(); const label = sessionLabel('alpha');
   f.add('decision-one', 'Choose the backup interval', 'blocked', [label, 'ccng-chat-question']);
@@ -171,7 +197,7 @@ test('recorded chat questions are visible during an active turn and stay open un
   await w.refreshTasks('alpha');
   let snapshot = w.snapshot().agents.find(agent => agent.id === 'alpha');
   assert.equal(snapshot.status, 'running', 'a chat question does not invent a native attention flag');
-  assert.deepEqual(snapshot.chatQuestions, [{ id: 'decision-one', workerId: 'alpha', text: 'Choose the backup interval', state: 'blocked', displayState: 'blocked' }]);
+  assert.deepEqual(snapshot.chatQuestions, [{ id: 'decision-one', workerId: 'alpha', text: 'Choose the backup interval', state: 'blocked', displayState: 'needs_input' }]);
   assert.deepEqual(snapshot.questions, []);
   await assert.rejects(f.beads.detail('/project', 'alpha', 'other-decision'), /linked to this worker/);
   w.notification({ method: 'item/completed', params: { threadId: 'alpha', turnId: 'active-work', item: { id: 'user-answer', type: 'userMessage', content: [{ type: 'text', text: 'Use the nightly interval.' }] } } });

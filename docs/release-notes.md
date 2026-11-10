@@ -9,7 +9,10 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
-## 1.2.0 working — Clearer approval controls and tab attention
+## 1.3.0 working — Clearer requests, task input and mobile scrolling
+
+This combined candidate includes the unpublished 1.2.0 changes; it does not
+represent a separate published or deployed 1.2.0 release.
 
 - Keep Allow once and offered Allow always actions together in a compact
   wrapping row. Place long exact saved-rule scopes below the actions, using
@@ -18,15 +21,27 @@ is retrievable in the [README before this reorganization](https://github.com/kve
   command/file approvals awaiting an available Coordinator stay neutral, with
   a truthful review-wait label. Native confirmation is a separate wait; actual
   backend statuses, request controls and execution gates remain unchanged.
+- Load matching native file-change proposals automatically through bounded
+  read-only history, preserving exact request/thread/turn/item identity and
+  truthful loading, unavailable and truncation notices.
+- Retain early received child requests privately until native parent-lineage
+  proof permits their existing cards to appear under the parent. Discovery does
+  not resume children or recover never-delivered/lost cold callbacks.
+- Describe missing request details as a waiting/loading/error status. Received
+  requests appear automatically; children have no ineffective Load/Retry button.
+  Optional parent reconnect stays an explicit advanced action.
+- Scroll mobile chat history with the phone page rather than a separate
+  approximately 30-line inner viewport. Keep the six-line input's internal
+  scrolling and desktop layout unchanged.
+- Keep ordinary blocked work distinct from Needs input. Only explicit input
+  states or Question tasks request an answer; missing Needed/Why information is
+  reported as missing rather than invented.
 
-Independent source review, 42 focused approval/child/tab regressions and the
-production build pass. The full test command is not green in the current
-sandbox: 77 of 84 test files passed; socket listeners, subprocess behavior and
-home-directory writes prevent complete verification. Authentication passes
-separately after its combined-run failure. Publication and deployment are
-pending. This entry does not claim real mobile rendering or native approval
-recovery. The mobile scrolling choice and child-reattachment decision remain
-unanswered.
+The final combined suite ran 864 tests: 863 passed, one unavailable alternate-
+group case skipped, zero failed. The production build and independent source
+review pass. Publication and installed verification are pending. These checks
+do not establish physical phone behavior, provider delivery or recovery of
+already-lost native callbacks.
 
 ## 1.1.0 — Answer eligible assistant questions
 

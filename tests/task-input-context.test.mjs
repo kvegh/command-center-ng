@@ -10,8 +10,8 @@ import ts from 'typescript';
 const require = createRequire(import.meta.url);
 const source = await readFile(new URL('../src/task-discussion.tsx', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React } }).outputText;
-const { parseTaskInputContext, taskInputPreview, TaskDetailBody, taskInputMessage } = await import('data:text/javascript;base64,' + Buffer.from(compiled.replace(/from ['"]react['"]/, `from '${pathToFileURL(require.resolve('react')).href}'`)).toString('base64'));
-const task = values => ({ id: 'example-1', text: 'Choose a deployment option', state: 'blocked', description: '', notes: '', blockers: [], ...values });
+const { parseTaskInputContext, taskInputPreview, TaskDetailBody, taskInputMessage, taskStatus } = await import('data:text/javascript;base64,' + Buffer.from(compiled.replace(/from ['"]react['"]/, `from '${pathToFileURL(require.resolve('react')).href}'`)).toString('base64'));
+const task = values => ({ id: 'example-1', text: 'Choose a deployment option', state: 'blocked', description: '', notes: '', blockers: [], isChatQuestion: true, ...values });
 
 test('explicit recorded input sections retain their actual multiline meaning', () => {
   const parsed = parseTaskInputContext('Context: A test deployment needs a target.\nThe existing environment stays available.\n\nInput type: Choice\nInput needed: Select staging or a separate test target.\nDo not include credentials.');
@@ -67,6 +67,27 @@ test('legacy records clearly report missing input and preserve their original de
   assert.match(html, /Ask what is needed/);
   assert.match(html, /Configure the deployment someday\./);
   assert.match(html, /worker has not recorded a short explanation/);
+});
+
+test('ordinary blocked work does not become an unrecorded human question', () => {
+  const detail = task({ isChatQuestion: false, description: 'Waiting for the tool to become available.', notes: 'No user decision is needed.' });
+  assert.equal(taskStatus(detail), 'blocked');
+  const html = renderToStaticMarkup(React.createElement(TaskDetailBody, { detail }));
+  const upfront = html.slice(0, html.indexOf('<details>'));
+  assert.match(upfront, /No user input is recorded for this task/);
+  assert.match(upfront, /task is blocked; read Details/);
+  assert.doesNotMatch(upfront, /exact input needed is not recorded|Ask what is needed/);
+  assert.match(html, /Waiting for the tool to become available/); assert.match(html, /No user decision is needed/);
+  assert.equal(detail.state, 'blocked'); assert.equal(detail.isChatQuestion, false);
+});
+
+test('only explicit question metadata or input states classify input, with dependencies still queued', () => {
+  assert.equal(taskStatus(task({ state: 'in_progress' })), 'needs input');
+  for (const state of ['needs_input', 'waiting-on-input', 'waitingOnApproval']) assert.equal(taskStatus(task({ state, isChatQuestion: false })), 'needs input');
+  for (const state of ['open', 'in_progress', 'blocked', 'closed', 'failed', 'withdrawn']) assert.equal(taskStatus(task({ state, isChatQuestion: false })), state.replaceAll('_', ' '));
+  for (const state of ['closed', 'completed', 'failed', 'error', 'cancelled', 'withdrawn']) assert.notEqual(taskStatus(task({ state })), 'needs input');
+  assert.equal(taskStatus(task({ blockers: [{ id: 'base', text: 'Finish prerequisite' }] })), 'queued');
+  assert.equal(taskStatus(task({ isChatQuestion: false, description: 'Needed: Choose a target.\nWhy: Old notes remain.' })), 'blocked', 'description fields are not current question metadata');
 });
 
 test('queued dependencies explain waiting without demanding an unrecorded answer', () => {

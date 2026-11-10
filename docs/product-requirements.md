@@ -51,29 +51,31 @@ Existing RAM-only sessions cannot be migrated and require one final sign-in.
 ### Approved mobile layout
 
 Use a single naturally scrolling, full-width page with wrapping worker tabs.
-Place the overview above a bounded chat history of approximately 30 text lines,
-then a composer textarea with six visible lines. Longer input and pasted text
+Place the overview above the chat history in the ordinary page flow, then a
+composer textarea with six visible lines. This supersedes the earlier approximately
+30-line inner history viewport: scrolling the phone page moves through the chat.
+Longer input and pasted text
 scroll within the textarea. Hide worker Coordinator recaps on mobile; retain
 the actual coordinator dashboard.
 
 Disable mobile resizing and ignore saved desktop sidebar widths, section heights
 and composer heights without erasing them. Preserve the existing desktop layout
 and restore its preferences when returning to desktop. Mobile notifications
-remain postponed. Version 0.35.0 implements this approved layout; rendered phone
-acceptance has not been established.
+remain postponed. The history-scroll change is part of working 1.3.0; rendered
+phone acceptance has not been established.
 
 Compact the overview on mobile only: reduce padding and gaps and put task labels,
 totals and Link tasks in a wrapping row. Omit empty native Open questions only
 when neither requests nor attention are present, for workers and coordinator.
-Use one collapsed Worker settings row showing the current cadence with a visible
-Report now sibling. Expanding it reveals cadence radios and model/effort
+Use one collapsed Worker settings row showing the current cadence, followed by
+a visible Report now and Detailed report row. Expanding it reveals cadence radios and model/effort
 controls. Keep queued/pending state and errors outside the body, and keep its
 controls mounted across layout changes. Desktop retains the open original
 controls, with Report now after Never and no disclosure summary. Hide mobile
 coordinator guidance prose and tighten project
 cards without removing dashboard controls or input-needed titles. Preserve
-fonts, desktop widths/saved sizes, 30-line history and six-line input. All 498 tests and the production
-build pass for this refinement; no rendered phone acceptance is claimed.
+fonts, desktop widths/saved sizes and six-line input. Current verification and
+unperformed phone checks are recorded in the release notes.
 
 ## Dashboard and project context
 
@@ -255,6 +257,12 @@ and original notes are available under expandable Details. This format is the
 agent default as well as the task-dialog layout; preserve full native requests
 and use existing protected input mechanisms for secrets.
 
+Do not infer a human question from an ordinary blocked task. Reserve Needs input
+for explicit input states or worker-recorded Question tasks; dependency waits
+remain Queued and other blockers retain their actual state. Needed/Why must
+exist in the recorded task information. Missing question/reason content must be
+identified as missing, not replaced with an invented decision or request.
+
 The Linux shell installer defaults to ~/commandcenter-ng. Document --prefix
 DIRECTORY for custom home-contained destinations; retain old positional-path
 compatibility and preserve nondefault existing installations without migration.
@@ -370,14 +378,16 @@ Native file approvals must show the available proposed paths, change kinds and
 diffs to both user and coordinator, joined by exact worker/thread/turn/item
 identity. Do not substitute identifiers or an earlier edit's content. Use the
 existing native-message records and pending-request views, not another store.
-Disclose truncation or unavailable native content; explicit detail loading reads
-history without approving, executing or fetching arbitrary files. Preserve native
+Automatically hydrate available matching content from bounded native history;
+show loading, unavailable content and truncation explicitly. Received proposals
+must not require a routine Load/Retry click. Reads neither approve nor execute
+changes or fetch arbitrary files. Preserve native
 answer scopes and reject review when the proposal changes while being checked.
 
 Preserve native assistant-message question titles/options even when their text
 is empty. Show bounded metadata literally and disclose truncation; do not merge
 it into pending approvals or infer whether a historical question remains open.
-Working 1.1.0 adds manual per-question option/free-text replies only for
+Provide manual per-question option/free-text replies only for
 eligible current Codex workers, only a completed assistant message within the
 same known active turn, with exact original native message ID and zero-based
 question index. Derive the bounded title fragment server-side; do not trust
@@ -477,8 +487,9 @@ wordmark command center NG. Rendered design review awaits the user's screenshot.
 Version 0.6.0 widens the desktop context sidebar by about 40% and adds explicit
 Open questions with amber counts, request text, coordinator decision rationale
 and links to the answer cards. Native resolution remains authoritative; a sent
-answer stays listed until confirmed. Multi-question requests show each question,
-and externally owned requests direct the user to their native client. Branch
+answer stays listed until confirmed. Multi-question requests show each question.
+Missing details do not establish another client's ownership or justify directing
+the user to an assumed question there. Branch
 chat moves beside Interrupt and Send in the chat composer. Ordinary-chat question
 inference is not included; the requested scope choice remains open.
 
@@ -714,10 +725,14 @@ switches in memory only; refreshing/closing the page discards them. Sent images
 remain in native provider history. Do not add image draft persistence, remote
 image fetching or a separate attachment database.
 
-Preserve exact pending-request records replayed during reconnect. Recover a
-missing visible list from current-connection pending records before asking the
-native runtime to replay; never reconstruct questions from history or restore
-resolved/disconnected requests. Coalesce browser updates with a bounded delay
+Preserve exact pending-request records delivered on the current connection and
+show received requests automatically. A native wait without details is a status,
+not proof of an answerable question or another client's ownership. Show pending,
+loading and unavailable details without a normal Load/Retry step. Optional
+parent-only advanced reconnect remains an explicit user action; children have
+no recovery button and must not be resumed merely to discover requests. Do not
+reconstruct missing callbacks from history or revive resolved/disconnected
+requests. Coalesce browser updates with a bounded delay
 even during continuous worker activity. A delayed initial read or an old login's
 callbacks must not overwrite newer streamed state. Loading never submits answers
 or changes native permissions.
@@ -783,9 +798,13 @@ thread ID and type-preserved native request ID; never fabricate IDs or replay ap
 Parent/child context is transient, not a new store, timer, tab or worker slot.
 Keep manual/Coordinator approval limits and native permissions unchanged. A
 child-only wait must not block otherwise-available parent input. Do not resume a
-child for discovery or claim other-provider support. Events before discovery or
-details not delivered are not proved recoverable: expose unknown/missing details
-rather than inventing a complete request set.
+child for discovery or claim other-provider support. Retain early received
+native child requests in bounded process memory, private until native metadata
+proves their parent lineage. Attach only that verified child's exact pending
+requests, without inventing identities or replaying answers. Never-delivered
+details and callbacks lost across a cold restart are not recoverable merely from
+a native wait. Expose unknown/missing details rather than a fabricated complete
+request set.
 
 ### Never includes startup reports
 

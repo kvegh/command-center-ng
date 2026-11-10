@@ -69,16 +69,13 @@ test('compact layout uses normal page flow, full-width overview and wrapping tab
   }
 });
 
-test('mobile history and input scroll internally at approximately thirty and six text lines', () => {
-  const history = declarations('.conversation', [compactQuery]);
-  const bound = /^calc\((\d+) \* ([\d.]+) \* (\d+)px \+ (\d+)px\)$/.exec(history['max-height']);
-  assert.ok(bound, 'history has a line-based height bound with room for padding');
-  const [, lines, lineHeight, fontSize, padding] = bound.map(Number);
-  assert.equal(lines, 30);
-  assert.equal(padding, 40);
-  assert.equal(lineHeight * fontSize, 25.2);
-  assert.equal(history['overflow-y'], 'auto');
-  assert.equal(history.flex, 'none');
+test('mobile history uses document scrolling while the input retains six internally scrolling lines', () => {
+  for (const media of [[compactQuery], [desktopQuery, compactQuery]]) {
+    assert.deepEqual(properties('.conversation', ['flex', 'min-height', 'max-height', 'overflow'], media), {
+      flex: 'none', 'min-height': '0', 'max-height': 'none', overflow: 'visible',
+    }, 'narrow and landscape coarse-pointer devices have no nested history scroll region');
+  }
+  assert.equal(declarations('.conversation', [desktopQuery]).overflow, 'auto', 'desktop keeps its independent history scroller');
   const input = declarations('.composer textarea', [compactQuery]);
   const inputLines = parseFloat(input['max-height']) / Number(input['line-height']);
   assert.ok(Math.abs(inputLines - 6) < 1e-9);
@@ -200,4 +197,39 @@ test('empty native questions disappear only on mobile; pending and undelivered a
       }
     }
   }
+});
+
+
+test('mobile page scrolling preserves saved desktop chat positions across tab changes', () => {
+  const restore = findNodes(node => ts.isCallExpression(node) && node.expression.getText(main) === 'useLayoutEffect'
+    && node.arguments[0]?.getText(main).includes('node.scrollTop'))[0];
+  const choose = findNodes(node => ts.isVariableDeclaration(node) && node.name.getText(main) === 'choose')[0].initializer;
+  const history = findNodes(node => ts.isJsxOpeningElement(node) && node.attributes.properties.some(attribute =>
+    ts.isJsxAttribute(attribute) && attribute.name.text === 'className' && attribute.initializer?.text === 'conversation'))[0];
+  const onScroll = history.attributes.properties.find(attribute => ts.isJsxAttribute(attribute) && attribute.name.text === 'onScroll').initializer.expression;
+  const compile = (node, environment) => new Function(...Object.keys(environment), ts.transpile(`return (${node.getText(main)});`, { target: ts.ScriptTarget.ES2022 }))(...Object.values(environment));
+  const positions = { current: { first: 240, second: 480 } }, bottom = { current: { first: false, second: false } };
+  const node = { scrollTop: 0, scrollHeight: 1200, clientHeight: 600 };
+  const desktopScrollNeedsRestore = { current: false };
+  const previous = { current: 'first' }, nearBottom = { current: false }, focusTarget = { current: null };
+  let selected, saves = 0;
+  const environment = { compactLayout: true, scroll: { current: node }, active: { id: 'first' }, positions, bottom, previous, nearBottom, focusTarget, desktopScrollNeedsRestore,
+    flushSync: callback => callback(), setSelected: id => { selected = id; }, focusComposer() {}, scheduleBrowserSave: () => { saves++; } };
+  compile(restore.arguments[0], environment)();
+  assert.equal(previous.current, 'first', 'mobile keeps current-chat tracking for branch return');
+  environment.compactLayout = false; compile(restore.arguments[0], environment)();
+  assert.equal(node.scrollTop, 240, 'same chat restores after desktop to mobile to desktop rotation');
+  environment.compactLayout = true; node.scrollTop = 0; compile(restore.arguments[0], environment)();
+  compile(onScroll, environment)({ currentTarget: node });
+  compile(choose, environment)('second');
+  assert.deepEqual(positions.current, { first: 240, second: 480 });
+  assert.deepEqual(bottom.current, { first: false, second: false });
+  assert.equal(saves, 0); assert.equal(selected, 'second'); assert.equal(node.scrollTop, 0);
+  environment.active = { id: 'second' }; compile(restore.arguments[0], environment)();
+  assert.equal(previous.current, 'second', 'mobile branch return follows the actual current chat');
+  environment.compactLayout = false; environment.active = { id: 'second' };
+  compile(restore.arguments[0], environment)();
+  assert.equal(node.scrollTop, 480, 'desktop restores its saved position after mobile use');
+  node.scrollTop = 520; compile(onScroll, environment)({ currentTarget: node });
+  assert.equal(positions.current.second, 520); assert.equal(saves, 1);
 });

@@ -474,8 +474,11 @@ request ID. Parent/child context stays transient: no new store, timer, child tab
 or worker slot. Preserve native permissions and manual/Coordinator review limits.
 Keep parent input available when only a child waits and the parent's own gates
 allow it. Never fabricate IDs, replay approvals or resume a child for discovery.
-Events before child discovery and details never delivered are not guaranteed
-recoverable; expose unknown/missing details instead of inferring a complete set.
+Retain delivered human requests that precede child discovery privately in the
+existing bounded pending map. Expose or review them only after fresh native
+parent-lineage verification; foreign requests stay private and cannot trigger
+metadata reads. Details never delivered remain unknown; do not infer a complete
+set or automatically resume a child to recover them.
 This Codex-specific work does not authorize another provider's implementation.
 
 
@@ -727,9 +730,11 @@ formatting, raw-HTML exclusion, copied source and native history unchanged. Do
 not execute, classify or rewrite pasted terminal content.
 
 The approved mobile layout is one naturally scrolling page: wrapped worker tabs,
-full-width overview above bounded chat history (about 30 text lines), then a
-six-line input with internal overflow. Hide the worker Coordinator recap and
-resize handles on mobile, including landscape phones. Ignore stored desktop
+full-width overview above chat history in the document flow, then a six-line
+input with internal overflow. The user selected one-page history scrolling,
+superseding the earlier approximately 30-line nested chat viewport. Do not
+overwrite saved desktop chat positions from the non-scrolling mobile history.
+Hide the worker Coordinator recap and resize handles on mobile, including landscape phones. Ignore stored desktop
 dimensions without erasing them; retain desktop controls and the actual
 coordinator dashboard. Touch scrolling must not reorder tabs. Keep phone
 keyboard/rotation acceptance distinct from source/build checks.
