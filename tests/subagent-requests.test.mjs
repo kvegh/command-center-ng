@@ -260,8 +260,11 @@ test('closing parent or disconnecting prevents stale child reads and approvals f
   assert.deepEqual(context.questions, []); assert.equal(g.workspace.pending.size, 0);
   assert.throws(() => g.workspace.resolveRequestContext(g.parent, 'child'), /verified native subagent/);
   g.rpc.ready = true;
-  await g.workspace.recoverRequests('parent', 'child');
-  assert.match(context.requestError, /did not deliver request details/);
+  const original = g.rpc.call; g.workspace.recoveryTimeout = 1;
+  g.rpc.call = (method, params) => method === 'thread/resume' ? Promise.resolve({ thread: structuredClone(g.threads.get(params.threadId)) }) : original(method, params);
+  await assert.rejects(g.workspace.recoverRequests('parent', 'child'), { status: 504 });
+  assert.match(context.requestError, /did not provide request details/);
+  assert.equal(context.questions.length, 0, 'reconnection cannot invent an undelivered callback');
   assert.equal(g.workspace.snapshot().agents[0].workers[0].needsInput, true); assert.deepEqual(g.replies, []);
 });
 

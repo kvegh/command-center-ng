@@ -68,6 +68,34 @@ test('each action passes only its exact native answer and review remains separat
   assert.equal(reviews, 1); assert.equal(submitted.length, expected.length);
 });
 
+test('fresh-human checkpoints expose manual-only choices with no coordinator or reusable grant', async () => {
+  const question = command({ kind: 'humanCommand', command: 'example-tool --check', availableDecisions: ['accept', 'acceptForSession', exec(['example-tool']), network('api.example.com'), 'decline', 'cancel'] });
+  const submitted = []; let restored = 0;
+  const node = controls(question, { review() { assert.fail('Human-only checkpoints cannot be sent for review.'); }, submit: async answer => { submitted.push(answer); return true; }, prepareApprovalFocus: () => () => restored++ });
+  assert.deepEqual(buttons(node).map(button => button.props.children), ['Allow once', 'Decline', 'Cancel turn']);
+  for (const button of buttons(node)) await button.props.onClick();
+  assert.deepEqual(submitted, ['accept', 'decline', 'cancel'].map(decision => ({ decision })));
+  assert.equal(restored, 1);
+  const rendered = card(question);
+  assert.match(rendered, /Human approval required/);
+  assert.match(rendered, /requires your personal decision/);
+  assert.doesNotMatch(rendered, />Allow always|>Allow for this session|Ask coordinator to review/);
+  assert.ok(buttons(controls(question, { busy: true })).every(button => button.props.disabled));
+});
+
+test('unsupported command kinds remain visible with compatibility advice and no answer or delegation buttons', () => {
+  const question = command({ kind: 'futureKind', command: 'example-tool --check', reason: 'Preserve this native reason.', availableDecisions: ['accept', 'decline'] });
+  const actions = controls(question, { review() { assert.fail('Unsupported kinds cannot enter review.'); } });
+  assert.equal(buttons(actions).length, 0);
+  const rendered = card(question);
+  assert.match(rendered, /Unsupported command approval/);
+  assert.match(rendered, /CCNG cannot answer this native command approval kind/);
+  assert.match(rendered, /Leave it pending and check native-runtime compatibility or update CCNG/);
+  assert.match(rendered, /no decision has been sent/);
+  assert.match(rendered, /example-tool --check/); assert.match(rendered, /Preserve this native reason/);
+  assert.doesNotMatch(rendered, /Ask coordinator to review|>Allow once|>Decline|>Cancel turn/);
+});
+
 test('a long native prefix cannot put scope text or a wide wrapper between Allow once and Allow always', async () => {
   const prefix = ['example-tool', '--selected-work', 'path/'.repeat(800)];
   const node = controls(command({ proposedExecpolicyAmendment: prefix }));

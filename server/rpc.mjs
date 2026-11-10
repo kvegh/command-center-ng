@@ -32,7 +32,7 @@ export class CodexRpc extends EventEmitter {
     socket.on('error', error => this.emit('connectionError', error.message));
     await new Promise((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
     try {
-      await this.call('initialize', { clientInfo: { name: 'command-center-ng', title: 'Command Center NG', version: VERSION }, capabilities: { experimentalApi: true } });
+      await this.call('initialize', { clientInfo: { name: 'command-center-ng', title: 'Command Center NG', version: VERSION }, capabilities: { experimentalApi: true, requiredHumanApproval: true } });
       this.send({ method: 'initialized', params: {} });
       this.ready = true; this.emit('connected');
     } catch (error) { socket.close(); throw error; }

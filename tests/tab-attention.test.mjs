@@ -32,6 +32,18 @@ test('eligible exact command and file approvals await review without amber or an
   }
 });
 
+test('fresh-human command approvals always need the user instead of coordinator review', () => {
+  const question = command({ params: { threadId: 'worker', kind: 'humanCommand', availableDecisions: ['accept', 'acceptForSession'] } });
+  for (const available of [true, false]) {
+    const result = tabAttentionView(worker({ questions: [question] }), available);
+    assert.equal(result.needsUser, true); assert.equal(result.awaitingCoordinator, false);
+    assert.equal(result.label, 'Needs your personal approval');
+    const child = worker({ ownStatus: 'idle', questions: [], workers: [{ id: 'child', status: 'attention', questions: [{ ...question, params: { ...question.params, threadId: 'child' } }] }] });
+    assert.equal(tabAttentionView(child, available).needsUser, true);
+  }
+  assert.equal(tabAttentionView(worker({ questions: [{ ...question, responding: true }] }), true).confirming, true, 'a manual answer still waits for native confirmation');
+});
+
 test('native once eligibility and exact current identity are required, without imposing non-null turn/item IDs', () => {
   for (const question of [command({ reviewToken: undefined }), command({}, 'other-worker')]) {
     const result = tabAttentionView(worker({ questions: [question] }), true);
@@ -110,6 +122,14 @@ test('Ask coordinator HTTP round trip queues the current request without asking 
   assert.equal(tabAttentionView(actual, true).awaitingCoordinator, true);
   assert.equal(tabAttentionView(actual, true).needsUser, false);
   needsUser(tabAttentionView(actual, false));
+  for (const [requestId, kind] of [[32, 'humanCommand'], [33, 'futureKind']]) {
+    rpc.emit('request', { id: requestId, method: 'item/commandExecution/requestApproval', params: { threadId: 'worker', turnId: null, itemId: null, kind, command: 'example-tool --check', availableDecisions: ['accept', 'acceptForSession'] } });
+    const current = workspace.agent('worker').questions.find(question => question.id === requestId);
+    const denied = await request('/api/agents/worker/review', { requestId }, cookie);
+    assert.equal(denied.statusCode, 400);
+    assert.equal(reviewRequests, 1, 'human-only and unsupported kinds cannot queue coordinator work');
+    assert.equal(current.review, undefined); assert.equal(current.responding, undefined);
+  }
 });
 
 test('sent answers remain neutral confirmation waits, even after review or with an older answer error', () => {

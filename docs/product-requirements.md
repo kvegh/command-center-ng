@@ -306,6 +306,16 @@ explicit. Preserve ordinary forms, native confirmation, and coordinator limits.
 Surface native save warnings without claiming resolved means saved. Claude
 permission controls remain postponed with all other Claude work.
 
+Receive native humanCommand checkpoints through the requiredHumanApproval
+client capability. Preserve their original identity and fresh-human-only scope:
+manual accept/decline/cancel choices only, with no session/persistent grant or
+Coordinator queue/review path. Unknown supplied command kinds fail closed;
+internal attestation/verification exchanges are not user questions or generic
+replayable approvals. Replayed foreign worker dynamic-tool callbacks must be
+ignored without reply/refusal so recovery cannot fail their existing operation;
+CCNG-owned Coordinator tools keep their separate handler. This client declaration
+grants no native permission.
+
 Native approval labels stay on one line at the existing shorter button height.
 Keep Allow once and offered Allow always choices together in a compact wrapping
 button row. Put long exact scope descriptions outside that row so they cannot
@@ -731,7 +741,8 @@ show received requests automatically. A native wait without details is a status,
 not proof of an answerable question or another client's ownership. Show pending,
 loading and unavailable details without a normal Load/Retry step. Optional
 parent-only advanced reconnect remains an explicit user action; children have
-no recovery button and must not be resumed merely to discover requests. Do not
+no recovery button. The approved automatic reconnect below is limited to eligible
+active contexts; discovery alone does not authorize resume. Do not
 reconstruct missing callbacks from history or revive resolved/disconnected
 requests. Coalesce browser updates with a bounded delay
 even during continuous worker activity. A delayed initial read or an old login's
@@ -799,13 +810,33 @@ thread ID and type-preserved native request ID; never fabricate IDs or replay ap
 Parent/child context is transient, not a new store, timer, tab or worker slot.
 Keep manual/Coordinator approval limits and native permissions unchanged. A
 child-only wait must not block otherwise-available parent input. Do not resume a
-child for discovery or claim other-provider support. Retain early received
+child merely for discovery or claim other-provider support. Retain early received
 native child requests in bounded process memory, private until native metadata
 proves their parent lineage. Attach only that verified child's exact pending
 requests, without inventing identities or replaying answers. Never-delivered
 details and callbacks lost across a cold restart are not recoverable merely from
 a native wait. Expose unknown/missing details rather than a fabricated complete
 request set.
+
+### Approved automatic native reconnection
+
+Working 1.4.0 may reconnect an already-open local Codex worker root or a verified
+known native child when fresh native state is active with `waitingOnApproval` and
+the waiting context has no delivered current request. Never reconnect merely
+because an actionable card is already waiting for a manual answer.
+Reuse the existing five-second backend poll; coalesce once per context,
+connection and wait episode, without automatic retry on error or missing replay.
+Use the native `thread/resume` call with only `threadId` and `excludeTurns: true`;
+retain replayed original request identities and existing answer controls.
+
+Exclude intentional idle/unloaded, foreign, paused/stopped, Coordinator and
+handoff contexts. Do not answer approvals, change permissions/configuration or
+retry commands. An eligible active context becoming idle before the native call
+arrives may continue through native resume; the user approved that race. Add no
+new timer or persistent store, and do not extend this to deferred Claude work.
+Keep missing-details cards and diagnostics; reattachment does not prove recovery
+of lost cold callbacks or resolution of a request. Combined verification,
+publication and live recovery evidence remain pending.
 
 ### Never includes startup reports
 

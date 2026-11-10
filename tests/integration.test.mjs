@@ -81,6 +81,15 @@ async function fixture() {
   return { dir, rpc, workspace, calls, replies, threads, histories, failures, resumeRequests, summary, models, notify, ask, request: message => connection.send(JSON.stringify(message)), close: async () => { rpc.close(); for (const client of wss.clients) client.terminate(); await new Promise(resolve => wss.close(resolve)); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); } };
 }
 
+test('native initialization subscribes to fresh-human requests without claiming attestation or starting work', async () => {
+  const f = await fixture();
+  try {
+    assert.deepEqual(f.calls.map(call => call.method), ['initialize']);
+    assert.deepEqual(f.calls[0].params.capabilities, { experimentalApi: true, requiredHumanApproval: true });
+    assert.equal(f.replies.length, 0); assert.equal(f.workspace.agents.size, 0);
+  } finally { await f.close(); }
+});
+
 test('native message question HTTP answers bind live source and ordinary native input without approval responses', async () => {
   const f = await fixture(); const authFile = join(f.dir, 'auth.json'); const password = randomBytes(24).toString('base64url');
   await setPassword(password, authFile);
@@ -659,8 +668,8 @@ test('a request that cannot be replayed keeps its attention state and a scoped r
     await f.workspace.open('existing', { observeOnly: true });
     f.threads.set('other', { ...f.threads.get('existing'), id: 'other', status: { type: 'idle' } });
     await f.workspace.open('other', { observeOnly: true });
-    await assert.rejects(f.workspace.recoverRequests('existing'), /did not provide its details/i);
-    assert.match(f.workspace.agent('existing').requestError, /did not provide its details/i);
+    await assert.rejects(f.workspace.recoverRequests('existing'), /did not provide request details/i);
+    assert.match(f.workspace.agent('existing').requestError, /did not provide request details/i);
     assert.doesNotMatch(f.workspace.agent('existing').requestError, /Try loading|Open the original native client/i);
     assert.equal(f.workspace.agent('other').requestError, undefined);
     assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'existing').status, 'attention');

@@ -9,6 +9,7 @@ import { WORKER_REPORT_REQUEST, WORKER_DETAILED_REPORT_REQUEST, WORKER_TASK_PING
 import { approvalCommand, approvalWorkingDirectory, inspectApprovalSource, referencesApprovalSource } from './approval-source.mjs';
 import { nativeMessageQuestions } from './native-requests.mjs';
 import { hasOpenAsyncQuestions, nativeQuestionAnswerTexts } from './async-question-replies.mjs';
+import { isHumanCommandApproval, isSupportedCommandApprovalKind } from './approval-choices.mjs';
 
 const TASK_PING_INTERVAL_MS = 10 * 60_000;
 const fail = (message, status = 409) => Object.assign(new Error(message), { status });
@@ -19,7 +20,9 @@ const str = { type: 'string' }; const target = { agentId: str };
 const tool = (name, description, inputSchema) => ({ type: 'function', name, description, inputSchema, deferLoading: false });
 const isClarification = question => ['item/tool/requestUserInput', 'claude/tool/requestUserInput'].includes(question.method);
 const isApproval = question => ['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method);
-const isUnreviewedApproval = question => isApproval(question) && !question.review && !question.responding && !question.error;
+const isReviewableApproval = question => isApproval(question) && !isHumanCommandApproval(question)
+  && (question.method !== 'item/commandExecution/requestApproval' || isSupportedCommandApprovalKind(question));
+const isUnreviewedApproval = question => isReviewableApproval(question) && !question.review && !question.responding && !question.error;
 // Topic-labelled reports can omit red when no input is needed; recognition
 // acknowledges a summary, never infers that blockers or unfinished work are absent.
 const reportSections = [
@@ -361,7 +364,7 @@ export class Coordinator {
         otherRequests: questions.filter(q => !isApproval(q) && !isClarification(q)).length,
         unreviewedApprovals: questions.filter(isUnreviewedApproval).length,
         awaitingConfirmation: questions.filter(q => q.responding).length,
-        needsUserRequests: questions.filter(q => !isApproval(q) || q.review?.decision === 'ask' || q.error).length
+        needsUserRequests: questions.filter(q => !isReviewableApproval(q) || q.review?.decision === 'ask' || q.error).length
       },
       questions
     };
@@ -587,6 +590,8 @@ export class Coordinator {
     const pending = this.requestEntries(agent).find(({ question }) => question.reviewToken === args.reviewToken);
     const { context, question } = pending || {};
     if (!question || question.responding) throw fail('This approval is no longer available for review.');
+    if (isHumanCommandApproval(question)) throw fail('This native checkpoint requires a fresh human decision; the coordinator cannot review or answer it.', 400);
+    if (isApproval(question) && !isReviewableApproval(question)) throw fail('The coordinator cannot review this unsupported native approval kind.', 400);
     const contextFingerprint = this.workspace.requestContextFingerprint(context, question);
     const reason = typeof args.rationale === 'string' ? args.rationale.trim() : ''; if (!reason || reason.length > 1200) throw fail('Give a concise review rationale.', 400);
     if (!['approve', 'decline', 'ask'].includes(args.decision)) throw fail('Choose approve, decline or ask.', 400);

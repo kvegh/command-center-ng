@@ -473,12 +473,32 @@ keep the existing pending map keyed by original child thread ID and typed native
 request ID. Parent/child context stays transient: no new store, timer, child tab
 or worker slot. Preserve native permissions and manual/Coordinator review limits.
 Keep parent input available when only a child waits and the parent's own gates
-allow it. Never fabricate IDs, replay approvals or resume a child for discovery.
+allow it. Never fabricate IDs or resume a child merely for discovery.
+The user approved automatic native reconnection for open worker sessions and
+verified children freshly reported active and waiting for approval, accepting
+that the native resume operation can also continue existing work if the session
+becomes idle. Use only metadata-only thread/resume with the original thread ID,
+without config, permission or input overrides. Native replay must supply the
+original request IDs/bodies; never construct an approval or answer automatically.
+Respect explicit pause/stop, ownership, handoff, current connection/history and
+session identity. Do not intentionally reconnect idle, not-loaded, unrelated,
+closed or Coordinator sessions. Coalesce attempts in existing jobs and prevent
+repeated automatic retries of a failed/empty replay. Existing polling and lifecycle
+hooks must cover restored worker and known-child waits without a new timer/store.
+Native command checkpoints with kind humanCommand require a fresh human decision.
+Advertise requiredHumanApproval only with manual-only controls and hard backend
+Coordinator queue/review denial; never create reusable/session choices for them.
+Keep raw native kind, IDs and callback confirmation. Unknown supplied kinds stay
+unreviewable; internal attestation and verification exchanges are not user cards.
+Native replay may include foreign worker dynamic-tool callbacks. Never answer
+or refuse those callbacks; leave their original executor intact. Preserve the
+separate handler for CCNG-owned Coordinator tools.
 Retain delivered human requests that precede child discovery privately in the
 existing bounded pending map. Expose or review them only after fresh native
 parent-lineage verification; foreign requests stay private and cannot trigger
 metadata reads. Details never delivered remain unknown; do not infer a complete
-set or automatically resume a child to recover them.
+set or claim recovery merely because a native resume returned. Verify original
+request delivery or an evidenced native outcome; unresolved waits stay explicit.
 This Codex-specific work does not authorize another provider's implementation.
 
 

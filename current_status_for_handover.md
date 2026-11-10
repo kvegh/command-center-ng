@@ -5,6 +5,26 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Working **1.4.0** implements the actual user-approved automatic native waiting-
+session reconnection. The reconnection decision is answered;46mk is in progress
+and has no remaining Question label. Existing polling covers open worker roots
+and verified known children with fresh active state with waitingOnApproval and no
+delivered current request. Coalesced attempts stop after an empty/failed replay
+until a new wait episode/connection or explicit manual retry. Ownership, native
+pause/stop/cancel, handoff, current epoch/history and newer live events remain
+protected; no answer, command retry, config/permission override or intentional
+idle load occurs. The accepted idle-continuation race remains documented.
+
+Receive native humanCommand prompts through requiredHumanApproval client support
+with hard manual-only choices/Coordinator queue-review denial. Unsupported kinds
+fail closed. Replayed worker dynamic-tool/internal callbacks are ignored without
+reply/refusal to preserve their existing executor; CCNG-owned Coordinator tools
+retain their handler. Empty-card placement remains an unselected recommendation.
+The combined suite passes: 890 tests, 889 passed, one alternate-group skip and
+zero failures; production build and independent review pass. Publication,
+deployment and genuine live request recovery remain pending.
+No real reconnection or approval answer has been sent merely from source changes.
+
 Published and installed **1.3.1** corrects the observed false Needs your answer footer and amber
 classification for native attention without a delivered request. It reuses the
 existing tab request evidence for the input header; native states and execution
@@ -49,8 +69,9 @@ Needs your answer in the footer. Native reads confirm those children and parent
 currently carry waitingOnApproval, but expose no request envelope. This remains
 unresolved; source/task/backend verification does not prove live recovery.
 
-Automatic reconnection of already-missing child callbacks is not approved by
-"no extra click" or the separate mobile choice. Native thread/resume can invoke
+Historical 1.3.0 boundary, superseded by the explicit 1.4.0 approval above:
+automatic reconnection of missing child callbacks was not approved by
+"no extra click" or the separate mobile choice alone. Native thread/resume can invoke
 idle continuation. No real request was resumed, answered, cancelled or declared
 recovered by this candidate. Real phone rendering/provider delivery and cold
 callback recovery remain unverified.

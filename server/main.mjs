@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { CodexRpc } from './rpc.mjs';
 import { Workspace } from './workspace.mjs';
+import { isHumanCommandApproval, isSupportedCommandApprovalKind } from './approval-choices.mjs';
 import { defaultAuthFile, loadAuthState, setPassword, Sessions, clearAllLogins } from './auth.mjs';
 import { authenticationUnavailable } from './session-store.mjs';
 import { VERSION } from './version.mjs';
@@ -255,6 +256,8 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
             const agent = workspace.agent(id); const context = workspace.resolveRequestContext(agent, data.requestThreadId ?? id);
             const question = context.questions.find(q => q.id === data.requestId && (context === agent || q.reviewToken === data.reviewToken));
             if (!question || !['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method)) throw failure('Choose a pending command or file approval.', 400);
+            if (isHumanCommandApproval(question)) throw failure('This native checkpoint requires your personal decision; coordinator review is unavailable.', 400);
+            if (question.method === 'item/commandExecution/requestApproval' && !isSupportedCommandApprovalKind(question)) throw failure('Coordinator review is unavailable for this native approval kind.', 400);
             if (context !== agent && ((question.params.turnId != null && data.turnId !== question.params.turnId) || (question.params.itemId != null && data.itemId !== question.params.itemId))) throw failure('This subagent request changed. Reload its current details.', 409);
             question.review = { decision: 'queued', rationale: 'Review requested by the user.' };
             await workspace.coordinator.ensure(); workspace.coordinator.mark(id, 'User requested approval review', true); workspace.changed();

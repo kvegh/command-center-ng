@@ -573,6 +573,45 @@ test('coordinator counts clarification prompts separately and never answers them
   } finally { await f.close(); }
 });
 
+test('fresh-human and unknown command kinds remain visible but cannot enter coordinator review', async () => {
+  const f = await fixture();
+  try {
+    for (const [id, kind] of [['fresh-human', 'humanCommand'], ['unknown-kind', 'futureKind']]) {
+      f.rpc.emit('request', { id, method: 'item/commandExecution/requestApproval', params: { threadId: 'worker', turnId: 'work-turn', itemId: id + '-item', kind, command: 'fixture-command', availableDecisions: ['accept', 'acceptForSession', 'decline', 'cancel'] } });
+    }
+    const pending = await f.call('ccng_read_worker', { agentId: 'worker' });
+    assert.equal(pending.requestSummary.commandApprovals, 2);
+    assert.equal(pending.requestSummary.totalRequests, 2); assert.equal(pending.requestSummary.otherRequests, 0);
+    assert.equal(pending.requestSummary.unreviewedApprovals, 0); assert.equal(pending.requestSummary.needsUserRequests, 2);
+    for (const question of pending.questions) for (const decision of ['approve', 'decline', 'ask']) {
+      await assert.rejects(f.call('ccng_review_approval', { agentId: 'worker', reviewToken: question.reviewToken, decision, rationale: 'The existing user scope includes this test.', authorizationMessageId: 'user-worker', authorizationQuote: 'Create and clean up disposable test resources.' }), /fresh human|unsupported native approval kind/);
+    }
+    f.coordinator.dirty.clear(); f.coordinator.markRemainingApprovals('worker');
+    assert.equal(f.coordinator.dirty.has('worker'), false);
+    assert.equal(f.rpc.replies.length, 0); assert.equal(f.coordinator.audit.length, 0);
+    assert.ok(f.workspace.agent('worker').questions.every(question => !question.review && !question.responding));
+  } finally { await f.close(); }
+});
+
+test('manual fresh-human answers preserve typed callback IDs and require native confirmation', async () => {
+  const f = await fixture();
+  try {
+    for (const id of [41, '41', 'cancel-human']) {
+      const params = { threadId: 'worker', turnId: 'work-turn', itemId: 'human-item', kind: 'humanCommand', command: 'fixture-command', availableDecisions: ['accept', 'acceptForSession', 'decline', 'cancel'] };
+      f.rpc.requests.set(id, params); f.rpc.emit('request', { id, method: 'item/commandExecution/requestApproval', params });
+    }
+    assert.throws(() => f.workspace.answer('worker', 41, { decision: 'acceptForSession' }), /option offered/);
+    assert.equal(f.rpc.replies.length, 0); assert.equal(f.workspace.agent('worker').questions.length, 3);
+    for (const [id, decision] of [[41, 'accept'], ['41', 'decline'], ['cancel-human', 'cancel']]) {
+      await f.workspace.answer('worker', id, { decision });
+      assert.deepEqual(f.rpc.replies.at(-1), { id, result: { decision } });
+      assert.equal(f.workspace.agent('worker').questions.some(question => question.id === id), false);
+    }
+    assert.equal(f.workspace.agent('worker').questions.length, 0);
+    assert.equal(f.coordinator.audit.length, 0, 'manual human decisions do not become coordinator approvals');
+  } finally { await f.close(); }
+});
+
 test('a new approval arriving during confirmation appears in the remaining list with its own token', async () => {
   const f = await fixture();
   try {

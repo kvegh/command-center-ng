@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import { formFields, requestKind, COMMAND_APPROVAL, FILE_APPROVAL, CLARIFICATION, PERMISSIONS, MCP_REQUEST } from '../server/native-requests.mjs';
-import { nativeApprovalChoices, isNativeToolApproval } from '../server/approval-choices.mjs';
+import { nativeApprovalChoices, isNativeToolApproval, isHumanCommandApproval, isSupportedCommandApprovalKind } from '../server/approval-choices.mjs';
 import { questionTarget, type Question } from './open-questions';
 import { ClaudeRequestCard } from './claude-request-card';
 import { CopyButton } from './copy-button';
@@ -59,8 +59,12 @@ export function NativeApprovalControls({ question, busy, readOnlyCoordinator = f
   });
   const persistent = choices.some(choice => choice.persistent);
   const toolApproval = isNativeToolApproval(question);
+  const humanApproval = isHumanCommandApproval(question);
+  const unsupportedCommand = question.method === COMMAND_APPROVAL && !isSupportedCommandApprovalKind(question);
   return <>
-    {persistent ? <p className="field-note">Allow always asks Codex to save this rule for matching future requests. Shared user settings may affect other sessions.</p>
+    {unsupportedCommand ? <p className="field-note">CCNG cannot answer this native command approval kind. Leave it pending and check native-runtime compatibility or update CCNG; no decision has been sent.</p>
+      : humanApproval ? <p className="field-note">Codex requires your personal decision for this command. Allow once, Decline or Cancel turn apply; coordinator review and reusable permissions are unavailable.</p>
+      : persistent ? <p className="field-note">Allow always asks Codex to save this rule for matching future requests. Shared user settings may affect other sessions.</p>
       : <p className="field-note">{readOnlyCoordinator ? 'Coordinator restrictions stay in place; reusable approval rules are unavailable here.' : 'This request offers no native permanent approval choice.'}</p>}
     <div className="button-row native-approval-choices">{displayedChoices.map(choice => {
       const refusing = ['decline', 'cancel'].includes(String(choice.answer.decision || choice.answer.action));
@@ -71,7 +75,7 @@ export function NativeApprovalControls({ question, busy, readOnlyCoordinator = f
           if (await submit(choice.answer) === true) restoreFocus?.();
         }}>{choice.label}</button>;
     })}
-      {review && <button type="button" className="button subtle small" disabled={busy} onClick={review}>Ask coordinator to review</button>}
+      {review && !humanApproval && !unsupportedCommand && <button type="button" className="button subtle small" disabled={busy} onClick={review}>Ask coordinator to review</button>}
     </div>
     {displayedChoices.some(choice => choice.scope) && <div className="native-approval-scopes" aria-label="Approval scopes">
       {displayedChoices.filter(choice => choice.scope).map(choice => <p id={choice.scopeId} key={choice.key} className="field-note native-approval-scope"><strong>{choice.label}:</strong> {choice.scope}</p>)}
@@ -125,6 +129,9 @@ function NativeRequestFields({ question, agentId, requestThreadId, workerName, r
   const nativeThreadId = requestThreadId || agentId;
   const binding = childRequestBinding(question, requestThreadId);
   const toolApproval = isNativeToolApproval(question);
+  const humanApproval = isHumanCommandApproval(question);
+  const unsupportedCommand = question.method === COMMAND_APPROVAL && !isSupportedCommandApprovalKind(question);
+  const kind = humanApproval ? 'Human approval required' : unsupportedCommand ? 'Unsupported command approval' : requestKind(question);
   const approval = [COMMAND_APPROVAL, FILE_APPROVAL].includes(question.method) || toolApproval;
   const clarification = question.method === CLARIFICATION;
   const permissions = question.method === PERMISSIONS;
@@ -144,8 +151,8 @@ function NativeRequestFields({ question, agentId, requestThreadId, workerName, r
       return confirmed;
     } catch (problem) { setError((problem as Error).message); return false; } finally { setSending(false); }
   };
-  return <section id={questionTarget(nativeThreadId, question.id)} className="question-card native-request" tabIndex={-1} aria-label={`${requestKind(question)} for ${workerName}`}>
-    <div className="eyebrow">{requestKind(question)} · {workerName}{question.params.serverName ? ` · ${question.params.serverName}` : ''}</div>
+  return <section id={questionTarget(nativeThreadId, question.id)} className="question-card native-request" tabIndex={-1} aria-label={`${kind} for ${workerName}`}>
+    <div className="eyebrow">{kind} · {workerName}{question.params.serverName ? ` · ${question.params.serverName}` : ''}</div>
     {question.params.message && <p className="native-request-message">{question.params.message}</p>}
     {question.params.reason && <p>{question.params.reason}</p>}
     {question.responding && <p role="status">Waiting for the native agent to confirm resolution…</p>}
@@ -160,7 +167,7 @@ function NativeRequestFields({ question, agentId, requestThreadId, workerName, r
       {question.params.command && <pre><code>{typeof question.params.command === 'string' ? question.params.command : JSON.stringify(question.params.command)}</code></pre>}
       {question.params.grantRoot && <p>Requested change root: {question.params.grantRoot}</p>}
       {question.method === FILE_APPROVAL && <NativeFileChanges question={question} agentId={nativeThreadId} />}
-      <NativeApprovalControls question={question} busy={busy} readOnlyCoordinator={readOnlyCoordinator} submit={submit} prepareApprovalFocus={prepareApprovalFocus} review={toolApproval ? undefined : () => void act(`agents/${agentId}/review`, { requestId: question.id, ...binding })} />
+      <NativeApprovalControls question={question} busy={busy} readOnlyCoordinator={readOnlyCoordinator} submit={submit} prepareApprovalFocus={prepareApprovalFocus} review={toolApproval || humanApproval || unsupportedCommand ? undefined : () => void act(`agents/${agentId}/review`, { requestId: question.id, ...binding })} />
     </> : permissions ? <NativePermissionControls question={question} busy={busy} readOnlyCoordinator={readOnlyCoordinator} submit={submit} prepareApprovalFocus={prepareApprovalFocus} /> : mcp ? <>
       {fields !== null ? <form onSubmit={event => { event.preventDefault(); void submit({ decision: 'accept', content }); }}>
         <fieldset disabled={busy} className="native-form-fields">{fields.map(field => <label key={field.name}><span>{field.label}{field.required ? ' *' : ''}</span>{field.description && <small>{field.description}</small>}

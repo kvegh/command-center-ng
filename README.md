@@ -53,6 +53,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
 - Chat, steer active work, interrupt a turn and answer supported native questions or approvals, including eligible current assistant-question cards.
 - See received native requests and matching file-change details automatically, including verified Codex child requests in their parent chat. Distinguish requests needing your answer from native waits with unavailable details.
+- Attempt automatic reconnection of eligible active Codex waits with missing request details, without answering approvals.
 - Branch a Codex conversation, then hand tasks and a summary back to its parent.
 - See linked Beads tasks, explicit input needs, ordinary blockers and optional task notifications.
 - Request concise task reports or optional detailed action histories; choose a saved interval, or Never to disable automatic startup and recurring reports.
@@ -61,6 +62,9 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Read Markdown, copy messages/code, and paste or attach images to a draft.
 - Keep desktop settings at the bottom of a full-height overview, with scrollable tasks and questions.
 - Use desktop resizing, natural mobile page scrolling through the chat, and three colour themes.
+
+Native checkpoints requiring a fresh human decision stay manual: the Coordinator
+cannot answer them or turn them into reusable permissions.
 
 See the [usage guide](docs/usage.md) for controls and their limits.
 
@@ -216,8 +220,9 @@ The installed launcher supports `service install`, `enable`, `start`, `stop`,
 - Unsent image drafts disappear on browser refresh; text drafts use browser storage.
 - Eligible live Codex assistant-question cards accept independent option/free-text
   answers. Restored, terminal or unbound questions remain read-only. Missing native
-  request details cannot be answered or reconstructed from a waiting status;
-  child discovery does not resume agents or recover lost native callbacks.
+  request details cannot be answered or reconstructed from a waiting status.
+  Eligible active Codex contexts may be reconnected once; recovery depends on
+  native callback replay and is not guaranteed after a cold restart.
 - Automated tests/builds do not establish phone rendering or every installed-runtime
   workflow. See [release notes](docs/release-notes.md) for recorded checks and gaps.
 
@@ -240,6 +245,20 @@ The installed launcher supports `service install`, `enable`, `start`, `stop`,
 The frontend uses React, TypeScript, Vite and plain CSS; the backend is Node.js.
 From a development checkout, run `npm ci --ignore-scripts`, `npm run password`
 and `npm run dev`. Use `npm test` and `npm run build` for application checks.
+
+To verify real request delivery after an update, use the read-only evidence check
+with an existing local Coordinator rollout and a fresh cutoff:
+
+```sh
+node server/check-request-recovery.mjs --rollout /path/to/coordinator-rollout.jsonl --since 2026-01-01T12:00:00Z --worker WORKER_ID
+```
+
+This needs Node and read access to that native rollout. It accepts only a direct
+Coordinator `text(await tools.ccng_list_workers({}));` call and its single returned
+list, with both timestamps after the cutoff, in the bounded tail. Other projected
+or combined log outputs are deliberately not proof for this check. It fails when no genuine request
+is present, prints only request identities/counts, and never reconnects or answers
+a request. A successful native resume alone does not establish recovery.
 `package.json` is the authoritative version source. Read [AGENTS.md](AGENTS.md)
 before changing code; active work is tracked in Beads, not a Markdown backlog.
 

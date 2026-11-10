@@ -15,6 +15,37 @@ test('older v2 command requests preserve explicit decisions without inventing re
   assert.throws(() => nativeApprovalAnswer(question, { decision: 'acceptForSession' }));
 });
 
+test('fresh-human command checkpoints permit only exact one-time human decisions', () => {
+  const variants = [
+    { kind: 'humanCommand' },
+    { kind: 'humanCommand', proposedExecpolicyAmendment: ['example-tool'], proposedNetworkPolicyAmendments: [{ host: 'api.example.com', action: 'allow' }] },
+    { kind: 'humanCommand', availableDecisions: ['accept', 'acceptForSession', exec(['example-tool']), network('api.example.com'), 'decline', 'cancel'] }
+  ];
+  for (const params of variants) {
+    const question = command(params);
+    const before = structuredClone(question);
+    for (const allowPersistent of [true, false]) {
+      const choices = nativeApprovalChoices(question, { allowPersistent });
+      assert.deepEqual(choices.map(choice => choice.answer), ['accept', 'decline', 'cancel'].map(decision => ({ decision })));
+      assert.ok(choices.every(choice => !choice.persistent && choice.scope === null));
+      for (const decision of ['accept', 'decline', 'cancel']) assert.deepEqual(nativeApprovalAnswer(question, { decision }), { decision });
+      for (const decision of ['acceptForSession', exec(['example-tool']), network('api.example.com')]) assert.throws(() => nativeApprovalAnswer(question, { decision }));
+      assert.throws(() => nativeApprovalAnswer(question, { decision: 'accept', persistence: 'always' }));
+    }
+    assert.deepEqual(question, before, 'native kind and decision metadata remain untouched');
+  }
+  assert.deepEqual(nativeApprovalChoices(command({ kind: 'humanCommand', availableDecisions: ['decline', 'cancel'] })).map(choice => choice.answer.decision), ['decline', 'cancel']);
+  assert.deepEqual(nativeApprovalChoices(command({ kind: 'humanCommand', availableDecisions: 'accept' })), []);
+});
+
+test('unknown supplied command kinds fail closed while command and writeStdin retain native decisions', () => {
+  for (const kind of ['unknown', null, {}, 1]) {
+    assert.deepEqual(nativeApprovalChoices(command({ kind, availableDecisions: ['accept', 'decline'] })), []);
+    assert.throws(() => nativeApprovalAnswer(command({ kind }), { decision: 'accept' }));
+  }
+  for (const kind of ['command', 'writeStdin']) assert.deepEqual(nativeApprovalChoices(command({ kind })).map(choice => choice.answer.decision), ['accept', 'decline', 'cancel']);
+});
+
 test('native file request schema exposes its session choice without an availableDecisions field', () => {
   const question = file({ threadId: 'worker', turnId: 'turn', itemId: 'changes', startedAtMs: 1, reason: 'Apply reviewed changes', grantRoot: '/example/project' });
   const choices = nativeApprovalChoices(question);

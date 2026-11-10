@@ -182,9 +182,10 @@ not prevent input to a parent that can otherwise accept it.
 This child context is temporary. Early native requests can be retained in bounded
 process memory before discovery; their contents stay private until native
 metadata proves the parent lineage. Verified requests then appear automatically
-with their original identities. Discovery does not resume a child or replay
-approvals. Request details never delivered to this connection, or callbacks lost
-after a cold restart, cannot be reconstructed from a waiting status. Unknown or
+with their original identities. Discovery itself does not resume a child or
+answer approvals; eligible active waits have the separate reconnection path below.
+Request details never delivered to this connection, or callbacks lost after a
+cold restart, cannot be reconstructed from a waiting status. Unknown or
 missing details stay explicit; a displayed count is not proof of every request.
 
 Some Codex questions arrive as assistant-message metadata rather than a
@@ -238,6 +239,26 @@ no normal Load/Retry step and no child recovery button. An optional parent-only
 **Advanced recovery** action reconnects that session explicitly; it does not
 answer a request or guarantee recovery of a lost callback.
 
+### Automatic native reconnection
+
+Working 1.4.0 permits a bounded reconnection attempt for an already-open local
+Codex worker or a known child whose native parent lineage is verified. A fresh
+native status must show active work with `waitingOnApproval`, and the wait must
+have no delivered current request. An existing actionable card keeps its native
+controls without an unnecessary reconnect. The existing
+five-second backend poll coalesces the attempt once per context, connection and
+wait episode. Missing details or an error do not start a repeated retry loop;
+the diagnostic and existing manual controls remain available.
+
+This reattaches the existing native conversation and can replay original request
+IDs. It sends no approval answer, permission/configuration override or command
+retry. Intentionally idle/unloaded, foreign, paused, stopped, Coordinator and
+handoff contexts are excluded. If an eligible active context becomes idle before
+reattachment arrives, native resume may continue that conversation; this race is
+included in the approved behavior. There is no new timer, persistent store or
+Claude support. Earlier unavailable waits are not claimed recovered; actual
+replay and phone/browser acceptance require live verification.
+
 File approvals automatically load available native proposed paths, change types
 and diffs. CCNG joins them only to the exact conversation, turn, item and current
 request; the coordinator receives the same content. Loading reads bounded native
@@ -272,6 +293,13 @@ without a delivered request stays neutral with **Request details unavailable**.
 The input header uses the same request evidence, including child requests,
 Coordinator review and native confirmation. These indicators do not change
 the actual pending request, its answer controls or execution gates.
+
+Some native command checkpoints require a fresh human decision. CCNG declares
+support for receiving these prompts and shows their original command and manual
+Allow once, Decline and Cancel turn controls, subject to the actual native
+choices. They cannot be sent to the Coordinator for approval, saved as rules or
+granted for a session. Internal attestation and client-owned verification
+exchanges remain outside ordinary approval recovery.
 
 Codex structured questions use an under-development native feature. Installation
 attempts its native setup and startup checks it; missing or unsuccessful setup

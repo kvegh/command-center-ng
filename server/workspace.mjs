@@ -317,6 +317,92 @@ export class Workspace extends EventEmitter {
     });
     return true;
   }
+  requestWaitEpisode(agent) {
+    const waiting = agent.thread.status?.type === 'active' && agent.thread.status.activeFlags?.includes('waitingOnApproval');
+    if (!agent.requestReconnectEpisode || agent.requestReconnectEpisode.epoch !== this.requestEpoch) {
+      Object.defineProperty(agent, 'requestReconnectEpisode', { configurable: true, value: { epoch: this.requestEpoch, waiting: !!waiting, attempted: false } });
+    }
+    const episode = agent.requestReconnectEpisode;
+    if (!waiting) episode.attempted = false;
+    episode.waiting = !!waiting;
+    return episode;
+  }
+  requestReconnectAllowed(parent, agent, manual) {
+    if (!this.rpc.ready || this.restoring || !this.requestContextCurrent(parent, agent) || parent.provider === 'claude' || parent.role === 'coordinator') return false;
+    if (this.coordinator?.paused || this.coordinator?.stopped || parent.requestStopIntent || agent.requestStopIntent) return false;
+    if (!manual && parent.canSend === false) return false;
+    // Recovery is not a way around an in-progress transfer or input ownership.
+    return ![parent, agent].some(context => this.summaryJobs.has(context.id) || this.returnJobs.has(context.id) || this.handoffs.incoming(context.id) || context.handoff || context.returnSummary?.delivered);
+  }
+  async reconnectWaitingRequests(parent, agent, { manual = false } = {}) {
+    if (this.requestJobs.has(agent.id)) return this.requestJobs.get(agent.id);
+    const episode = this.requestWaitEpisode(agent);
+    if (!this.requestReconnectAllowed(parent, agent, manual)) {
+      if (manual) throw Object.assign(new Error('Request reconnection is unavailable while this worker is paused, stopped, transferring or no longer owned here. No answer was sent.'), { status: 409 });
+      return { requests: agent.questions.length };
+    }
+    if (agent.questions.length || (!manual && (!episode.waiting || episode.attempted))) return { requests: agent.questions.length };
+    const epoch = this.requestEpoch, revision = agent.historyRevision || 0, nativeParentId = agent.thread.parentThreadId;
+    const current = () => epoch === this.requestEpoch && revision === (agent.historyRevision || 0) && agent.thread.parentThreadId === nativeParentId && this.requestReconnectAllowed(parent, agent, manual);
+    const waiting = thread => thread.status?.type === 'active' && thread.status.activeFlags?.some(flag => flag === 'waitingOnApproval' || (manual && flag === 'waitingOnUserInput'));
+    const stale = () => Object.assign(new Error('The worker changed or recovery was paused before request reconnection. No answer was sent.'), { status: 409 });
+    const merge = (thread, before) => {
+      if (thread?.id !== agent.id || thread.parentThreadId !== nativeParentId) {
+        if (agent !== parent) {
+          agent.lineageNeedsRefresh = true; agent.questions = [];
+          if (!this.watched.has(agent.id)) for (const question of this.pending.values()) if (question.params.threadId === agent.id) question.unassociated = true;
+        }
+        throw stale();
+      }
+      agent.thread = agent.thread.status !== before.status || agent.turnId !== before.turnId || agent.finishedTurn !== before.finishedTurn ? { ...thread, status: agent.thread.status } : thread;
+    };
+    const job = Promise.resolve().then(async () => {
+      const before = { status: agent.thread.status, turnId: agent.turnId, finishedTurn: agent.finishedTurn };
+      const { thread } = await this.rpc.call('thread/read', { threadId: agent.id });
+      if (!current()) throw stale();
+      merge(thread, before); this.requestWaitEpisode(agent);
+      if (agent === parent && thread.canAcceptDirectInput === false) return { requests: agent.questions.length };
+      if (!waiting(thread) || !waiting(agent.thread) || agent.questions.length) return { requests: agent.questions.length };
+      if (!manual && episode.attempted) return { requests: 0 };
+      // No await between the final ownership/stop checks and native attachment.
+      if (!current()) throw stale();
+      episode.attempted = true; agent.requestError = null;
+      const resumedBefore = { status: agent.thread.status, turnId: agent.turnId, finishedTurn: agent.finishedTurn };
+      const resumed = await this.rpc.call('thread/resume', { threadId: agent.id, excludeTurns: true });
+      if (!current()) throw stale();
+      merge(resumed.thread, resumedBefore);
+      if (agent === parent) agent.observingOnly = false;
+      // Original callbacks can arrive before the resume acknowledgement. Keep
+      // them in the existing pending map; never reconstruct IDs from history.
+      agent.questions = this.pendingQuestions(agent.id);
+      await new Promise((resolve, reject) => {
+        let timer;
+        const finish = error => { clearTimeout(timer); this.off('change', check); error ? reject(error) : resolve(); };
+        const check = () => {
+          if (!current()) return finish(stale());
+          if (agent.questions.length || !waiting(agent.thread)) finish();
+        };
+        timer = setTimeout(() => finish(), this.recoveryTimeout); this.on('change', check); check();
+      });
+      if (!agent.questions.length && waiting(agent.thread)) {
+        const beforeRefresh = { status: agent.thread.status, turnId: agent.turnId, finishedTurn: agent.finishedTurn };
+        const refreshed = await this.rpc.call('thread/read', { threadId: agent.id });
+        if (!current()) throw stale();
+        merge(refreshed.thread, beforeRefresh); this.requestWaitEpisode(agent);
+        if (!agent.questions.length && waiting(agent.thread)) throw Object.assign(new Error('Codex is still waiting but did not provide request details after reconnection. No answer was sent; automatic recovery will not retry this waiting episode.'), { status: 504 });
+      }
+      return { requests: agent.questions.length };
+    }).catch(error => {
+      if (this.requestContextCurrent(parent, agent)) { agent.requestError = error.message; this.changed(); }
+      if (manual) throw error;
+      return { requests: agent.questions.length, error: error.message };
+    }).finally(() => {
+      if (this.requestJobs.get(agent.id) === job) this.requestJobs.delete(agent.id);
+      this.changed();
+    });
+    this.requestJobs.set(agent.id, job); this.changed();
+    return job;
+  }
   async recoverRequests(id, requestThreadId = id) {
     const parent = this.agent(id);
     if (requestThreadId !== id) return this.recoverSubagentRequests(parent, requestThreadId);
@@ -333,6 +419,7 @@ export class Workspace extends EventEmitter {
       // Details are a read-only native-history lookup, never request replay.
       const result = await this.loadFileDetails(parent, agent); agent.requestError = null; return result;
     }
+    if (agent.role !== 'coordinator') return this.reconnectWaitingRequests(parent, agent, { manual: true });
     agent.requestError = null;
     const job = (async () => {
       const { thread } = await this.rpc.call('thread/read', { threadId: id });
@@ -375,6 +462,7 @@ export class Workspace extends EventEmitter {
       context = this.resolveRequestContext(parent, id);
     }
     if (this.requestJobs.has(id)) return this.requestJobs.get(id);
+    if (!context.questions.length) return this.reconnectWaitingRequests(parent, context, { manual: true });
     const job = (async () => {
       const before = { status: context.thread.status, turnId: context.turnId, revision: context.historyRevision || 0 };
       const { thread } = await this.rpc.call('thread/read', { threadId: id });
@@ -397,19 +485,32 @@ export class Workspace extends EventEmitter {
   async refreshObserved(id) {
     const agent = this.agents.get(id);
     if (agent?.provider === 'claude') { if (!this.claude?.available || this.restoring || this.observedReads.has(id)) return; const job = this.claude.refresh(agent); this.observedReads.set(id, job); try { await job; } catch (error) { agent.observeError = error.message; this.changed(); } finally { this.observedReads.delete(id); } return; }
-    if (!agent?.observingOnly || !this.rpc.ready || this.restoring) return;
+    if (!agent || !this.rpc.ready || this.restoring || (agent.role === 'coordinator' && !agent.observingOnly)) return;
     if (this.observedReads.has(id)) return this.observedReads.get(id);
     const revision = agent.historyRevision || 0;
+    const epoch = this.requestEpoch;
     const job = (async () => {
       try {
+        const before = { status: agent.thread.status, turnId: agent.turnId, finishedTurn: agent.finishedTurn };
         const { thread } = await this.rpc.call('thread/read', { threadId: id });
-        if (this.agents.get(id) !== agent || (agent.historyRevision || 0) !== revision) return;
-        if (!thread) throw new Error('Saved conversation is unavailable.');
+        if (!this.rpc.ready || epoch !== this.requestEpoch || this.agents.get(id) !== agent || (agent.historyRevision || 0) !== revision) return;
+        if (thread?.id !== id) throw new Error('Saved conversation is unavailable.');
         const signature = value => JSON.stringify([value.status, value.updatedAt, value.preview, value.model, value.reasoningEffort]);
-        const changed = signature(thread) !== signature(agent.thread); this.syncModel(agent, thread.model, thread.reasoningEffort); const recovered = !!agent.observeError; agent.thread = thread; agent.observeError = null;
-        if (changed || thread.status?.type === 'active') { await this.history(id); this.changed(); void this.coordinator?.flush(id); }
-        else if (recovered) this.changed();
+        const changed = signature(thread) !== signature(agent.thread); this.syncModel(agent, thread.model, thread.reasoningEffort); const recovered = !!agent.observeError;
+        agent.thread = agent.thread.status !== before.status || agent.turnId !== before.turnId || agent.finishedTurn !== before.finishedTurn ? { ...thread, status: agent.thread.status } : thread;
+        agent.observeError = null; this.requestWaitEpisode(agent);
+        if (agent.observingOnly && (changed || thread.status?.type === 'active')) { await this.history(id); this.changed(); void this.coordinator?.flush(id); }
+        else if (changed || recovered) this.changed();
         if (changed && agent.role !== 'coordinator') this.coordinator?.mark(id, 'Watched worker changed');
+        if (agent.role !== 'coordinator') {
+          await this.reconnectWaitingRequests(agent, agent);
+          for (const child of this.requestContexts(agent, { includeUnverified: true }).slice(1)) {
+            const nativeParent = this.requestContexts(agent, { includeUnverified: true }).find(context => context.id === (child.nativeParentId || child.thread.parentThreadId));
+            if (!nativeParent) continue;
+            const proof = await this.readWorker(nativeParent, child.id);
+            if (proof) await this.reconnectWaitingRequests(agent, child);
+          }
+        }
       } catch (error) { agent.observeError = error.message; this.changed(); }
     })();
     this.observedReads.set(id, job); try { await job; } finally { this.observedReads.delete(id); }
@@ -509,7 +610,7 @@ export class Workspace extends EventEmitter {
     const context = this.childRequestContext(agent, worker);
     const revision = context.historyRevision || 0;
     const epoch = this.requestEpoch;
-    const previousStatus = context.thread.status, previousTurn = context.turnId;
+    const previousStatus = context.thread.status, previousTurn = context.turnId, previousFinished = context.finishedTurn;
     const key = owner.parent.id + ':' + id; if (this.workerReads.has(key)) return;
     this.workerReads.add(key);
     try {
@@ -519,17 +620,19 @@ export class Workspace extends EventEmitter {
         if (!this.watched.has(id)) for (const question of this.pending.values()) if (question.params.threadId === id) question.unassociated = true;
         context.questions = []; context.lineageNeedsRefresh = true; throw new Error('Native thread does not verify this parent/subagent relationship. No request is actionable here.');
       }
-      context.thread = context.thread.status !== previousStatus || context.turnId !== previousTurn ? { ...thread, status: context.thread.status } : thread;
+      context.thread = context.thread.status !== previousStatus || context.turnId !== previousTurn || context.finishedTurn !== previousFinished ? { ...thread, status: context.thread.status } : thread;
       context.cwd = thread.cwd || agent.cwd; context.name = thread.name || worker.name;
       context.observeError = null; context.lineageNeedsRefresh = false;
       Object.defineProperty(context, 'nativeRequestProof', { configurable: true, value: { epoch, revision, parent: agent } });
       const admitted = this.admitVerifiedChildQuestions(owner.parent, epoch);
       context.questions = this.pendingQuestions(id);
       worker.task = thread.name || thread.preview?.split('\n')[0] || worker.task; worker.detailLoaded = true;
+      this.requestWaitEpisode(context);
       for (const target of new Set([context, ...admitted])) if (target.questions.length) {
         const deferred = target.questions.filter(question => this.scheduleFileDetails(owner.parent, target, question) || question.fileDetailsLoading);
         if (deferred.length !== target.questions.length) this.coordinator?.mark(owner.parent.id, 'Subagent approval or question needs review', true);
       }
+      return true;
     } catch (error) {
       if ((context.historyRevision || 0) === revision && this.agents.get(owner.parent.id) === owner.parent && this.requestContexts(owner.parent, { includeUnverified: true }).includes(context)) { context.observeError = error.message; worker.detailError = error.message; }
     }
@@ -670,6 +773,8 @@ export class Workspace extends EventEmitter {
   async send(id, text, { report = false, reportSetting = false, coordinatorEvent = false, taskPing = false, preserveAsyncQuestions = false, messageQuestion, images: suppliedImages } = {}) {
     const agent = this.agent(id);
     const internalControl = report || reportSetting || coordinatorEvent || taskPing || preserveAsyncQuestions;
+    const priorStopIntent = agent.requestStopIntent;
+    const manualAccepted = () => { if (!internalControl && !messageQuestion && agent.requestStopIntent === priorStopIntent) delete agent.requestStopIntent; };
     if (internalControl) assertAsyncQuestionsAllowControl(agent);
     if (taskPing && (agent.provider === 'claude' || agent.role === 'coordinator')) throw Object.assign(new Error('Silent task checks are supported only for Codex workers.'), { status: 409 });
     if (taskPing && agent.thread.status?.type === 'active' && !agent.turnId) throw Object.assign(new Error('Wait for the active native turn identity before a silent task check.'), { status: 409 });
@@ -719,10 +824,12 @@ export class Workspace extends EventEmitter {
     if (agent.thread.status?.type === 'active' && agent.turnId) {
       const turnId = agent.turnId;
       const delivery = await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: turnId, input: messageInput, ...identity });
+      manualAccepted();
       return { turnId: delivery?.turnId || turnId };
     } else {
       const { turn } = await this.rpc.call('turn/start', { threadId: id, input: messageInput, ...identity, additionalContext: context });
       if (agent.finishedTurn?.id !== turn.id) { agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed(); }
+      manualAccepted();
       return { turnId: turn.id };
     }
   }
@@ -734,6 +841,7 @@ export class Workspace extends EventEmitter {
   async interrupt(id) {
     const agent = this.agent(id);
     if (agent.provider === 'claude') return this.claude.interrupt(agent);
+    Object.defineProperty(agent, 'requestStopIntent', { configurable: true, value: {} });
     if (!agent.turnId) throw Object.assign(new Error('There is no active turn to interrupt.'), { status: 409 });
     await this.rpc.call('turn/interrupt', { threadId: id, turnId: agent.turnId });
   }
@@ -861,7 +969,9 @@ export class Workspace extends EventEmitter {
     if (message.method === 'item/tool/call' && p.threadId === this.coordinator?.id) { void this.coordinator.handle(message); return; }
     const owner = this.requestOwner(p.threadId, { includeUnverified: true });
     const watched = this.watched.has(p.threadId);
-    if (!isHumanRequest(message.method)) { if (watched || owner) this.rpc.refuse(message.id, 'This client does not implement this internal tool. Use the original client for it.'); return; }
+    // Native resume also replays another client's pending dynamic tool calls.
+    // Receiving one does not make CCNG its executor; refusing would fail real work.
+    if (!isHumanRequest(message.method)) return;
     const key = requestKey(p.threadId, message.id);
     if (this.pending.has(key)) return;
     const unassociated = !watched && (!owner || !this.requestContextCurrent(owner.parent, owner.context));
@@ -916,6 +1026,7 @@ export class Workspace extends EventEmitter {
       };
       this.answerJobs.set(key, { finish }); question.responding = true; question.error = null; this.changed();
       timer = setTimeout(() => finish(Object.assign(new Error('Codex did not confirm that this request was resolved. Check the native session before retrying.'), { status: 504 })), this.answerTimeout);
+      if (['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method) && result.decision === 'cancel') Object.defineProperty(agent, 'requestStopIntent', { configurable: true, value: {} });
       try { this.rpc.respond(question.id, result); }
       catch (error) { finish(Object.assign(new Error('The answer could not be sent. ' + error.message), { status: 503 })); }
     });
@@ -976,6 +1087,7 @@ export class Workspace extends EventEmitter {
       void this.refreshTasks(id);
       if (this.agents.get(id) === agent) this.coordinator?.completed(id, p.turn.id);
     }
+    if (['thread/status/changed', 'turn/started', 'turn/completed'].includes(method)) this.requestWaitEpisode(agent);
     if (method === 'turn/plan/updated') agent.tasks = (p.plan || []).map((t, i) => ({ id: String(i), text: t.step, state: t.status }));
     if (method === 'item/started' || method === 'item/completed') this.addItem(agent, p.item, p.turnId, false, { live: true, completed: method === 'item/completed' });
     if (method === 'item/agentMessage/delta') {

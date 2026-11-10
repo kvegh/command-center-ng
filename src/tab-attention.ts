@@ -1,4 +1,4 @@
-import { nativeApprovalChoices } from '../server/approval-choices.mjs';
+import { nativeApprovalChoices, isHumanCommandApproval } from '../server/approval-choices.mjs';
 import type { Question } from './open-questions';
 
 type RequestContext = {
@@ -37,6 +37,7 @@ export function coordinatorReviewAvailable(state: CoordinatorSnapshot) {
 
 function requestAttention(context: RequestContext, question: Question, coordinatorAvailable: boolean) {
   if (question.responding) return view('Waiting for native confirmation', false, false, true);
+  if (isHumanCommandApproval(question)) return view('Needs your personal approval', true);
   if (question.error) return view('Request answer error', true);
   if (question.review?.decision === 'ask') return view('Needs your decision', true);
   if (question.review && question.review.decision !== 'queued') return view('Approval answer not confirmed', true);

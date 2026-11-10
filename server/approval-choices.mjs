@@ -12,6 +12,10 @@ const copy = value => typeof value === 'string' ? value : Array.isArray(value) ?
 const prefix = value => Array.isArray(value) && value.length > 0 && value.every(token => typeof token === 'string') && value[0].trim().length > 0;
 const allowHost = value => exactKeys(value, ['host', 'action']) && value.action === 'allow' && typeof value.host === 'string' && value.host.length > 0 && value.host.length <= 255 && !/\s/.test(value.host);
 
+export const isHumanCommandApproval = question => question?.method === COMMAND_APPROVAL && question.params?.kind === 'humanCommand';
+export const isSupportedCommandApprovalKind = question => question?.method === COMMAND_APPROVAL
+  && (question.params?.kind === undefined || ['command', 'humanCommand', 'writeStdin'].includes(question.params.kind));
+
 function execAmendment(decision) {
   return exactKeys(decision, ['acceptWithExecpolicyAmendment']) && exactKeys(decision.acceptWithExecpolicyAmendment, ['execpolicy_amendment']) && prefix(decision.acceptWithExecpolicyAmendment.execpolicy_amendment);
 }
@@ -45,6 +49,7 @@ function commandDecisions(params) {
 
 export function nativeApprovalChoices(question, { allowPersistent = true } = {}) {
   if (!object(question?.params)) return [];
+  if (question.method === COMMAND_APPROVAL && !isSupportedCommandApprovalKind(question)) return [];
   if (isNativeToolApproval(question)) {
     const choices = [{ key: 'accept', label: 'Allow once', scope: null, persistent: false, answer: { decision: 'accept' } }];
     if (allowPersistent && offeredPersistence(question, 'session')) choices.push({ key: 'session', label: 'Allow for this session', scope: 'This native tool for this session.', persistent: false, answer: { decision: 'accept', persistence: 'session' } });
@@ -56,6 +61,7 @@ export function nativeApprovalChoices(question, { allowPersistent = true } = {})
   }
   const command = question.method === COMMAND_APPROVAL;
   if (!command && question.method !== FILE_APPROVAL) return [];
+  const human = isHumanCommandApproval(question);
   // FileChangeRequestApprovalParams has no availableDecisions in the native
   // protocol: its fixed response enum includes acceptForSession. Honor an
   // explicit restriction when supplied, without requiring a nonexistent field
@@ -64,6 +70,9 @@ export function nativeApprovalChoices(question, { allowPersistent = true } = {})
   const offered = command ? commandDecisions(question.params) : question.params.availableDecisions == null ? ['accept', 'acceptForSession', 'decline', 'cancel'] : Array.isArray(question.params.availableDecisions) ? question.params.availableDecisions : [];
   const choices = [];
   for (const decision of offered) {
+    // Fresh-human checkpoints cannot be satisfied by reusable grants, even if
+    // malformed native metadata proposes a session or permanent decision.
+    if (human && !['accept', 'decline', 'cancel'].includes(decision)) continue;
     let choice;
     if (['accept', 'decline', 'cancel'].includes(decision)) choice = { key: decision, label: { accept: 'Allow once', decline: 'Decline', cancel: 'Cancel turn' }[decision], scope: null, persistent: false };
     else if (allowPersistent && decision === 'acceptForSession') choice = { key: 'session', label: 'Allow for this session', scope: command ? 'This native approval for this session.' : question.params.grantRoot ? 'Requested write root for this session: ' + JSON.stringify(question.params.grantRoot) + '. Codex controls the effective grant.' : 'This file-change approval for this native session.', persistent: false };

@@ -7,5 +7,7 @@ export type NativeApprovalChoice = {
   answer: Record<string, any>;
 };
 export function isNativeToolApproval(question: NativeApprovalQuestion): boolean;
+export function isHumanCommandApproval(question: NativeApprovalQuestion): boolean;
+export function isSupportedCommandApprovalKind(question: NativeApprovalQuestion): boolean;
 export function nativeApprovalChoices(question: NativeApprovalQuestion, options?: { allowPersistent?: boolean }): NativeApprovalChoice[];
 export function nativeApprovalAnswer(question: NativeApprovalQuestion, answer: Record<string, any>, options?: { allowPersistent?: boolean }): Record<string, any>;
