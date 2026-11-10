@@ -3045,3 +3045,37 @@ remaining footer defect: native attention, including unknown child waits, is
 called Needs your answer without a delivered question. Those native waits are
 not proven resolved or recoverable by the release; their classification and
 presentation remain in scope. No real provider request was resumed or answered.
+
+
+## 2026-11-10 — Stop treating missing native details as a user question
+
+Implementation `62ad95f1d2d9e0bf1f52bed1fc3ed2d15db1410e` advances the application
+to 1.3.1. The user's post-1.3.0 screenshot showed an amber Needs your answer footer
+with empty native child waits. Native attention proves neither that CCNG has a
+question nor that the user can act. The footer previously used the aggregate
+native status directly, while neutral helper results could still fall back to
+the tab's amber attention CSS class.
+
+Use the existing request presentation evidence for both tabs and the input
+header. Empty own, child and Coordinator waits now remain neutral and explicitly
+say request details are unavailable. Real delivered manual questions, permission
+choices, Coordinator referrals and answer errors retain attention; eligible
+Coordinator review and native confirmation stay distinct. Composer guidance no
+longer tells the user to answer an absent question. Native backend states,
+request controls, send/interrupt/branch guards and Coordinator restrictions are
+unchanged. Empty-card placement remains a discussed recommendation, not a
+selected layout change, and no request is dismissed by the new wording.
+
+The final combined suite ran867tests:866passed, one unavailable alternate-group
+case skipped, zerofailed. The production build and independent integration review
+pass, including tests of actual tab CSS classification/JSX wiring and rendered
+footer labels. Publication and installed verification remain pending at this
+checkpoint; physical browser acceptance is separate.
+
+Read-only investigation of the existing AAP runner found its exact elevated
+inline diagnostic request but no recorded return, execution handle or current
+approval token. A saved prior SSH failure artifact predates that call and cannot
+establish its outcome. Start and outcome remain unknown. The existing native
+reconnection decision remains unanswered because reconnect can also trigger
+idle continuation. The UI patch does not recover that call or authorize a
+permission grant, retry, cancellation, job change or other worker teardown.
