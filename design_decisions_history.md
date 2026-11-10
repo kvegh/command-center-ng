@@ -2987,3 +2987,49 @@ combined-run failure. Phone rendering remains unverified. Publication and
 deployment are pending; production remains the verified 1.1.0 release.
 The existing mobile scrolling and child-reattachment choices remain unanswered,
 with no scrolling or request-recovery implementation in this candidate.
+
+
+## 2026-11-10 — Automatic native detail display and one-page mobile history
+
+Implementation `eb319b6369c63050ea022f275ccb78818aae13c3` advances the working
+application to 1.3.0 and includes the unpublished 1.2.0 approval-button and tab
+attention changes recorded above. The user selected one-page mobile scrolling
+because the inner chat viewport trapped swipes and made page controls difficult
+to reach. Mobile history now participates in the document flow; the six-line
+input remains internally scrollable. Desktop dimensions and reading positions
+survive compact mode, same-chat rotation and tab changes; branch-return selection
+continues to follow the current conversation.
+
+The user also rejected extra Load/Retry clicks. Delivered native file approvals
+now acquire only their exact matching change item through a coalesced bounded
+read-only history query. Newer live bodies, request identity, ownership and
+connection/history changes protect against stale proposals. Native events show
+late content automatically. Missing content remains explicitly unavailable; no
+answer, inferred diff or automatic execution is introduced.
+
+Native source inspection established that newly created children can deliver
+requests before their parent activity reaches CCNG. The application previously
+discarded that delivery. Retain original human callbacks privately in the
+existing pending map, with a limit of 128 undiscovered requests, until fresh
+native metadata verifies the complete parent relationship. Foreign callbacks
+remain absent from user/Coordinator views, background counts and answer paths;
+there are no speculative foreign reads, additional timers or request stores.
+Resolution, disconnection and changed ownership invalidate admission. The UI
+uses truthful missing-detail status and removes ineffective routine child
+retries. Parent reconnection remains an explicit advanced control. This cannot
+reconstruct already-lost or never-delivered callbacks; automatic child resume
+and its potential idle continuation remain unapproved.
+
+The task-dialog screenshot had no recorded Needed/Why fields, so no short
+question existed to render. A separate confirmed classification bug promoted
+all blocked work to Needs input. Keep ordinary blocked work distinct from
+explicit input states/Question records across the task panel, notifications,
+dialog and Coordinator card, preserving dependency queues and original Details.
+No other worker's question or task state was rewritten, and missing questions
+are not invented.
+
+Independent integration review is clear. The final combined suite ran 864 tests:
+863 passed, one unavailable alternate-group case skipped, zero failed; the
+production build passes. Publication and installed verification remain pending
+at this checkpoint. Source/fixture checks do not establish physical phone
+behavior, actual provider delivery or recovery of the existing native incident.
