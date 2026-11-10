@@ -3187,3 +3187,21 @@ answered, declined or retried by this repair. A structured observation question
 asks whether the existing card now shows its proposal; the separate older-child
 membership question is also unanswered. Preserve both and do not broaden native
 permissions or choose a discovery redesign without evidence and consultation.
+
+
+1.4.1 final live-recovery checkpoint supersedes the missing-readback conclusion
+above. Fresh Coordinator readback exposed the exact outstanding native file item
+with four paths, complete diffs, totalChanges4 and truncatedfalse. It was then
+independently reviewed and approved once under existing user authority. The
+older AAP call also returned normally, its original child turn completed and the
+child is idle. Independent AAP3492 status is successful, elapsed4.337s; completion
+without resubmission is confirmed by the originating workflow.
+
+Both recovery observation questions are answered and processed; the recovery
+task is closed. No broader child-discovery redesign is needed for these cases.
+The separate service-stop user decision is unchanged, and physical-phone/browser
+acceptance remains outside this completed recovery verification. The strict CLI
+checker conservatively rejects unsupported combined/metadata-wrapped native log
+shapes; the actual outcomes above were inspected directly, not inferred from its
+fixtures or an installation result. No new code or native permission change is
+part of this final evidence update.

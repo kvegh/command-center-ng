@@ -258,7 +258,11 @@ Coordinator `text(await tools.ccng_list_workers({}));` call and its single retur
 list, with both timestamps after the cutoff, in the bounded tail. Other projected
 or combined log outputs are deliberately not proof for this check. It fails when no genuine request
 is present, prints only request identities/counts, and never reconnects or answers
-a request. A successful native resume alone does not establish recovery.
+a request. A successful native resume alone does not establish recovery. Current
+combined or metadata-wrapped client logs may be rejected conservatively; do not
+interpret that as proof that a request failed to arrive. The recorded 1.4.1 live
+recovery evidence uses direct inspection of exact original callbacks and actual
+job state, separate from this checker and installed synthetic regression tests.
 `package.json` is the authoritative version source. Read [AGENTS.md](AGENTS.md)
 before changing code; active work is tracked in Beads, not a Markdown backlog.
 

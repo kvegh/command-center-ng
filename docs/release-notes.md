@@ -22,7 +22,10 @@ Validation:894 tests,893 passed, one alternate-group skip, zero failures;
 production build and independent review pass. Source is published and running
 1.4.1 is verified with108 matching source files, trusted HTTPS/assets,
 authentication gates/both listeners and114 installed synthetic cases. Actual
-outstanding-proposal delivery and browser acceptance remain unverified.
+native readback also confirms all four proposed files and complete diffs without
+truncation, followed by once-only approval under existing scope. The older AAP
+call completed normally without resubmission and its actual job succeeded. Both
+recovery observations are answered; physical-browser acceptance remains separate.
 
 ## 1.4.0 — Reconnect eligible native waits automatically
 

@@ -18,16 +18,25 @@ protected files and unrelated Bash content/ownership/mode. Independent3494
 succeeded in7.098s:108 source files match, running1.4.1 trusted HTTPS/assets,
 authentication gates/both listeners and114 installed synthetic cases pass.
 
-Actual paths/diff delivery for the outstanding file proposal remains unverified.
-The native Coordinator started a new turn after restart but has returned no
-fresh readback; its active label alone is not evidence of progress. Saved pause
-is false. Existing native permission guards are preserved, and the unresolved
-file request was neither answered nor declined by this repair. A structured
-question asks whether the existing rhel_private_defaults card now shows paths
-and diff; do not approve or retry it for this observation. The independent AAP
-child-membership question also remains unanswered.46mk is blocked on these
-observations; no broader child-discovery design has been selected. All root
-subagents, tests/build/Git operations and deployment jobs are terminal.
+Actual native recovery is now verified. Fresh readback exposed the exact pending
+file item with all four paths and complete diffs, totalChanges4 and truncatedfalse.
+The Coordinator independently reviewed and approved it once under existing user
+scope. The older AAP tool call also returned normally; its child is now idle with
+its original turn completed, and independent AAP3492 status is successful in4.337s.
+The Coordinator confirms completion without resubmission. Both observation
+questions are answered and processed;46mk is CLOSED, with no further recovery
+input needed. Earlier missing-readback/discovery hypotheses are superseded by
+these actual outcomes, and no child-discovery redesign is selected.
+
+The separate service-stop decision remains a genuine pending user action owned
+by the originating worker. This closure neither answers it nor authorizes a stop,
+retry or cancellation. Broader physical-phone/browser acceptance remains separate.
+The strict CLI checker still declines combined/projected native log formats; real
+recovery above was verified directly against exact original callback readbacks
+and actual job state. All root subagents, tool calls and deployment jobs are
+terminal, with no continuation loop or report timer.
+
+Historical 1.4.0 checkpoint, superseded by the final recovery evidence above:
 
 Published and installed **1.4.0** implements the user-approved automatic
 reconnection of open local Codex worker roots and verified known children freshly
