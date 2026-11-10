@@ -299,7 +299,19 @@ Surface native save warnings without claiming resolved means saved. Claude
 permission controls remain postponed with all other Claude work.
 
 Native approval labels stay on one line at the existing shorter button height.
-On narrow cards, wrap whole choices while keeping their exact scopes readable.
+Keep Allow once and offered Allow always choices together in a compact wrapping
+button row. Put long exact scope descriptions outside that row so they cannot
+separate the buttons on mobile. Associate each reusable choice with its exact
+scope visibly and accessibly, including when several saved rules are offered.
+
+Agent-tab amber indicates a need for the human user, rather than every native
+approval wait. A delivered command/file approval still eligible for an available
+Coordinator stays neutral and says it awaits Coordinator review. Explicit
+referrals, manual-only questions/permissions and missing request details retain
+human attention. Native confirmation waits stay distinct from resolution.
+Include child requests and current assistant questions. Preserve actual backend
+status, request contents and all send/approval gates; only tab presentation and
+its attention counter change.
 
 Coordinator project cards place the saved report cadence beside the project
 name. When the worker's current tracker has Needs input tasks, their titles

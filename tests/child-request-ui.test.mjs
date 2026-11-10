@@ -70,7 +70,10 @@ test('manual native child approvals preserve exact binding and parent focus call
   const calls = []; let focus = 0;
   const { tree } = capture({ agentId: 'parent', requestThreadId: 'child-a', workerName: 'Named child', question: question(), act: async (...args) => { calls.push(args); return true; }, prepareApprovalFocus: () => () => { focus++; } });
   const controls = all(tree).find(node => node.type === NativeApprovalControls);
-  const buttons = all(NativeApprovalControls(controls.props)).filter(node => node.type === 'button');
+  let approvalControls;
+  function CaptureControls() { approvalControls = NativeApprovalControls(controls.props); return null; }
+  renderToStaticMarkup(React.createElement(CaptureControls));
+  const buttons = all(approvalControls).filter(node => node.type === 'button');
   await buttons.find(node => node.props.children === 'Allow once').props.onClick();
   assert.deepEqual(calls, [['agents/parent/answer', { decision: 'accept', requestId: 1, requestThreadId: 'child-a', reviewToken: 'current-review', turnId: 'native-turn', itemId: 'native-item' }]]);
   assert.equal(focus, 1);

@@ -947,10 +947,10 @@ kbd { font-family: inherit; }
 .coordinator-worker-summary .coordinator-input-task { display: block; color: var(--amber); }
 .coordinator-worker-summary .coordinator-input-label { font-weight: 600; }
 
-.native-approval-choices { align-items: flex-end; flex-wrap: wrap; }
-.native-approval-choice { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 100%; min-width: min-content; }
-.native-approval-choice > .button { white-space: nowrap; }
-.native-approval-choice .native-approval-scope { margin: 0; max-width: 440px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.native-approval-choices { align-items: center; flex-wrap: wrap; }
+.native-approval-choices > .button { flex: 0 0 auto; white-space: nowrap; }
+.native-approval-scopes { margin-top: 10px; min-width: 0; }
+.native-approval-scopes .native-approval-scope { margin: 0 0 8px; overflow-wrap: anywhere; white-space: pre-wrap; }
 
 /* Increase overview text by one pixel, preserving its font hierarchy and families.
    Scope shared controls here so chat, dialogs and the top bar retain their sizes. */

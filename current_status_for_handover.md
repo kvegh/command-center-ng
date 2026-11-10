@@ -1,9 +1,21 @@
 # Current status for handover
 
-Updated: 2026-11-09. This is a development handover snapshot. Beads remains the
+Updated: 2026-11-10. This is a development handover snapshot. Beads remains the
 task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
+
+Working **1.2.0** groups approval buttons with scopes below and implements
+Coordinator-aware tab attention. Both changes passed independent source review,
+42 focused approval/child/tab regressions and the production build. Publication
+and deployment remain pending; the latest verified production release is 1.1.0.
+The full test command did not pass in the current sandbox: 77 of 84 test files
+passed; remaining failures involve socket/subprocess or home-directory access.
+Authentication passed separately after its combined-run failure. These checks
+do not establish phone rendering or a fully passing integration suite.
+Mobile scrolling awaits a choice between a Top controls shortcut and removing
+the bounded inner history. Existing child request recovery remains blocked on
+the separate native-reattachment choice; no live request was replayed or answered.
 
 Published and installed **1.1.0** implements manual replies to eligible current
 Codex assistant-message questions from a completed message within the same

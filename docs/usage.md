@@ -243,6 +243,8 @@ backends that do not supply the item still show an explicit unavailable notice.
 Request identifiers alone do not describe the proposed changes.
 
 Alongside **Allow once**, an offered Codex rule can expose **Allow always**.
+The buttons stay together in a compact wrapping row. Exact saved-rule scopes
+appear below it, with matching labels when more than one reusable rule is offered.
 Review the displayed command-prefix, network-host or MCP-tool scope. Codex owns
 rule saving; CCNG has no separate permission allowlist or native-config writer.
 **Allow for this session** grants only the native session scope. File-change
@@ -258,6 +260,12 @@ After a confirmed manual Codex approval, focus returns to the same editable
 input unless tab/dialog changes or visibility make that unsafe. Decline,
 coordinator review and failed answers do not move focus. Claude approval work
 remains postponed.
+
+Agent tabs stay neutral while a delivered command/file approval awaits an
+available Coordinator. Amber means your attention is needed: a referral, a
+manual-only question or permission, an error, or missing request details.
+Waiting for native confirmation is shown separately. These tab indicators do
+not change the actual pending request, its answer controls or execution gates.
 
 Codex structured questions use an under-development native feature. Installation
 attempts its native setup and startup checks it; missing or unsuccessful setup

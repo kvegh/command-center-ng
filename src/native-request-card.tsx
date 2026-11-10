@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { formFields, requestKind, COMMAND_APPROVAL, FILE_APPROVAL, CLARIFICATION, PERMISSIONS, MCP_REQUEST } from '../server/native-requests.mjs';
 import { nativeApprovalChoices, isNativeToolApproval } from '../server/approval-choices.mjs';
 import { questionTarget, type Question } from './open-questions';
@@ -43,26 +43,39 @@ export function NativeApprovalControls({ question, busy, readOnlyCoordinator = f
   review?: () => void;
   prepareApprovalFocus?: () => () => void;
 }) {
+  const scopeRoot = useId();
   const choices = nativeApprovalChoices(question, { allowPersistent: !readOnlyCoordinator });
+  const actionOrder = (choice: (typeof choices)[number]) => {
+    if (choice.key === 'accept') return 0;
+    if (choice.persistent) return 1;
+    if (['decline', 'cancel'].includes(String(choice.answer.decision))) return 3;
+    return 2;
+  };
+  const orderedChoices = [...choices].sort((left, right) => actionOrder(left) - actionOrder(right));
+  const displayedChoices = orderedChoices.map((choice, index) => {
+    const repeated = orderedChoices.filter(other => other.label === choice.label).length > 1;
+    const number = orderedChoices.slice(0, index + 1).filter(other => other.label === choice.label).length;
+    return { ...choice, label: repeated ? `${choice.label} (${number})` : choice.label, scopeId: `${scopeRoot}-scope-${index}` };
+  });
   const persistent = choices.some(choice => choice.persistent);
   const toolApproval = isNativeToolApproval(question);
   return <>
     {persistent ? <p className="field-note">Allow always asks Codex to save this rule for matching future requests. Shared user settings may affect other sessions.</p>
       : <p className="field-note">{readOnlyCoordinator ? 'Coordinator restrictions stay in place; reusable approval rules are unavailable here.' : 'This request offers no native permanent approval choice.'}</p>}
-    <div className="button-row native-approval-choices">{choices.map(choice => {
+    <div className="button-row native-approval-choices">{displayedChoices.map(choice => {
       const refusing = ['decline', 'cancel'].includes(String(choice.answer.decision || choice.answer.action));
       const disabled = busy || (readOnlyCoordinator && toolApproval && !refusing);
-      return <div className="native-approval-choice" key={choice.key}>
-        {choice.scope && <p className="field-note native-approval-scope">{choice.scope}</p>}
-        <button type="button" className={refusing ? 'button subtle' : 'button amber'} disabled={disabled} onClick={async () => {
+      return <button key={choice.key} type="button" className={refusing ? 'button subtle' : 'button amber'} disabled={disabled} aria-describedby={choice.scope ? choice.scopeId : undefined} onClick={async () => {
           if (disabled) return;
           const restoreFocus = refusing ? undefined : prepareApprovalFocus?.();
           if (await submit(choice.answer) === true) restoreFocus?.();
-        }}>{choice.label}</button>
-      </div>;
+        }}>{choice.label}</button>;
     })}
       {review && <button type="button" className="button subtle small" disabled={busy} onClick={review}>Ask coordinator to review</button>}
     </div>
+    {displayedChoices.some(choice => choice.scope) && <div className="native-approval-scopes" aria-label="Approval scopes">
+      {displayedChoices.filter(choice => choice.scope).map(choice => <p id={choice.scopeId} key={choice.key} className="field-note native-approval-scope"><strong>{choice.label}:</strong> {choice.scope}</p>)}
+    </div>}
   </>;
 }
 

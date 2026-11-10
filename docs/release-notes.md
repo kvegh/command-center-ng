@@ -9,6 +9,25 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.2.0 working — Clearer approval controls and tab attention
+
+- Keep Allow once and offered Allow always actions together in a compact
+  wrapping row. Place long exact saved-rule scopes below the actions, using
+  matching numbered labels and accessible descriptions for multiple saved rules.
+- Reserve amber agent tabs for requests needing the user. Eligible delivered
+  command/file approvals awaiting an available Coordinator stay neutral, with
+  a truthful review-wait label. Native confirmation is a separate wait; actual
+  backend statuses, request controls and execution gates remain unchanged.
+
+Independent source review, 42 focused approval/child/tab regressions and the
+production build pass. The full test command is not green in the current
+sandbox: 77 of 84 test files passed; socket listeners, subprocess behavior and
+home-directory writes prevent complete verification. Authentication passes
+separately after its combined-run failure. Publication and deployment are
+pending. This entry does not claim real mobile rendering or native approval
+recovery. The mobile scrolling choice and child-reattachment decision remain
+unanswered.
+
 ## 1.1.0 — Answer eligible assistant questions
 
 - Answer eligible current Codex assistant-question cards with an option or free

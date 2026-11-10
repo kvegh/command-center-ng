@@ -214,8 +214,9 @@ The installed launcher supports `service install`, `enable`, `start`, `stop`,
 - Closing a tab does not stop its native conversation. Backend shutdown stops
   CCNG-owned Claude runs; native history remains available for later resume.
 - Unsent image drafts disappear on browser refresh; text drafts use browser storage.
-- Newer message-only Codex questions show their titles/options, but currently
-  require the native client for answers; supported native request forms remain interactive.
+- Eligible live Codex assistant-question cards accept independent option/free-text
+  answers. Restored, terminal or unbound questions remain read-only; request
+  recovery and complete browser/provider acceptance remain separate checks.
 - Automated tests/builds do not establish phone rendering or every installed-runtime
   workflow. See [release notes](docs/release-notes.md) for recorded checks and gaps.
 

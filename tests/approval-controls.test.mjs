@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
+import postcss from 'postcss';
 
 const require = createRequire(import.meta.url);
 async function componentUrl(name) {
@@ -24,7 +25,11 @@ const file = params => ({ id: 2, method: 'item/fileChange/requestApproval', para
 const exec = prefix => ({ acceptWithExecpolicyAmendment: { execpolicy_amendment: prefix } });
 const network = host => ({ applyNetworkPolicyAmendment: { network_policy_amendment: { host, action: 'allow' } } });
 const mcp = meta => ({ id: 3, method: 'mcpServer/elicitation/request', params: { mode: 'form', requestedSchema: { type: 'object', properties: {} }, _meta: meta } });
-const controls = (question, extra = {}) => NativeApprovalControls({ question, busy: false, submit() { assert.fail('Rendering must not submit.'); }, ...extra });
+const controls = (question, extra = {}) => {
+  let node;
+  function Capture() { node = NativeApprovalControls({ question, busy: false, submit() { assert.fail('Rendering must not submit.'); }, ...extra }); return null; }
+  renderToStaticMarkup(React.createElement(Capture)); return node;
+};
 const html = (question, extra) => renderToStaticMarkup(controls(question, extra));
 const card = (question, extra = {}) => renderToStaticMarkup(React.createElement(NativeRequestCard, { question, agentId: 'worker-one', workerName: 'Example project', act: async () => true, ...extra }));
 function elements(node) {
@@ -34,13 +39,18 @@ function elements(node) {
 }
 const buttons = node => elements(node).filter(element => element.type === 'button');
 
-test('native prefix and network choices display exact scopes before their Allow always buttons', () => {
-  const rendered = html(command({ availableDecisions: ['accept', exec(['npm', 'test']), network('api.example.com'), network('other.example.com'), 'decline', 'cancel'] }));
-  assert.equal((rendered.match(/>Allow always<\/button>/g) || []).length, 3);
-  for (const scope of ['Commands beginning with [&quot;npm&quot;,&quot;test&quot;]', 'Network host: api.example.com', 'Network host: other.example.com']) {
-    const position = rendered.indexOf(scope);
-    assert.ok(position >= 0);
-    assert.ok(position < rendered.indexOf('>Allow always</button>', position));
+test('native prefix and network scopes remain exact after the compact action row and describe their numbered buttons', () => {
+  const node = controls(command({ availableDecisions: ['accept', exec(['npm', 'test']), network('api.example.com'), network('other.example.com'), 'decline', 'cancel'] }));
+  const rendered = renderToStaticMarkup(node);
+  const row = elements(node).find(element => element.props.className === 'button-row native-approval-choices');
+  assert.deepEqual(buttons(row).map(button => button.props.children), ['Allow once', 'Allow always (1)', 'Allow always (2)', 'Allow always (3)', 'Decline', 'Cancel turn']);
+  assert.equal(elements(row).filter(element => element.type === 'p').length, 0, 'scope paragraphs cannot separate or stretch the buttons');
+  const scopes = elements(node).filter(element => element.props.className === 'field-note native-approval-scope');
+  for (const [index, scope] of ['Commands beginning with ["npm","test"]', 'Network host: api.example.com', 'Network host: other.example.com'].entries()) {
+    assert.equal(scopes[index].props.children[2], scope);
+    assert.equal(buttons(row)[index + 1].props['aria-describedby'], scopes[index].props.id);
+    assert.equal(scopes[index].props.children[0].props.children[0], `Allow always (${index + 1})`);
+    assert.ok(rendered.indexOf(`id="${scopes[index].props.id}"`) > rendered.indexOf('>Cancel turn</button>'));
   }
   assert.match(rendered, /asks Codex to save this rule for matching future requests\. Shared user settings may affect other sessions\./);
   assert.doesNotMatch(rendered, /saved successfully|verified on disk/i);
@@ -56,6 +66,52 @@ test('each action passes only its exact native answer and review remains separat
   assert.equal(reviews, 0);
   actions.at(-1).props.onClick();
   assert.equal(reviews, 1); assert.equal(submitted.length, expected.length);
+});
+
+test('a long native prefix cannot put scope text or a wide wrapper between Allow once and Allow always', async () => {
+  const prefix = ['example-tool', '--selected-work', 'path/'.repeat(800)];
+  const node = controls(command({ proposedExecpolicyAmendment: prefix }));
+  const row = elements(node).find(element => element.props.className === 'button-row native-approval-choices');
+  const actions = React.Children.toArray(row.props.children);
+  assert.ok(actions.every(action => action.type === 'button'), 'only compact buttons participate in the wrapping flex row');
+  assert.deepEqual(actions.slice(0, 2).map(action => action.props.children), ['Allow once', 'Allow always']);
+  assert.equal(actions[0].props['aria-describedby'], undefined);
+  const scope = elements(node).find(element => element.props.id === actions[1].props['aria-describedby']);
+  assert.ok(scope); assert.equal(scope.props.children[2], 'Commands beginning with ' + JSON.stringify(prefix));
+  assert.equal(elements(row).filter(element => element.props.className === 'field-note native-approval-scope').length, 0);
+  assert.equal(actions[1].props.children.length, 'Allow always'.length, 'the scope length cannot enlarge its visible button label');
+  const sheet = postcss.parse(await readFile(new URL('../src/style.css', import.meta.url), 'utf8'));
+  const rule = selector => sheet.nodes.find(node => node.type === 'rule' && node.selector === selector);
+  const declaration = (selector, property) => rule(selector)?.nodes.find(node => node.prop === property)?.value;
+  assert.equal(declaration('.button-row', 'display'), 'flex');
+  assert.equal(declaration('.native-approval-choices', 'flex-wrap'), 'wrap');
+  assert.equal(declaration('.native-approval-choices > .button', 'white-space'), 'nowrap');
+  assert.equal(declaration('.native-approval-choices > .button', 'flex'), '0 0 auto');
+  assert.equal(declaration('.native-approval-scopes .native-approval-scope', 'overflow-wrap'), 'anywhere');
+});
+
+test('multiple native saved scopes have unique accessible descriptions and exact action associations', async () => {
+  const offered = ['accept', 'acceptForSession', network('api.example.com'), exec(['first-tool']), exec(['second-tool']), 'decline'];
+  const question = command({ availableDecisions: offered });
+  const submitted = [], node = controls(question, { submit: answer => { submitted.push(answer); return true; } });
+  const actions = buttons(node);
+  assert.deepEqual(actions.map(action => action.props.children), ['Allow once', 'Allow always (1)', 'Allow always (2)', 'Allow always (3)', 'Allow for this session', 'Decline']);
+  const expected = new Map([
+    ['Network host: api.example.com', network('api.example.com')],
+    ['Commands beginning with ["first-tool"]', exec(['first-tool'])],
+    ['Commands beginning with ["second-tool"]', exec(['second-tool'])]
+  ]);
+  for (const action of actions.filter(action => String(action.props.children).startsWith('Allow always'))) {
+    const scope = elements(node).find(element => element.props.id === action.props['aria-describedby']);
+    assert.ok(scope); assert.equal(scope.props.children[0].props.children[0], action.props.children);
+    await action.props.onClick(); assert.deepEqual(submitted.at(-1), { decision: expected.get(scope.props.children[2]) });
+  }
+  const props = { question, busy: false, submit: () => assert.fail('Rendering cannot approve') };
+  const rendered = renderToStaticMarkup(React.createElement('div', null, React.createElement(NativeApprovalControls, props), React.createElement(NativeApprovalControls, props)));
+  const ids = [...rendered.matchAll(/id="([^"]+-scope-\d+)"/g)].map(match => match[1]);
+  const descriptions = [...rendered.matchAll(/aria-describedby="([^"]+)"/g)].map(match => match[1]);
+  assert.equal(ids.length, 8); assert.equal(new Set(ids).size, ids.length, 'separate mounted request cards cannot share description IDs');
+  assert.deepEqual(new Set(descriptions), new Set(ids));
 });
 
 test('only native offered permanent choices render; session approval retains its limited label', () => {
@@ -74,11 +130,10 @@ test('native MCP persist choices submit the exact offered persistence without a 
   const question = mcp({ codex_approval_kind: 'mcp_tool_call', persist: ['session', 'always'] });
   const submitted = [];
   const node = controls(question, { submit: answer => submitted.push(answer) });
-  for (const button of buttons(node)) button.props.onClick();
-  assert.deepEqual(submitted, [
-    { decision: 'accept' }, { decision: 'accept', persistence: 'session' },
-    { decision: 'accept', persistence: 'always' }, { decision: 'decline' }, { decision: 'cancel' }
-  ]);
+  const expected = { 'Allow once': { decision: 'accept' }, 'Allow for this session': { decision: 'accept', persistence: 'session' },
+    'Allow always': { decision: 'accept', persistence: 'always' }, Decline: { decision: 'decline' }, Cancel: { decision: 'cancel' } };
+  for (const button of buttons(node)) { button.props.onClick(); assert.deepEqual(submitted.at(-1), expected[button.props.children]); }
+  assert.equal(submitted.length, 5);
   const rendered = card(question);
   assert.match(rendered, />Allow always<\/button>/);
   assert.match(rendered, /This native tool; Codex manages the saved permission\./);
