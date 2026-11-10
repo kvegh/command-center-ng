@@ -9,6 +9,17 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.4.3 — Keep generated hook pages contiguous
+
+Generated hook text can contain long lines. Pack complete lines within the
+existing page limits and return the exact next line, so the character cap cannot
+silently skip context. Explicitly mark an overlong single-line excerpt.
+This changes paging only; the own-conversation, ownership, link and credential
+checks remain unchanged. Five focused cases and the production build pass.
+All eight pages of the real338-line hook file reconstruct its complete contents
+with a matching digest; no contents were printed. Publication and installed
+checks are pending. The1.4.2 broader-suite execution limitations still apply.
+
 ## 1.4.2 — Retain request explanations and recover missing context
 
 - Give an exact delivered file approval one guarded live snapshot when bounded
@@ -25,9 +36,12 @@ is retrievable in the [README before this reorganization](https://github.com/kve
 Validation: 185 affected checks, production build and independent review pass.
 The full-suite attempt is not clean: broader socket/subprocess/home-directory
 checks are restricted in this execution environment, with some child CLI output
-unavailable. No permissions were changed to run them. The previously refused real
-hook file passes the bounded source reader. Publication and installed checks are
-pending; actual native callback and physical-browser acceptance remain separate.
+unavailable. No permissions were changed to run them. Source is published and
+running1.4.2 is verified:108 installed file matches, trusted HTTPS/assets,
+authentication gates/both listeners and148 installed synthetic cases pass.
+The actual Coordinator also read16000 characters of its own previously refused
+hook text through the existing tool. New callback and physical-browser acceptance
+remain separate;1.4.3 corrects the observed page cursor limitation.
 
 ## 1.4.1 — Recover pending file changes from the live snapshot
 

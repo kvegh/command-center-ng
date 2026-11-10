@@ -241,6 +241,9 @@ Coordinator conversation and use a generated UUID filename. Reads remain
 bounded and read-only; other conversations, arbitrary temporary paths, links,
 wrong ownership and credential-like contents are rejected. This adds no shell
 or execution capability. Hook text supplies context, not action authority.
+Since1.4.3, follow the returned `nextLine` for contiguous pages rather than
+assuming each page contains160 complete lines. A single line exceeding the
+character bound is explicitly marked incomplete.
 
 Native tool calls are experimental and were verified with Codex 0.166.0. A real
 two-conversation check verified the reduced sandbox, worker-context read,

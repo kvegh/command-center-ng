@@ -516,7 +516,18 @@ export class Coordinator {
       if (content.includes('\0') || sourceCredentials.test(content) || hookCredentials.test(content)) throw fail('This hook output appears to contain credential material or binary data. Review it privately.', 400);
       const lines = content.split('\n');
       if (this.id !== coordinatorId || this.workspace.agents.get(coordinatorId) !== owner) throw fail('The coordinator conversation changed during inspection.', 400);
-      return { path, source: 'coordinator-hook-output', startLine, text: lines.slice(startLine - 1, startLine + 159).join('\n').slice(0, 16000), totalLines: lines.length };
+      const page = []; let characters = 0, next = startLine - 1, lineTruncated = false;
+      while (next < lines.length && page.length < 160) {
+        const line = lines[next], size = line.length + (page.length ? 1 : 0);
+        if (characters + size > 16000) {
+          if (!page.length) { page.push(line.slice(0, 16000)); next++; lineTruncated = true; }
+          break;
+        }
+        page.push(line); characters += size; next++;
+      }
+      return { path, source: 'coordinator-hook-output', startLine, text: page.join('\n'), totalLines: lines.length,
+        nextLine: next < lines.length ? next + 1 : null, lineTruncated,
+        ...(lineTruncated ? { notice: `Line ${startLine} exceeds 16000 characters; only a bounded excerpt is shown. The rest of this line is unavailable through line paging; nextLine continues at the following full line.` } : {}) };
     } finally { await file.close(); }
   }
   pruneApprovalSources() {

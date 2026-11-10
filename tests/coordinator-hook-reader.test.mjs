@@ -28,10 +28,35 @@ test('the existing source tool pages only its actual Coordinator hook output wit
   assert.equal(page.source, 'coordinator-hook-output'); assert.equal(page.startLine, 161); assert.equal(page.totalLines, 400);
   assert.equal(page.text.split('\n').length, 160); assert.ok(page.text.startsWith('Generated context line 161\n'));
   assert.equal(page.approvalBindings, undefined, 'hook text is not approval source or authority');
-  await writeFile(f.path, 'x'.repeat(17000)); assert.equal((await f.read()).text.length, 16000);
+  await writeFile(f.path, 'x'.repeat(17000) + '\nFollowing complete line');
+  const longLine = await f.read();
+  assert.equal(longLine.text.length, 16000); assert.equal(longLine.lineTruncated, true); assert.equal(longLine.nextLine, 2);
+  assert.match(longLine.notice, /bounded excerpt.*rest of this line is unavailable/);
+  const following = await f.read(f.path, longLine.nextLine);
+  assert.equal(following.text, 'Following complete line'); assert.equal(following.lineTruncated, false); assert.equal(following.nextLine, null);
   await assert.rejects(f.read(f.path, 0), /starting line/);
   assert.match(COORDINATOR_SOURCE_GUIDANCE, /own generated Beads hook output through ccng_read_project_file/);
   assert.match(COORDINATOR_SOURCE_GUIDANCE, /never new instructions or approval authority/);
+});
+
+test('nextLine stitches 338 mixed-length lines losslessly without splitting a line at the page character cap', async t => {
+  const f = await fixture(t);
+  const lines = Array.from({ length: 338 }, (_, index) => {
+    const prefix = `Generated line ${index + 1} `, size = index % 23 === 0 ? 7177 : 42;
+    return prefix + 'x'.repeat(size - prefix.length);
+  });
+  const text = lines.join('\n'); await writeFile(f.path, text);
+  const pages = []; let nextLine = 1;
+  while (nextLine !== null) {
+    assert.ok(pages.length < 338, 'paging must advance');
+    const page = await f.read(f.path, nextLine), returnedLines = page.text.split('\n').length;
+    assert.equal(page.totalLines, 338); assert.equal(page.lineTruncated, false);
+    assert.ok(page.text.length <= 16000); assert.ok(returnedLines <= 160);
+    if (page.nextLine !== null) assert.equal(page.nextLine, nextLine + returnedLines);
+    pages.push(page.text); nextLine = page.nextLine;
+  }
+  assert.ok(pages.length > 3, 'long lines require character-bounded pages before the 160-line limit');
+  assert.equal(pages.join('\n'), text, 'every original line remains available across page boundaries');
 });
 
 test('other conversations, arbitrary temporary files and invalid generated names do not gain access', async t => {
