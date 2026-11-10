@@ -5,6 +5,17 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+New post1.4.1 incident: a different live-delivered file approval lacks its
+proposal after the ordinary bounded history read.46mk is reopened and BLOCKED on
+one distinct structured design choice: allow one guarded snapshot reconnect per
+exact still-pending file request, or keep the current rule that never attaches
+again for a delivered card. This extension is a proposal, not selected or
+implemented. Native0.167 exact-item/list APIs read durable history only, while the
+live snapshot requires resume. Keep the real approval pending; no answer,
+cancellation, resubmission or permission change is authorized. The previous
+recovery evidence and answered observation questions below remain valid; they
+do not establish recovery of this new case. Production stays1.4.1 unchanged.
+
 Published and installed **1.4.1** corrects the delivered RHEL file approval
 with missing diff. Native source confirms paginated history omits transient
 pending patch events; the same approved resume response can include a bounded
