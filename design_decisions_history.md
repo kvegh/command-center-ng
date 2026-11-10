@@ -3147,3 +3147,28 @@ this is not proof of nonexecution. No uncertain operation was retried/cancelled
 and no absent prompt was answered. The strict CLI evidence checker rejects the
 current combined/truncated Coordinator projections; the live evidence above was
 inspected directly. Physical browser acceptance remains unverified.
+
+## 2026-11-10 — Read pending file details from the reconnect snapshot
+
+Implementation `3e8cccd51942310ca5796b253ebf2f0f1512d405` advances the application
+to1.4.1. A real recovered file approval still lacked proposed paths/diff. Native
+0.167 source shows that patch approval and started events are transient, while
+paginated durable history omits the live overlay. The approval callback retains
+its identity but does not itself contain the proposed changes.
+
+Request one descending full initial turn page on the same already-approved
+native resume operation. Use only its exact current pending file item by thread,
+turn and item identity, keeping original callback IDs/parameters and approval
+controls. Preserve newer live records, including unavailable/non-file records.
+Native resume responds before replaying callbacks, so consume its bounded page
+both immediately and after the existing replay wait. A delivered card does not
+trigger another resume, and an absent or mismatched proposal remains unavailable.
+No new timer, store, native profile or configuration override is added; patches
+are never inferred from a nearby shell/tool call.
+
+Verification:894 tests,893 passed, one unavailable alternate-group skip and zero
+failures; production build, diff checks and independent review pass. Four focused
+regressions cover callback timing, exact joins, newer-live precedence and no extra
+attachment. Publication, installation and actual outstanding-proposal recovery
+remain pending at this implementation checkpoint. The separate older AAP child-
+membership question is unanswered; this correction does not decide that issue.
