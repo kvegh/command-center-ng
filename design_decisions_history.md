@@ -2961,3 +2961,29 @@ and unrelated Bash content/metadata retained. Independent3461 passed in5.439s:
 Functional cases use isolated synthetic native transport and temporary test
 authentication; no real provider/model/approval call was created. Full actual
 browser/provider answer delivery and phone acceptance remain unverified.
+
+## 2026-11-10 — Keep approval choices together and reduce unnecessary tab attention
+
+Implementation `0223c113c2fb5ffaa18ae9ae81970348467950b6` prepares the
+unpublished 1.2.0 candidate. The user's phone screenshot showed a long saved-rule
+description separating Allow once from Allow always. Group the buttons in one
+wrapping row and show exact scopes below, with matching numbered labels and
+accessible descriptions when several reusable rules are available.
+
+The user also reserved amber agent tabs for requests needing human attention.
+Delivered command/file approvals that an available Coordinator can evaluate
+stay neutral while awaiting review. Referrals, manual questions, unavailable
+request details and requests the Coordinator cannot handle retain attention.
+Native confirmation remains a separate wait. Apply the same presentation to
+child requests, tab labels and the attention count; preserve actual native
+status, request contents, manual controls and execution gates.
+
+Independent review found and verified corrections for queued reviews and
+unrelated assistant questions hiding unknown native waits. The 42 focused
+approval/child/tab tests and production build pass. The full command passed
+77 of 84 test files; sandbox socket/subprocess restrictions and read-only home
+paths prevent full verification. Authentication passed separately after its
+combined-run failure. Phone rendering remains unverified. Publication and
+deployment are pending; production remains the verified 1.1.0 release.
+The existing mobile scrolling and child-reattachment choices remain unanswered,
+with no scrolling or request-recovery implementation in this candidate.
