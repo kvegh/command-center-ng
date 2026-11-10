@@ -3205,3 +3205,44 @@ checker conservatively rejects unsupported combined/metadata-wrapped native log
 shapes; the actual outcomes above were inspected directly, not inferred from its
 fixtures or an installation result. No new code or native permission change is
 part of this final evidence update.
+
+## 2026-11-10 — Preserve request explanations and recover missing context in1.4.2
+
+Implementation `124abacb154dcd185e09ace1064d54b658438b9f` applies three explicitly
+selected corrections using the existing request jobs, source reader and private
+decision history.
+
+A delivered file approval missing its proposal may receive one guarded full
+snapshot after bounded history lookup. The user approved this narrow extension
+of the previous no-extra-attachment boundary. Keep exact callback/token, cwd,
+lineage, connection/history and native waiting/ownership/stop/handoff/response
+checks; eligible failures consume the original allowance without a poll loop.
+No native answer, command resubmission or permission override is added.
+
+The source reader previously refused generated Beads hook text because it lay
+outside both project source and directly referenced approval helpers. The user
+selected read-only paging of only the current Coordinator's generated hook
+output. Enforce its own conversation directory and UUID filename, ownership,
+nonlinked regular files/ancestry, bounded reads, concurrent-change checks and
+credential/binary screening. Existing project/helper access stays unchanged;
+hook context is not independent action authority. The exact previously refused
+file now passes this reader with contents withheld from diagnostic output.
+
+Native reconnect can recreate a request without its in-memory review, although
+the dated concern remains saved. The user selected restoring the latest saved
+needs-user explanation only for an independently current request with matching
+typed identity, strong native discriminator and non-secret canonical fingerprint.
+Show it as an earlier review and retain manual waiting until explicit re-review.
+Unavailable or newly enriched file details do not erase that same callback's
+historical wait; any later approval still needs current proposal and real-user
+authority. Legacy ambiguous records remain history-only. Never restore positive
+approval decisions, native callbacks or answers from the audit. A final guard
+also prevents an in-flight review from answering after another review refers the
+request to the human.
+
+Validation:185 affected checks, production build, diff checks and independent
+review pass. The full-suite attempt is not clean: socket/subprocess/home-directory
+operations are restricted in the current execution environment, and some child
+CLI output is unavailable. Those restrictions were preserved. Publication,
+installed verification and genuine new callback acceptance remain pending at
+this source checkpoint; physical-browser acceptance remains separate.
