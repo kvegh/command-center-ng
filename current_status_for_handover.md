@@ -5,7 +5,7 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working **1.3.0** integrates the unpublished 1.2.0 approval-button grouping
+Published and installed **1.3.0** integrates the unpublished 1.2.0 approval-button grouping
 and Coordinator-aware tab attention with user-selected one-page mobile history,
 automatic exact native file-detail loading and truthful blocked-task wording.
 Mobile input remains six lines with internal overflow; saved desktop dimensions
@@ -18,14 +18,21 @@ after fresh native parent proof; no speculative foreign reads or child resume.
 
 The final combined suite ran 864 tests: 863 passed, one unavailable alternate-
 group case skipped, zero failed. Production build and independent integration
-review pass. Publication and installed verification remain pending. The initial compound
+review pass. Implementation eb319b6/payload862169b are SSH-published and remote-
+readback verified. AAP3476 updated production in25.245s preserving9protectedfiles
+and unrelated Bash content/permissions. AAP3477 passed in6.741s:107installedfiles
+match, actual1.3.0/HTTPS/assets/auth/listeners and75installedbackendregressions
+pass with synthetic transport. User confirms1.3.0visible. The initial compound
 Git command failed in the restricted sandbox; standalone git fetch origin then
 succeeded with unchanged SSH configuration. Likewise standalone bd show works
 after a compound Git/Beads inspection failed on the Dolt socket. Use separate
 tool calls for approved Git/Beads operations so their existing command rules
 apply. No security/configuration workaround or permission change is needed.
-The latest verified published/production release remains 1.1.0; no new deployment
-job has yet been launched.
+The latest verified production payload is862169b, version1.3.0. A subsequent
+screenshot still shows two native waiting-without-details cards and falsely says
+Needs your answer in the footer. Native reads confirm those children and parent
+currently carry waitingOnApproval, but expose no request envelope. This remains
+unresolved; source/task/backend verification does not prove live recovery.
 
 Automatic reconnection of already-missing child callbacks is not approved by
 "no extra click" or the separate mobile choice. Native thread/resume can invoke

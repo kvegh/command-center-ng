@@ -9,10 +9,10 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
-## 1.3.0 working — Clearer requests, task input and mobile scrolling
+## 1.3.0 — Clearer requests, task input and mobile scrolling
 
-This combined candidate includes the unpublished 1.2.0 changes; it does not
-represent a separate published or deployed 1.2.0 release.
+This release includes the previously unpublished 1.2.0 changes; 1.2.0 was not
+separately released or deployed.
 
 - Keep Allow once and offered Allow always actions together in a compact
   wrapping row. Place long exact saved-rule scopes below the actions, using
@@ -39,9 +39,18 @@ represent a separate published or deployed 1.2.0 release.
 
 The final combined suite ran 864 tests: 863 passed, one unavailable alternate-
 group case skipped, zero failed. The production build and independent source
-review pass. Publication and installed verification are pending. These checks
-do not establish physical phone behavior, provider delivery or recovery of
-already-lost native callbacks.
+review pass. Implementation eb319b6 and payload 862169b are SSH-published and
+remote-readback verified. AAP 3476 updated production in 25.245 seconds and
+preserved nine protected files plus unrelated Bash content/permissions.
+Independent 3477 passed in 6.741 seconds: 107 installed source files match;
+running 1.3.0, trusted HTTPS, served assets, authentication gates and both
+listeners pass. Twenty-one prior question/handoff and 54 request/task backend
+regressions pass against installed modules with synthetic native transport.
+The user confirms version 1.3.0 is visible. Physical phone behavior and recovery
+of already-lost native callbacks remain unverified. A subsequent user screenshot
+still shows unknown native waits and exposes a separate footer classification
+error: aggregate native attention is incorrectly called Needs your answer even
+without a delivered question. That correction remains in progress.
 
 ## 1.1.0 — Answer eligible assistant questions
 

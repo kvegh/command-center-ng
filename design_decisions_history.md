@@ -3033,3 +3033,15 @@ Independent integration review is clear. The final combined suite ran 864 tests:
 production build passes. Publication and installed verification remain pending
 at this checkpoint. Source/fixture checks do not establish physical phone
 behavior, actual provider delivery or recovery of the existing native incident.
+
+
+1.3.0 publication and installed checkpoint: implementation eb319b6 and payload
+862169b are SSH-published/readback verified. AAP3476 completed in25.245s, preserving
+nine protected files and unrelated Bash bytes/ownership/mode. Independent3477
+completed in6.741s:107 installed files match, running1.3.0 trusted HTTPS/assets,
+authentication gates/both listeners and75 installed synthetic backend regressions
+pass. The user confirms1.3.0 is visible. Their subsequent screenshot exposes a
+remaining footer defect: native attention, including unknown child waits, is
+called Needs your answer without a delivered question. Those native waits are
+not proven resolved or recoverable by the release; their classification and
+presentation remain in scope. No real provider request was resumed or answered.
