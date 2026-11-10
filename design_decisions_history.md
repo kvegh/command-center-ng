@@ -3091,3 +3091,37 @@ corrected composer guidance. Physical browser behavior remains unverified. A
 fresh native read still reports the existing AAP child waitingOnApproval with no
 request body or returned execution result. The UI correction does not establish
 recovery; the existing reconnection side-effect decision remains pending.
+
+## 2026-11-10 — Reconnect eligible native waits after explicit user approval
+
+Implementation `6947ad373f6d6f3e1d964da2844f41264ba823bf` advances the application
+to 1.4.0. The user selected automatic reconnection after reviewing the native
+resume operation's possible idle-continuation side effect. This supersedes the
+unanswered reconnection choice recorded for 1.3.1. Native metadata reads alone
+cannot replay an existing request stream, so the existing five-second poll now
+reattaches open local worker roots and verified known children freshly active
+with waitingOnApproval and no delivered request.
+
+Keep the original native conversation and request identities, coalesce one
+attempt per connection and continuous waiting episode, and stop automatic retries
+after an empty or failed replay. Exclude intentional idle/unloaded, foreign,
+paused/stopped, Coordinator and handoff contexts; preserve ownership, native
+permissions and newer live outcomes. The accepted race can continue existing
+work if a qualifying conversation becomes idle before native resume arrives.
+The implementation sends no approval answer, command retry or configuration
+and permission override. No new timer, persistent store or dependency is added.
+
+The native client now declares support for human-only command checkpoints so
+those callbacks can be delivered. Their decisions remain manual, with hard
+Coordinator review denial and no reusable grants. Unsupported kinds fail closed.
+Replayed foreign worker tool callbacks are left with their original executor;
+replying or refusing them would consume another client's real pending work.
+CCNG-owned Coordinator tools retain their existing handler. Missing-details
+cards stay in place; their removal was not selected.
+
+Verification: 890 tests, 889 passed, one unavailable alternate-group skip and zero
+failures; production build, diff checks and independent integration review pass.
+The bounded read-only evidence checker rejects ambiguous readbacks, stale
+invocations and missing native bindings. Synthetic transport proves regressions,
+not real provider recovery. Publication, deployment, genuine request delivery and
+physical browser acceptance remain unverified at this implementation checkpoint.
