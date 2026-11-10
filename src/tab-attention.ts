@@ -51,7 +51,6 @@ function requestAttention(context: RequestContext, question: Question, coordinat
 // Presentation only: never change native status, approvals, ownership or send
 // gates. Backend-projected child questions already carry verified parentage.
 export function tabAttentionView(agent: TabWorker, coordinatorAvailable: boolean): TabAttention {
-  if (agent.role === 'coordinator') return view(statusLabels[agent.status] || agent.status, agent.status === 'attention');
   const states: TabAttention[] = [];
   const asyncStates = (agent.messages || []).flatMap(message => message.nativeQuestions || []);
   const contexts = [{ ...agent, status: agent.ownStatus ?? agent.status }, ...(agent.workers || [])];
@@ -59,10 +58,10 @@ export function tabAttentionView(agent: TabWorker, coordinatorAvailable: boolean
     const questions = context.questions || [];
     const pending = questions.length || context.status === 'attention' || context.needsInput;
     if ((pending && (context.requestError || context.detailError)) || ('observeError' in context && context.observeError && questions.length)) {
-      states.push(view('Request details unavailable', true));
+      states.push(view('Request details unavailable', questions.length > 0));
     }
-    for (const question of questions) states.push(requestAttention(context, question, coordinatorAvailable && agent.provider !== 'claude'));
-    if (!questions.length && (context.status === 'attention' || context.needsInput)) states.push(view('Request details unavailable', true));
+    for (const question of questions) states.push(requestAttention(context, question, coordinatorAvailable && agent.role !== 'coordinator' && agent.provider !== 'claude'));
+    if (!questions.length && (context.status === 'attention' || context.needsInput)) states.push(view('Request details unavailable'));
   }
   for (const question of asyncStates) {
     if (['available', 'unconfirmed'].includes(question.answerState || '')) states.push(view(question.answerState === 'unconfirmed' ? 'Answer delivery unconfirmed' : 'Needs your answer', true));
@@ -70,9 +69,13 @@ export function tabAttentionView(agent: TabWorker, coordinatorAvailable: boolean
   }
   const human = states.find(state => state.needsUser);
   if (human) return human;
+  // An empty native wait is a diagnostic, not an invented user question. Keep it
+  // visible even when unrelated assistant metadata reports a confirmation wait.
+  const unavailable = states.find(state => state.label === 'Request details unavailable');
+  if (unavailable) return unavailable;
   const awaitingCoordinator = states.some(state => state.awaitingCoordinator);
   const confirming = states.some(state => state.confirming);
   if (awaitingCoordinator || confirming) return view(awaitingCoordinator ? 'Awaiting Coordinator review' : 'Waiting for native confirmation', false, awaitingCoordinator, confirming);
-  if (agent.status === 'attention') return view('Request details unavailable', true);
+  if (agent.status === 'attention') return view('Request details unavailable');
   return view(statusLabels[agent.status] || agent.status);
 }

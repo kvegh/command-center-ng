@@ -315,11 +315,12 @@ scope visibly and accessibly, including when several saved rules are offered.
 Agent-tab amber indicates a need for the human user, rather than every native
 approval wait. A delivered command/file approval still eligible for an available
 Coordinator stays neutral and says it awaits Coordinator review. Explicit
-referrals, manual-only questions/permissions and missing request details retain
-human attention. Native confirmation waits stay distinct from resolution.
-Include child requests and current assistant questions. Preserve actual backend
-status, request contents and all send/approval gates; only tab presentation and
-its attention counter change.
+referrals, manual-only questions/permissions and actual answer errors retain
+human attention. Native attention without a delivered request is a neutral
+missing-details diagnostic, not evidence the user can submit an answer. Use the
+same request evidence in tabs and the input header, including child requests,
+Coordinator review and native confirmation. Preserve actual backend status,
+request contents and all send/approval gates; presentation cannot resolve a wait.
 
 Coordinator project cards place the saved report cadence beside the project
 name. When the worker's current tracker has Needs input tasks, their titles

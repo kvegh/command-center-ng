@@ -125,13 +125,13 @@ test('manual clarification, permissions, MCP and unsupported approval methods ar
   needsUser(tabAttentionView(worker(), false));
 });
 
-test('missing details and unverified child warnings stay amber with a recovery label, not an invented referral', () => {
+test('empty native waits and unverified child diagnostics stay neutral without inventing a human question', () => {
   const own = tabAttentionView(worker({ questions: [] }), true);
-  needsUser(own); assert.equal(own.label, 'Request details unavailable');
+  assert.equal(own.needsUser, false); assert.equal(own.label, 'Request details unavailable');
   for (const extra of [{ requestError: 'Ownership cannot be verified.' }, { detailError: 'Metadata unavailable.' }, { needsInput: true, status: 'attention' }]) {
     const child = { id: 'child', status: 'idle', questions: [], ...extra };
     const result = tabAttentionView(worker({ ownStatus: 'idle', questions: [], workers: [child] }), true);
-    needsUser(result); assert.equal(result.label, 'Request details unavailable');
+    assert.equal(result.needsUser, false); assert.equal(result.label, 'Request details unavailable');
   }
   for (const errorField of ['requestError', 'detailError']) {
     const result = tabAttentionView(worker({ status: 'idle', ownStatus: 'idle', questions: [], workers: [{ id: 'child', status: 'idle', questions: [], [errorField]: 'An unrelated metadata read failed.' }] }), true);
@@ -160,7 +160,7 @@ test('live async questions retain human attention; submission waits do not inven
   assert.equal(sending.needsUser, false); assert.equal(sending.confirming, true);
   for (const answerState of ['submitting', 'submitted', 'read-only']) {
     const unknownNativeRequest = tabAttentionView(worker({ questions: [], messages: [{ nativeQuestions: [{ answerState }] }] }), true);
-    needsUser(unknownNativeRequest); assert.equal(unknownNativeRequest.label, 'Request details unavailable');
+    assert.equal(unknownNativeRequest.needsUser, false); assert.equal(unknownNativeRequest.label, 'Request details unavailable');
   }
   for (const answerState of ['submitted', 'read-only', undefined]) {
     assert.equal(tabAttentionView(worker({ status: 'running', ownStatus: 'running', questions: [], messages: [{ nativeQuestions: [{ answerState }] }] }), true).needsUser, false);
@@ -177,8 +177,47 @@ test('only an available matching Coordinator suppresses reviewable waits; ordina
   }
 });
 
-test('the shared derived needs-user count excludes review/confirmation waits and keeps Coordinator native attention', () => {
-  const views = [tabAttentionView(worker(), true), tabAttentionView(worker({ questions: [command({ responding: true })] }), true), tabAttentionView(worker({ questions: [command({ method: 'item/permissions/requestApproval' })] }), true), tabAttentionView(coordinator({ status: 'attention' }), true)];
+test('the shared count includes real Coordinator questions but excludes empty native, review and confirmation waits', () => {
+  const views = [tabAttentionView(worker(), true), tabAttentionView(worker({ questions: [command({ responding: true })] }), true), tabAttentionView(worker({ questions: [command({ method: 'item/permissions/requestApproval' })] }), true), tabAttentionView(coordinator({ status: 'attention', questions: [command({}, 'coordinator')] }), true), tabAttentionView(coordinator({ status: 'attention' }), true)];
   assert.equal(views.filter(view => view.needsUser).length, 2);
-  assert.equal(views[3].label, 'Needs you');
+  assert.equal(views[3].label, 'Needs your decision');
+  assert.equal(views[4].label, 'Request details unavailable'); assert.equal(views[4].needsUser, false);
+});
+
+test('technical delivered-request errors remain explicit rather than becoming a decision label', () => {
+  const answerError = tabAttentionView(worker({ questions: [command({ error: 'The answer could not be confirmed.' })] }), true);
+  assert.equal(answerError.label, 'Request answer error'); assert.equal(answerError.needsUser, true);
+  const emptyError = tabAttentionView(worker({ questions: [], requestError: 'The native envelope was not delivered.' }), true);
+  assert.equal(emptyError.label, 'Request details unavailable'); assert.equal(emptyError.needsUser, false);
+  const manual = tabAttentionView(worker({ questions: [command({ review: { decision: 'ask', rationale: 'Choose one target.' } })] }), true);
+  assert.equal(manual.label, 'Needs your decision'); assert.equal(manual.needsUser, true);
+  const coordinatorConfirming = tabAttentionView(coordinator({ status: 'attention', questions: [command({ responding: true }, 'coordinator')] }), true);
+  assert.equal(coordinatorConfirming.label, 'Waiting for native confirmation'); assert.equal(coordinatorConfirming.needsUser, false);
+});
+
+test('actual tab class and footer wiring keep unknown waits neutral while genuine manual requests remain amber', async () => {
+  const main = await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8');
+  const ast = ts.createSourceFile('main.tsx', main, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let tabStatus, footer;
+  const visit = node => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'tabStatus') tabStatus = node.initializer.getText(ast);
+    if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(ast) === 'WorkerStatus') footer = node;
+    ts.forEachChild(node, visit);
+  }; visit(ast);
+  assert.ok(tabStatus); assert.ok(footer);
+  const evaluateStatus = new Function('agent', 'view', ts.transpileModule(`return (${tabStatus});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText);
+  for (const [agent, expected] of [
+    [worker({ questions: [] }), 'waiting'],
+    [worker({ ownStatus: 'idle', questions: [], workers: [{ id: 'child', status: 'attention', needsInput: true, questions: [] }] }), 'waiting'],
+    [worker(), 'waiting'],
+    [worker({ questions: [command({ responding: true })] }), 'waiting'],
+    [worker({ questions: [command({ method: 'item/tool/requestUserInput' })] }), 'attention'],
+    [worker({ questions: [command({ review: { decision: 'ask', rationale: 'Choose a target.' } })] }), 'attention']
+  ]) {
+    const before = structuredClone(agent), view = tabAttentionView(agent, true);
+    assert.equal(evaluateStatus(agent, view), expected);
+    assert.deepEqual(agent, before, 'changing visual class never changes native status or pending requests');
+  }
+  const presentation = footer.attributes.properties.find(attribute => ts.isJsxAttribute(attribute) && attribute.name.text === 'presentation');
+  assert.equal(presentation?.initializer?.expression?.getText(ast), 'tabAttention.get(active.id)');
 });

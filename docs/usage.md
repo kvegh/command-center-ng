@@ -41,7 +41,10 @@ newline while sending is unavailable.
 New text entered during an earlier send acknowledgement is preserved.
 
 The input header distinguishes **Sending**, native-acknowledged **Input received**,
-**Working**, **Needs your answer** and completed/interrupted outcomes. Input
+**Working**, actual **Needs your answer**, Coordinator-review/confirmation waits,
+and completed/interrupted outcomes. A native wait without a delivered request
+says **Request details unavailable**; it does not demand an answer or prove the
+agent has resumed. Input
 received confirms runtime acceptance, not model understanding. Connection health
 and time since the last real agent update are separate: browser heartbeats do
 not prove agent progress, and quiet work is not automatically declared stuck.
@@ -264,9 +267,11 @@ remains postponed.
 
 Agent tabs stay neutral while a delivered command/file approval awaits an
 available Coordinator. Amber means your attention is needed: a referral, a
-manual-only question or permission, an error, or missing request details.
-Waiting for native confirmation is shown separately. These tab indicators do
-not change the actual pending request, its answer controls or execution gates.
+manual-only question or permission, or an actual answer error. A native wait
+without a delivered request stays neutral with **Request details unavailable**.
+The input header uses the same request evidence, including child requests,
+Coordinator review and native confirmation. These indicators do not change
+the actual pending request, its answer controls or execution gates.
 
 Codex structured questions use an under-development native feature. Installation
 attempts its native setup and startup checks it; missing or unsuccessful setup

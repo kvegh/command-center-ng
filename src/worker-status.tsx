@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import type { TabAttention } from './tab-attention';
 
 export type InputReceipt = { state: 'sending' | 'received' | 'unconfirmed'; at: number };
 export type StreamHealth = { state: 'connecting' | 'connected' | 'reconnecting'; lastSignalAt: number | null };
 export type WorkerActivity = {
-  status: string; questions: unknown[];
+  status: string; ownStatus?: string; questions: unknown[];
   finishedTurn?: { status: string };
   lastNativeEventAt?: string;
 };
@@ -42,7 +43,7 @@ export function observeWorkspaceStream(stream: EventSource, snapshot: (value: un
   };
 }
 
-export function workerStatusView(worker: WorkerActivity, stream: StreamHealth, runtimeConnected: boolean, now: number) {
+export function workerStatusView(worker: WorkerActivity, stream: StreamHealth, runtimeConnected: boolean, now: number, presentation?: TabAttention) {
   // Three missed 15-second heartbeats make updates uncertain, not proof of a
   // stuck agent. No interruption, resend or restart follows this label.
   const fresh = stream.state === 'connected' && stream.lastSignalAt !== null && now - stream.lastSignalAt < 45_000;
@@ -51,12 +52,16 @@ export function workerStatusView(worker: WorkerActivity, stream: StreamHealth, r
     : stream.state === 'reconnecting' ? 'CCNG reconnecting'
     : !fresh ? 'Connection unconfirmed'
     : !runtimeConnected ? 'Codex disconnected' : 'Connected';
-  const activity = worker.questions.length || worker.status === 'attention' ? 'Needs your answer'
-    : worker.status === 'running' ? 'Working'
-    : worker.status === 'error' || worker.finishedTurn?.status === 'failed' ? 'Error'
-    : worker.status === 'offline' ? 'Offline'
+  const ownStatus = worker.ownStatus ?? worker.status;
+  const ordinaryActivity = worker.questions.length ? 'Needs your answer'
+    : ownStatus === 'attention' ? 'Request details unavailable'
+    : ownStatus === 'running' ? 'Working'
+    : ownStatus === 'error' || worker.finishedTurn?.status === 'failed' ? 'Error'
+    : ownStatus === 'offline' ? 'Offline'
     : worker.finishedTurn?.status === 'interrupted' ? 'Stopped'
     : worker.finishedTurn?.status === 'completed' ? 'Finished' : 'Idle';
+  const hasPresentation = presentation && (presentation.needsUser || presentation.awaitingCoordinator || presentation.confirming || presentation.label === 'Request details unavailable');
+  const activity = hasPresentation ? presentation.label : ordinaryActivity;
   const lastUpdate = Date.parse(worker.lastNativeEventAt || '');
   const elapsed = Number.isFinite(lastUpdate) ? Math.max(0, Math.floor((now - lastUpdate) / 1000)) : null;
   const age = elapsed === null ? null : elapsed < 60 ? `${elapsed}s` : elapsed < 3600 ? `${Math.floor(elapsed / 60)}m` : `${Math.floor(elapsed / 3600)}h`;
@@ -64,20 +69,21 @@ export function workerStatusView(worker: WorkerActivity, stream: StreamHealth, r
     connection, connected,
     activity: connected ? activity : `Last known: ${activity}`,
     working: connected && activity === 'Working',
-    attention: activity === 'Needs your answer' || activity === 'Error',
+    attention: presentation ? presentation.needsUser || activity === 'Error' : activity === 'Needs your answer' || activity === 'Error',
     age: age === null ? 'Last agent update unknown' : `Last agent update ${age} ago`,
   };
 }
 
-export function WorkerStatus({ worker, receipt, stream, runtimeConnected }: {
+export function WorkerStatus({ worker, receipt, stream, runtimeConnected, presentation }: {
   worker: WorkerActivity; receipt?: InputReceipt; stream: StreamHealth; runtimeConnected: boolean;
+  presentation?: TabAttention;
 }) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const clock = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(clock);
   }, []);
-  const view = workerStatusView(worker, stream, runtimeConnected, now);
+  const view = workerStatusView(worker, stream, runtimeConnected, now, presentation);
   const receiptLabel = receipt?.state === 'sending' ? 'Sending…' : receipt?.state === 'received' ? 'Input received' : receipt ? 'Input not confirmed' : null;
   return <div className="worker-status">
     <span className={`worker-status-state ${view.working ? 'working' : ''} ${view.attention ? 'attention' : ''}`} role="status">

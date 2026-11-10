@@ -5,6 +5,15 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
+Working **1.3.1** corrects the observed false Needs your answer footer and amber
+classification for native attention without a delivered request. It reuses the
+existing tab request evidence for the input header; native states and execution
+gates remain unchanged. Empty-card placement is still a discussed recommendation,
+not a selected layout change. Exact AAP cold-call investigation remains in46mk;
+no native resume, answer, job retry or permission change is authorized by this
+presentation correction. Final suite867:866passed,1alternate-group skip,0failed;
+build and independent review pass. Publication/deployment remain pending.
+
 Published and installed **1.3.0** integrates the unpublished 1.2.0 approval-button grouping
 and Coordinator-aware tab attention with user-selected one-page mobile history,
 automatic exact native file-detail loading and truthful blocked-task wording.

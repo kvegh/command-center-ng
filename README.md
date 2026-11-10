@@ -52,7 +52,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Open existing Codex conversations or start new agents in explicit project directories.
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
 - Chat, steer active work, interrupt a turn and answer supported native questions or approvals, including eligible current assistant-question cards.
-- See received native requests and matching file-change details automatically, including verified Codex child requests in their parent chat.
+- See received native requests and matching file-change details automatically, including verified Codex child requests in their parent chat. Distinguish requests needing your answer from native waits with unavailable details.
 - Branch a Codex conversation, then hand tasks and a summary back to its parent.
 - See linked Beads tasks, explicit input needs, ordinary blockers and optional task notifications.
 - Request concise task reports or optional detailed action histories; choose a saved interval, or Never to disable automatic startup and recurring reports.

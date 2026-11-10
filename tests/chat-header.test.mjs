@@ -139,12 +139,35 @@ test('failed or uncertain delivery is never labelled received or automatically r
 test('native status and outcomes distinguish working, questions, idle, finished, stopped and errors', () => {
   for (const [values, activity] of [
     [{ status: 'running', finishedTurn: { status: 'failed' } }, 'Working'],
-    [{ status: 'attention' }, 'Needs your answer'],
+    [{ status: 'attention' }, 'Request details unavailable'],
     [{ status: 'running', questions: [{ id: 1 }] }, 'Needs your answer'],
     [{}, 'Idle'], [{ finishedTurn: { status: 'completed' } }, 'Finished'],
     [{ finishedTurn: { status: 'interrupted' } }, 'Stopped'],
     [{ finishedTurn: { status: 'failed' } }, 'Error'], [{ status: 'error' }, 'Error'], [{ status: 'offline' }, 'Offline'],
   ]) assert.equal(workerStatusView(worker(values), live, true, now).activity, activity);
+});
+
+test('footer uses shared request presentation without turning neutral waits into human-answer prompts', () => {
+  const base = { status: 'attention', ownStatus: 'idle', questions: [] };
+  for (const [presentation, expectedAttention] of [
+    [{ label: 'Request details unavailable', needsUser: false, awaitingCoordinator: false, confirming: false }, false],
+    [{ label: 'Awaiting Coordinator review', needsUser: false, awaitingCoordinator: true, confirming: false }, false],
+    [{ label: 'Waiting for native confirmation', needsUser: false, awaitingCoordinator: false, confirming: true }, false],
+    [{ label: 'Needs your answer', needsUser: true, awaitingCoordinator: false, confirming: false }, true],
+    [{ label: 'Needs your decision', needsUser: true, awaitingCoordinator: false, confirming: false }, true],
+    [{ label: 'Request answer error', needsUser: true, awaitingCoordinator: false, confirming: false }, true]
+  ]) {
+    const before = structuredClone(base), view = workerStatusView(base, live, true, now, presentation);
+    assert.equal(view.activity, presentation.label); assert.equal(view.attention, expectedAttention);
+    const html = renderToStaticMarkup(React.createElement(WorkerStatus, { worker: base, presentation, stream: { state: 'connected', lastSignalAt: Date.now() }, runtimeConnected: true }));
+    assert.ok(html.includes(presentation.label));
+    assert.equal(/class="worker-status-state[^\"]*attention/.test(html), expectedAttention);
+    if (!expectedAttention) assert.doesNotMatch(html, /Needs your answer|Needs your decision/);
+    assert.deepEqual(base, before);
+  }
+  assert.equal(workerStatusView(worker({ status: 'attention', ownStatus: 'running' }), live, true, now).activity, 'Working', 'child-only aggregate attention is not a parent answer request');
+  const unknown = workerStatusView(worker({ status: 'attention' }), live, true, now);
+  assert.equal(unknown.activity, 'Request details unavailable'); assert.equal(unknown.attention, false);
 });
 
 test('transport freshness never invents worker activity or a stuck state', () => {

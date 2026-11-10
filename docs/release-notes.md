@@ -9,6 +9,21 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.3.1 working — Distinguish native waits from user decisions
+
+- Use the same request evidence in the input header and agent tabs. A native
+  attention flag without a delivered request is a neutral missing-details
+  diagnostic, rather than Needs your answer.
+- Keep actual manual questions, Coordinator referrals and answer errors visible;
+  distinguish eligible Coordinator review and native confirmation waits.
+- Preserve all native states, request controls and send/interrupt gates. This
+  presentation correction does not recover, dismiss or resume a native wait.
+
+The final combined suite ran 867 tests:866 passed, one unavailable alternate-
+group case skipped, zero failed. Production build and independent review pass.
+Publication and installed verification remain pending. The existing cold-callback
+recovery decision and physical browser acceptance remain separate.
+
 ## 1.3.0 — Clearer requests, task input and mobile scrolling
 
 This release includes the previously unpublished 1.2.0 changes; 1.2.0 was not
