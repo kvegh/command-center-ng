@@ -123,7 +123,7 @@ test('foreign children, stale tokens and incomplete native bindings cannot answe
   assert.deepEqual(f.rpc.replies, []); assert.equal(f.workspace.resolveRequestContext(f.workspace.agent('parent'), 'child').questions[0], question);
 });
 
-test('child refresh and exact file-detail recovery stay read-only when native history has no matching body', async t => {
+test('child file-detail recovery preserves the request and attempts only one guarded snapshot when history has no body', async t => {
   const f = await fixture(t), question = f.ask(74, 'child', 'item/fileChange/requestApproval');
   for (const body of [{ requestThreadId: 'child' }, f.binding(question)]) {
     const response = await f.request('/api/agents/parent/requests', body).finished;
@@ -134,7 +134,10 @@ test('child refresh and exact file-detail recovery stay read-only when native hi
   assert.match(child.questions[0].nativeItem.notice, /not available|no matching|unavailable|did not provide/i);
   assert.equal(child.questions[0].reviewToken, question.reviewToken); assert.deepEqual(f.rpc.replies, []);
   assert.deepEqual(f.workspace.snapshot().agents.map(agent => agent.id), ['parent']);
-  assert.ok(f.rpc.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)));
+  assert.ok(f.rpc.calls.every(call => ['thread/read', 'thread/turns/list', 'thread/resume'].includes(call.method)));
+  assert.deepEqual(f.rpc.calls.filter(call => call.method === 'thread/resume').map(call => call.params), [
+    { threadId: 'child', excludeTurns: true, initialTurnsPage: { limit: 1, sortDirection: 'desc', itemsView: 'full' } },
+  ]);
   assert.ok(f.rpc.calls.some(call => call.method === 'thread/turns/list' && call.params.threadId === 'child'));
 });
 

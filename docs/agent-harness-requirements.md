@@ -155,6 +155,13 @@ approval's actual working directory and revalidate source/command evidence.
 Reading a helper does not execute it or grant new access. Model review is a
 judgment, not hard containment. Keep manual controls and concise decision reasons.
 
+The current source reader also permits bounded text from the Coordinator's own
+generated Beads hook-output directory, with path, ownership, link and credential
+checks. This narrowly selected exception does not grant shell or arbitrary-file
+access. After reconnect, a saved needs-user reason may accompany a verified
+current request only when fingerprint and stable native identity match; it
+cannot restore an approval or provide permission authority.
+
 Sources: [coordinator implementation](../server/coordinator.mjs),
 [approval-source reader](../server/approval-source.mjs),
 [coordinator documentation](coordinator.md), and [coordinator tests](../tests/coordinator.test.mjs).

@@ -244,11 +244,17 @@ answer a request or guarantee recovery of a lost callback.
 Since 1.4.0, CCNG permits a bounded reconnection attempt for an already-open local
 Codex worker or a known child whose native parent lineage is verified. A fresh
 native status must show active work with `waitingOnApproval`, and the wait must
-have no delivered current request. An existing actionable card keeps its native
-controls without an unnecessary reconnect. The existing
+have no delivered current request. Since 1.4.2, an exact delivered file approval
+whose paths/diff remain unavailable after bounded history lookup may also receive
+one guarded snapshot reconnect. An actionable card with available details keeps
+its native controls without another reconnect. The existing
 five-second backend poll coalesces the attempt once per context, connection and
 wait episode. Missing details or an error do not start a repeated retry loop;
 the diagnostic and existing manual controls remain available.
+
+The delivered-file attempt remains tied to the original request, working
+directory, connection and history revision. Failed history or snapshot reads
+consume its automatic allowance; they do not cause a repeated poll/reload loop.
 
 This reattaches the existing native conversation and can replay original request
 IDs. Since 1.4.1, that same response requests one full recent turn so pending
@@ -497,5 +503,10 @@ A separate Saved/Saving/Not saved status describes local persistence; it does no
 change whether a native approval was acknowledged. Coordinator summaries are
 saved privately and reload after restart, including recorded names for closed
 tabs. Delivery events remain temporary. A visible warning explains unavailable
-or unsaved history even when the list is collapsed. Records are explanatory only;
-answer current requests in Open questions. See [storage details](coordinator.md#decision-summaries-after-restart).
+or unsaved history even when the list is collapsed. Records do not grant authority
+or replay native answers. Since 1.4.2, the latest matching needs-user explanation
+can reappear, dated, on a verified current request after reconnect. It waits for
+your decision until you explicitly ask the Coordinator to review again. Matching
+requires a request fingerprint and a stable native identifier; old or ambiguous
+records remain history-only. Answer current requests in Open questions.
+See [storage details](coordinator.md#decision-summaries-after-restart).

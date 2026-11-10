@@ -157,7 +157,10 @@ function NativeRequestFields({ question, agentId, requestThreadId, workerName, r
     {question.params.reason && <p>{question.params.reason}</p>}
     {question.responding && <p role="status">Waiting for the native agent to confirm resolution…</p>}
     {(error || question.error) && <p className="error-text" role="alert">{error || question.error}</p>}
-    {question.review && <p className="field-note coordinator-review">Coordinator · {question.review.decision === 'ask' ? 'Needs your decision' : question.review.decision}:{'\n'}{question.review.rationale}</p>}
+    {question.review && <p className="field-note coordinator-review">Coordinator · {question.review.historicalAt
+      ? <>Earlier review (<time dateTime={question.review.historicalAt}>{new Date(question.review.historicalAt).toLocaleString()}</time>) · Needs your decision</>
+      : question.review.decision === 'ask' ? 'Needs your decision' : question.review.decision}:{'\n'}{question.review.rationale}</p>}
+    {question.review?.historicalAt && <p className="field-note">Answer below or ask the coordinator to review again.</p>}
     {clarification ? <form onSubmit={event => { event.preventDefault(); void submit({ answers }); }}>
       {(question.params.questions || []).map((field: any) => <fieldset key={field.id} disabled={busy}><legend>{field.question}</legend>
         {field.options && <div className="choices">{field.options.map((option: any) => <button type="button" key={option.label} className={answers[field.id] === option.label ? 'choice selected' : 'choice'} onClick={() => setAnswers({ ...answers, [field.id]: option.label })}><strong>{option.label}</strong><span>{option.description}</span></button>)}</div>}

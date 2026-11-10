@@ -8,7 +8,7 @@ import { nativeApprovalAnswer } from '../server/approval-choices.mjs';
 function fixture() {
   const rpc = new EventEmitter(); rpc.ready = true;
   const w = new Workspace(rpc, { beads: null });
-  const agent = { id: 'worker', name: 'Example', role: 'worker', canSend: true, messages: [], questions: [], tasks: [], workers: [], turnId: 'turn', thread: { id: 'worker', status: { type: 'active' } } };
+  const agent = { id: 'worker', name: 'Example', cwd: '/example/project', role: 'worker', canSend: true, messages: [], questions: [], tasks: [], workers: [], turnId: 'turn', thread: { id: 'worker', cwd: '/example/project', status: { type: 'active' } } };
   w.agents.set(agent.id, agent); w.watched.add(agent.id);
   const coordinator = new Coordinator(w); coordinator.paused = true;
   const changes = [{ path: '/example/project/config.yml', kind: { type: 'update', move_path: null }, diff: '-previous\n+reviewed\n' }];
@@ -290,7 +290,7 @@ function resumePageFixture({ afterAck = false, returnedThreadId = 'worker', page
   const f = fixture(), calls = [], answers = [], original = f.request();
   f.coordinator.paused = false; f.coordinator.mark = () => {}; f.coordinator.flush = async () => {};
   f.w.coordinator = f.coordinator; f.w.recoveryTimeout = 200;
-  f.agent.thread = { id: 'worker', parentThreadId: null, status: { type: 'active', activeFlags: ['waitingOnApproval'] } };
+  f.agent.thread = { id: 'worker', parentThreadId: null, cwd: f.agent.cwd, status: { type: 'active', activeFlags: ['waitingOnApproval'] } };
   f.rpc.respond = (id, result) => answers.push({ id, result });
   f.rpc.call = async (method, params) => {
     calls.push({ method, params });
@@ -349,11 +349,11 @@ test('newer live exact file details take precedence over an older resume-page sn
   }
 });
 
-test('an already delivered missing-body card does not trigger an additional native resume', async () => {
+test('an already delivered missing-body card receives one guarded snapshot reconnect and no repeat', async () => {
   const f = resumePageFixture(); f.w.request(f.original); await tick();
   await f.w.refreshObserved('worker'); await tick();
   assert.equal(f.agent.questions[0].params, f.original.params);
-  assert.equal(f.w.requestView(f.agent, f.agent.questions[0]).nativeItem.state, 'unavailable');
-  assert.equal(f.calls.filter(call => call.method === 'thread/resume').length, 0); assert.deepEqual(f.answers, []);
-  assert.ok(f.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)));
+  assert.equal(f.w.requestView(f.agent, f.agent.questions[0]).nativeItem.state, 'available');
+  assert.equal(f.calls.filter(call => call.method === 'thread/resume').length, 1); assert.deepEqual(f.answers, []);
+  assert.ok(f.calls.every(call => ['thread/read', 'thread/turns/list', 'thread/resume'].includes(call.method)));
 });

@@ -235,6 +235,13 @@ AGENTS.md inputs are read as instructions with a total size limit. Ordinary MCP
 server names containing letters, digits, underscores and hyphens are supported;
 other names currently fail coordinator startup rather than guessing an override.
 
+Since 1.4.2, the existing `ccng_read_project_file` also reads the Coordinator's
+own generated Beads hook-output text. The path must belong to that current
+Coordinator conversation and use a generated UUID filename. Reads remain
+bounded and read-only; other conversations, arbitrary temporary paths, links,
+wrong ownership and credential-like contents are rejected. This adds no shell
+or execution capability. Hook text supplies context, not action authority.
+
 Native tool calls are experimental and were verified with Codex 0.166.0. A real
 two-conversation check verified the reduced sandbox, worker-context read,
 published progress, actual pushed summary and worker acknowledgement. Approval
@@ -420,6 +427,14 @@ and are not automatically imported.
 Native resolved, needs-user and unconfirmed outcomes stay distinct. Saved rows
 cannot authorize another request, restore a pending approval or change native
 permissions. Current requests remain in Open questions.
+
+Since 1.4.2, a saved needs-user explanation can appear on an independently
+verified current request after reconnect. Matching requires a non-secret
+fingerprint of the exact request and a stable native discriminator, in addition
+to typed request and thread identity. The dated note keeps that request waiting
+for the human; the existing **Ask coordinator to review** control explicitly
+requests a fresh review. No approval/decline or native answer is restored.
+Legacy records without sufficient identity remain history-only.
 
 If loading/writing fails, the panel shows a warning and unsaved status without
 changing the native decision's real outcome. Corrupt, partial, unsafe or externally

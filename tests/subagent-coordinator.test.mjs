@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Workspace } from '../server/workspace.mjs';
 import { Coordinator } from '../server/coordinator.mjs';
+import { approvalRequestFingerprint } from '../server/decision-store.mjs';
 
 const scope = 'Run the isolated verification checks and update the selected project files.';
 const commandMethod = 'item/commandExecution/requestApproval';
@@ -81,6 +82,24 @@ test('verified unopened child requests and waiting status are visible under thei
   assert.equal(f.workspace.snapshot().backgroundQuestions, 0);
   assert.deepEqual(f.rpc.replies, []);
   assert.ok(f.rpc.calls.every(call => call.method === 'thread/read'), 'child discovery performs bounded native reads only');
+});
+
+test('a saved child referral appears only under verified current parentage and preserves the native token', async t => {
+  const f = await fixture(t); const child = await f.child(); f.ask(child.id);
+  const question = child.questions[0]; const token = question.reviewToken;
+  f.coordinator.audit.push({ id: 'saved-child-review', at: '2026-01-01T12:49:00.000Z', storageState: 'saved',
+    agentId: child.id, requestId: question.id, requestFingerprint: approvalRequestFingerprint(child, question),
+    decision: 'ask', outcome: 'needs_user', rationale: 'Choose the child target first.' });
+  const view = f.workspace.snapshot().agents.find(agent => agent.id === f.parent.id).workers.find(worker => worker.id === child.id);
+  assert.equal(view.questions[0].review.historicalAt, '2026-01-01T12:49:00.000Z');
+  assert.equal(view.questions[0].review.rationale, 'Choose the child target first.'); assert.equal(view.questions[0].reviewToken, token);
+  const rows = await f.call('ccng_list_workers'); const pending = rows.find(row => row.id === f.parent.id);
+  assert.equal(pending.questions[0].requestThreadId, child.id); assert.equal(pending.requestSummary.needsUserRequests, 1);
+  await assert.rejects(f.call('ccng_review_approval', f.approval(question)), /waiting for your decision/);
+  child.lineageNeedsRefresh = true;
+  assert.equal(f.coordinator.historicalReferral(child, question), null, 'unverified parentage cannot inherit a historical explanation');
+  assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === f.parent.id).workers.find(worker => worker.id === child.id).questions.length, 0);
+  assert.deepEqual(f.rpc.replies, []);
 });
 
 test('a parent user instruction can authorize exactly one child command without resolving a same-ID parent request', async t => {

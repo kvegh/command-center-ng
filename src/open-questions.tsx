@@ -5,7 +5,7 @@ export type Question = {
   id: string | number; method: string; params: Record<string, any>;
   reviewToken?: string;
   responding?: boolean; error?: string | null;
-  review?: { decision: string; rationale: string };
+  review?: { decision: string; rationale: string; historicalAt?: string; decisionId?: string };
   nativeItem?: {
     threadId: string; turnId: string; itemId: string; type: 'fileChange';
     state: 'available' | 'unavailable'; totalChanges: number | null; truncated: boolean;

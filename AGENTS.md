@@ -333,6 +333,19 @@ waiting for the user. Respect safe-idle/pending-request gates and distinguish
 queued from delivered. Do not dismiss requests, bypass controls, broaden scope,
 change credentials or retry automatically to deliver or avoid a non-approval.
 
+The user approved preserving a dated needs-user explanation across reconnection
+only for a verified current request with a matching non-secret fingerprint and
+stable native identifier. Reuse the existing private decision history; legacy
+or ambiguous records remain historical. Retain manual waiting until explicit
+human re-review. Never restore approvals/declines, send answers or make saved
+history an authorization source.
+
+The existing source reader may read bounded generated Beads hook text for the
+current Coordinator conversation only. Match its own generated-output directory
+and UUID filename; reject other conversations, arbitrary temporary paths, links,
+wrong ownership and credential-like contents. No shell, execution or general
+filesystem permission is added. Project/helper checks remain unchanged.
+
 ## Local-only session management
 
 The user explicitly limits Command Center session monitoring to local Claude and
@@ -480,8 +493,12 @@ that the native resume operation can also continue existing work if the session
 becomes idle. Use only metadata-only thread/resume with the original thread ID,
 without config, permission or input overrides. A one-turn full initial page in
 that same response can supply exact pending file changes omitted by durable
-history; preserve newer live bodies and never add an attachment for a delivered
-card. Native replay must supply the
+history; preserve newer live bodies. The user additionally approved one guarded
+snapshot reconnect for an exact delivered file approval still missing its proposal
+after bounded history lookup. Bind cwd as well as request identity, epoch and
+history revision; consume the allowance on failed/empty eligible attempts so
+polling cannot repeat them. Delivered actionable cards with available proposals
+remain outside this exception. Native replay must supply the
 original request IDs/bodies; never construct an approval or answer automatically.
 Respect explicit pause/stop, ownership, handoff, current connection/history and
 session identity. Do not intentionally reconnect idle, not-loaded, unrelated,

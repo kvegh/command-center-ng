@@ -96,6 +96,15 @@ test('unsupported command kinds remain visible with compatibility advice and no 
   assert.doesNotMatch(rendered, /Ask coordinator to review|>Allow once|>Decline|>Cancel turn/);
 });
 
+test('restored referrals show their date and reason while preserving manual choices and explicit re-review', () => {
+  const historicalAt = '2026-01-01T12:49:00.000Z';
+  const rendered = card({ ...command({ command: 'example-tool --check' }), review: { decision: 'ask', rationale: 'Choose the intended target.', historicalAt, decisionId: 'past-decision' } });
+  assert.match(rendered, /Earlier review/); assert.match(rendered, /dateTime="2026-01-01T12:49:00.000Z"/);
+  assert.match(rendered, /Choose the intended target/); assert.match(rendered, /Needs your decision/);
+  assert.match(rendered, /Answer below or ask the coordinator to review again/);
+  assert.match(rendered, />Allow once<\/button>/); assert.match(rendered, />Ask coordinator to review<\/button>/);
+});
+
 test('a long native prefix cannot put scope text or a wide wrapper between Allow once and Allow always', async () => {
   const prefix = ['example-tool', '--selected-work', 'path/'.repeat(800)];
   const node = controls(command({ proposedExecpolicyAmendment: prefix }));

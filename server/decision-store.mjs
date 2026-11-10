@@ -2,6 +2,8 @@ import { constants } from 'node:fs';
 import { lstat, mkdir, open, realpath } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
+import { approvalWorkingDirectory } from './approval-source.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const DECISION_HISTORY_LIMIT = 200;
@@ -9,6 +11,35 @@ const lineLimit = 16_384;
 const sensitive = /-----BEGIN[^\r\n]*PRIVATE KEY-----|\b(?:gh[pousr]_|github_pat_|sk-)[A-Za-z0-9_-]{20,}|\bAKIA[A-Z0-9]{16}\b|\bauthorization\s*:\s*(?:bearer|basic)\s+\S+|\b(?:password|passwd|api[_ -]?key|access[_ -]?token|client[_ -]?secret)\s*[:=]\s*["'][^"'\r\n]{8,}["']/i;
 const decisions = new Set(['approve', 'decline', 'ask']);
 const outcomes = new Set(['resolved', 'needs_user', 'unconfirmed']);
+const requestMethods = new Set(['item/commandExecution/requestApproval', 'item/fileChange/requestApproval']);
+const nativeReference = value => typeof value === 'string' && value.length > 0 && value.length <= 128 && !/[\x00-\x1f\x7f]/.test(value);
+
+// Only a native discriminator can distinguish a replay from a reused callback
+// number. Missing legacy identity stays history-only rather than being guessed.
+export function approvalRequestFingerprint(context, question) {
+  const params = question?.params;
+  if (!requestMethods.has(question?.method) || !params || typeof params !== 'object' || Array.isArray(params)
+    || !nativeReference(context?.id) || params.threadId !== context.id) return null;
+  const strongIdentity = (nativeReference(params.turnId) && nativeReference(params.itemId))
+    || (Number.isSafeInteger(params.startedAtMs) && params.startedAtMs > 0) || nativeReference(params.approvalId);
+  if (!strongIdentity) return null;
+  try {
+    const value = [question.method, params, approvalWorkingDirectory(question, context.cwd)];
+    if (Buffer.byteLength(JSON.stringify(value)) > 256_000) return null;
+    const canonical = JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item)
+      ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
+    return 'sha256-v1:' + createHash('sha256').update(canonical).digest('hex');
+  } catch { return null; }
+}
+
+export function previousRequestReferral(records, context, question) {
+  const requestFingerprint = approvalRequestFingerprint(context, question);
+  if (!requestFingerprint) return null;
+  const latest = records.findLast(row => row.agentId === context.id
+    && row.requestId === question.id && row.requestFingerprint === requestFingerprint);
+  return latest?.storageState === 'saved' && latest.decision === 'ask' && latest.outcome === 'needs_user'
+    ? { decision: 'ask', rationale: latest.rationale, historicalAt: latest.at, decisionId: latest.id } : null;
+}
 
 // A projection, never a serialization of native approval parameters. These
 // records explain past decisions; they cannot authorize or replay an action.
@@ -25,6 +56,7 @@ export function decisionRecord(value) {
   if (!Number.isFinite(Date.parse(at)) || new Date(at).toISOString() !== at) throw new Error('Invalid decision-history timestamp.');
   const requestId = value.requestId;
   if (!(typeof requestId === 'string' && requestId.length > 0 && requestId.length <= 128) && !Number.isSafeInteger(requestId)) throw new Error('Invalid decision-history request reference.');
+  if (value.requestFingerprint !== undefined && (typeof value.requestFingerprint !== 'string' || !/^sha256-v1:[a-f0-9]{64}$/.test(value.requestFingerprint))) throw new Error('Invalid decision-history request fingerprint.');
   return {
     version: 1, id: text('id', 128), at, agentId: text('agentId', 128),
     workerName: text('workerName', 2000), projectName: text('projectName', 255),
@@ -32,6 +64,7 @@ export function decisionRecord(value) {
     rationale: text('rationale', 2000), requestId,
     coordinatorId: text('coordinatorId', 128, false), turnId: text('turnId', 128, false),
     itemId: text('itemId', 128, false), authorizationMessageId: text('authorizationMessageId', 128, false),
+    ...(value.requestFingerprint !== undefined ? { requestFingerprint: value.requestFingerprint } : {}),
   };
 }
 

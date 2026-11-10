@@ -9,6 +9,26 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.4.2 — Retain request explanations and recover missing context
+
+- Give an exact delivered file approval one guarded live snapshot when bounded
+  history cannot supply its proposal. Keep working-directory and request identity
+  checks; failed eligible attempts cannot create an automatic retry loop.
+- Allow the Coordinator's existing source reader to read its own generated Beads
+  hook-output pages within the explicitly approved path, ownership, link and
+  credential checks. No shell or general filesystem access is added.
+- Restore a dated needs-user explanation only when a current native request has
+  the same fingerprint and stable identity. Keep it waiting for the human until
+  explicit re-review; ambiguous older records stay historical. Never restore
+  approvals or submit native answers from saved history.
+
+Validation: 185 affected checks, production build and independent review pass.
+The full-suite attempt is not clean: broader socket/subprocess/home-directory
+checks are restricted in this execution environment, with some child CLI output
+unavailable. No permissions were changed to run them. The previously refused real
+hook file passes the bounded source reader. Publication and installed checks are
+pending; actual native callback and physical-browser acceptance remain separate.
+
 ## 1.4.1 — Recover pending file changes from the live snapshot
 
 Pending native patch approvals can outlive their transient file-change events,

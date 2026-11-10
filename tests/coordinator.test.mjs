@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Workspace } from '../server/workspace.mjs';
 import { COORDINATOR_TOOLS } from '../server/coordinator.mjs';
-import { DecisionStore } from '../server/decision-store.mjs';
+import { DecisionStore, approvalRequestFingerprint } from '../server/decision-store.mjs';
 import { COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_RATIONALE_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE } from '../server/coordinator-prompt.mjs';
 
 class Rpc extends EventEmitter {
@@ -232,6 +232,8 @@ test('decision history saves native outcomes and source references but never app
     const args = { agentId: 'worker', reviewToken: question.reviewToken, decision: 'ask', rationale: 'Request: Verify the selected configuration.\nConcern: Confirm the intended target.', authorizationMessageId: null, authorizationQuote: null };
     assert.equal((await f.call('ccng_review_approval', args)).outcome, 'needs_user');
     args.decision = 'approve'; args.authorizationMessageId = 'user-worker'; args.authorizationQuote = 'Create and clean up disposable test resources.';
+    await assert.rejects(f.call('ccng_review_approval', args), /waiting for your decision/);
+    question.review = { decision: 'queued', rationale: 'Review requested by the user.' };
     assert.equal((await f.call('ccng_review_approval', args)).outcome, 'resolved');
     await f.coordinator.flushDecisionHistory();
     const rows = await new DecisionStore(file).load();
@@ -256,6 +258,86 @@ test('decision history saves native outcomes and source references but never app
       assert.equal(restored.rpc.replies.length, 0, 'a saved explanation is not user authority');
     } finally { await restored.close(); }
   } finally { await f.close(); }
+});
+
+test('saved exact referrals survive restoration as dated manual waits without answering or authorizing requests', async () => {
+  const original = await fixture(); let restored;
+  const emit = f => {
+    f.rpc.ask(71, 'worker');
+    const question = f.workspace.agent('worker').questions[0];
+    Object.assign(question.params, { cwd: '/example-project', itemId: 'exact-item', startedAtMs: 1_800_000_000_000 });
+    return question;
+  };
+  try {
+    const file = join(original.cwd, 'decisions.jsonl');
+    await original.coordinator.initializeDecisionHistory(new DecisionStore(file));
+    const old = emit(original); const rationale = 'Request: Verify the selected project.\nConcern: Choose the intended target first.';
+    await original.call('ccng_review_approval', { agentId: 'worker', reviewToken: old.reviewToken, decision: 'ask', rationale });
+    await original.coordinator.flushDecisionHistory();
+    const [saved] = await new DecisionStore(file).load();
+    assert.equal(saved.requestFingerprint, approvalRequestFingerprint(original.workspace.agent('worker'), old));
+    restored = await fixture(); await restored.coordinator.initializeDecisionHistory(new DecisionStore(file));
+    const beforeDisconnect = emit(restored);
+    restored.rpc.ready = false; restored.rpc.emit('disconnected', 'Synthetic disconnect.');
+    assert.equal(restored.workspace.agent('worker').questions.length, 0, 'a saved explanation cannot recreate a native request');
+    restored.rpc.ready = true; restored.rpc.emit('connected');
+    const current = emit(restored);
+    assert.notEqual(current.reviewToken, old.reviewToken); assert.notEqual(current.reviewToken, beforeDisconnect.reviewToken);
+    const snapshot = restored.workspace.snapshot().agents.find(agent => agent.id === 'worker');
+    assert.deepEqual(snapshot.questions[0].review, { decision: 'ask', rationale, historicalAt: saved.at, decisionId: saved.id });
+    assert.equal(current.review, undefined, 'history is a derived explanation, not copied native state');
+    current.params.command = 'changed-command';
+    assert.equal(restored.workspace.requestView(restored.workspace.agent('worker'), current).review, undefined, 'a changed command cannot inherit the old explanation');
+    current.params.command = 'fixture-command';
+    const details = await restored.call('ccng_read_worker', { agentId: 'worker' });
+    assert.equal(details.requestSummary.needsUserRequests, 1); assert.equal(details.requestSummary.unreviewedApprovals, 0);
+    for (const decision of ['approve', 'decline', 'ask']) {
+      await assert.rejects(restored.call('ccng_review_approval', { agentId: 'worker', reviewToken: current.reviewToken, decision, rationale: 'The existing user scope covers this check.', authorizationMessageId: 'user-worker', authorizationQuote: 'Create and clean up disposable test resources.' }), /waiting for your decision/);
+    }
+    restored.coordinator.dirty.clear(); restored.coordinator.markRemainingApprovals('worker'); assert.equal(restored.coordinator.dirty.size, 0);
+    assert.equal(restored.rpc.replies.length, 0); assert.equal(restored.coordinator.audit.length, 1);
+    await restored.workspace.answer('worker', 71, { decision: 'decline' });
+    assert.deepEqual(restored.rpc.replies, [{ id: 71, result: { decision: 'decline' } }]);
+    assert.equal(restored.workspace.agent('worker').questions.length, 0);
+  } finally { await restored?.close(); await original.close(); }
+});
+
+test('explicit manual re-review supersedes a saved referral but still requires actual user authority', async () => {
+  const f = await fixture();
+  try {
+    const file = join(f.cwd, 'decisions.jsonl'); await f.coordinator.initializeDecisionHistory(new DecisionStore(file));
+    f.rpc.ask('exact-current', 'worker');
+    const question = f.workspace.agent('worker').questions[0]; question.params.itemId = 'native-item';
+    await f.call('ccng_review_approval', { agentId: 'worker', reviewToken: question.reviewToken, decision: 'ask', rationale: 'Confirm the selected target first.' });
+    await f.coordinator.flushDecisionHistory();
+    question.review = undefined; // A fresh native replay does not retain CCNG review state.
+    assert.ok(f.workspace.requestView(f.workspace.agent('worker'), question).review.historicalAt);
+    question.review = { decision: 'queued', rationale: 'Review requested by the user.' }; // Existing authenticated Ask coordinator route.
+    assert.equal(f.workspace.requestView(f.workspace.agent('worker'), question).review.decision, 'queued');
+    const args = { agentId: 'worker', reviewToken: question.reviewToken, decision: 'approve', rationale: 'The cited user instruction covers this exact project.', authorizationMessageId: f.coordinator.audit[0].id, authorizationQuote: 'Confirm the selected target first.' };
+    await assert.rejects(f.call('ccng_review_approval', args), /actual user instruction/);
+    args.authorizationMessageId = 'user-worker'; args.authorizationQuote = 'Create and clean up disposable test resources.';
+    assert.equal((await f.call('ccng_review_approval', args)).outcome, 'resolved');
+    await f.coordinator.flushDecisionHistory();
+    assert.deepEqual(f.rpc.replies, [{ id: 'exact-current', result: { decision: 'accept' } }]);
+    f.rpc.ask('exact-current', 'worker'); const next = f.workspace.agent('worker').questions[0]; next.params.itemId = 'native-item';
+    assert.equal(f.workspace.requestView(f.workspace.agent('worker'), next).review, undefined, 'a later resolved approval cannot restore either an answer or the older referral');
+  } finally { await f.close(); }
+});
+
+test('a manual referral arriving during an authority read prevents the earlier review from answering', async () => {
+  const f = await fixture(); let release;
+  try {
+    f.rpc.ask('racing-referral', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    const authorizationMessage = f.coordinator.authorizationMessage.bind(f.coordinator);
+    const gate = new Promise(resolve => { release = resolve; }); let entered = false;
+    f.coordinator.authorizationMessage = async (...args) => { entered = true; await gate; return authorizationMessage(...args); };
+    const approving = f.call('ccng_review_approval', { agentId: 'worker', reviewToken: question.reviewToken, decision: 'approve', rationale: 'Verify the authorized scope.', authorizationMessageId: 'user-worker', authorizationQuote: 'Create and clean up disposable test resources.' });
+    await waitFor(() => entered);
+    await f.call('ccng_review_approval', { agentId: 'worker', reviewToken: question.reviewToken, decision: 'ask', rationale: 'Choose the target first.' });
+    release(); await assert.rejects(approving, /waiting for your decision/);
+    assert.equal(question.review.decision, 'ask'); assert.equal(f.rpc.replies.length, 0);
+  } finally { release?.(); await f.close(); }
 });
 
 test('decision storage failure cannot change or retry a confirmed native approval', async () => {

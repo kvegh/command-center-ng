@@ -830,8 +830,12 @@ Use the native `thread/resume` call with the original `threadId`,
 `excludeTurns: true` and a bounded one-turn full initial page. Use that same
 response for exact pending file-change items omitted by durable history; match
 current request/thread/turn/item, preserve newer live bodies and retain original
-request identities and answer controls. Never add a second attachment merely
-for an already-delivered card.
+request identities and answer controls. The approved 1.4.2 exception permits
+one guarded snapshot reconnect for an exact delivered file approval whose
+proposal remains unavailable after bounded history. Verify unchanged cwd,
+identity, lineage, connection and history before using it. Eligible failed or
+empty attempts consume the original callback's allowance; do not repeat them
+through polling or manual detail reloads.
 
 Exclude intentional idle/unloaded, foreign, paused/stopped, Coordinator and
 handoff contexts. Do not answer approvals, change permissions/configuration or
@@ -871,6 +875,23 @@ active approvals/credentials/raw code/answer forms. No replay or permission auth
 from saved summaries. Native acknowledgement/outcome stays independent of save
 failure; visible errors and graceful write flushing are required. Existing native
 history remains full reference, without automatic retrospective import.
+
+The user additionally selected restoration of the latest needs-user explanation
+onto a verified current request. Persist only a non-secret request fingerprint
+and native reference metadata in the existing history. Require a stable native
+discriminator; legacy or ambiguous records remain history-only. Show the date
+and retain manual waiting until an explicit human request for fresh Coordinator
+review. Never restore positive approvals, send native answers or use saved text
+as permission authority.
+
+### Coordinator's own generated Beads hook output
+
+The existing source reader may read bounded pages of generated text output under
+the current Coordinator conversation's own hook-output directory. This is an
+explicit narrow exception to project/helper-only reads. Reject other conversations,
+arbitrary temporary files, links, wrong ownership and credential-like contents.
+Add no shell access, execution, dependency inspection or general filesystem
+permission. Hook text supplies context, never independent action authority.
 
 ## Version 0.48.0 requirements
 

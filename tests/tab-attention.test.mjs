@@ -122,12 +122,17 @@ test('Ask coordinator HTTP round trip queues the current request without asking 
   assert.equal(tabAttentionView(actual, true).awaitingCoordinator, true);
   assert.equal(tabAttentionView(actual, true).needsUser, false);
   needsUser(tabAttentionView(actual, false));
+  question.review = { decision: 'ask', rationale: 'Choose the intended target.', historicalAt: '2026-01-01T12:49:00.000Z' };
+  assert.equal(tabAttentionView({ ...actual, questions: [question] }, true).needsUser, true);
+  const retryReview = await request('/api/agents/worker/review', { requestId: question.id }, cookie);
+  assert.equal(retryReview.statusCode, 200); assert.equal(reviewRequests, 2);
+  assert.deepEqual(question.review, { decision: 'queued', rationale: 'Review requested by the user.' });
   for (const [requestId, kind] of [[32, 'humanCommand'], [33, 'futureKind']]) {
     rpc.emit('request', { id: requestId, method: 'item/commandExecution/requestApproval', params: { threadId: 'worker', turnId: null, itemId: null, kind, command: 'example-tool --check', availableDecisions: ['accept', 'acceptForSession'] } });
     const current = workspace.agent('worker').questions.find(question => question.id === requestId);
     const denied = await request('/api/agents/worker/review', { requestId }, cookie);
     assert.equal(denied.statusCode, 400);
-    assert.equal(reviewRequests, 1, 'human-only and unsupported kinds cannot queue coordinator work');
+    assert.equal(reviewRequests, 2, 'human-only and unsupported kinds cannot queue coordinator work');
     assert.equal(current.review, undefined); assert.equal(current.responding, undefined);
   }
 });

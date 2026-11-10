@@ -35,6 +35,18 @@ test('serialized decisions append privately and survive a new store without keep
   assert.deepEqual(await new DecisionStore(f.file).load(), Array.from({ length: 12 }, (_, index) => record(index)));
 });
 
+test('optional request fingerprints survive restart without adding native parameters or breaking legacy records', async t => {
+  const f = await fixture(t); const requestFingerprint = 'sha256-v1:' + 'a'.repeat(64);
+  await f.store.append(record());
+  await f.store.append({ ...record(2), requestFingerprint, params: { command: 'not-for-storage' }, reviewToken: 'not-for-storage' });
+  assert.deepEqual(await new DecisionStore(f.file).load(), [record(), { ...record(2), requestFingerprint }]);
+  assert.doesNotMatch(await readFile(f.file, 'utf8'), /params|reviewToken|not-for-storage/);
+  for (const invalid of [null, '', 'sha256:' + 'a'.repeat(64), 'sha256-v1:' + 'A'.repeat(64), { hash: requestFingerprint }]) {
+    await assert.rejects(f.store.append({ ...record(3), requestFingerprint: invalid }), /request fingerprint/);
+  }
+  assert.equal((await new DecisionStore(f.file).load()).length, 2);
+});
+
 test('startup memory stays bounded while older disk records are retained unchanged', async t => {
   const f = await fixture(t); await mkdir(join(f.directory, 'private'), { mode: 0o700 });
   const rows = Array.from({ length: DECISION_HISTORY_LIMIT + 8 }, (_, index) => record(index));

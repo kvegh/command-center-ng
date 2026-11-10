@@ -188,14 +188,16 @@ export class Workspace extends EventEmitter {
     return { connected: this.available(), codexConnected: this.rpc.ready, claudeAvailable: !!this.claude?.available, claudeError: this.claude?.error || null, error: this.error, nativeWarning: this.nativeWarning || null, version: VERSION, restoration: this.restoration, handoffCompletions: this.handoffs.completions, coordinator: this.coordinator?.snapshot() || null, ...this.backgroundRequests(), agents: [...this.agents.values()].map(agent => { const subagents = this.subagentViews(agent); const ownStatus = this.readyFor(agent) ? (agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline'; return ({ ...agent, workers: [...(agent.workers || []).map(worker => ({ ...worker, ...subagents.find(child => child.id === worker.id) })), ...subagents.filter(child => !(agent.workers || []).some(worker => worker.id === child.id))], ownStatus, messages: agent.messages.map(message => { const { fileChangeContext: internal, ...visible } = message; if (visible.nativeQuestions) visible.nativeQuestions = visible.nativeQuestions.map(question => asyncQuestionView(agent, message, question, this.asyncQuestionHandoffBlocked(agent))); return imageReferences(agent.id, visible); }), questions: agent.questions.map(question => this.requestView(agent, question)), ...taskSummary(agent), reportState: this.coordinator?.reportState(agent.id) || null, reportSettingPending: !!this.coordinator?.deliveries.get(agent.id)?.some(row => row.kind === 'report-setting'), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), recoveringRequests: this.requestJobs.has(agent.id), status: this.readyFor(agent) && subagents.some(child => child.needsInput) ? 'attention' : ownStatus, thread: undefined }); }) };
   }
   requestView(agent, question) {
-    if (question.method !== 'item/fileChange/requestApproval') return question;
-    const p = question.params, binding = { threadId: agent.id, turnId: p.turnId, itemId: p.itemId, type: 'fileChange' };
     const pending = !question.unassociated && this.pending.get(requestKey(agent.id, question.id)) === question && agent.questions.includes(question);
+    const referral = pending && !question.review ? this.coordinator?.historicalReferral?.(agent, question) : null;
+    const view = referral ? { ...question, review: referral } : question;
+    if (question.method !== 'item/fileChange/requestApproval') return view;
+    const p = question.params, binding = { threadId: agent.id, turnId: p.turnId, itemId: p.itemId, type: 'fileChange' };
     const message = pending && p.threadId === agent.id && typeof p.turnId === 'string' && typeof p.itemId === 'string'
       ? agent.messages.findLast(row => row.id === p.itemId && row.turnId === p.turnId) : null;
     const context = message?.nativeType === 'fileChange' ? message.fileChangeContext : null;
     const notice = question.detailError || (message?.nativeType && message.nativeType !== 'fileChange' ? `The exact native item is ${message.nativeType}, not fileChange. No file diff was inferred.` : 'File paths and diff are not available for this exact native request yet. No answer has been sent.');
-    return { ...question, nativeItem: context ? { ...binding, state: 'available', loading: false, ...structuredClone(context) } : { ...binding, state: 'unavailable', loading: !!question.fileDetailsLoading, changes: [], totalChanges: null, truncated: false, notice } };
+    return { ...view, nativeItem: context ? { ...binding, state: 'available', loading: false, ...structuredClone(context) } : { ...binding, state: 'unavailable', loading: !!question.fileDetailsLoading, changes: [], totalChanges: null, truncated: false, notice } };
   }
   requestContextFingerprint(agent, question) {
     const context = this.requestView(agent, question).nativeItem;
@@ -265,18 +267,28 @@ export class Workspace extends EventEmitter {
   }
   async loadFileDetails(parent, agent) {
     if (this.requestJobs.has(agent.id)) return this.requestJobs.get(agent.id);
+    const source = { epoch: this.requestEpoch, revision: agent.historyRevision || 0, cwd: agent.cwd };
     const missing = agent.questions.filter(question => this.fileRequestCurrent(parent, agent, question) && this.requestView(agent, question).nativeItem.state === 'unavailable');
     const bindings = new Map(missing.map(question => [question, { threadId: question.params.threadId, turnId: question.params.turnId, itemId: question.params.itemId, reviewToken: question.reviewToken }]));
-    const current = question => this.fileRequestCurrent(parent, agent, question, bindings.get(question)) && question.reviewToken === bindings.get(question).reviewToken;
+    const current = question => source.epoch === this.requestEpoch && source.revision === (agent.historyRevision || 0) && agent.cwd === source.cwd && this.fileRequestCurrent(parent, agent, question, bindings.get(question)) && question.reviewToken === bindings.get(question).reviewToken;
     const job = Promise.resolve().then(async () => {
       const needed = missing.filter(question => current(question) && this.requestView(agent, question).nativeItem.state === 'unavailable');
       if (needed.length) {
         for (const question of needed) { question.fileDetailsAttempted = true; question.fileDetailsLoading = true; }
-        const revision = agent.historyRevision || 0;
         const before = new Map(agent.messages.map(message => [JSON.stringify([message.turnId, message.id]), message]));
-        const page = await this.rpc.call('thread/turns/list', { threadId: agent.id, limit: 20, itemsView: 'full' });
-        if (!Array.isArray(page?.data)) throw new Error('Native history did not return file detail records.');
-        if ((agent.historyRevision || 0) === revision && this.requestContextCurrent(parent, agent)) for (const question of needed) {
+        let page;
+        try {
+          page = await this.rpc.call('thread/turns/list', { threadId: agent.id, limit: 20, itemsView: 'full' });
+          if (!Array.isArray(page?.data)) throw new Error('Native history did not return file detail records.');
+        } catch (error) {
+          // An eligible callback gets one automatic attempt even if durable
+          // history fails first. Paused work has not entered that allowance.
+          if (this.requestReconnectAllowed(parent, agent, false) && agent.thread.status?.type === 'active' && agent.thread.status.activeFlags?.includes('waitingOnApproval')) for (const question of needed) {
+            if (current(question) && !question.responding && !question.error && !this.answerJobs.has(requestKey(agent.id, question.id))) Object.defineProperty(question, 'fileSnapshotAttempted', { configurable: true, value: true });
+          }
+          throw error;
+        }
+        if (source.revision === (agent.historyRevision || 0) && this.requestContextCurrent(parent, agent)) for (const question of needed) {
           if (!current(question)) continue;
           const binding = bindings.get(question), key = JSON.stringify([binding.turnId, binding.itemId]);
           const latest = agent.messages.findLast(message => message.turnId === binding.turnId && message.id === binding.itemId);
@@ -286,8 +298,9 @@ export class Workspace extends EventEmitter {
           const item = page.data.find(turn => turn.id === binding.turnId)?.items?.findLast(item => item.id === binding.itemId);
           if (item?.type === 'fileChange') this.addItem(agent, item, binding.turnId);
         }
+        await this.loadLiveFileDetails(parent, agent, needed, bindings, before, source);
       }
-      for (const question of missing) if (current(question)) question.detailError = this.requestView(agent, question).nativeItem.state === 'available' ? null : 'Codex did not provide file paths and diff for this exact pending item. The request remains open; no answer was sent.';
+      for (const question of missing) if (current(question)) question.detailError = this.requestView(agent, question).nativeItem.state === 'available' ? null : question.detailError || 'Codex did not provide file paths and diff for this exact pending item. The request remains open; no answer was sent.';
       return { requests: agent.questions.length, fileDetailsLoaded: missing.filter(question => current(question) && this.requestView(agent, question).nativeItem.state === 'available').length };
     }).finally(() => {
       for (const question of missing) question.fileDetailsLoading = false;
@@ -296,6 +309,52 @@ export class Workspace extends EventEmitter {
     });
     this.requestJobs.set(agent.id, job); this.changed();
     return job;
+  }
+  async loadLiveFileDetails(parent, agent, questions, bindings, beforeItems, { epoch, revision, cwd }) {
+    const nativeParentId = agent.thread.parentThreadId;
+    const waiting = thread => thread?.status?.type === 'active' && thread.status.activeFlags?.includes('waitingOnApproval');
+    const latestItem = binding => agent.messages.findLast(message => message.turnId === binding.turnId && message.id === binding.itemId);
+    const current = question => {
+      const binding = bindings.get(question);
+      return epoch === this.requestEpoch && revision === (agent.historyRevision || 0) && agent.cwd === cwd && agent.thread.parentThreadId === nativeParentId
+        && this.requestReconnectAllowed(parent, agent, false) && this.fileRequestCurrent(parent, agent, question, binding)
+        && question.reviewToken === binding.reviewToken && !question.responding && !question.error && !this.answerJobs.has(requestKey(agent.id, question.id))
+        && latestItem(binding) === beforeItems.get(JSON.stringify([binding.turnId, binding.itemId])) && this.requestView(agent, question).nativeItem.state === 'unavailable';
+    };
+    const candidates = questions.filter(question => !question.fileSnapshotAttempted && current(question));
+    if (!candidates.length || !waiting(agent.thread)) return;
+    // One bounded attempt for this original callback, including preflight/read
+    // failures. The existing request job owns it; never join that job here.
+    for (const question of candidates) Object.defineProperty(question, 'fileSnapshotAttempted', { configurable: true, value: true });
+    const beforeRead = { status: agent.thread.status, turnId: agent.turnId, finishedTurn: agent.finishedTurn };
+    const matchesThread = thread => {
+      if (thread?.id === agent.id && thread.parentThreadId === nativeParentId) return thread.cwd == null || thread.cwd === cwd;
+      if (agent !== parent) {
+        agent.lineageNeedsRefresh = true; agent.questions = [];
+        if (!this.watched.has(agent.id)) for (const question of this.pending.values()) if (question.params.threadId === agent.id) question.unassociated = true;
+      }
+      return false;
+    };
+    try {
+      const { thread } = await this.rpc.call('thread/read', { threadId: agent.id });
+      const eligible = candidates.filter(current);
+      if (!eligible.length || !matchesThread(thread)) return;
+      const changed = agent.thread.status !== beforeRead.status || agent.turnId !== beforeRead.turnId || agent.finishedTurn !== beforeRead.finishedTurn;
+      if (!waiting(thread) || (changed && !waiting(agent.thread)) || (agent === parent && thread.canAcceptDirectInput === false)) return;
+      // Recheck exact callback and all ownership/stop/answer gates after the read,
+      // immediately before this one already-authorized metadata/full snapshot.
+      if (!eligible.some(current)) return;
+      const resumed = await this.rpc.call('thread/resume', { threadId: agent.id, excludeTurns: true, initialTurnsPage: { limit: 1, sortDirection: 'desc', itemsView: 'full' } });
+      if (!candidates.some(current) || !matchesThread(resumed.thread) || (resumed.cwd != null && resumed.cwd !== cwd) || !Array.isArray(resumed.initialTurnsPage?.data)) return;
+      for (const question of eligible) {
+        if (!current(question)) continue;
+        const binding = bindings.get(question), turn = resumed.initialTurnsPage.data.find(turn => turn?.id === binding.turnId);
+        const item = Array.isArray(turn?.items) ? turn.items.findLast(item => item?.id === binding.itemId) : null;
+        if (item?.type === 'fileChange') this.addItem(agent, item, binding.turnId);
+      }
+    } catch {
+      for (const question of candidates) if (current(question)) question.detailError = 'The one-time native file snapshot is unavailable. The request remains open; no answer was sent.';
+    }
   }
   scheduleFileDetails(parent, agent, question) {
     if (!this.fileRequestCurrent(parent, agent, question) || question.fileDetailsScheduled || this.requestView(agent, question).nativeItem.state === 'available') return false;
@@ -371,7 +430,13 @@ export class Workspace extends EventEmitter {
       const beforeItems = new Map(agent.messages.map(message => [JSON.stringify([message.turnId, message.id]), message]));
       // Paginated durable history can omit an unapproved patch. The same native
       // attachment can return its live item without another resume or answer.
-      const resumed = await this.rpc.call('thread/resume', { threadId: agent.id, excludeTurns: true, initialTurnsPage: { limit: 1, sortDirection: 'desc', itemsView: 'full' } });
+      let resumed;
+      try { resumed = await this.rpc.call('thread/resume', { threadId: agent.id, excludeTurns: true, initialTurnsPage: { limit: 1, sortDirection: 'desc', itemsView: 'full' } }); }
+      finally {
+        if (epoch === this.requestEpoch && revision === (agent.historyRevision || 0) && this.requestContextCurrent(parent, agent)) for (const question of agent.questions) {
+          if (this.fileRequestCurrent(parent, agent, question)) Object.defineProperty(question, 'fileSnapshotAttempted', { configurable: true, value: true });
+        }
+      }
       if (!current()) throw stale();
       merge(resumed.thread, resumedBefore);
       if (agent === parent) agent.observingOnly = false;
@@ -379,9 +444,13 @@ export class Workspace extends EventEmitter {
       // them in the existing pending map; never reconstruct IDs from history.
       agent.questions = this.pendingQuestions(agent.id);
       const hydrateFileItems = () => {
-        if (!current() || !Array.isArray(resumed.initialTurnsPage?.data)) return;
+        if (!current()) return;
         for (const question of agent.questions) {
           if (!this.fileRequestCurrent(parent, agent, question)) continue;
+          // This callback already received the same full snapshot attempt; a
+          // later durable-history miss must not trigger another attachment.
+          Object.defineProperty(question, 'fileSnapshotAttempted', { configurable: true, value: true });
+          if (!Array.isArray(resumed.initialTurnsPage?.data)) continue;
           const { turnId, itemId } = question.params, key = JSON.stringify([turnId, itemId]);
           const latest = agent.messages.findLast(message => message.turnId === turnId && message.id === itemId);
           if (latest !== beforeItems.get(key)) continue;
@@ -481,25 +550,10 @@ export class Workspace extends EventEmitter {
     }
     if (this.requestJobs.has(id)) return this.requestJobs.get(id);
     if (!context.questions.length) return this.reconnectWaitingRequests(parent, context, { manual: true });
-    const job = (async () => {
-      const before = { status: context.thread.status, turnId: context.turnId, revision: context.historyRevision || 0 };
-      const { thread } = await this.rpc.call('thread/read', { threadId: id });
-      if (!this.requestContextCurrent(parent, context) || thread?.id !== id || thread.parentThreadId !== context.thread.parentThreadId) { context.lineageNeedsRefresh = true; throw Object.assign(new Error('The native subagent relationship changed while loading its request.'), { status: 409 }); }
-      if ((context.historyRevision || 0) !== before.revision) throw Object.assign(new Error('The native subagent history changed while loading its request. Refresh before continuing.'), { status: 409 });
-      context.thread = context.thread.status !== before.status || context.turnId !== before.turnId ? { ...thread, status: context.thread.status } : thread;
-      context.questions = this.pendingQuestions(id);
-      const missing = context.questions.filter(question => question.method === 'item/fileChange/requestApproval' && this.requestView(context, question).nativeItem.state === 'unavailable');
-      for (const question of missing) { question.fileDetailsAttempted = true; question.fileDetailsLoading = true; }
-      try { if (missing.length) await this.history(id, undefined, { parent }); }
-      finally { for (const question of missing) question.fileDetailsLoading = false; }
-      if (!this.requestContextCurrent(parent, context)) throw Object.assign(new Error('The originating worker closed or its subagent changed.'), { status: 409 });
-      for (const question of missing) if (this.pending.get(requestKey(id, question.id)) === question) question.detailError = this.requestView(context, question).nativeItem.state === 'available' ? null : 'Codex did not provide file details for this exact subagent request. No answer was sent.';
-      context.requestError = !context.questions.length && statusOf(context.thread) === 'attention' ? 'Codex reports a waiting subagent, but did not deliver request details to this connection. The request remains unresolved; no response was sent.' : null;
-      this.changed(); return { requests: context.questions.length, fileDetailsLoaded: missing.filter(question => this.requestView(context, question).nativeItem.state === 'available').length };
-    })().catch(error => { if (this.requestContextCurrent(parent, context)) { context.requestError = error.message; this.changed(); } throw error; });
-    this.requestJobs.set(id, job); this.changed();
-    try { return await job; } finally { this.requestJobs.delete(id); this.changed(); }
+    const result = await this.loadFileDetails(parent, context);
+    context.requestError = null; return result;
   }
+
   async refreshObserved(id) {
     const agent = this.agents.get(id);
     if (agent?.provider === 'claude') { if (!this.claude?.available || this.restoring || this.observedReads.has(id)) return; const job = this.claude.refresh(agent); this.observedReads.set(id, job); try { await job; } catch (error) { agent.observeError = error.message; this.changed(); } finally { this.observedReads.delete(id); } return; }
@@ -522,11 +576,16 @@ export class Workspace extends EventEmitter {
         if (changed && agent.role !== 'coordinator') this.coordinator?.mark(id, 'Watched worker changed');
         if (agent.role !== 'coordinator') {
           await this.reconnectWaitingRequests(agent, agent);
+          const hydrateDelivered = async context => {
+            if (!this.requestReconnectAllowed(agent, context, false) || context.thread.status?.type !== 'active' || !context.thread.status.activeFlags?.includes('waitingOnApproval')) return;
+            if (context.questions.some(question => !question.fileSnapshotAttempted && !question.responding && !question.error && this.fileRequestCurrent(agent, context, question) && this.requestView(context, question).nativeItem.state === 'unavailable')) await this.loadFileDetails(agent, context);
+          };
+          await hydrateDelivered(agent);
           for (const child of this.requestContexts(agent, { includeUnverified: true }).slice(1)) {
             const nativeParent = this.requestContexts(agent, { includeUnverified: true }).find(context => context.id === (child.nativeParentId || child.thread.parentThreadId));
             if (!nativeParent) continue;
             const proof = await this.readWorker(nativeParent, child.id);
-            if (proof) await this.reconnectWaitingRequests(agent, child);
+            if (proof) { await this.reconnectWaitingRequests(agent, child); await hydrateDelivered(child); }
           }
         }
       } catch (error) { agent.observeError = error.message; this.changed(); }
