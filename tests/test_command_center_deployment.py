@@ -204,6 +204,18 @@ case "$*" in
     printf 'native synthetic tracker' > .beads/metadata.json ;;
   '--sandbox --readonly list --json --brief --flat --limit 1')
     [ -f .beads/metadata.json ]; echo '[]' ;;
+  '--sandbox config get status.custom --json')
+    [ "${CCNG_FIXTURE_CONFIG_READ_FAIL:-0}" = 0 ] || exit 7
+    if [ -n "${CCNG_FIXTURE_CONFIG_JSON:-}" ]; then
+      printf '%s\\n' "$CCNG_FIXTURE_CONFIG_JSON"
+    else
+      printf '{"key":"status.custom","schema_version":1,"value":"'
+      if [ -f .beads/custom-statuses ]; then cat .beads/custom-statuses; fi
+      printf '"}\\n'
+    fi ;;
+  '--sandbox config set status.custom '*)
+    [ "$#" = 5 ] && [ "${CCNG_FIXTURE_CONFIG_WRITE_FAIL:-0}" = 0 ] || exit 8
+    printf '%s' "$5" > .beads/custom-statuses ;;
   *) exit 98 ;;
 esac
 """)
@@ -238,6 +250,72 @@ esac
         self.assertEqual((telemetry / "machine-id").read_text(), "synthetic telemetry identity")
         self.assertEqual(calls.read_text().splitlines().count(
             "init --shared-server --non-interactive --skip-agents --skip-hooks"), 1)
+        self.assertEqual((workspace / ".beads/custom-statuses").read_text(), "on_hold")
+        self.assertEqual(calls.read_text().splitlines().count(
+            "--sandbox config set status.custom on_hold"), 1)
+
+    def test_existing_custom_statuses_are_merged_once_without_changing_tracker_data(self):
+        for index, (existing, expected) in enumerate([
+            ("", "on_hold"), ("review,waiting", "review,waiting,on_hold"),
+            ("review, on_hold", "review, on_hold"), ("on_hold,review", "on_hold,review"),
+        ]):
+            with self.subTest(existing=existing):
+                previous = self.work
+                self.work = previous / f"status-{index}"
+                self.work.mkdir()
+                try:
+                    home, calls, variables, environment = self.workspace_fixture()
+                    tracker = home / "ccng-wd/.beads"
+                    tracker.mkdir(parents=True)
+                    original = {"metadata.json": "synthetic native metadata", "config.yaml": "synthetic existing routing",
+                                "issues.fixture": "synthetic task data", "server.fixture": "synthetic native Dolt ownership"}
+                    for name, content in original.items():
+                        (tracker / name).write_text(content)
+                    (tracker / "custom-statuses").write_text(existing)
+                    tasks = [self.include("command_center_workspace.yml")]
+                    self.run_tasks(tasks, variables, environment)
+                    repeated = self.run_tasks(tasks, variables, environment)
+                    self.assertEqual((tracker / "custom-statuses").read_text(), expected)
+                    self.assertRegex(repeated.stdout, r"changed=0\b")
+                    for name, content in original.items():
+                        self.assertEqual((tracker / name).read_text(), content)
+                    writes = [line for line in calls.read_text().splitlines()
+                              if line.startswith("--sandbox config set status.custom ")]
+                    self.assertEqual(len(writes), int(existing != expected))
+                    self.assertNotIn("init --shared-server", calls.read_text())
+                finally:
+                    self.work = previous
+
+    def test_custom_status_failures_preserve_existing_settings_and_tasks(self):
+        failures = [
+            {"CCNG_FIXTURE_CONFIG_READ_FAIL": "1"},
+            {"CCNG_FIXTURE_CONFIG_JSON": "not json"},
+            {"CCNG_FIXTURE_CONFIG_JSON": json.dumps({"key": "other", "schema_version": 1, "value": "review"})},
+            {"CCNG_FIXTURE_CONFIG_JSON": json.dumps({"key": "status.custom", "schema_version": 2, "value": "review"})},
+            {"CCNG_FIXTURE_CONFIG_JSON": json.dumps({"key": "status.custom", "schema_version": 1, "value": None})},
+            {"CCNG_FIXTURE_CONFIG_WRITE_FAIL": "1"},
+        ]
+        for index, failure in enumerate(failures):
+            with self.subTest(failure=failure):
+                previous = self.work
+                self.work = previous / f"config-failure-{index}"
+                self.work.mkdir()
+                try:
+                    home, calls, variables, environment = self.workspace_fixture()
+                    tracker = home / "ccng-wd/.beads"
+                    tracker.mkdir(parents=True)
+                    originals = {"metadata.json": "synthetic native metadata", "custom-statuses": "review",
+                                 "issues.fixture": "preserve existing tasks", "config.yaml": "preserve routing"}
+                    for name, content in originals.items():
+                        (tracker / name).write_text(content)
+                    environment.update(failure)
+                    self.run_tasks([self.include("command_center_workspace.yml")], variables, environment, success=False)
+                    for name, content in originals.items():
+                        self.assertEqual((tracker / name).read_text(), content)
+                    if "CCNG_FIXTURE_CONFIG_WRITE_FAIL" not in failure:
+                        self.assertNotIn("--sandbox config set", calls.read_text())
+                finally:
+                    self.work = previous
 
     def test_partial_or_ambient_tracker_configuration_is_preserved(self):
         for conflict in ["partial", "home-routing", "user-config", "parent-resolved"]:

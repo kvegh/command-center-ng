@@ -103,3 +103,43 @@
   environment:
     BEADS_DOLT_AUTO_START: '0'
   changed_when: false
+
+# Beads exposes this tracker setting through its native CLI.
+# Keep native ownership; see docs/ansible-deployment.md#fresh-workspace.
+- name: Read the selected tracker's existing custom statuses
+  ansible.builtin.command:
+    argv: [bd, --sandbox, config, get, status.custom, --json]
+    chdir: "{{ ccng_project_dir }}"
+  environment:
+    BEADS_DOLT_AUTO_START: '0'
+  register: ccng_custom_statuses
+  changed_when: false
+
+- name: Require the supported native custom status response before changing it
+  ansible.builtin.assert:
+    that:
+      - ccng_status_config is mapping
+      - ccng_status_config.key | default('') == 'status.custom'
+      - ccng_status_config.schema_version | default(0) == 1
+      - ccng_status_config.value | default(none) is string
+    quiet: true
+    fail_msg: Native Beads returned an unsupported custom status configuration; existing settings were preserved.
+  vars:
+    ccng_status_config: "{{ ccng_custom_statuses.stdout | ansible.builtin.from_json }}"
+
+- name: Add the conditional on hold status while preserving existing custom statuses
+  ansible.builtin.command:
+    argv:
+      - bd
+      - --sandbox
+      - config
+      - set
+      - status.custom
+      - "{{ (ccng_status_config.value ~ ',' if ccng_status_config.value else '') ~ 'on_hold' }}"
+    chdir: "{{ ccng_project_dir }}"
+  environment:
+    BEADS_DOLT_AUTO_START: '0'
+  vars:
+    ccng_status_config: "{{ ccng_custom_statuses.stdout | ansible.builtin.from_json }}"
+  when: "'on_hold' not in (ccng_status_config.value.split(',') | map('trim') | list)"
+  changed_when: true

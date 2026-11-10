@@ -55,7 +55,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - See received native requests and matching file-change details automatically, including verified Codex child requests in their parent chat. Distinguish requests needing your answer from native waits with unavailable details.
 - Attempt automatic reconnection of eligible active Codex waits with missing request details, without answering approvals. A delivered file approval missing its proposal can receive one guarded live snapshot after bounded history lookup.
 - Branch a Codex conversation, then hand tasks and a summary back to its parent.
-- See linked Beads tasks, explicit input needs, ordinary blockers and optional task notifications.
+- See linked Beads tasks, explicit input needs, ordinary blockers, conditional On hold states and optional task notifications.
 - Request concise task reports or optional detailed action histories; choose a saved interval, or Never to disable automatic startup and recurring reports.
 - Recheck overlooked tasks and stalled delegated work silently every 10 minutes, including safe recovery of stalled child waits, with the next check shown in the coordinator.
 - Keep coordinator decision summaries across restarts in a private local file.

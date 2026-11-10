@@ -197,6 +197,12 @@ TODO.md, or another suitable mechanism. The user selected Beads as the runtime s
 the backend reads structured state directly; conversations have explicit task links. Existing development tracking remains in Beads, outside this public
 repository; these requirements do not create a second task tracker.
 
+Use native `on_hold` for a task waiting for a recorded specific circumstance;
+Deferred is optional future or someday work. A held task is not a user-input
+request merely because it cannot proceed. Verify its condition and original
+authority before resuming. The existing deployment setup adds this supported
+Beads custom state while preserving existing states and tracker data.
+
 ## Historical version 0.34.2 requirements
 
 Automatic startup binds exactly the one default-route IPv4 address and

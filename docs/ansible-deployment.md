@@ -168,6 +168,57 @@ being reset. The exact native home-telemetry layout described above is allowed.
 Fresh initialization is limited to the default workspace; custom workspaces
 must already have a usable tracker.
 
+From1.5.0, both fresh preparation and tracker reuse enable native Beads
+`on_hold` in `status.custom`. The playbook validates the current native JSON
+response and appends the state only when absent, retaining the existing list.
+Repeated deployment does not rewrite it. Unsupported responses or command
+failures stop the play without replacing tracker data, routing or other settings.
+On hold means waiting for a recorded circumstance; Deferred means optional
+future work. No tasks are moved automatically, and no resume timer is added.
+
+This application-specific metadata is managed through native `bd config`
+commands using `ansible.builtin.command`: the existing system/tool preparation
+does not expose a Beads configuration module. No custom module, wrapper or new
+collection is needed. Task fixtures cover fresh setup, preservation and repeat
+execution, existing custom states, and refused reads/writes or malformed replies.
+The interactive installer still preserves existing tracker configuration; this
+setting is part of the explicitly authorized Ansible deployment path.
+
+The encrypted runtime file and its embedded CaC copy do not currently declare
+the nine native compaction settings. `issue_prefix` and schema/project/database
+identities are derived by native initialization, rather than copied from a
+development tracker. Shared Dolt mode is selected by `bd init --shared-server`.
+Beads1.3.2 is pinned for missing programs. Fresh Dolt remains pinned to2.2.0;
+an existing compatible binary is reused. Checking an existing CLI version does
+not attest the running server version or change that fresh-install baseline.
+
+### Beads configuration coverage
+
+The configuration comparison identified these native keys. The encrypted runtime
+loader currently accepts documented application inputs, not an arbitrary native
+Beads configuration map. Adding unknown keys to ciphertext alone cannot apply
+them and does not extend that loader's allowlist.
+
+| Native key | Deployment responsibility |
+| --- | --- |
+| `status.custom` | Native CLI merges required `on_hold`; other existing states are retained |
+| `auto_compact_enabled` | Not explicitly declared in runtime CaC or managed by this playbook |
+| `compact_batch_size` | Not explicitly declared or managed |
+| `compact_parallel_workers` | Not explicitly declared or managed |
+| `compact_tier1_days` | Not explicitly declared or managed |
+| `compact_tier1_dep_levels` | Not explicitly declared or managed |
+| `compact_tier2_commits` | Not explicitly declared or managed |
+| `compact_tier2_days` | Not explicitly declared or managed |
+| `compact_tier2_dep_levels` | Not explicitly declared or managed |
+| `compaction_enabled` | Not explicitly declared or managed |
+| `issue_prefix` | Native initialization derives a fresh workspace's identity |
+| `schema_version` | Native Beads metadata; not a desired deployment input |
+
+An existing immutable SCM/app revision in CaC must be advanced explicitly before
+it can consume a newer playbook. Update-on-launch refreshes the selected revision;
+it does not turn a fixed commit into `main`. Database/project IDs, task contents,
+port files and live server identity are not copied as desired configuration.
+
 When task programs are absent and package management is enabled, Ansible uses
 the installer's existing `@beads/bd@1.3.2` package and standalone Dolt 2.2.0
 archives/checksums. Existing programs are not upgraded. `npm` installs Beads

@@ -9,6 +9,21 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.5.0 — Reproduce conditional On hold configuration
+
+The existing Ansible workspace preparation enables native Beads `on_hold` on
+fresh setup and repeat deployments. Preserve other custom states and tracker
+data; skip writes when it is already configured. Unknown native response formats
+and command failures stop safely. Deferred remains optional future work, distinct
+from a recorded conditional wait. No task state is changed by deployment.
+
+Three targeted tests passed across16 disposable Ansible fixture plays, including
+fresh/repeat and custom-state/failure preservation. Source publication, installed
+version checks and normal target-playbook acceptance are pending. The broader
+1.4.2 full-suite execution limitations still apply. The CaC audit found nine
+compaction settings absent. Existing immutable CaC source selections need an
+explicit update before they can consume the newer playbook.
+
 ## 1.4.3 — Keep generated hook pages contiguous
 
 Generated hook text can contain long lines. Pack complete lines within the

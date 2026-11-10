@@ -281,6 +281,13 @@ installer or local tests to initialize trackers or install tools without their
 existing approval requirements. Do not bootstrap a tracker on the development
 host while validating deployment code.
 
+On hold (`on_hold`) means waiting for a recorded, specific circumstance;
+Deferred means optional future or someday work. Verify the condition and existing
+authority before resuming a held task. The deployment playbook enables the native
+custom state after both fresh preparation and tracker reuse, appending it only
+when absent and preserving other custom states. This is a scoped tracker-setting
+change, not migration, server management or permission expansion.
+
 Group consecutive tool activity under a closed native details control, retaining
 per-action details and visible running/failure counts. Keep questions and chat
 messages separate. Pending requests may block sending, but must allow local
