@@ -5,15 +5,29 @@ task source of truth; do not use this file as a second backlog.
 
 ## Versions and publication
 
-Working **1.4.1** addresses the delivered RHEL file approval with missing diff.
-Native source confirms paginated history omits transient pending patch events;
-the same approved resume response can include a bounded live snapshot. Match
-only the original current request/thread/turn/item and preserve newer live data;
-no second attachment, answer, profile change or inferred shell patch. Source,
-regressions and independent review pass:894 tests,893 passed, one alternate-
-group skip, zero failures; build passes. Publication, deployment and real proposal
-verification remain pending. The separate AAP child-
-membership structured question is still unanswered.
+Published and installed **1.4.1** corrects the delivered RHEL file approval
+with missing diff. Native source confirms paginated history omits transient
+pending patch events; the same approved resume response can include a bounded
+live snapshot. Match only the current request/thread/turn/item and preserve newer
+live records. No extra attachment, answer, profile change or inferred shell patch.
+
+Implementation3e8cccd and payload5ff61a5 are SSH-published/readback verified.
+Final894 tests:893 passed, one alternate-group skip, zero failures; production
+build and independent review pass. AAP3493 succeeded in23.891s preserving nine
+protected files and unrelated Bash content/ownership/mode. Independent3494
+succeeded in7.098s:108 source files match, running1.4.1 trusted HTTPS/assets,
+authentication gates/both listeners and114 installed synthetic cases pass.
+
+Actual paths/diff delivery for the outstanding file proposal remains unverified.
+The native Coordinator started a new turn after restart but has returned no
+fresh readback; its active label alone is not evidence of progress. Saved pause
+is false. Existing native permission guards are preserved, and the unresolved
+file request was neither answered nor declined by this repair. A structured
+question asks whether the existing rhel_private_defaults card now shows paths
+and diff; do not approve or retry it for this observation. The independent AAP
+child-membership question also remains unanswered.46mk is blocked on these
+observations; no broader child-discovery design has been selected. All root
+subagents, tests/build/Git operations and deployment jobs are terminal.
 
 Published and installed **1.4.0** implements the user-approved automatic
 reconnection of open local Codex worker roots and verified known children freshly

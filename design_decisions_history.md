@@ -3172,3 +3172,18 @@ regressions cover callback timing, exact joins, newer-live precedence and no ext
 attachment. Publication, installation and actual outstanding-proposal recovery
 remain pending at this implementation checkpoint. The separate older AAP child-
 membership question is unanswered; this correction does not decide that issue.
+
+
+1.4.1 publication/installation checkpoint: implementation3e8cccd and payload
+5ff61a5 are SSH-published/readback verified. AAP3493 succeeded in23.891s preserving
+nine protected files and unrelated Bash bytes/ownership/mode. Independent3494
+succeeded in7.098s:108 matching source files, actual1.4.1 trusted HTTPS/assets,
+authentication gates/both listeners and114 installed synthetic cases pass.
+
+Actual delivery of the outstanding paths/diff remains unverified. The native
+Coordinator began a new turn after restart but returned no fresh request readback;
+an active label alone is not proof of progress. No pending native request was
+answered, declined or retried by this repair. A structured observation question
+asks whether the existing card now shows its proposal; the separate older-child
+membership question is also unanswered. Preserve both and do not broaden native
+permissions or choose a discovery redesign without evidence and consultation.
