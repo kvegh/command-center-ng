@@ -3285,3 +3285,39 @@ Coordinator's own-hook read already succeeded through the old tool in1.4.2;
 No new native file approval was manufactured, retried or answered. Fresh native
 recovery and physical-browser acceptance remain separate, as do the documented
 broader full-suite execution limitations. All release jobs are terminal.
+
+## 2026-11-11 — Reproduce conditional On hold configuration
+
+Implementation `6b28bc9cd7e214d9c06db6a1491436952e8be75d` adds the approved native
+On hold custom status through the existing deployment workspace tasks. Preserve
+other states and native data, skip an already-present value and reject unknown
+configuration responses. Three tests exercised16 disposable Ansible plays.
+This prepared1.5.0 change is included with1.6.0. Normal target-playbook acceptance
+and the separate encrypted CaC configuration/source choices remain pending;
+publication does not imply those choices were answered or deployment was run.
+
+## 2026-11-11 — Keep agent tabs durable and recover a late native connection
+
+Implementation `67c9bc3a192090a497d1103dd50c4cd7925475c2` follows a reboot report:
+the website was running while its Coordinator, worker tabs and history picker
+were unavailable. The existing private workspace file still held their IDs.
+Starting the native runtime later could leave CCNG disconnected because startup
+made one connection attempt; another available provider could also hide Codex's
+reconnect control. These are verified source failure paths, not proof of the
+complete historical incident sequence.
+
+Reuse the existing five-second refresh for transport reconnection and the existing
+workspace file for lifecycle persistence. Acknowledge create/open/fork/close only
+after pending metadata writes settle; sync the file and containing directory,
+preserve unavailable saved IDs and drain shutdown writes. Expose a save warning
+without turning a successful native action into failure or repeating it. Keep
+Codex reconnect available independently of another provider and distinguish a
+failed history read from an empty list. Do not change profiles or copy histories.
+
+Forty-one focused file, authenticated-handler, component and existing native
+request-reconnection cases pass, as do the build and independent development
+review. Native socket/subprocess restrictions prevent a clean broader local
+protocol-suite result. An in-flight connection can finish bounded metadata reads
+during shutdown; Coordinator stop guards prevent new reports/model actions.
+Source publication, updated installation and actual browser restoration are
+separate acceptance checkpoints, not inferred from these fixtures.
