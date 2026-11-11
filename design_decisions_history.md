@@ -3321,3 +3321,21 @@ protocol-suite result. An in-flight connection can finish bounded metadata reads
 during shutdown; Coordinator stop guards prevent new reports/model actions.
 Source publication, updated installation and actual browser restoration are
 separate acceptance checkpoints, not inferred from these fixtures.
+
+1.6.0 installation checkpoint: payload1be90991002cc4897f9a5fbd5fefdbab7b9dbc7c
+is SSH-published and installed through authorized AAP ad hoc3543, successful
+in22.884s. Eight protected files, ownership/modes, three saved worker IDs,
+Coordinator identity/pause and report intervals were preserved. Independent
+verification3548 succeeded in7.086s:108 installed source files match, actual
+HTTPS reports1.6.0, authentication gates, both listeners and two served assets
+match, and34 installed backend fixture cases pass. Seven UI component cases
+passed in the build checkout; production intentionally omits their TypeScript
+build dependency, so they are not claimed as production browser tests.
+The initial verifier failed due to an incomplete PATH, then a build-only test
+prerequisite; neither required another deployment or a production dependency.
+
+Native history discovery lists all three saved workers. The operator observed
+the restored tabs before the1.6.0 rollout; updated browser interaction and a full
+host reboot remain unverified. Automatic native Codex/Dolt boot startup needs
+the separately requested decisions. No reboot, daemon bootstrap, profile copy,
+new database, native approval answer or uncertain-command replay occurred.
