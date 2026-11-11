@@ -56,7 +56,8 @@ export class BeadsTasks {
     try { blocked = JSON.parse(await this.command(cwd, ['blocked', '--json', '--label', label])); } catch (error) { throw fail('Beads dependency state could not be read. ' + error.message); }
     if (!Array.isArray(blocked)) throw fail('Beads returned an invalid dependency list.');
     const blockers = new Map(blocked.map(row => [row.id, Array.isArray(row.blocked_by) ? row.blocked_by.filter(id => typeof id === 'string') : []]));
-    return { status: 'ready', label, tasks: tasks.map(task => ({ ...task, blockedBy: blockers.get(task.id) || [] })), checkedAt: new Date().toISOString(), error: null };
+    // Native blocked output includes hierarchy parents; retain only distinct prerequisites.
+    return { status: 'ready', label, tasks: tasks.map(task => ({ ...task, blockedBy: (blockers.get(task.id) || []).filter(id => id !== task.parentId) })), checkedAt: new Date().toISOString(), error: null };
   }
   async detail(cwd, threadId, id) {
     issueIds([id]);

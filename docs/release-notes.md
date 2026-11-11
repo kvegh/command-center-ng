@@ -9,6 +9,19 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.8.0 — Keep blocked tasks visible
+
+Keep a blocked child marked Blocked when its only dependency is its parent-task
+relationship. Preserve genuine unfinished prerequisites as Queued. Show genuine
+Needs input first, then Blocked work, before the remaining task order so blockers
+stay visible in the compact task list. All task rows remain scrollable.
+
+This does not infer user questions from task text, answer approvals or change
+Beads task records, ownership or native controls. All43 affected task, attention
+and notification checks and the production build pass; independent review has
+no blocking findings. Installed verification is separate from actual browser
+acceptance.
+
 ## 1.7.0 — Reproduce Beads settings and database startup
 
 The existing deployment can apply an explicit nine-key Beads maintenance map

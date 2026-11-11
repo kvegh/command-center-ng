@@ -3,6 +3,7 @@ import { activeTasks } from './beads.mjs';
 const inputStates = new Set(['needsinput', 'waitingoninput', 'waitingonapproval']);
 const terminalStates = new Set(['closed', 'completed', 'failed', 'error', 'cancelled', 'withdrawn']);
 const displayState = task => String(task.displayState || task.state || '').replace(/[ _-]/g, '').toLowerCase();
+const attentionRank = task => inputStates.has(displayState(task)) ? 0 : displayState(task) === 'blocked' ? 1 : 2;
 
 export function taskSummary(agent) {
   const tasks = agent.tracker?.status === 'ready' ? activeTasks(agent.tracker.tasks).map(task => {
@@ -11,9 +12,9 @@ export function taskSummary(agent) {
     const needsInput = !terminalStates.has(state) && (task.isChatQuestion === true || inputStates.has(state));
     return { ...task, displayState: task.blockedBy?.length && task.state !== 'in_progress' ? 'queued' : needsInput ? 'needs_input' : task.state };
   }) : [];
-  // Promote real input needs after dependency-derived queued state is known.
-  // Stable sorting preserves the established order within both groups.
-  tasks.sort((a, b) => Number(inputStates.has(displayState(b))) - Number(inputStates.has(displayState(a))));
+  // Classify dependencies first, then surface input needs and actual blocked work.
+  // Stable sorting preserves the established order within each remaining group.
+  tasks.sort((a, b) => attentionRank(a) - attentionRank(b));
   const taskCounts = { inProgress: 0, needsInput: 0, queued: 0, open: 0, deferred: 0, other: 0 };
   for (const task of tasks) {
     const state = displayState(task);

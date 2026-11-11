@@ -318,8 +318,10 @@ See [native question setup](installation.md#native-codex-question-setup).
 
 The task section reads the project's existing Beads tracker directly. Agents
 maintain task states; chat prose, plans and idle status do not close tasks.
-Totals describe all linked current work. Actual **Needs input** items come first;
-**Queued** means unfinished dependencies and does not mean a user decision.
+Totals describe all linked current work. Actual **Needs input** items come first,
+followed by **Blocked** work, then the remaining tasks in their usual order.
+**Queued** means unfinished prerequisites and does not mean a user decision.
+A parent-task relationship alone does not make its child Queued.
 Three natural-height rows are visible by default; scroll for the rest.
 An ordinary **Blocked** task can await tools, resources or other work; it is not
 automatically relabelled Needs input or shown as a question. Explicit input

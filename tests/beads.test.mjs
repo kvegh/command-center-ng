@@ -69,7 +69,7 @@ test('stored states drive all current rows and totals; closed tasks disappear wi
   f.add('demo-done', 'Closed work', 'closed', [label]);
   await w.refreshTasks('alpha');
   let agent = w.snapshot().agents[0]; assert.equal(agent.taskCount, 4); assert.equal(agent.tasks.length, 4);
-  assert.deepEqual(agent.tasks.map(task => task.id), ['demo-running', 'demo-blocked', 'demo-open', 'demo-later']);
+  assert.deepEqual(agent.tasks.map(task => task.id), ['demo-blocked', 'demo-running', 'demo-open', 'demo-later']);
   assert.equal(agent.tasks.find(task => task.id === 'demo-blocked').displayState, 'blocked');
   assert.equal(agent.taskCounts.needsInput, 0); assert.equal(agent.taskCounts.other, 1);
   f.rows.get('/project:demo-running').status = 'closed'; await w.refreshTasks('alpha');
@@ -145,12 +145,48 @@ test('unfinished dependencies become queued separately from manual input and all
   f.rows.get('/project:demo-7').blocked_by = ['prerequisite'];
   await w.refreshTasks('alpha'); const agent = w.snapshot().agents[0];
   assert.equal(agent.tasks.length, 8); assert.equal(agent.taskCounts.inProgress, 3); assert.equal(agent.taskCounts.needsInput, 3); assert.equal(agent.taskCounts.queued, 1); assert.equal(agent.taskCounts.other, 1);
-  assert.deepEqual(agent.tasks.map(task => task.id), ['demo-3', 'demo-4', 'demo-5', 'demo-0', 'demo-1', 'demo-2', 'demo-6', 'demo-7']);
+  assert.deepEqual(agent.tasks.map(task => task.id), ['demo-3', 'demo-4', 'demo-5', 'demo-6', 'demo-0', 'demo-1', 'demo-2', 'demo-7']);
   assert.equal(agent.tasks.find(task => task.id === 'demo-7').displayState, 'queued');
   assert.equal(f.rows.get('/project:demo-7').status, 'blocked', 'display classification must not mutate the tracker');
   f.rows.get('/project:demo-7').blocked_by = []; await w.refreshTasks('alpha');
   assert.equal(w.snapshot().agents[0].taskCounts.needsInput, 3, 'finishing a dependency does not invent an input request');
   assert.equal(w.snapshot().agents[0].tasks.find(task => task.id === 'demo-7').displayState, 'blocked');
+});
+
+test('hierarchy-only blocked children surface before running work while real prerequisites stay queued', async () => {
+  const f = fixture(); const { w } = workspace(f.beads); const label = sessionLabel('alpha');
+  for (let index = 0; index < 8; index++) f.add('running-' + index, 'Current work ' + index, 'in_progress', [label]);
+  f.add('parent', 'Parent work', 'in_progress', [label]);
+  f.add('child', 'Waiting for a native tool checkpoint?', 'blocked', [label]);
+  f.add('dependent-child', 'Waiting for a prerequisite', 'blocked', [label]);
+  f.add('question-child', 'A recorded user decision', 'blocked', [label, 'ccng-chat-question']);
+  f.add('queued-question', 'A later recorded user decision', 'blocked', [label, 'ccng-chat-question']);
+  f.add('open', 'Future work', 'open', [label]); f.add('deferred', 'Optional work', 'deferred', [label]);
+  for (const id of ['child', 'dependent-child', 'question-child', 'queued-question']) {
+    f.rows.get('/project:' + id).parent = 'parent';
+    f.rows.get('/project:' + id).blocked_by = ['parent'];
+  }
+  f.rows.get('/project:dependent-child').blocked_by.push('prerequisite');
+  f.rows.get('/project:queued-question').blocked_by.push('prerequisite');
+  const before = structuredClone([...f.rows]);
+  await w.refreshTasks('alpha');
+  const agent = w.snapshot().agents[0]; const task = id => agent.tasks.find(row => row.id === id);
+  assert.deepEqual(agent.tasks.map(row => row.id), [
+    'question-child', 'child', 'parent', ...Array.from({ length: 8 }, (_, index) => 'running-' + index),
+    'dependent-child', 'queued-question', 'open', 'deferred',
+  ]);
+  assert.equal(task('child').state, 'blocked'); assert.equal(task('child').displayState, 'blocked');
+  assert.equal(task('child').parentId, 'parent'); assert.deepEqual(task('child').blockedBy, []);
+  assert.equal(task('child').isChatQuestion, undefined, 'question-like prose does not invent an input request');
+  assert.deepEqual(task('dependent-child').blockedBy, ['prerequisite']);
+  assert.equal(task('dependent-child').displayState, 'queued');
+  assert.equal(task('question-child').displayState, 'needs_input');
+  assert.equal(task('queued-question').displayState, 'queued', 'real prerequisites keep an explicit question queued');
+  assert.equal(agent.taskCount, 15);
+  assert.deepEqual(agent.taskCounts, { inProgress: 9, needsInput: 1, queued: 2, open: 1, deferred: 1, other: 1 });
+  assert.deepEqual([...f.rows], before, 'classification and ordering preserve native records, labels and hierarchy');
+  assert.deepEqual(agent.questions, [], 'Beads classification does not manufacture native approvals');
+  assert.ok(f.calls.every(call => call.args.includes('--readonly')), 'projection only reads task records');
 });
 
 test('task detail reads only a linked task and does not change labels or state', async () => {
