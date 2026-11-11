@@ -3373,3 +3373,15 @@ earlier instance remains retained. Preserve those source selections and update
 only the selected instance's encrypted Beads settings and embedded ciphertext.
 Earlier unnecessary technical questions are withdrawn by their author, rather
 than recorded as user answers. Both real boot-startup choices remain settled.
+
+1.7.0 existing-install verification: published payload
+`16e00ac479dac854717fd59cd041266eda00ea2c` installed through authorized AAP3555
+(success20.164s). Nine protected configuration/authentication/certificate/native
+profile/startup files retained their bytes, modes and owners; three saved worker
+IDs, Coordinator, pause and report settings remained intact. AAP3556 succeeded
+in7.601s:108 installed source matches, actual1.7.0 trusted HTTPS, two served
+assets, authentication gates/both listeners and34 installed backend fixture
+cases. The existing database unit remains enabled/active and native task reads
+succeed. No provider/model call, native Codex bootstrap or reboot was performed.
+Normal playbook/fresh-target deployment and actual browser/reboot acceptance are
+not established by these existing-install checks.
