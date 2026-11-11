@@ -3410,3 +3410,15 @@ established the original Queued/index-eight behavior under the actual service's
 tracker routing. Publication and corrected installed/browser outcomes are
 recorded separately; a standalone diagnostic without that routing failed rather
 than initializing or selecting another tracker.
+
+1.8.0 installed verification: payload
+`b2ecc7467263cbdfd7397ac0ed5afdfeb4597028` updated through authorized AAP3559
+(success19.504s). Nine protected files/metadata and three saved workers plus
+Coordinator/pause/report settings were preserved. AAP3560 succeeded in7.353s:
+108 file matches, actual1.8.0 trusted HTTPS/assets/authentication gates/both
+listeners and48 installed backend fixture cases pass. The current reported
+task had independently changed from Blocked to In progress after the user's
+message to its worker and appeared second in the verified native task projection.
+Its parent relationship remains intact, without a false prerequisite blocker.
+No task record or native approval was changed by this visibility fix. Actual
+browser rendering remains separate from installed projection evidence.
