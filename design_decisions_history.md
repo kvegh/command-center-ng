@@ -3385,3 +3385,28 @@ cases. The existing database unit remains enabled/active and native task reads
 succeed. No provider/model call, native Codex bootstrap or reboot was performed.
 Normal playbook/fresh-target deployment and actual browser/reboot acceptance are
 not established by these existing-install checks.
+
+## 2026-11-11 — Keep blocked child tasks visible
+
+Implementation: `b8a4d4e6f5ccb0387c0609e666bdbabd65458ef3` (1.8.0).
+
+The user reported a blocked task missing from TASKS. The native record had its
+correct conversation link, and the installed projection included it, but native
+blocked output listed its hierarchy parent as a prerequisite. CCNG displayed
+Queued and placed it after eight running tasks, outside the three-row viewport.
+No frontend task truncation was found.
+
+Exclude only the explicitly identified hierarchy parent from prerequisite
+blocking; preserve distinct unfinished prerequisites. After classification,
+show genuine Needs input first, actual Blocked work second and retain the
+existing stable order for remaining tasks. Do not infer questions from prose,
+change another worker's records or answer its pending native confirmation.
+
+Validation:14 focused Beads tests and29 adjacent attention/notification cases
+pass, as do the production build and independent source review. The regression
+covers a mixed fifteen-task list, parent-only blocked children/questions, real
+prerequisites, totals and unchanged native records. Read-only installed diagnosis
+established the original Queued/index-eight behavior under the actual service's
+tracker routing. Publication and corrected installed/browser outcomes are
+recorded separately; a standalone diagnostic without that routing failed rather
+than initializing or selecting another tracker.
