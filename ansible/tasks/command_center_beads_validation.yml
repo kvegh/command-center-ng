@@ -1,0 +1,22 @@
+---
+- name: Require explicit native Beads configuration types
+  ansible.builtin.assert:
+    that:
+      - command_center_beads_config | default({}) is mapping
+      - command_center_beads_boot_start | default(false) is boolean
+    quiet: true
+    fail_msg: Beads settings require an allowlisted string mapping and a boolean boot-start selection.
+
+- name: Allow only the selected existing native Beads settings
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.key in ['auto_compact_enabled', 'compaction_enabled',
+          'compact_batch_size', 'compact_parallel_workers', 'compact_tier1_days',
+          'compact_tier1_dep_levels', 'compact_tier2_commits', 'compact_tier2_days',
+          'compact_tier2_dep_levels']
+      - item.value is string
+      - item.value is match('^[A-Za-z0-9_.-]{1,128}$')
+    quiet: true
+    fail_msg: Beads settings contain an unsupported key or non-string scalar value.
+  loop: "{{ command_center_beads_config | default({}) | dict2items }}"

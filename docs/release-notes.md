@@ -9,6 +9,23 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.7.0 — Reproduce Beads settings and database startup
+
+The existing deployment can apply an explicit nine-key Beads maintenance map
+through native `bd config`, preserving unrelated settings and task data. Empty
+configuration preserves existing values. Copy disabled compaction flags as
+strings without running task-history shortening. The protected runtime loader
+accepts only the documented map and a strict boolean boot-start option.
+
+An explicit boot-start selection installs the already approved owner-level
+native Dolt start/stop unit, retaining the existing database and tracker. It
+refuses conflicting units and keeps Codex bootstrap separate from active work.
+All14 affected native-Ansible fixture tests, strict production lint across17
+Ansible files, syntax and the production build pass; independent source review
+has no blocking findings. A wider deployment run passed28 of29 cases, with the
+remaining local frontend test denied its socket by native permissions. These
+checks do not prove a reboot or a normal AAP deployment rerun.
+
 ## 1.6.0 — Preserve open agents and recover after startup
 
 Persist the open-agent list before acknowledging create, attach, fork and close

@@ -1,0 +1,22 @@
+# Managed by Command Center Ansible deployment
+# Native Beads owns the selected tracker's existing shared Dolt server.
+[Unit]
+Description=Existing Beads shared Dolt server
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory={{ ccng_project_dir | replace('%', '%%') | to_json }}
+Environment={{ ('HOME=' ~ ccng_home) | replace('%', '%%') | to_json }}
+Environment={{ ('PATH=' ~ command_center_path) | replace('%', '%%') | to_json }}
+Environment={{ ('BEADS_DIR=' ~ ccng_beads_tracker_dir) | replace('%', '%%') | to_json }}
+Environment=BEADS_DOLT_SHARED_SERVER=1
+ExecStart=/usr/bin/env bd dolt start
+ExecStop=/usr/bin/env bd dolt stop
+TimeoutStartSec=60
+TimeoutStopSec=60
+UMask=0077
+
+[Install]
+WantedBy=default.target

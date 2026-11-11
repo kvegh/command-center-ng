@@ -1,0 +1,201 @@
+---
+# Native Beads owns lifecycle/data; systemd only invokes its existing CLI.
+# See docs/ansible-deployment.md#optional-database-startup-after-reboot.
+- name: Resolve the initialized tracker's native location without starting another server
+  ansible.builtin.command:
+    argv: [bd, --readonly, where, --json]
+    chdir: "{{ ccng_project_dir }}"
+  environment:
+    BEADS_DOLT_AUTO_START: '0'
+  register: ccng_beads_initialized_tracker
+  changed_when: false
+  when: ccng_tracker.rc != 0
+
+- name: Require the supported native tracker location before using it for boot
+  ansible.builtin.assert:
+    that:
+      - ccng_beads_location is mapping
+      - ccng_beads_location.schema_version | default(0) == 1
+      - ccng_beads_location.path | default(none) is string
+      - ccng_beads_location.path is match('^/[A-Za-z0-9_./ -]+/\.beads$')
+    quiet: true
+    fail_msg: The native tracker location is unavailable or unsupported; existing routing was preserved.
+  vars:
+    ccng_beads_location: "{{ (ccng_tracker if ccng_tracker.rc == 0 else ccng_beads_initialized_tracker).stdout | from_json }}"
+
+- name: Record the verified native routing selection
+  ansible.builtin.set_fact:
+    ccng_beads_tracker_dir: "{{ ((ccng_tracker if ccng_tracker.rc == 0 else ccng_beads_initialized_tracker).stdout | from_json).path }}"
+
+- name: Resolve the existing tracker directory without changing it
+  ansible.builtin.command:
+    argv: [realpath, -e, --, "{{ ccng_beads_tracker_dir }}"]
+  register: ccng_beads_tracker_realpath
+  changed_when: false
+
+- name: Inspect the resolved native tracker ownership
+  ansible.builtin.stat:
+    path: "{{ ccng_beads_tracker_dir }}"
+    follow: false
+  register: ccng_beads_tracker_owner
+
+- name: Require a real owned native tracker without changing routing
+  ansible.builtin.assert:
+    that:
+      - ccng_beads_tracker_realpath.stdout == ccng_beads_tracker_dir
+      - ccng_beads_tracker_owner.stat.isdir | default(false)
+      - not (ccng_beads_tracker_owner.stat.islnk | default(false))
+      - ccng_beads_tracker_owner.stat.uid == ccng_user_uid | int
+    quiet: true
+    fail_msg: Native Beads boot requires its existing real tracker owned by the selected account.
+
+- name: Inspect owner unit directories before reading or writing through them
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+    get_checksum: false
+  loop:
+    - "{{ ccng_home }}/.config"
+    - "{{ ccng_home }}/.config/systemd"
+    - "{{ ccng_home }}/.config/systemd/user"
+  register: ccng_beads_unit_directories
+
+- name: Preserve foreign or linked user manager directories
+  ansible.builtin.assert:
+    that:
+      - >-
+        not item.stat.exists or
+        (item.stat.isdir | default(false) and not (item.stat.islnk | default(false)) and
+         item.stat.uid == ccng_user_uid | int)
+    quiet: true
+    fail_msg: User manager directories must be real directories owned by the selected account.
+  loop: "{{ ccng_beads_unit_directories.results }}"
+
+- name: Inspect the owner-level native Beads unit and possible global conflicts
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+    get_checksum: false
+  loop:
+    - "{{ ccng_home }}/.config/systemd/user/beads-dolt.service"
+    - /etc/systemd/user/beads-dolt.service
+    - /usr/lib/systemd/user/beads-dolt.service
+  register: ccng_beads_units
+
+- name: Read an existing owner unit without following links
+  ansible.builtin.slurp:
+    src: "{{ ccng_home }}/.config/systemd/user/beads-dolt.service"
+  register: ccng_beads_unit_content
+  when:
+    - ccng_beads_units.results[0].stat.isreg | default(false)
+    - not (ccng_beads_units.results[0].stat.islnk | default(false))
+    - ccng_beads_units.results[0].stat.uid == ccng_user_uid | int
+
+- name: Refuse conflicting foreign linked or differently owned Beads services
+  ansible.builtin.assert:
+    that:
+      - not ccng_beads_units.results[1].stat.exists
+      - not ccng_beads_units.results[2].stat.exists
+      - >-
+        not ccng_beads_units.results[0].stat.exists or
+        (ccng_beads_units.results[0].stat.isreg | default(false) and
+         not (ccng_beads_units.results[0].stat.islnk | default(false)) and
+         ccng_beads_units.results[0].stat.uid == ccng_user_uid | int and
+         ((ccng_beads_unit_content.content | default('') | b64decode).startswith(
+           '# Managed by Command Center Ansible deployment\n# Native Beads owns ') or
+          ccng_beads_unit_content.content | default('') | b64decode in
+            [ccng_beads_approved_existing_unit,
+             ccng_beads_approved_existing_unit | replace('WorkingDirectory=' ~ ccng_project_dir,
+               'WorkingDirectory=' ~ (ccng_beads_tracker_dir | dirname))]))
+    quiet: true
+    fail_msg: An existing Beads unit needs deliberate migration before this playbook can manage it.
+  vars:
+    # Exact previously approved native unit, parameterized only for its owner/tracker.
+    ccng_beads_approved_existing_unit: |
+      [Unit]
+      Description=Existing Beads shared Dolt server
+      After=network.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      WorkingDirectory={{ ccng_project_dir }}
+      Environment=BEADS_DIR={{ ccng_beads_tracker_dir }}
+      Environment=BEADS_DOLT_SHARED_SERVER=1
+      Environment=PATH={{ ccng_home }}/.local/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
+      ExecStart={{ ccng_home }}/.local/bin/bd dolt start
+      ExecStop={{ ccng_home }}/.local/bin/bd dolt stop
+      TimeoutStartSec=60
+      TimeoutStopSec=60
+
+      [Install]
+      WantedBy=default.target
+
+- name: Read the selected account's boot manager availability
+  ansible.builtin.command:
+    argv: [/usr/bin/loginctl, show-user, "{{ command_center_user }}", --property=Linger, --value]
+  become_user: root
+  become: true
+  environment:
+    LC_ALL: C
+    PATH: /usr/sbin:/usr/bin:/sbin:/bin
+  register: ccng_beads_linger
+  changed_when: false
+  # A known account may have neither a login session nor a lingering manager yet.
+  failed_when: >-
+    ccng_beads_linger.rc != 0 and not
+    (ccng_beads_linger.rc == 1 and ccng_beads_linger.stderr | trim is
+      match('^Failed to get user: User [A-Za-z0-9_-]+ is not logged in or lingering[.]?$'))
+
+- name: Require supported boot manager state before managed writes
+  ansible.builtin.assert:
+    that:
+      - ccng_beads_linger.rc == 1 or ccng_beads_linger.stdout | trim in ['yes', 'no']
+    quiet: true
+    fail_msg: The selected account's boot manager state is unavailable.
+
+- name: Create missing private owner unit directories
+  ansible.builtin.file:
+    path: "{{ item.item }}"
+    state: directory
+    mode: '0700'
+  when: not item.stat.exists
+  loop: "{{ ccng_beads_unit_directories.results }}"
+
+- name: Install the selected native Beads owner boot unit
+  ansible.builtin.template:
+    src: beads-dolt.service.j2
+    dest: "{{ ccng_home }}/.config/systemd/user/beads-dolt.service"
+    mode: '0600'
+  register: ccng_beads_unit_template
+
+- name: Enable boot-time owner manager availability only when selected
+  ansible.builtin.command:
+    argv: [/usr/bin/loginctl, enable-linger, "{{ command_center_user }}"]
+  become_user: root
+  become: true
+  environment:
+    PATH: /usr/sbin:/usr/bin:/sbin:/bin
+  when: ccng_beads_linger.rc == 1 or ccng_beads_linger.stdout | trim == 'no'
+  changed_when: true
+
+- name: Ensure the selected owner manager is available
+  ansible.builtin.systemd_service:
+    name: "user@{{ ccng_user_uid }}.service"
+    state: started
+  become_user: root
+  become: true
+  environment:
+    PATH: /usr/sbin:/usr/bin:/sbin:/bin
+
+- name: Enable and start the existing tracker through its native Beads owner unit
+  ansible.builtin.systemd_service:
+    name: beads-dolt.service
+    scope: user
+    enabled: true
+    state: started
+    daemon_reload: "{{ ccng_beads_unit_template.changed }}"
+  environment:
+    HOME: "{{ ccng_home }}"
+    XDG_RUNTIME_DIR: "/run/user/{{ ccng_user_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ ccng_user_uid }}/bus"

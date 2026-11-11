@@ -161,6 +161,8 @@ class CommandCenterDeploymentTests(unittest.TestCase):
                 "command_center_project_dir == ccng_user_home ~ '/ccng-wd'",
                 "command_center_install_dir != command_center_project_dir",
                 "command_center_first_password_setup == 'disabled'",
+                "command_center_beads_config == {}",
+                "command_center_beads_boot_start is sameas false",
             ]}},
         ], {"ccng_user_home": str(self.work)})
 
@@ -197,12 +199,15 @@ set -eu
 printf '%s\\n' "$*" >> "$CCNG_FIXTURE_CALLS"
 case "$*" in
   '--version') echo 'bd version 1.3.2' ;;
-  '--readonly where --json') [ "${CCNG_FIXTURE_PARENT:-0}" = 1 ] || [ -f .beads/metadata.json ] ;;
+  '--readonly where --json')
+    [ "${CCNG_FIXTURE_PARENT:-0}" = 1 ] || [ -f .beads/metadata.json ]
+    printf '{"path":"%s","database_path":"%s/dolt","schema_version":1}\n' "${CCNG_FIXTURE_TRACKER_PATH:-$PWD/.beads}" "${CCNG_FIXTURE_TRACKER_PATH:-$PWD/.beads}" ;;
   'init --help') echo '--shared-server --non-interactive --skip-agents --skip-hooks' ;;
   'init --shared-server --non-interactive --skip-agents --skip-hooks')
     mkdir .beads .git
     printf 'native synthetic tracker' > .beads/metadata.json ;;
   '--sandbox --readonly list --json --brief --flat --limit 1')
+    [ "${CCNG_FIXTURE_DB_STOPPED:-0}" = 0 ] || [ -f "$CCNG_FIXTURE_SYSTEMD_DIR/user-running" ]
     [ -f .beads/metadata.json ]; echo '[]' ;;
   '--sandbox config get status.custom --json')
     [ "${CCNG_FIXTURE_CONFIG_READ_FAIL:-0}" = 0 ] || exit 7
@@ -216,6 +221,18 @@ case "$*" in
   '--sandbox config set status.custom '*)
     [ "$#" = 5 ] && [ "${CCNG_FIXTURE_CONFIG_WRITE_FAIL:-0}" = 0 ] || exit 8
     printf '%s' "$5" > .beads/custom-statuses ;;
+  '--sandbox config get '*)
+    [ "${CCNG_FIXTURE_NATIVE_READ_FAIL:-}" != "$4" ] || exit 7
+    if [ "${CCNG_FIXTURE_NATIVE_BAD_JSON:-}" = "$4" ]; then
+      echo '{invalid'
+    else
+      printf '{"key":"%s","schema_version":1,"value":"' "$4"
+      if [ -f ".beads/config-$4" ]; then cat ".beads/config-$4"; fi
+      printf '"}\n'
+    fi ;;
+  '--sandbox config set '*)
+    [ "$#" = 5 ] && [ "${CCNG_FIXTURE_NATIVE_WRITE_FAIL:-}" != "$4" ] || exit 8
+    printf '%s' "$5" > ".beads/config-$4" ;;
   *) exit 98 ;;
 esac
 """)
@@ -316,6 +333,296 @@ esac
                         self.assertNotIn("--sandbox config set", calls.read_text())
                 finally:
                     self.work = previous
+
+    def test_selected_native_beads_settings_apply_once_and_preserve_unrelated_state(self):
+        home, calls, variables, environment = self.workspace_fixture()
+        tracker = home / "ccng-wd/.beads"
+        tracker.mkdir(parents=True)
+        originals = {"metadata.json": "synthetic identity", "config.yaml": "preserve shared routing",
+                     "issues.fixture": "preserve tasks", "config-unrelated": "preserve unrelated setting"}
+        for name, content in originals.items():
+            (tracker / name).write_text(content)
+        (tracker / "custom-statuses").write_text("review")
+        settings = {"auto_compact_enabled": "false", "compaction_enabled": "false",
+                    "compact_batch_size": "50", "compact_parallel_workers": "2",
+                    "compact_tier1_days": "30", "compact_tier1_dep_levels": "2",
+                    "compact_tier2_commits": "100", "compact_tier2_days": "90",
+                    "compact_tier2_dep_levels": "1"}
+        variables["command_center_beads_config"] = settings
+        self.run_tasks([self.include("command_center_workspace.yml")], variables, environment)
+        repeated = self.run_tasks([self.include("command_center_workspace.yml")], variables, environment)
+        self.assertRegex(repeated.stdout, r"changed=0\b")
+        for key, value in settings.items():
+            self.assertEqual((tracker / ("config-" + key)).read_text(), value)
+            self.assertEqual(calls.read_text().splitlines().count(f"--sandbox config set {key} {value}"), 1)
+        for name, content in originals.items():
+            self.assertEqual((tracker / name).read_text(), content)
+        self.assertEqual((tracker / "custom-statuses").read_text(), "review,on_hold")
+
+    def test_native_beads_input_validation_precedes_tracker_writes(self):
+        for index, invalid in enumerate([
+            {"command_center_beads_config": {"server.port": "9999"}},
+            {"command_center_beads_config": {"compaction_enabled": False}},
+            {"command_center_beads_config": []},
+            {"command_center_beads_boot_start": "true"},
+        ]):
+            with self.subTest(invalid=invalid):
+                sentinel = self.work / f"beads-validation-{index}"
+                self.run_tasks([self.include("command_center_beads_validation.yml"), {
+                    "name": "Mark only accepted input", "ansible.builtin.copy": {
+                        "dest": str(sentinel), "content": "accepted", "mode": "0600"},
+                }], invalid, success=False)
+                self.assertFalse(sentinel.exists())
+
+    def test_native_beads_read_failure_or_invalid_response_preserves_all_settings(self):
+        home, calls, variables, environment = self.workspace_fixture()
+        tracker = home / "ccng-wd/.beads"
+        tracker.mkdir(parents=True)
+        originals = {"metadata.json": "synthetic identity", "custom-statuses": "review",
+                     "config-auto_compact_enabled": "false", "config-compaction_enabled": "false"}
+        for name, content in originals.items():
+            (tracker / name).write_text(content)
+        variables["command_center_beads_config"] = {"auto_compact_enabled": "true", "compaction_enabled": "false"}
+        for failure in ["CCNG_FIXTURE_NATIVE_READ_FAIL", "CCNG_FIXTURE_NATIVE_BAD_JSON", "CCNG_FIXTURE_NATIVE_WRITE_FAIL"]:
+            with self.subTest(failure=failure):
+                selected_key = "auto_compact_enabled" if failure.endswith("WRITE_FAIL") else "compaction_enabled"
+                self.run_tasks([self.include("command_center_workspace.yml")], variables,
+                               {**environment, failure: selected_key}, success=False)
+                for name, content in originals.items():
+                    self.assertEqual((tracker / name).read_text(), content)
+                if not failure.endswith("WRITE_FAIL"):
+                    self.assertNotIn("--sandbox config set", calls.read_text())
+
+    def beads_boot_fixture(self):
+        home = self.work / "owner-home"
+        home.mkdir()
+        (home / "workspace/.beads").mkdir(parents=True)
+        (home / "workspace/.beads/metadata.json").write_text("preserve native identity and routing")
+        binaries = self.work / "boot-bin"
+        binaries.mkdir()
+        state = self.work / "manager-state"
+        state.mkdir()
+        systemctl = binaries / "systemctl"
+        systemctl.write_text('''#!/bin/sh
+set -eu
+printf '%s\\n' "$*" >> "$CCNG_FIXTURE_SYSTEMD_DIR/calls"
+scope=system
+if [ "${1:-}" = --user ]; then scope=user; shift; fi
+case "$1" in
+  daemon-reload) exit 0 ;;
+  show)
+    printf 'LoadState=loaded\\n'
+    if [ -f "$CCNG_FIXTURE_SYSTEMD_DIR/$scope-running" ]; then
+      printf 'ActiveState=active\\n'
+    else printf 'ActiveState=inactive\\n'; fi ;;
+  is-enabled)
+    if [ -f "$CCNG_FIXTURE_SYSTEMD_DIR/enabled" ]; then echo enabled
+    else echo disabled; exit 1; fi ;;
+  enable) touch "$CCNG_FIXTURE_SYSTEMD_DIR/enabled" ;;
+  start) touch "$CCNG_FIXTURE_SYSTEMD_DIR/$scope-running" ;;
+  *) exit 97 ;;
+esac
+''')
+        systemctl.chmod(0o755)
+        loginctl = binaries / "loginctl"
+        loginctl.write_text('''#!/bin/sh
+set -eu
+printf '%s\\n' "$*" >> "$CCNG_FIXTURE_SYSTEMD_DIR/calls"
+case "$1" in
+  show-user)
+    if [ "${CCNG_FIXTURE_LOGIN_STATE:-}" = denied ]; then
+      echo 'Access denied to system bus' >&2; exit 1
+    elif [ "${CCNG_FIXTURE_LOGIN_STATE:-}" = fresh ] && [ ! -f "$CCNG_FIXTURE_SYSTEMD_DIR/linger" ]; then
+      echo 'Failed to get user: User 9999 is not logged in or lingering' >&2; exit 1
+    elif [ -f "$CCNG_FIXTURE_SYSTEMD_DIR/linger" ]; then echo yes; else echo no; fi ;;
+  enable-linger) [ "${CCNG_FIXTURE_LINGER_FAIL:-0}" = 0 ] || exit 8
+    touch "$CCNG_FIXTURE_SYSTEMD_DIR/linger" ;;
+  *) exit 98 ;;
+esac
+''')
+        loginctl.chmod(0o755)
+        variables = {"ccng_home": str(home), "ccng_project_dir": str(home / "workspace"),
+                     "ccng_user_uid": os.getuid(), "command_center_user": pwd.getpwuid(os.getuid()).pw_name,
+                     "command_center_path": str(binaries) + ":/usr/bin:/bin",
+                     "command_center_beads_boot_start": True,
+                     "ccng_tracker": {"rc": 0, "stdout": json.dumps({
+                         "path": str(home / "workspace/.beads"),
+                         "database_path": str(home / "workspace/.beads/dolt"), "schema_version": 1})}}
+        environment = {"PATH": variables["command_center_path"], "CCNG_FIXTURE_SYSTEMD_DIR": str(state)}
+        return home, state, variables, environment
+
+    def beads_boot_tasks(self, environment):
+        # Exercise the production task bodies, replacing privileged executables
+        # only in this disposable test copy; never contact the host's managers.
+        tasks = yaml.safe_load((ANSIBLE / "tasks/command_center_beads_boot.yml").read_text())
+        binaries = Path(environment["PATH"].split(":")[0])
+        for task in tasks:
+            if task.get("become_user") == "root":
+                self.assertIs(task["become"], True)
+                task["become"] = False
+                self.assertEqual(task["environment"]["PATH"], "/usr/sbin:/usr/bin:/sbin:/bin")
+                task["environment"]["PATH"] = environment["PATH"]
+                if "ansible.builtin.command" in task:
+                    self.assertEqual(task["ansible.builtin.command"]["argv"][0], "/usr/bin/loginctl")
+                    task["ansible.builtin.command"]["argv"][0] = str(binaries / "loginctl")
+            if "ansible.builtin.template" in task:
+                task["ansible.builtin.template"]["src"] = str(ANSIBLE / "templates/beads-dolt.service.j2")
+        return tasks
+
+    def beads_workspace_boot_tasks(self, environment):
+        tasks = yaml.safe_load((ANSIBLE / "tasks/command_center_workspace.yml").read_text())
+        for task in tasks:
+            imported = task.pop("ansible.builtin.import_tasks", None)
+            if imported == "command_center_beads_boot.yml":
+                task["block"] = self.beads_boot_tasks(environment)
+            elif imported:
+                task["ansible.builtin.import_tasks"] = str(ANSIBLE / "tasks" / imported)
+        return tasks
+
+    def test_beads_owner_boot_unit_is_opt_in_native_idempotent_and_preserves_tracker(self):
+        home, state, variables, environment = self.beads_boot_fixture()
+        selected = {"name": "Run the isolated native boot tasks", "block": self.beads_boot_tasks(environment),
+                    "when": "command_center_beads_boot_start | default(false)"}
+        self.run_tasks([selected], {**variables, "command_center_beads_boot_start": False}, environment)
+        self.assertFalse((home / ".config").exists())
+        self.assertFalse((state / "calls").exists())
+        self.run_tasks([selected], variables, environment)
+        unit = home / ".config/systemd/user/beads-dolt.service"
+        source = unit.read_text()
+        self.assertIn("Type=oneshot\nRemainAfterExit=yes", source)
+        self.assertIn("ExecStart=/usr/bin/env bd dolt start", source)
+        self.assertIn("ExecStop=/usr/bin/env bd dolt stop", source)
+        self.assertIn(f'Environment="BEADS_DIR={home}/workspace/.beads"', source)
+        self.assertIn("Environment=BEADS_DOLT_SHARED_SERVER=1", source)
+        self.assertEqual(unit.stat().st_mode & 0o777, 0o600)
+        repeated = self.run_tasks([selected], variables, environment)
+        self.assertRegex(repeated.stdout, r"changed=0\b")
+        calls = (state / "calls").read_text().splitlines()
+        self.assertEqual(sum(line.startswith("enable-linger ") for line in calls), 1)
+        self.assertEqual(calls.count("--user start beads-dolt.service"), 1)
+        self.assertEqual(calls.count("--user enable beads-dolt.service"), 1)
+        self.assertEqual((home / "workspace/.beads/metadata.json").read_text(), "preserve native identity and routing")
+
+    def test_beads_boot_preserves_foreign_unit_and_does_not_enable_linger(self):
+        home, state, variables, environment = self.beads_boot_fixture()
+        unit = home / ".config/systemd/user/beads-dolt.service"
+        unit.parent.mkdir(parents=True)
+        original = "[Service]\nType=simple\nExecStart=/usr/bin/false\n"
+        unit.write_text(original)
+        self.run_tasks(self.beads_boot_tasks(environment), variables, environment, success=False)
+        self.assertEqual(unit.read_text(), original)
+        self.assertFalse((state / "calls").exists())
+
+    def test_beads_boot_adopts_only_the_exact_previously_approved_native_unit(self):
+        home, state, variables, environment = self.beads_boot_fixture()
+        unit = home / ".config/systemd/user/beads-dolt.service"
+        unit.parent.mkdir(parents=True)
+        original = f'''[Unit]
+Description=Existing Beads shared Dolt server
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory={home}/workspace
+Environment=BEADS_DIR={home}/workspace/.beads
+Environment=BEADS_DOLT_SHARED_SERVER=1
+Environment=PATH={home}/.local/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
+ExecStart={home}/.local/bin/bd dolt start
+ExecStop={home}/.local/bin/bd dolt stop
+TimeoutStartSec=60
+TimeoutStopSec=60
+
+[Install]
+WantedBy=default.target
+'''
+        unit.write_text(original.replace("bd dolt start", "bd dolt start --port 9999"))
+        self.run_tasks(self.beads_boot_tasks(environment), variables, environment, success=False)
+        self.assertIn("--port 9999", unit.read_text())
+        self.assertFalse((state / "calls").exists())
+        unit.write_text(original)
+        self.run_tasks(self.beads_boot_tasks(environment), variables, environment)
+        self.assertTrue(unit.read_text().startswith("# Managed by Command Center Ansible deployment\n"))
+
+    def test_beads_boot_native_linger_failure_never_starts_a_service(self):
+        home, state, variables, environment = self.beads_boot_fixture()
+        environment["CCNG_FIXTURE_LINGER_FAIL"] = "1"
+        self.run_tasks(self.beads_boot_tasks(environment), variables, environment, success=False)
+        calls = (state / "calls").read_text()
+        self.assertNotIn("start ", calls)
+        self.assertFalse((state / "linger").exists())
+        self.assertEqual((home / "workspace/.beads/metadata.json").read_text(), "preserve native identity and routing")
+
+    def test_beads_boot_accepts_a_fresh_manager_and_refuses_unknown_native_errors(self):
+        home, state, variables, environment = self.beads_boot_fixture()
+        self.run_tasks(self.beads_boot_tasks(environment), variables,
+                       {**environment, "CCNG_FIXTURE_LOGIN_STATE": "denied"}, success=False)
+        self.assertFalse((home / ".config").exists())
+        self.assertNotIn("enable-linger", (state / "calls").read_text())
+        self.run_tasks(self.beads_boot_tasks(environment), variables,
+                       {**environment, "CCNG_FIXTURE_LOGIN_STATE": "fresh"})
+        self.assertTrue((state / "linger").exists())
+        self.assertTrue((state / "user-running").exists())
+
+    def test_beads_boot_refuses_parent_links_before_reading_the_unit(self):
+        home, state, variables, environment = self.beads_boot_fixture()
+        foreign = self.work / "foreign-config"
+        (foreign / "systemd/user").mkdir(parents=True)
+        unit = foreign / "systemd/user/beads-dolt.service"
+        unit.write_text("synthetic foreign unit must not be read")
+        (home / ".config").symlink_to(foreign, target_is_directory=True)
+        result = self.run_tasks(self.beads_boot_tasks(environment), variables, environment, success=False)
+        self.assertNotIn("TASK [Read an existing owner unit", result.stdout)
+        self.assertEqual(unit.read_text(), "synthetic foreign unit must not be read")
+        self.assertFalse((state / "calls").exists())
+
+    def test_beads_boot_uses_verified_native_parent_tracker_without_moving_it(self):
+        home, state, variables, environment = self.beads_boot_fixture()
+        tracker = home / "shared/.beads"
+        tracker.mkdir(parents=True)
+        (tracker / "metadata.json").write_text("preserve parent tracker")
+        variables["ccng_tracker"]["stdout"] = json.dumps({"path": str(tracker), "database_path": str(tracker / "dolt"), "schema_version": 1})
+        variables["command_center_path"] += ":/opt/native%p/bin"
+        self.run_tasks(self.beads_boot_tasks(environment), variables, environment)
+        source = (home / ".config/systemd/user/beads-dolt.service").read_text()
+        self.assertIn(f'Environment="BEADS_DIR={tracker}"', source)
+        self.assertIn(f'WorkingDirectory="{home}/workspace"', source)
+        self.assertIn("/opt/native%%p/bin", source, "literal PATH percent must not become a systemd specifier")
+        self.assertEqual((tracker / "metadata.json").read_text(), "preserve parent tracker")
+
+    def test_boot_starts_stopped_existing_tracker_before_database_reads_without_reinitializing(self):
+        home, state, variables, environment = self.beads_boot_fixture()
+        native_home, calls, native_variables, native_environment = self.workspace_fixture()
+        shutil.copy2(self.work / "bin/bd", self.work / "boot-bin/bd")
+        environment.update({"CCNG_FIXTURE_CALLS": str(calls), "CCNG_FIXTURE_DB_STOPPED": "1"})
+        tasks = self.beads_workspace_boot_tasks(environment)
+        self.run_tasks(tasks, variables, environment)
+        self.run_tasks(tasks, variables, environment)
+        native_calls = calls.read_text().splitlines()
+        self.assertNotIn("init --shared-server", calls.read_text())
+        self.assertEqual(native_calls.count("--readonly where --json"), 2, "reuse each discovery response without duplicate native lookup")
+        self.assertEqual((state / "calls").read_text().splitlines().count("--user start beads-dolt.service"), 1)
+
+    def test_fresh_boot_workspace_rereads_native_location_once_and_preserves_repeat_state(self):
+        home, state, variables, environment = self.beads_boot_fixture()
+        self.workspace_fixture()
+        shutil.copy2(self.work / "bin/bd", self.work / "boot-bin/bd")
+        shutil.copy2(self.work / "bin/dolt", self.work / "boot-bin/dolt")
+        project = home / "ccng-wd"
+        (home / "workspace").rename(project)
+        shutil.rmtree(project / ".beads")
+        variables["ccng_project_dir"] = str(project)
+        calls = self.work / "fresh-native-calls"
+        environment["CCNG_FIXTURE_CALLS"] = str(calls)
+        tasks = self.beads_workspace_boot_tasks(environment)
+        self.run_tasks(tasks, variables, environment)
+        self.run_tasks(tasks, variables, environment)
+        native_calls = calls.read_text().splitlines()
+        self.assertEqual(native_calls.count("init --shared-server --non-interactive --skip-agents --skip-hooks"), 1)
+        self.assertEqual(native_calls.count("--readonly where --json"), 3)
+        source = (home / ".config/systemd/user/beads-dolt.service").read_text()
+        self.assertIn(f'Environment="BEADS_DIR={project}/.beads"', source)
+        self.assertEqual((state / "calls").read_text().splitlines().count("--user start beads-dolt.service"), 1)
 
     def test_partial_or_ambient_tracker_configuration_is_preserved(self):
         for conflict in ["partial", "home-routing", "user-config", "parent-resolved"]:
@@ -443,6 +750,8 @@ esac
             "selected-fixture": {"command_center_user": "fixture_operator",
                                  "command_center_first_password_setup": "htpasswd-proxy",
                                  "command_center_port": 8181,
+                                 "command_center_beads_config": {"auto_compact_enabled": "false", "compaction_enabled": "false"},
+                                 "command_center_beads_boot_start": True,
                                  "command_center_password": "synthetic-runtime-canary"},
             "other-fixture": {"command_center_user": "must_not_select", "command_center_port": 9999},
         })
@@ -453,6 +762,8 @@ esac
                     "command_center_user == 'fixture_operator'", "command_center_port | int == 8181",
                     "command_center_password == 'synthetic-runtime-canary'",
                     "command_center_first_password_setup == 'htpasswd-proxy'",
+                    "command_center_beads_config == {'auto_compact_enabled': 'false', 'compaction_enabled': 'false'}",
+                    "command_center_beads_boot_start is sameas true",
                 ]}},
                 {"name": "Inspect temporary ciphertext cleanup", "ansible.builtin.stat": {
                     "path": "{{ ccng_runtime_temporary_file.path }}"}, "register": "runtime_cleanup"},

@@ -13,5 +13,10 @@ command_center_public_origin: https://command-center.example.invalid
 command_center_first_password_setup: htpasswd-proxy
 # command_center_manage_packages: true
 # command_center_force_install: false
+# Empty settings preserve existing native values; quoted scalars stay strings.
+# command_center_beads_config:
+#   auto_compact_enabled: 'false'
+#   compaction_enabled: 'false'
+# command_center_beads_boot_start: false
 # Create the fresh application password through the protected browser opening.
 # Existing application authentication is preserved; no setup code is used.

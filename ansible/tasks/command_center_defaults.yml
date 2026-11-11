@@ -17,6 +17,8 @@
     command_center_connection_type: "{{ command_center_connection_type | default(ccng_default_connection_type) }}"
     command_center_tls_days: "{{ command_center_tls_days | default(ccng_default_tls_days) }}"
     command_center_codex_package: "{{ command_center_codex_package | default(ccng_default_codex_package) }}"
+    command_center_beads_config: "{{ command_center_beads_config | default(ccng_default_beads_config) }}"
+    command_center_beads_boot_start: "{{ command_center_beads_boot_start | default(ccng_default_beads_boot_start) }}"
 
 - name: Resolve the application PATH after installation paths are known
   ansible.builtin.set_fact:
@@ -38,3 +40,6 @@
         command_center_public_origin == '' or
         command_center_public_origin is match('^https?://[^/\s"%@?#]+$')
     quiet: true
+
+- name: Validate native Beads settings before managed writes
+  ansible.builtin.import_tasks: command_center_beads_validation.yml

@@ -1,0 +1,37 @@
+---
+# No certified Beads module exposes these settings. Keep native bd ownership;
+# see docs/ansible-deployment.md#beads-configuration-coverage.
+- name: Read every selected native Beads setting before changing any setting
+  ansible.builtin.command:
+    argv: [bd, --sandbox, config, get, "{{ item.key }}", --json]
+    chdir: "{{ ccng_project_dir }}"
+  environment:
+    BEADS_DOLT_AUTO_START: '0'
+  register: ccng_beads_current_config
+  changed_when: false
+  loop: "{{ command_center_beads_config | default({}) | dict2items }}"
+
+- name: Require supported native responses for all selected settings
+  ansible.builtin.assert:
+    that:
+      - ccng_beads_setting is mapping
+      - ccng_beads_setting.key | default('') == item.item.key
+      - ccng_beads_setting.schema_version | default(0) == 1
+      - ccng_beads_setting.value | default(none) is string
+    quiet: true
+    fail_msg: Native Beads returned an unsupported setting response; no selected settings were changed.
+  vars:
+    ccng_beads_setting: "{{ item.stdout | ansible.builtin.from_json }}"
+  loop: "{{ ccng_beads_current_config.results }}"
+
+- name: Apply only changed selected native Beads settings
+  ansible.builtin.command:
+    argv: [bd, --sandbox, config, set, "{{ item.item.key }}", "{{ item.item.value }}"]
+    chdir: "{{ ccng_project_dir }}"
+  environment:
+    BEADS_DOLT_AUTO_START: '0'
+  vars:
+    ccng_beads_setting: "{{ item.stdout | ansible.builtin.from_json }}"
+  when: ccng_beads_setting.value != item.item.value
+  changed_when: true
+  loop: "{{ ccng_beads_current_config.results }}"

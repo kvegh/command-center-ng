@@ -63,7 +63,8 @@
               'command_center_password', 'command_center_manage_packages',
               'command_center_force_install', 'command_center_connection_type',
               'command_center_tls_server_name', 'command_center_tls_days',
-              'command_center_codex_package']) | length == 0
+              'command_center_codex_package', 'command_center_beads_config',
+              'command_center_beads_boot_start']) | length == 0
         quiet: true
         fail_msg: Runtime settings may contain only documented Command Center deployment inputs.
 

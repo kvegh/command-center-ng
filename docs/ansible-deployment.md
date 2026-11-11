@@ -22,7 +22,8 @@ The playbook reuses an existing unprivileged Linux account and its home. The
 default agent workspace is `~/ccng-wd`; first setup creates that directory and
 initializes its native Beads tracker when none exists. Existing trackers and
 authentication are preserved. It does not create the account, migrate project
-data or manage a Codex service. Native Beads owns its shared Dolt server.
+data or manage a Codex service. Native Beads owns its shared Dolt server;
+the opt-in boot unit below invokes its existing start/stop commands.
 Compatible `bd` and `dolt` programs on the application PATH are reused. With
 package management enabled, missing programs are provisioned unattended using
 the same versions as the maintained installer, without answering terminal prompts.
@@ -92,6 +93,8 @@ variables.
 | `command_center_manage_packages` | Default `true`; set `false` when system and CLI prerequisites are managed separately |
 | `command_center_password` | Protected 12–4096-character initial password only when no auth file exists and browser-first setup is disabled |
 | `command_center_force_install` | Default `false`; rebuild the selected revision explicitly |
+| `command_center_beads_config` | Default `{}` preserves existing maintenance settings; only the nine documented native keys and string values are accepted |
+| `command_center_beads_boot_start` | Default `false`; explicit `true` enables the selected tracker's existing native Dolt server at user startup |
 
 All actual settings, inventory data and AAP configuration belong as whole-file
 Ansible Vault ciphertext in private `command-center-ng-secrets`. Keep the Vault
@@ -158,8 +161,9 @@ source repository, remote, imported tasks or copied tracker is supplied. The
 issue prefix defaults to the workspace directory name; no explicit prefix is
 needed for `ccng-wd`. See the maintained version's
 [initialization source](https://github.com/gastownhall/beads/blob/v1.3.2/cmd/bd/init.go#L1058-L1074).
-Ansible adds no tracker database, server wrapper or background service of its
-own. The final native read must succeed before application installation proceeds.
+Ansible adds no tracker database or server wrapper. The final native read must
+succeed before application installation proceeds. Automatic database startup is
+separately opt-in, as described below.
 
 Reruns reuse a working tracker and preserve directory permissions, instructions,
 hooks and authentication. A partial tracker, inherited tracker for the default
@@ -184,33 +188,38 @@ execution, existing custom states, and refused reads/writes or malformed replies
 The interactive installer still preserves existing tracker configuration; this
 setting is part of the explicitly authorized Ansible deployment path.
 
-The encrypted runtime file and its embedded CaC copy do not currently declare
-the nine native compaction settings. `issue_prefix` and schema/project/database
-identities are derived by native initialization, rather than copied from a
-development tracker. Shared Dolt mode is selected by `bd init --shared-server`.
+From 1.7.0, `command_center_beads_config` can reproduce the nine native maintenance
+settings through the same protected runtime loader. An empty map preserves them.
+The playbook validates all requested values and reads their current state before
+setting changed values only. It does not run history shortening or cleanup.
+Keep `auto_compact_enabled` and `compaction_enabled` as string `"false"` when
+preserving a setup where task-history shortening is disabled.
+`issue_prefix` and schema/project/database identities are derived by native
+initialization, rather than copied from a development tracker. Shared Dolt mode
+is selected by `bd init --shared-server`.
 Beads1.3.2 is pinned for missing programs. Fresh Dolt remains pinned to2.2.0;
 an existing compatible binary is reused. Checking an existing CLI version does
 not attest the running server version or change that fresh-install baseline.
 
 ### Beads configuration coverage
 
-The configuration comparison identified these native keys. The encrypted runtime
-loader currently accepts documented application inputs, not an arbitrary native
-Beads configuration map. Adding unknown keys to ciphertext alone cannot apply
-them and does not extend that loader's allowlist.
+The encrypted runtime loader accepts the explicit maintenance map below, rather
+than arbitrary native settings. Unknown keys, non-string values and invalid
+native response formats fail before configuration writes. Other existing keys,
+task contents and tracker routing remain unchanged.
 
 | Native key | Deployment responsibility |
 | --- | --- |
 | `status.custom` | Native CLI merges required `on_hold`; other existing states are retained |
-| `auto_compact_enabled` | Not explicitly declared in runtime CaC or managed by this playbook |
-| `compact_batch_size` | Not explicitly declared or managed |
-| `compact_parallel_workers` | Not explicitly declared or managed |
-| `compact_tier1_days` | Not explicitly declared or managed |
-| `compact_tier1_dep_levels` | Not explicitly declared or managed |
-| `compact_tier2_commits` | Not explicitly declared or managed |
-| `compact_tier2_days` | Not explicitly declared or managed |
-| `compact_tier2_dep_levels` | Not explicitly declared or managed |
-| `compaction_enabled` | Not explicitly declared or managed |
+| `auto_compact_enabled` | Optional string `"true"` or `"false"` in the maintenance map |
+| `compact_batch_size` | Optional string containing the selected native value |
+| `compact_parallel_workers` | Optional string containing the selected native value |
+| `compact_tier1_days` | Optional string containing the selected native value |
+| `compact_tier1_dep_levels` | Optional string containing the selected native value |
+| `compact_tier2_commits` | Optional string containing the selected native value |
+| `compact_tier2_days` | Optional string containing the selected native value |
+| `compact_tier2_dep_levels` | Optional string containing the selected native value |
+| `compaction_enabled` | Optional string `"true"` or `"false"` in the maintenance map |
 | `issue_prefix` | Native initialization derives a fresh workspace's identity |
 | `schema_version` | Native Beads metadata; not a desired deployment input |
 
@@ -218,6 +227,28 @@ An existing immutable SCM/app revision in CaC must be advanced explicitly before
 it can consume a newer playbook. Update-on-launch refreshes the selected revision;
 it does not turn a fixed commit into `main`. Database/project IDs, task contents,
 port files and live server identity are not copied as desired configuration.
+
+### Optional database startup after reboot
+
+With `command_center_beads_boot_start: true`, Ansible configures one owner-level
+`beads-dolt.service`. It runs native `bd dolt start` and `bd dolt stop` from the
+selected existing tracker, using its verified native location, the same home,
+PATH and shared-server mode. Startup precedes the required database reads so an
+existing stopped tracker can become usable without being initialized again.
+The unit is `Type=oneshot` with `RemainAfterExit=yes`; Beads remains responsible
+for server ownership and data. The playbook enables user lingering and the user
+manager when needed, then enables and starts that unit. Existing matching
+approved units can be adopted; conflicting units, unsafe paths and ownership
+are refused. A repeat apply does not restart the server merely to rewrite a
+unit. Privileged manager commands use trusted system executables; the selected
+account's tool PATH is used only for its own Beads execution. Setting the option
+to false leaves any existing service untouched.
+
+This is the separately approved systemd startup mechanism, not an application
+task-reader capability or another database server. No credential, database,
+port, wrapper or Codex service is created. Native Codex boot setup remains a
+separate approved maintenance action requiring a safe idle checkpoint; this
+playbook does not run its unverified bootstrap during active work.
 
 When task programs are absent and package management is enabled, Ansible uses
 the installer's existing `@beads/bd@1.3.2` package and standalone Dolt 2.2.0
@@ -366,6 +397,12 @@ packages, alter accounts, start services, connect to a VM or call a model.
 Use already available Python/Ansible/lint/systemd tools; ask before installing
 missing dependencies. Whole-playbook `--check` is explicitly refused because the
 stateful installer requires real output files.
+
+Beads fixtures exercise the nine-setting map, repeat runs and refused reads
+without changing unrelated tasks or routing. Boot fixtures use isolated native
+command substitutes and disposable unit files for adoption, ordering, routing,
+failure and repeat behavior. They do not start a real user manager or database;
+a real deployment and reboot remain separate acceptance checks.
 
 Passing local checks does not prove a real RHEL 9 startup, an AAP execution
 environment's dependencies, browser access or a successful live deployment.
