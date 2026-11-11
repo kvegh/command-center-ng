@@ -3339,3 +3339,37 @@ the restored tabs before the1.6.0 rollout; updated browser interaction and a ful
 host reboot remain unverified. Automatic native Codex/Dolt boot startup needs
 the separately requested decisions. No reboot, daemon bootstrap, profile copy,
 new database, native approval answer or uncertain-command replay occurred.
+
+## 2026-11-11 — Reproduce Beads settings and its approved boot service
+
+Implementation: `c58aad4f5327ddc39f3f796f28de2e34933d8f15` (1.7.0).
+
+The user requested deployment/CaC coverage for the current Beads configuration
+and explicitly approved an owner-level service using native database start/stop.
+The existing runtime loader now accepts a nine-key string map and a strict
+boolean startup option. Empty/default inputs preserve existing settings.
+The native CLI applies changed values only, retaining unrelated settings,
+tracker identity and tasks. This preserves disabled history-shortening settings
+without running maintenance or introducing a configuration wrapper.
+
+The optional unit uses the verified native tracker location, starts before
+required database reads and preserves existing shared data. Owner checks and
+exact prior-unit adoption prevent replacing a conflicting service. Privileged
+manager operations use trusted system executables. Native Codex bootstrap stays
+separate at its already approved safe idle checkpoint; no new daemon or startup
+architecture is substituted.
+
+Validation:14 affected native-Ansible fixtures pass, strict offline production
+lint checks17 files without failures/warnings, syntax and production build pass,
+and independent corrected-source review finds no blocking issue. A wider
+29-case deployment run passed28; its local frontend case could not bind a socket
+under native permissions. No access controls were changed. Boot fixtures use
+isolated service substitutes, not a real reboot. Normal AAP import/deployment and
+preservation reruns remain separate from publication and existing-install checks.
+
+A fresh private-repository fetch found newer approved successor settings than
+the old local audit: the selected successor already follows main, while an
+earlier instance remains retained. Preserve those source selections and update
+only the selected instance's encrypted Beads settings and embedded ciphertext.
+Earlier unnecessary technical questions are withdrawn by their author, rather
+than recorded as user answers. Both real boot-startup choices remain settled.
