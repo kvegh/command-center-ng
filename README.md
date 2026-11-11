@@ -59,6 +59,8 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Request concise task reports or optional detailed action histories; choose a saved interval, or Never to disable automatic startup and recurring reports.
 - Recheck overlooked tasks and stalled delegated work silently every 10 minutes, including safe recovery of stalled child waits, with the next check shown in the coordinator.
 - Keep coordinator decision summaries across restarts in a private local file.
+- Save the open-agent list when creating, opening, branching or closing tabs;
+  restore the same conversations after restart and reconnect when Codex starts later.
 - Read Markdown, copy messages/code, and paste or attach images to a draft.
 - Keep desktop settings at the bottom of a full-height overview, with scrollable tasks and questions.
 - Use desktop resizing, natural mobile page scrolling through the chat, and three colour themes.

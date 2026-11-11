@@ -92,12 +92,34 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
   if (workspace.coordinator?.initializeDecisionHistory) await workspace.coordinator.initializeDecisionHistory(new DecisionStore(join(dirname(workspaceFile || join(dirname(authFile), 'workspace.json')), 'decisions.jsonl')));
   const persistence = new WorkspacePersistence(workspace, new WorkspaceStore(workspaceFile || join(dirname(authFile), 'workspace.json')));
   await persistence.initialize();
+  let appClosing = false;
+  const connectNativeRuntime = async () => {
+    if (appClosing) return false;
+    if (rpc.ready) return true;
+    try {
+      await rpc.connect();
+      if (appClosing) { rpc.close(); return false; }
+      return true;
+    }
+    catch (error) {
+      if (!appClosing && workspace.error !== error.message) { workspace.error = error.message; workspace.changed(); }
+      return false;
+    }
+  };
   const taskTimer = setInterval(() => {
+    // The daemon can become ready after the website. Reuse this existing poll;
+    // restoration keeps its existing request, pause and saved-report gates.
+    void connectNativeRuntime();
     for (const id of workspace.agents.keys()) { void workspace.refreshTasks(id); void workspace.refreshObserved(id); }
   }, 5000);
   taskTimer.unref();
-  let vite; let broadcastTimer; let broadcasting = false; let broadcastAgain = false; let appClosing = false;
+  let vite; let broadcastTimer; let broadcasting = false; let broadcastAgain = false;
   const json = (response, value, status = 200) => { response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(value)); };
+  const savedWorkspaceJson = async (response, value, status = 200) => {
+    const workspaceSaveWarning = await persistence.flush();
+    // A failed metadata write does not undo an already successful native action.
+    return json(response, { ...value, ...(workspaceSaveWarning ? { workspaceSaveWarning } : {}) }, status);
+  };
   const publish = () => {
     if (appClosing) return;
     if (broadcasting) { broadcastAgain = true; return; }
@@ -209,14 +231,14 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
         }
         if (path === '/api/agents' && request.method === 'GET') return json(response, await workspace.list(url.searchParams.get('cursor'), url.searchParams.get('provider') || 'codex'));
         if (request.method === 'POST') await persistence.restore();
-        if (path === '/api/agents' && request.method === 'POST') return json(response, { id: await workspace.create(await body(request)) }, 201);
+        if (path === '/api/agents' && request.method === 'POST') return savedWorkspaceJson(response, { id: await workspace.create(await body(request)) }, 201);
         if (path === '/api/coordinator' && request.method === 'POST') {
           if (!workspace.coordinator) throw failure('The coordinator is unavailable.', 503);
           const data = await body(request);
           if (data.action === 'clear-messages') { workspace.coordinator.clearMessages(); return json(response, workspace.coordinator.snapshot()); }
           if (Object.hasOwn(data, 'paused')) await workspace.coordinator.setPaused(data.paused);
           else { await workspace.coordinator.ensure(); if (data.action === 'refresh') { for (const worker of workspace.coordinator.workers()) workspace.coordinator.mark(worker.id, 'User requested a fresh summary', true); await workspace.coordinator.pump(); } }
-          return json(response, workspace.coordinator.snapshot());
+          return savedWorkspaceJson(response, workspace.coordinator.snapshot());
         }
         const detailRoute = path.match(/^\/api\/agents\/([^/]+)\/tasks\/([^/]+)$/);
         if (detailRoute && request.method === 'GET') return json(response, await workspace.taskDetail(decodeURIComponent(detailRoute[1]), decodeURIComponent(detailRoute[2])));
@@ -262,11 +284,12 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
             question.review = { decision: 'queued', rationale: 'Review requested by the user.' };
             await workspace.coordinator.ensure(); workspace.coordinator.mark(id, 'User requested approval review', true); workspace.changed();
           }
-          if (action === 'fork') return json(response, { id: await workspace.fork(id, data.lastTurnId) }, 201);
-          if (action === 'parent') return json(response, { id: await workspace.parent(id) });
+          if (action === 'fork') return savedWorkspaceJson(response, { id: await workspace.fork(id, data.lastTurnId) }, 201);
+          if (action === 'parent') return savedWorkspaceJson(response, { id: await workspace.parent(id) });
           if (action === 'handoff') return json(response, workspace.startHandoff(id), 202);
           if (action === 'summary') return json(response, await workspace.summarize(id));
-          if (action === 'return') return json(response, { id: await workspace.returnToParent(id, data.text) });
+          if (action === 'return') return savedWorkspaceJson(response, { id: await workspace.returnToParent(id, data.text) });
+          if (action === 'open' || action === 'close') return savedWorkspaceJson(response, { ok: true });
           return json(response, { ok: true });
         }
         throw failure('Unknown API route.', 404);
@@ -331,7 +354,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
       throw error;
     }
   };
-  return { server, listen, workspace, rpc, close, settings, persistence };
+  return { server, listen, workspace, rpc, close, settings, persistence, connectNativeRuntime };
 }
 
 export function runtimeOptions(args = process.argv.slice(2), env = process.env, fileValues = {}) {
@@ -436,7 +459,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
         listener.server.once('error', error => { console.error(`Cannot listen: ${error.message}`); process.exitCode = 1; void app.close(); });
       }
       if (app.settings.certificate) console.log('TLS certificate: ' + JSON.stringify(app.settings.certificate));
-      app.rpc.connect().catch(error => { app.workspace.error = error.message; app.workspace.changed(); });
+      void app.connectNativeRuntime();
       for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { app.close().then(() => process.exit(0)); });
     }
   } catch (error) { console.error(`Cannot start: ${error.code === 'ENOENT' ? 'Set the application password first: npm run password' : error.message}`); process.exitCode = 1; }

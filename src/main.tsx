@@ -160,32 +160,44 @@ function AgentDialog({ state, dismiss, act, select }: { state: Snapshot; dismiss
   const [mode, setMode] = useState<'existing' | 'new'>('existing');
   const [provider, setProvider] = useState<Provider>(state.codexConnected === false && state.claudeAvailable ? 'claude' : 'codex');
   const [available, setAvailable] = useState<Available[]>([]); const [goal, setGoal] = useState(''); const [cwd, setCwd] = useState('');
-  const [search, setSearch] = useState(''); const [cursor, setCursor] = useState<string | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState(''); const [cursor, setCursor] = useState<string | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [loading, setLoading] = useState(false); const [loaded, setLoaded] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null); const request = useRef(0);
   const ready = runtimeReady(state, provider);
   const load = async (more?: string) => {
     const current = ++request.current; setError('');
-    if (!ready) { setAvailable([]); setCursor(null); setLoading(false); return; }
+    if (!ready) { setAvailable([]); setCursor(null); setLoading(false); setLoaded(false); return; }
+    if (!more) setLoaded(false);
     setLoading(true);
     try {
       const params = new URLSearchParams({ provider, ...(more ? { cursor: more } : {}) });
       const result = await api('agents?' + params);
-      if (request.current === current) { setAvailable(previous => more ? [...previous, ...result.agents] : result.agents); setCursor(result.nextCursor); }
+      if (request.current === current) { setAvailable(previous => more ? [...previous, ...result.agents] : result.agents); setCursor(result.nextCursor); setLoaded(true); }
     } catch (problem) { if (request.current === current) setError((problem as Error).message); }
     finally { if (request.current === current) setLoading(false); }
   };
   useEffect(() => { dialog.current?.showModal(); }, []);
   useEffect(() => { setAvailable([]); setCursor(null); void load(); return () => { request.current++; }; }, [provider, ready]);
+  const reconnect = async () => {
+    setBusy(true); setError('');
+    try { await api('connect', {}); }
+    catch (problem) { setError((problem as Error).message); }
+    finally { setBusy(false); }
+  };
+  const unopened = available.filter(agent => !state.agents.some(open => open.id === agent.id));
+  const matching = unopened.filter(agent => agent.name.toLowerCase().includes(search.toLowerCase()));
+  let emptyNotice = 'No matching unopened conversations in the loaded history.';
+  if (!available.length) emptyNotice = cursor ? 'No conversations on this page. Load more conversations to continue.' : 'No conversations found for this runtime.';
+  else if (!unopened.length) emptyNotice = 'All loaded conversations are already open.';
   return <dialog ref={dialog} onCancel={dismiss} className="agent-dialog">
     <div className="dialog-heading"><div><div className="eyebrow">MAKE ROOM FOR YOUR NEXT IDEA</div><h2>Add an agent</h2></div><button className="icon-button" onClick={dismiss} aria-label="Close dialog"><Icon name="close" /></button></div>
-    <label className="provider-choice">Agent runtime<select aria-label="Agent runtime" value={provider} disabled={busy} onChange={event => { request.current++; setAvailable([]); setCursor(null); setError(''); setLoading(false); setProvider(event.target.value as Provider); }}><option value="codex">Codex</option><option value="claude">Claude</option></select></label>
+    <label className="provider-choice">Agent runtime<select aria-label="Agent runtime" value={provider} disabled={busy} onChange={event => { request.current++; setAvailable([]); setCursor(null); setError(''); setLoading(false); setLoaded(false); setProvider(event.target.value as Provider); }}><option value="codex">Codex</option><option value="claude">Claude</option></select></label>
     <div className="segmented"><button className={mode === 'existing' ? 'selected' : ''} disabled={busy} onClick={() => setMode('existing')}>Open existing</button><button className={mode === 'new' ? 'selected' : ''} disabled={busy} onClick={() => setMode('new')}>Start new</button></div>
-    {!ready && <p role="status" className="field-note">{provider === 'claude' ? state.claudeError || 'The local Claude runtime is unavailable.' : 'Codex is disconnected. Reconnect it before opening or starting a Codex agent.'}</p>}
-    {error && <p role="alert" className="error-text">{error}</p>}
+    {!ready && <div role="status" className="field-note"><p>{provider === 'claude' ? state.claudeError || 'The local Claude runtime is unavailable.' : state.error || 'Codex is disconnected. Reconnect it before opening or starting a Codex agent.'}</p>{provider === 'codex' && <button className="button subtle small" disabled={busy} onClick={reconnect}>Reconnect Codex</button>}</div>}
+    {error && <div role="alert" className="error-text"><p>{error}</p>{ready && mode === 'existing' && <button className="button subtle small" disabled={busy || loading} onClick={() => void load()}>Retry loading conversations</button>}</div>}
     {mode === 'existing' ? <>
       <input className="search" aria-label="Find an agent" placeholder="Find a conversation…" value={search} onChange={event => setSearch(event.target.value)} />
-      <div className="agent-list">{available.filter(agent => !state.agents.some(open => open.id === agent.id) && agent.name.toLowerCase().includes(search.toLowerCase())).map(agent => <button className="agent-option" key={agent.id} disabled={busy || !ready} onClick={async () => { setBusy(true); if (await act(`agents/${agent.id}/open`, {})) { select(agent.id); dismiss(); } setBusy(false); }}><span className={`option-dot ${agent.status}`} /><span><strong>{agent.name}</strong><small>{provider === 'claude' ? 'Claude · ' : agent.forkedFromId ? 'Branch · ' : agent.parentId ? 'Subagent · ' : ''}{agent.cwd}</small></span><Badge status={agent.status} /></button>)}
-        {loading && <p className="muted" role="status">Loading {provider === 'claude' ? 'Claude' : 'Codex'} conversations…</p>}{ready && !loading && !error && !available.length && <p className="muted">No conversations found for this runtime.</p>}
+      <div className="agent-list">{matching.map(agent => <button className="agent-option" key={agent.id} disabled={busy || !ready} onClick={async () => { setBusy(true); if (await act(`agents/${agent.id}/open`, {})) { select(agent.id); dismiss(); } setBusy(false); }}><span className={`option-dot ${agent.status}`} /><span><strong>{agent.name}</strong><small>{provider === 'claude' ? 'Claude · ' : agent.forkedFromId ? 'Branch · ' : agent.parentId ? 'Subagent · ' : ''}{agent.cwd}</small></span><Badge status={agent.status} /></button>)}
+        {loading && <p className="muted" role="status">Loading {provider === 'claude' ? 'Claude' : 'Codex'} conversations…</p>}{ready && loaded && !loading && !error && !matching.length && <p className="muted">{emptyNotice}</p>}
       </div>{cursor && <button className="button subtle" disabled={busy || loading || !ready} onClick={() => void load(cursor)}>Load more conversations</button>}
     </> : <form className="new-agent" onSubmit={async event => {
       event.preventDefault(); if (!ready || busy) return; setBusy(true); setError('');
@@ -582,7 +594,7 @@ function App() {
       </div>
     </header>
     <main className="workspace" aria-label="Agent workspace">
-      {!state.connected && <div className="connection-banner" role="status"><span>{state.error || 'The live connection is unavailable.'}</span><button className="button subtle small" onClick={() => void act('connect', {})}><Icon name="refresh" />Reconnect</button></div>}
+      {!runtimeReady(state, 'codex') && <div className="connection-banner" role="status"><span>{state.error || 'Codex is disconnected. Reconnect to restore saved Codex conversations.'}</span><button className="button subtle small" onClick={() => void act('connect', {})}><Icon name="refresh" />Reconnect Codex</button></div>}
       {error && <div className="error-banner" role="alert"><span>{error}</span><button className="icon-button" onClick={() => setError('')} aria-label="Dismiss error"><Icon name="close" /></button></div>}
       <BackgroundRequests workers={(state.backgroundWorkers || []).filter(worker => !state.agents.some(agent => agent.id === worker.id))} available={provider => runtimeReady(state, provider)} opening={openingBackground} full={workers.length >= limits.maxWorkers} open={async id => { if (openingBackground) return; setOpeningBackground(true); try { if (await act(`agents/${id}/open`, {})) choose(id); } finally { setOpeningBackground(false); } }} />
       {state.restoration?.status === 'restoring' && <div className="connection-banner" role="status">Restoring your open conversations…</div>}

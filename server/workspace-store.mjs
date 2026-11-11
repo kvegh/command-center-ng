@@ -49,6 +49,9 @@ export class WorkspaceStore {
         const handle = await open(temporary, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
         try { await handle.writeFile(data); await handle.sync(); } finally { await handle.close(); }
         await rename(temporary, this.file); temporary = null;
+        // Commit the directory entry as well as the file before acknowledging a save.
+        const parent = await open(dirname(this.file), constants.O_RDONLY | constants.O_DIRECTORY);
+        try { await parent.sync(); } finally { await parent.close(); }
       } finally { if (temporary) await unlink(temporary).catch(() => {}); }
     });
     this.queue = job.catch(() => {}); return job;
@@ -59,6 +62,7 @@ export class WorkspacePersistence {
   constructor(workspace, store) {
     this.workspace = workspace; this.store = store; this.saved = emptyWorkspace(); this.loaded = false; this.ready = false;
     this.job = null; this.queue = Promise.resolve(); this.lastScheduled = ''; this.failedIds = []; this.closed = false; this.fileError = false;
+    this.saveError = null; this.failedSnapshot = '';
     this.restoreAfterConnect = false;
     this.onChange = () => this.schedule(); this.onConnect = () => {
       if (this.job) { this.restoreAfterConnect = true; return; }
@@ -118,13 +122,25 @@ export class WorkspacePersistence {
     if (!this.fileError && (this.failedIds.length || (this.workspace.coordinator?.id && !this.workspace.agents.has(this.workspace.coordinator.id)))) { this.saved = this.record(); this.ready = false; }
     return this.restore();
   }
-  schedule() {
+  schedule({ retryFailed = false } = {}) {
     if (!this.ready || this.closed || this.fileError || this.workspace.restoring) return;
-    const value = this.record(); const text = JSON.stringify(value); if (text === this.lastScheduled) return; this.lastScheduled = text;
+    const value = this.record(); const text = JSON.stringify(value);
+    if (text === this.lastScheduled && !(retryFailed && this.failedSnapshot === text)) return;
+    this.lastScheduled = text; this.failedSnapshot = '';
     const job = this.queue.then(() => this.store.save(value)).then(() => {
-      if (this.workspace.restoration.error) { this.workspace.restoration.error = null; this.workspace.changed(); }
-    }).catch(error => { this.workspace.restoration.error = 'Workspace could not be saved: ' + error.message; this.workspace.changed(); });
+      this.saved = value;
+      const previousError = this.saveError; this.saveError = null;
+      if (previousError && this.workspace.restoration.error === previousError) { this.workspace.restoration.error = null; this.workspace.changed(); }
+    }).catch(error => {
+      this.failedSnapshot = text; this.saveError = 'Workspace could not be saved: ' + error.message;
+      this.workspace.restoration.error = this.saveError; this.workspace.changed();
+    });
     this.queue = job;
   }
-  async close() { this.closed = true; this.workspace.off('change', this.onChange); this.workspace.rpc.off('connected', this.onConnect); await this.queue; }
+  async flush() {
+    // Native lifecycle success stays separate from persistence failure; never retry native work.
+    this.schedule({ retryFailed: true }); await this.queue;
+    return this.saveError || (this.fileError ? this.workspace.restoration.error : null);
+  }
+  async close() { const pending = this.flush(); this.closed = true; this.workspace.off('change', this.onChange); this.workspace.rpc.off('connected', this.onConnect); await pending; }
 }

@@ -9,6 +9,23 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.6.0 — Preserve open agents and recover after startup
+
+Persist the open-agent list before acknowledging create, attach, fork and close
+actions. Sync the file and atomic rename, retain unavailable saved IDs, drain
+shutdown writes and show metadata-save failures separately from native success.
+Reuse the existing refresh to reconnect when Codex starts after the website,
+without launching its daemon or replaying worker inputs. Preserve request, pause,
+ownership and saved-report controls. Keep Codex reconnect available independently
+of Claude, and distinguish history errors, empty results and already-open tabs.
+
+All41 focused persistence, authenticated-handler, component and request-recovery
+checks pass, along with the production build and independent source review.
+Broader local protocol tests remain limited by native socket/subprocess
+permissions. Publication, installed checks and actual browser acceptance are
+recorded separately when performed; source fixtures do not establish restored
+tabs in a real browser.
+
 ## 1.5.0 — Reproduce conditional On hold configuration
 
 The existing Ansible workspace preparation enables native Beads `on_hold` on
@@ -18,8 +35,8 @@ and command failures stop safely. Deferred remains optional future work, distinc
 from a recorded conditional wait. No task state is changed by deployment.
 
 Three targeted tests passed across16 disposable Ansible fixture plays, including
-fresh/repeat and custom-state/failure preservation. Source publication, installed
-version checks and normal target-playbook acceptance are pending. The broader
+fresh/repeat and custom-state/failure preservation. This change is included in
+1.6.0; normal target-playbook acceptance remains pending. The broader
 1.4.2 full-suite execution limitations still apply. The CaC audit found nine
 compaction settings absent. Existing immutable CaC source selections need an
 explicit update before they can consume the newer playbook.

@@ -11,9 +11,14 @@ import { Workspace } from '../server/workspace.mjs';
 const record = (workerIds = ['one'], coordinatorId = null, coordinatorPaused = false) => ({ version: 1, workerIds, coordinatorId, coordinatorPaused });
 async function fixture() { const dir = await mkdtemp(join(tmpdir(), 'ccng-workspace-')); return { dir, store: new WorkspaceStore(join(dir, 'config', 'workspace.json')), close: () => rm(dir, { recursive: true, force: true }) }; }
 class Rpc extends EventEmitter {
-  constructor(cwd) { super(); this.ready = true; this.calls = []; this.cwd = cwd; this.missing = new Set(); this.threads = new Map(); }
+  constructor(cwd) { super(); this.ready = true; this.calls = []; this.cwd = cwd; this.missing = new Set(); this.threads = new Map(); this.nextThreadId = 1; }
   async call(method, params) {
     this.calls.push({ method, params });
+    if (method === 'thread/start' || method === 'thread/fork') {
+      const thread = { id: 'created-' + this.nextThreadId++, name: 'New worker', cwd: params.cwd || this.cwd, status: { type: 'idle' }, canAcceptDirectInput: true, turns: [], ...(method === 'thread/fork' ? { forkedFromId: params.threadId } : {}) };
+      this.threads.set(thread.id, thread); return { thread };
+    }
+    if (method === 'thread/name/set') { this.threads.get(params.threadId).name = params.name; return {}; }
     if (method === 'thread/read' || method === 'thread/resume') {
       if (this.missing.has(params.threadId)) throw new Error('Conversation temporarily unavailable');
       return { thread: this.threads.get(params.threadId) || { id: params.threadId, name: params.threadId === 'coordinator' ? 'Command Center coordinator' : params.threadId, cwd: this.cwd, status: { type: 'notLoaded' }, canAcceptDirectInput: true, turns: [], model: 'saved-model' }, instructionSources: [], sandbox: { type: 'readOnly' } };
@@ -138,6 +143,90 @@ test('one unavailable conversation does not prevent restoration and can be retri
     rpc.missing.clear(); await persistence.retry(); assert.equal(workspace.agents.size, 2);
     workspace.close('one'); await persistence.queue; assert.deepEqual((await f.store.load()).workerIds, ['two']);
   } finally { await persistence.close(); await f.close(); }
+});
+
+test('lifecycle flush saves create, open, fork and close before read-only restart of the same workspace', async () => {
+  const f = await restored(record([], 'coordinator', true)); let restarted;
+  try {
+    const created = await f.workspace.create({ goal: 'Synthetic persistence task', cwd: f.dir });
+    assert.equal(await f.persistence.flush(), null);
+    assert.deepEqual(await f.store.load(), record([created], 'coordinator', true));
+    await f.workspace.open('existing-worker');
+    assert.equal(await f.persistence.flush(), null);
+    assert.deepEqual((await f.store.load()).workerIds, [created, 'existing-worker']);
+    const branch = await f.workspace.fork('existing-worker');
+    assert.equal(await f.persistence.flush(), null);
+    assert.deepEqual((await f.store.load()).workerIds, [created, 'existing-worker', branch]);
+    f.workspace.close('existing-worker');
+    assert.equal(await f.persistence.flush(), null);
+    assert.deepEqual(await f.store.load(), record([created, branch], 'coordinator', true));
+    f.workspace.coordinator.stop(); await f.persistence.close();
+
+    const rpc = new Rpc(f.dir);
+    const workspace = new Workspace(rpc, { beads: null, coordinator: true });
+    workspace.coordinator.refreshStartupDashboard = () => {};
+    const persistence = new WorkspacePersistence(workspace, new WorkspaceStore(f.store.file));
+    restarted = { rpc, workspace, persistence };
+    await persistence.initialize(); await persistence.restore(); await persistence.flush();
+    assert.deepEqual([...workspace.agents.keys()], [created, branch, 'coordinator']);
+    assert.equal(workspace.coordinator.id, 'coordinator'); assert.equal(workspace.coordinator.paused, true);
+    assert.ok(rpc.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)), 'restoration never replays create, fork, messages or approvals');
+  } finally {
+    restarted?.workspace.coordinator.stop(); await restarted?.persistence.close(); await f.close();
+  }
+});
+
+test('flush keeps unavailable saved IDs when another worker is opened and closed', async () => {
+  const f = await fixture(); await f.store.save(record(['missing-worker']));
+  const rpc = new Rpc(f.dir); rpc.missing.add('missing-worker');
+  const workspace = new Workspace(rpc, { beads: null }); const persistence = new WorkspacePersistence(workspace, f.store);
+  try {
+    await persistence.initialize(); await persistence.restore();
+    await workspace.open('available-worker'); await persistence.flush();
+    assert.deepEqual((await f.store.load()).workerIds, ['available-worker', 'missing-worker']);
+    workspace.close('available-worker'); await persistence.flush();
+    assert.deepEqual((await f.store.load()).workerIds, ['missing-worker']);
+  } finally { await persistence.close(); await f.close(); }
+});
+
+test('save failure remains separate from native open success and retries only on explicit flush', async () => {
+  const f = await restored(record(['one']));
+  const save = f.store.save.bind(f.store); let attempts = 0;
+  f.store.save = value => { attempts++; return save(value); };
+  try {
+    await chmod(f.store.file, 0o644);
+    const agent = await f.workspace.open('two'); await f.persistence.queue;
+    assert.equal(agent.id, 'two'); assert.equal(f.workspace.agents.has('two'), true);
+    assert.equal(attempts, 1, 'the save-error notification does not schedule another failing write');
+    const warning = await f.persistence.flush();
+    assert.match(warning, /Workspace could not be saved: .*private file/);
+    assert.equal(f.workspace.restoration.error, warning); assert.equal(attempts, 2);
+    assert.deepEqual(JSON.parse(await readFile(f.store.file, 'utf8')).workerIds, ['one'], 'the unsafe file is preserved');
+    const nativeCalls = f.rpc.calls.length;
+    await chmod(f.store.file, 0o600);
+    assert.equal(await f.persistence.flush(), null);
+    assert.equal(attempts, 3); assert.equal(f.workspace.restoration.error, null);
+    assert.deepEqual((await f.store.load()).workerIds, ['one', 'two']);
+    assert.equal(f.rpc.calls.length, nativeCalls, 'saving never repeats a native lifecycle action');
+  } finally { await chmod(f.store.file, 0o600); await f.close(); }
+});
+
+test('lifecycle flush and graceful shutdown wait for pending membership writes', async () => {
+  const f = await restored(record(['one', 'two']));
+  const save = f.store.save.bind(f.store); let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  f.store.save = async value => { await gate; return save(value); };
+  try {
+    f.workspace.close('one');
+    let flushed = false, closed = false;
+    const flushing = f.persistence.flush().then(error => { flushed = true; return error; });
+    const closing = f.persistence.close().then(() => { closed = true; });
+    await Promise.resolve();
+    assert.equal(flushed, false); assert.equal(closed, false);
+    assert.deepEqual((await f.store.load()).workerIds, ['one', 'two']);
+    release(); assert.equal(await flushing, null); await closing;
+    assert.deepEqual((await f.store.load()).workerIds, ['two']);
+  } finally { release(); await f.close(); }
 });
 
 test('disconnected startup retains saved IDs until native connection is available', async () => {

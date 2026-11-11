@@ -45,6 +45,25 @@ conversation. A failed individual restore leaves other tabs usable and retains
 the unavailable ID for retry through Reconnect. No pending approval answer,
 review token, queued summary or report is persisted or replayed.
 
+Creating, attaching, branching and closing a worker waits for its updated open-tab
+list to reach disk before the API acknowledges success. Saves sync both the file
+and its directory after atomic replacement. If saving fails after a native action
+succeeds, retain its real ID/outcome and show a workspace-save warning; do not
+repeat the native action. A later explicit save can retry the metadata write.
+Unavailable saved conversations remain recorded, even while other tabs change.
+
+The existing five-second refresh also retries a disconnected native transport.
+It does not start the Codex daemon, change CODEX_HOME, resubmit work or answer
+requests. Successful connection uses the existing restoration, pause and saved
+report rules. Codex reconnect remains visible when another runtime is available;
+the history picker distinguishes connection errors from a successful empty list.
+
+If histories differ between a terminal and CCNG, check their CODEX_HOME settings
+and daemon selection. A project working directory alone does not select a Codex
+profile. Preserve the profile containing the wanted conversations; changing the
+profile is not a history migration. Do not copy authentication or session files
+to make an empty picker appear populated.
+
 The one-click **Hand back & close** workflow also runs only in the existing
 backend process. Browser refresh or changing tabs leaves that process working;
 stopping CCNG interrupts its coordination. Native history and Beads task links
