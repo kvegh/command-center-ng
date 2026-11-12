@@ -3559,3 +3559,36 @@ Beads unit/read and installed silence instructions passed. No real model input,
 approval answer or native bootstrap was submitted. Browser-rendered acceptance
 remains separate; the user subsequently confirmed tab resizing was visible and
 requested fuller use of available space plus temporary hover tint refinements.
+
+
+## 2026-11-12 — Fill available tab space and keep browser-only alerts
+
+Implementation: `8283b993dbc7d8cf169c4f5030afb4efc0ec6698` (1.10.1).
+
+After seeing1.10.0, the user confirmed tab resizing and requested normal tabs
+fill available space before Coordinator while preserving the six-tab threshold.
+Use the existing worker strip as an inline-size CSS container, dividing its
+actual viewport by the stable column count after gaps, with a170px minimum.
+The hovered title keeps this baseline minimum and may widen intrinsically; its
+width cannot feed back into the viewport calculation. Mobile keeps fixed-width
+horizontal scrolling. Hover also temporarily adopts the conversation's saved
+input-title tint, preserving frame/status colours and restoring neutral inactive
+fill on leave. No observer, new setting or dependency is added.
+
+The user rejected the in-app Completed/Open task banners and clarified browser
+notifications were wanted. Remove banner state/rendering/component/CSS and
+banner-only text. Preserve Notify me subscriptions, exact origin click handling,
+generic desktop payloads, deduplication and reconnect baselines. Send new opted-in
+events through the native Notification API while focused as well as hidden;
+otherwise removing the banner would silently consume foreground events.
+Permission prompts remain explicit checkbox/button gestures; denied/unsupported
+states use existing settings feedback without a fallback panel. No service
+worker, external delivery service or closed-browser delivery is added.
+
+All106 affected UI/notification/layout cases pass (3.177s), including execution
+of the actual app notification effect with a real engine and native stub. The
+production build, whitespace check and independent source review pass. No issue
+occurred in these final patch checks. The broader1.10.0 full-suite restrictions
+remain recorded above; those unrelated failures were not hidden or rerun around
+permissions. Actual browser geometry and operating-system notification display
+remain unverified. Publication/installation outcomes follow separately.
