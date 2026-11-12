@@ -3808,3 +3808,15 @@ pass, and independent source review found no blocking issue. These are simulated
 geometry and source checks; physical-phone keyboard, rotation and sticky
 rendering remain unverified. Publication and existing-install verification
 follow this source checkpoint.
+
+### 1.14.0 installed outcome
+
+Published implementation `10862443279feb139f9d60a0e16f319e08750f2b` and
+installed payload `0abe86a84b5fb7ce5a45d64a85e01c82328463aa` were independently
+matched to the SSH remote. The existing-install update completed in 20.626s,
+preserving nine protected files/metadata, eight saved workers and Coordinator,
+report and native-runtime settings. Independent read-only verification completed
+in 5.133s: 112 installed files matched, live 1.14.0 trusted HTTPS/authentication,
+both served assets, listeners, existing tracker and navigation labels/styles
+passed. No model/native request was created or answered for verification.
+Physical-phone rendering, keyboard and rotation remain open acceptance gaps.

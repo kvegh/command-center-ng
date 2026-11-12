@@ -26,8 +26,11 @@ positions, drafts and native controls are preserved. No dependency is added.
 Ten component behavior cases pass, covering both/one/neither button, visibility
 boundaries, growth, switching, deferred scroll events and cleanup. Four adjacent
 test files pass in 2.700s, the TypeScript/production build passes, and independent
-source review found no blocking issue. Existing
-installation update remains pending at this source checkpoint; physical-phone
+source review found no blocking issue. Published and installed on 2026-11-12:
+the 20.626s update preserved nine protected files/metadata, all eight saved
+workers, Coordinator/report settings and native runtime. Independent 5.133s
+verification matched 112 installed source files, live 1.14.0 HTTPS/authentication,
+both served assets and the independent navigation code/styles. Physical-phone
 geometry, keyboard and rotation remain separate acceptance checks.
 
 ## 1.13.0 — Mobile chat navigation
