@@ -9,6 +9,14 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.9.1 — Keep silent task checks silent
+
+Make the internal-check exception explicit in worker guidance and each task-check
+reminder: no opening acknowledgement, plan, tool-use introduction or no-change
+summary, including before tool calls. Keep useful findings, errors, real questions
+and substantive work updates visible. Native history and ordinary chat rendering
+remain unchanged; instructions do not guarantee future model compliance.
+
 ## 1.9.0 — Restore input after native conversation unload
 
 Reload an existing Codex conversation before sending input when the native

@@ -58,6 +58,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - See linked Beads tasks with input needs and blockers first, conditional On hold states and optional task notifications.
 - Request concise task reports or optional detailed action histories; choose a saved interval, or Never to disable automatic startup and recurring reports.
 - Recheck overlooked tasks and stalled delegated work silently every 10 minutes, including safe recovery of stalled child waits, with the next check shown in the coordinator.
+  Internal checks omit routine acknowledgements and tool introductions; useful findings and questions remain visible.
 - Keep coordinator decision summaries across restarts in a private local file.
 - Save the open-agent list when creating, opening, branching or closing tabs;
   restore the same conversations after restart and reconnect when Codex starts later.

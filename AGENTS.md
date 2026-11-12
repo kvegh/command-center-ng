@@ -715,6 +715,11 @@ decisions. Use a conditional pwd-only probe under unchanged permissions, verify
 each affected child's reply and resume its specific authorized next step. No
 blanket periodic probes, approval bypass, blind retries or user-stop overrides.
 This is a reminder to the agent, not a dispatcher selecting or executing tasks.
+Process silent task checks without opening commentary, tool-use introductions,
+acknowledgements, plans or no-change summaries, including before tool calls.
+This internal-control exception takes precedence over generic opening/progress
+guidance. Keep useful findings, errors, genuine questions and substantive work
+updates visible; end quietly when nothing is ready.
 Do not echo triggers/acknowledgements in either chat history. Show the coordinator
 counter “Next chat task-ping to send” with the next scheduled local time.
 

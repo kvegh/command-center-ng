@@ -47,6 +47,15 @@ priority-report protections below.
 
 ## Silent task checks
 
+Treat these checks as internal control events, not ordinary user requests.
+Process them without opening commentary, tool-use introductions, acknowledgements,
+plans or no-change summaries. Omit the usual pre-tool announcement for a silent
+check, even when it needs tools: this is an explicit exception to generic
+opening/progress-message guidance. Do not announce that you are checking tasks.
+Useful findings, errors and genuine questions remain visible; substantive
+authorized work keeps its normal communication. Unchanged held, deferred or
+blocked work is not a new finding to announce. If nothing is ready, end quietly.
+
 Command Center sends a silent task check every ten minutes through supported
 native input. At the next safe response checkpoint, before the next ordinary
 step, inspect current Beads work for neglected authorized tasks, accurate
