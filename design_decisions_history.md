@@ -3546,3 +3546,16 @@ production build and whitespace checks pass, and independent final source review
 has no blocker. Actual browser hover/edge reachability, phone interaction and
 live model report generation remain unverified. Publication and installed
 verification outcomes are recorded separately after execution.
+
+
+Published payload `84ff4fcb52192375b94f03859f14049f053a1bab` installed as1.10.0
+through authorized AAP3640 (success20.374s,2026-11-12 11:52:03–11:52:23UTC).
+All nine protected files/metadata, eight saved worker IDs, Coordinator identity,
+pause/report settings and native runtime version were preserved. Independent
+AAP3641 succeeded10.361s (11:52:43–11:52:53UTC):110 installed source matches,
+actual trusted HTTPS/version/assets/authentication gates/listeners and209
+installed backend cases passed using synthetic native transport. Existing
+Beads unit/read and installed silence instructions passed. No real model input,
+approval answer or native bootstrap was submitted. Browser-rendered acceptance
+remains separate; the user subsequently confirmed tab resizing was visible and
+requested fuller use of available space plus temporary hover tint refinements.
