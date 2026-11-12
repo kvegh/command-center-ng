@@ -40,6 +40,15 @@ Sending a new message activates that conversation with its existing native
 model and permission settings. The saved coordinator is reused; its restrictions
 are reapplied and checked before activation. Its paused state survives restart.
 
+This also applies when Codex unloads a conversation that was already opened in
+CCNG. Native unload/close observations retain the saved tab and history; the next
+eligible send reloads that same conversation before submitting input. Background
+observation does not resume an unloaded worker. Replayed approvals remain pending
+and block input normally; the Coordinator retains its restricted activation.
+An activation failure or changed connection submits no message. If unloading
+races the final input call, its error remains visible without an automatic retry
+or resend. Check native receipt before manually repeating uncertain input.
+
 Closing a tab saves its removal without interrupting or deleting the native
 conversation. A failed individual restore leaves other tabs usable and retains
 the unavailable ID for retry through Reconnect. No pending approval answer,

@@ -9,6 +9,20 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.9.0 — Restore input after native conversation unload
+
+Reload an existing Codex conversation before sending input when the native
+runtime has unloaded it, including a previously attached tab. Observe native
+close events and retain read-only background polling. Reuse the same history;
+do not create a replacement conversation, automatically resend input or change
+worker permissions. The Coordinator uses its existing restricted activation.
+
+Recheck conversation identity, connection and direct-input permission after
+activation. Pending approvals, explicit stops, handoffs and active steering keep
+their existing gates. Focused regressions and production-build results are
+recorded in the decision history; live installation and actual browser input
+acceptance remain distinct.
+
 ## 1.8.0 — Keep blocked tasks visible
 
 Keep a blocked child marked Blocked when its only dependency is its parent-task

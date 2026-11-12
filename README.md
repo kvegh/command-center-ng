@@ -61,6 +61,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Keep coordinator decision summaries across restarts in a private local file.
 - Save the open-agent list when creating, opening, branching or closing tabs;
   restore the same conversations after restart and reconnect when Codex starts later.
+- Reload an unloaded Codex conversation when sending input, preserving its saved history and native permissions.
 - Read Markdown, copy messages/code, and paste or attach images to a draft.
 - Keep desktop settings at the bottom of a full-height overview, with scrollable tasks and questions.
 - Use desktop resizing, natural mobile page scrolling through the chat, and three colour themes.

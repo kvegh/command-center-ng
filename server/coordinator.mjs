@@ -287,10 +287,17 @@ export class Coordinator {
     return { sandbox: 'read-only', developerInstructions: COORDINATOR_PROMPT, config: overrides };
   }
   async activate({ force = false } = {}) {
-    const agent = this.workspace.agent(this.id); if (!agent.observingOnly && !force) return;
-    const resumed = await this.rpc.call('thread/resume', { threadId: this.id, excludeTurns: true, ...(await this.restrictedOptions(agent.cwd)) });
+    const id = this.id; const agent = this.workspace.agent(id);
+    if (!agent.observingOnly && !force && agent.thread.status?.type !== 'notLoaded') return;
+    const epoch = this.workspace.requestEpoch;
+    const current = () => this.id === id && this.workspace.agents.get(id) === agent && this.rpc.ready && this.workspace.requestEpoch === epoch;
+    const options = await this.restrictedOptions(agent.cwd);
+    if (!current()) throw fail('The coordinator connection changed while loading. This message was not sent.');
+    const resumed = await this.rpc.call('thread/resume', { threadId: id, excludeTurns: true, ...options });
+    if (!current() || resumed.thread?.id !== id) throw fail('The coordinator conversation changed while loading. This message was not sent.');
     if (resumed.sandbox?.type !== 'readOnly') throw fail('Codex did not confirm the coordinator read-only sandbox.');
     agent.thread = resumed.thread; agent.instructionSources = resumed.instructionSources || []; agent.observingOnly = false;
+    agent.canSend = resumed.thread.canAcceptDirectInput !== false;
     this.workspace.changed();
   }
   async ensure() {

@@ -252,10 +252,14 @@ export class Workspace extends EventEmitter {
     } finally { this.opening.delete(id); }
   }
   async activate(id, { force = false } = {}) {
-    const agent = this.agent(id); if (!agent.observingOnly && !force) return;
+    const agent = this.agent(id);
+    // A native unload keeps durable history but drops the live input session.
+    if (!agent.observingOnly && !force && agent.thread.status?.type !== 'notLoaded') return;
     if (agent.provider === 'claude') return;
     if (agent.role === 'coordinator') return this.coordinator.activate({ force });
+    const epoch = this.requestEpoch;
     const resumed = await this.rpc.call('thread/resume', { threadId: id, excludeTurns: true });
+    if (!this.rpc.ready || this.requestEpoch !== epoch || this.agents.get(id) !== agent || resumed.thread?.id !== id) throw Object.assign(new Error('The native conversation changed while loading. This message was not sent.'), { status: 409 });
     agent.thread = resumed.thread; agent.instructionSources = resumed.instructionSources || [];
     agent.observingOnly = false; agent.canSend = resumed.thread.canAcceptDirectInput !== false;
     this.changed();
@@ -865,6 +869,7 @@ export class Workspace extends EventEmitter {
     const context = await this.instructionContext(agent);
     if (this.agents.get(id) !== agent) throw Object.assign(new Error('The worker was closed before message delivery.'), { status: 409 });
     if (!this.readyFor(agent)) throw Object.assign(new Error('Reconnect the native runtime before sending this message.'), { status: 503 });
+    if (!agent.canSend) throw Object.assign(new Error(agent.managementNotice || 'The native agent does not allow direct input to this session.'), { status: 409 });
     if (taskPing && agent.thread.status?.type === 'active' && !agent.turnId) throw Object.assign(new Error('Wait for the active native turn identity before a silent task check.'), { status: 409 });
     if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
     if (agent.provider === 'claude') {
@@ -1149,6 +1154,7 @@ export class Workspace extends EventEmitter {
       this.nativeActivity(agent, method === 'turn/started' ? undefined : p.turnId || p.turn?.id);
     }
     if (method === 'thread/status/changed') agent.thread.status = p.status;
+    if (method === 'thread/closed') agent.thread.status = { type: 'notLoaded' };
     if (method === 'thread/name/updated') agent.name = p.threadName || p.name || agent.name;
     if (method === 'thread/settings/updated') this.syncModel(agent, p.threadSettings?.model, p.threadSettings?.effort);
     if (method === 'turn/started') { agent.turnId = p.turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; agent.tasks = []; agent.summary = null; if (!agent.returnSummary?.delivered) agent.returnSummary = null; }
