@@ -964,3 +964,19 @@ Analysts are optional assistance, never a barrier to a main Coordinator decision
 when sufficient current action, source and actual user-authority evidence is
 already available. Retain every existing final check. Missing evidence may wait
 for analysis; a running label alone establishes neither progress nor authority.
+
+## Approved combined progress delegation and history order
+
+The user selected one additional native progress helper for routine worker
+monitoring, linked tasks/blockers and sidebar recaps. It is separate from the two
+read-only approval analysts. Reuse existing RPC/events, selected main model/effort
+and shared instructions. Limit tools to bounded worker reads and sidebar
+publication. Main retains final approvals, concern responses, user decisions,
+direct questions and relevant relays; do not duplicate routine monitoring or
+wait for it before an approval. Preserve actual authority, native requests,
+pauses, stops and unknown outcomes; no task writes, execution, new service/store
+or independent timer. Saved main tools remain for client compatibility.
+
+Native turn/item order governs chat history. Preserve older loaded pages, paging
+boundaries and newer live records across overlapping reads without timestamp
+sorting or silent record trimming. Existing explicit 20-turn pagination remains.

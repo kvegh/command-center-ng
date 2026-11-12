@@ -40,6 +40,19 @@ test('native history uses recorded item times without inventing a timestamp for 
   assert.equal(f.agent.messages[2].timestamp, undefined);
 });
 
+test('native item order is retained when recorded timestamps disagree and an item is untimed', async () => {
+  const f = await fixture([
+    { id: 'first', type: 'userMessage', content: [{ type: 'text', text: 'First native item.' }], startedAtMs: 1793898000000 },
+    { id: 'untimed', type: 'agentMessage', text: 'Untimed native item.' },
+    { id: 'last', type: 'userMessage', content: [{ type: 'text', text: 'Last native item with an earlier recorded clock.' }], startedAtMs: 1793894400000 },
+  ]);
+  await f.workspace.history('worker');
+  assert.deepEqual(f.agent.messages.map(message => message.id), ['first', 'untimed', 'last']);
+  assert.equal(f.agent.messages[0].timestamp, '2026-11-05T17:00:00.000Z');
+  assert.equal(f.agent.messages[1].timestamp, undefined);
+  assert.equal(f.agent.messages[2].timestamp, '2026-11-05T16:00:00.000Z');
+});
+
 test('live arrival time remains stable across deltas, completion and untimed history refresh', async t => {
   let now = 1793894400000; t.mock.method(Date, 'now', () => now);
   const f = await fixture();

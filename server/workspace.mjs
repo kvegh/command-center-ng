@@ -644,16 +644,16 @@ export class Workspace extends EventEmitter {
     if (live && completed && record.nativeQuestions?.length) this.handoffs.observeQuestions(agent);
     if (record.type === 'user') { observeAsyncQuestionInput(agent, record, item); if (live) void this.coordinator?.flush(agent.id); }
     if (live && completed && record.type === 'assistant') this.coordinator?.reportMessageCompleted(agent.id, record);
-    if (agent.messages.length > 600) agent.messages = agent.messages.slice(-600);
     if (record.type === 'activity') agent.activity = { text: String(text).split('\n')[0].slice(0, 180), state: record.state };
   }
   async history(id, cursor, { replace = false, parent } = {}) {
     const agent = parent ? this.resolveRequestContext(parent, id) : this.agent(id);
     if (agent.provider === 'claude') { if (cursor) throw Object.assign(new Error('Claude history uses its native current transcript.'), { status: 400 }); await this.claude.refresh(agent); return; }
-    const before = { turnId: agent.turnId, finishedTurn: agent.finishedTurn, status: agent.thread.status, revision: agent.historyRevision || 0 };
+    const before = { turnId: agent.turnId, finishedTurn: agent.finishedTurn, status: agent.thread.status, revision: agent.historyRevision || 0, pagingRevision: agent.historyPagingRevision || 0 };
     const beforeItems = new Map(agent.messages.map(message => [JSON.stringify([message.turnId, message.id]), message]));
     const page = await this.rpc.call('thread/turns/list', { threadId: id, limit: 20, itemsView: 'full', ...(cursor ? { cursor } : {}) });
     if (!(parent ? this.requestContextCurrent(parent, agent) : this.agents.get(id) === agent) || (agent.historyRevision || 0) !== before.revision) return;
+    if (cursor && !replace && (agent.historyPagingRevision || 0) !== before.pagingRevision) return;
     const sameTurn = agent.turnId === before.turnId && agent.finishedTurn === before.finishedTurn && agent.thread.status === before.status;
     const restoreTurn = (!cursor || replace) && sameTurn && (before.status?.type !== 'active' || !before.turnId);
     if ((!cursor || replace) && sameTurn) {
@@ -664,24 +664,51 @@ export class Workspace extends EventEmitter {
       }
     }
     const current = { tasks: agent.tasks, workers: [...agent.workers], summary: agent.summary, activity: agent.activity };
-    const live = agent.messages; const previous = new Map(live.map(message => [JSON.stringify([message.turnId, message.id]), message])); agent.messages = []; if (restoreTurn) agent.turnId = null;
+    const live = agent.messages, oldestCursor = agent.olderCursor; const previous = new Map(live.map(message => [JSON.stringify([message.turnId, message.id]), message])); agent.messages = []; if (restoreTurn) agent.turnId = null;
     for (const turn of [...page.data].reverse()) {
       agent.tasks = []; agent.summary = null;
       if (restoreTurn && turn.status === 'inProgress') agent.turnId = turn.id;
       const lastReply = turn.status === 'completed' ? turn.items?.findLast(item => item.type === 'agentMessage') : null;
-      if (lastReply && (!cursor || replace)) agent.lastCompletedTurnId = turn.id;
+      if (lastReply && (!cursor || replace) && sameTurn) agent.lastCompletedTurnId = turn.id;
       for (const item of turn.items || []) {
         const key = JSON.stringify([turn.id, item.id]), latest = previous.get(key);
-        // Live native file details received during this read are newer evidence
-        // than its history snapshot. Do not replace them with an older body.
-        if (item.type === 'fileChange' && latest && beforeItems.get(key) !== latest) agent.messages.push(latest);
+        // Live updates received during this read are newer evidence than its
+        // snapshot. Delta/completion handlers replace records to preserve this test.
+        if (latest && beforeItems.get(key) !== latest) agent.messages.push(latest);
         else this.addItem(agent, item, turn.id, item.id === lastReply?.id, { previous: latest || (item.type !== 'fileChange' ? live.find(message => message.id === item.id && message.type !== 'activity') : undefined) });
       }
     }
     const history = agent.messages;
-    agent.messages = [...history, ...live.filter(m => !history.some(h => h.id === m.id && (m.nativeType === 'fileChange' || h.nativeType === 'fileChange' ? h.turnId === m.turnId : true)))].slice(-600);
-    if (cursor && !replace) Object.assign(agent, current);
-    agent.olderCursor = page.nextCursor || null;
+    const identity = message => JSON.stringify([message.nativeType === 'fileChange' ? message.turnId : null, message.id]);
+    const fetched = new Set(history.map(identity));
+    const retained = live.filter(message => !fetched.has(identity(message)));
+    let older = [];
+    if (cursor && !replace) {
+      agent.messages = [...history, ...retained];
+    } else {
+      const pageTurns = new Set(page.data.map(turn => turn.id));
+      const positions = new Map(live.map((message, index) => [identity(message), index]));
+      const firstAnchor = live.findIndex(message => fetched.has(identity(message)));
+      const byTurn = new Map(), newer = [];
+      for (const message of retained) {
+        if (pageTurns.has(message.turnId)) {
+          const rows = byTurn.get(message.turnId) || []; rows.push(message); byTurn.set(message.turnId, rows);
+        } else if ((firstAnchor >= 0 && positions.get(identity(message)) < firstAnchor)
+          || (firstAnchor < 0 && beforeItems.has(JSON.stringify([message.turnId, message.id])) && message.turnId !== before.turnId && message.turnId !== agent.turnId)) older.push(message);
+        else newer.push(message);
+      }
+      const refreshed = new Map();
+      for (const message of history) {
+        const rows = refreshed.get(message.turnId) || []; rows.push(message); refreshed.set(message.turnId, rows);
+      }
+      // Native page/turn order is authoritative; clocks and receipt times are not.
+      agent.messages = [...older, ...[...page.data].reverse().flatMap(turn => [...(refreshed.get(turn.id) || []), ...(byTurn.get(turn.id) || [])]), ...newer];
+    }
+    if ((cursor && !replace) || !sameTurn) Object.assign(agent, current);
+    if (cursor || replace || (!agent.historyLoadedEarlier && !older.length)) agent.olderCursor = page.nextCursor || null;
+    else agent.olderCursor = oldestCursor;
+    if (replace) { agent.historyLoadedEarlier = false; agent.historyPagingRevision = 0; }
+    else if (cursor) { agent.historyLoadedEarlier = true; agent.historyPagingRevision = before.pagingRevision + 1; }
     this.changed();
     return page;
   }
@@ -1133,7 +1160,7 @@ export class Workspace extends EventEmitter {
       // approval-item bodies before observing the new native transcript.
       const revision = agent.historyRevision = (agent.historyRevision || 0) + 1;
       agent.messages = []; agent.tasks = []; agent.workers = []; agent.summary = null; agent.activity = null;
-      agent.turnId = null; agent.finishedTurn = null; agent.lastCompletedTurnId = null; agent.olderCursor = null; agent.returnSummary = null;
+      agent.turnId = null; agent.finishedTurn = null; agent.lastCompletedTurnId = null; agent.olderCursor = null; agent.historyLoadedEarlier = false; agent.historyPagingRevision = 0; agent.returnSummary = null;
       const current = () => this.requestContextCurrent(parent, agent) && agent.historyRevision === revision;
       void this.history(agent.id, undefined, { replace: true, ...(parent !== agent ? { parent } : {}) }).then(() => {
         if (current()) { agent.observeError = null; this.changed(); }
@@ -1167,8 +1194,8 @@ export class Workspace extends EventEmitter {
       agent.finishedTurn = { id: p.turn.id, status: p.turn.status };
       if (p.turn.error) agent.activity = { text: p.turn.error.message, state: 'failed' };
       if (p.turn.status === 'completed') {
-        const reply = agent.messages.findLast(message => message.type === 'assistant' && message.turnId === p.turn.id);
-        if (reply) { reply.branchable = true; reply.state = 'completed'; agent.lastCompletedTurnId = p.turn.id; }
+        const replyIndex = agent.messages.findLastIndex(message => message.type === 'assistant' && message.turnId === p.turn.id);
+        if (replyIndex >= 0) { agent.messages[replyIndex] = { ...agent.messages[replyIndex], branchable: true, state: 'completed' }; agent.lastCompletedTurnId = p.turn.id; }
       }
       void this.refreshTasks(id);
       if (this.agents.get(id) === agent) this.coordinator?.completed(id, p.turn.id);
@@ -1177,8 +1204,9 @@ export class Workspace extends EventEmitter {
     if (method === 'turn/plan/updated') agent.tasks = (p.plan || []).map((t, i) => ({ id: String(i), text: t.step, state: t.status }));
     if (method === 'item/started' || method === 'item/completed') this.addItem(agent, p.item, p.turnId, false, { live: true, completed: method === 'item/completed' });
     if (method === 'item/agentMessage/delta') {
-      const existing = agent.messages.find(m => m.id === p.itemId);
-      if (existing) { existing.text += p.delta; Object.assign(existing, itemTime(p, existing, true)); }
+      const index = agent.messages.findIndex(m => m.id === p.itemId);
+      const existing = agent.messages[index];
+      if (existing) agent.messages[index] = { ...existing, text: existing.text + p.delta, ...itemTime(p, existing, true) };
       else agent.messages.push({ id: p.itemId, turnId: p.turnId, type: 'assistant', text: p.delta, state: 'inProgress', ...itemTime(p, null, true) });
     }
     this.changed();

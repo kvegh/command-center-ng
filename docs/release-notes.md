@@ -9,6 +9,28 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.16.0 — Preserve chat order and delegate progress monitoring
+
+Recent-history refreshes preserve loaded older pages and native turn/item order,
+retain the oldest pagination cursor and protect newer live messages, completion
+state and question bindings. The former silent 600-record trim is removed;
+explicit native fetching remains 20 turns per page. Compaction does not become a
+chat-deletion claim, and timestamps are not used to reorder the transcript.
+
+One internal progress helper now follows worker progress, linked tasks/blockers
+and publishes sidebar recaps separately from the main Coordinator and the two
+approval analysts. Bounded tools, current evidence checks and existing shared
+instructions/model/effort apply. Main approval checks and concerns remain; a
+progress run never gates an approval. Unknown runs retain ownership and pending
+native decisions remain untouched. No extra service, timer or task store.
+
+Source validation: 16 history and 5 timestamp cases pass, together with 10
+progress lifecycle and 4 Workspace wiring cases. Independent targeted reviews,
+TypeScript/production build and syntax/diff checks pass. Full local npm test
+passed 95 of 102 file suites; seven listener/installer/subprocess suites require
+validation in the normal deployment environment. Publication/installation
+outcomes remain pending here. No genuine model or approval was manufactured.
+
 ## 1.15.0 — Review safe playbooks and documents
 
 Both Coordinator source readers now accept safe YAML playbooks, JSON and

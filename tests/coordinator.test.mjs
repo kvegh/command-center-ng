@@ -59,7 +59,7 @@ const topicReport = '| Task | Status | Outcome / next step |\n| --- | --- | --- 
 
 async function fixture(coordinatorOptions = {}) {
   const cwd = await mkdtemp(join(tmpdir(), 'ccng-coordinator-')); const rpc = new Rpc(cwd);
-  const workspace = new Workspace(rpc, { beads: null, coordinator: { approvalReviewers: false, debounceMs: 1000000, intervalMs: 1000000, ...coordinatorOptions } }); rpc.workspace = workspace;
+  const workspace = new Workspace(rpc, { beads: null, coordinator: { progressUpdater: false, approvalReviewers: false, debounceMs: 1000000, intervalMs: 1000000, ...coordinatorOptions } }); rpc.workspace = workspace;
   await workspace.open('worker'); await workspace.coordinator.ensure();
   const coordinator = workspace.coordinator; workspace.agent(coordinator.id).turnId = 'coord-turn'; workspace.agent(coordinator.id).thread.status = { type: 'active' };
   const call = (tool, args = {}, threadId = coordinator.id) => coordinator.call({ threadId, turnId: workspace.agents.get(threadId)?.turnId, tool, arguments: args });

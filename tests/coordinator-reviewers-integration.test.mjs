@@ -61,7 +61,7 @@ async function waitFor(predicate) {
 async function fixture() {
   const cwd = await mkdtemp(join(tmpdir(), 'ccng-reviewer-integration-'));
   const rpc = new Rpc(cwd);
-  const workspace = new Workspace(rpc, { beads: null, coordinator: { approvalReviewers: true, debounceMs: 1000000, intervalMs: 1000000 } });
+  const workspace = new Workspace(rpc, { beads: null, coordinator: { progressUpdater: false, approvalReviewers: true, debounceMs: 1000000, intervalMs: 1000000 } });
   await workspace.open('worker'); await workspace.open('other'); await workspace.coordinator.ensure();
   const coordinator = workspace.coordinator, main = workspace.agent(coordinator.id);
   main.turnId = 'main-turn'; main.thread.status = { type: 'active' }; main.model = 'fixture-model'; main.reasoningEffort = 'xhigh';

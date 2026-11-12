@@ -63,6 +63,8 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Recheck overlooked tasks and stalled delegated work silently every 10 minutes, including safe recovery of stalled child waits, with the next check shown in the coordinator.
   Internal checks omit routine acknowledgements and tool introductions; useful findings and questions remain visible.
 - Keep coordinator decision summaries across restarts in a private local file.
+- Delegate worker progress, linked-task/blocker monitoring and sidebar recaps to one internal progress helper, independently of approvals.
+- Keep loaded chat pages in native order across refreshes without the former silent 600-record trim; load earlier pages explicitly.
 - Review independent approval requests with up to two read-only analysts; the Coordinator remains the sole automated approver. See [review boundaries and timing](docs/usage.md#coordinator-approval-review).
 - Inspect safe playbooks, JSON, YAML, Markdown, Python and shell source through bounded read-only review tools, with secret protection and exact approval binding for outside-project files.
 - Save the open-agent list when creating, opening, branching or closing tabs;

@@ -660,3 +660,22 @@ See [storage details](coordinator.md#decision-summaries-after-restart).
 The Coordinator can decide immediately when it already has sufficient current
 action, source and original user-authorization evidence. It retains all final
 checks; an analyst still running is not a reason by itself to delay that decision.
+
+## Loaded conversation order
+
+From 1.16.0, chat pages follow native turn/item order rather than clock sorting.
+Refreshing recent history preserves loaded older pages, the earliest paging
+boundary and newer live messages. The former silent 600-record trim is removed.
+Use Load earlier to fetch more native pages; each fetch still requests 20 turns.
+Loaded records remain process memory, so explicitly loading a very large history
+uses more memory. Native compaction affects model context separately from this
+chat view; absence from the current page alone does not prove deletion.
+
+## Delegated sidebar monitoring
+
+One internal progress helper follows worker progress, linked tasks and blockers
+and updates sidebar recaps. It is separate from the two approval analysts and
+uses the Coordinator's model/effort and shared instructions. It has bounded read
+and sidebar-publication tools only. The main Coordinator retains final approvals,
+concerns, user decisions and relevant relays; approvals do not await this helper.
+No extra worker tab, report schedule or task-writing authority is added.

@@ -939,3 +939,18 @@ Installer/profile checks use the version-controlled deployed-source
 test command documented in [installation](installation.md#verify-installer-and-bash-path-after-deployment);
 temporary profiles/stub installation do not prove fresh real Codex installation,
 native authentication, browser behavior or boot autostart.
+
+### 1.16.0 — Native history order and delegated progress
+
+Preserve native turn/item order during overlapping current/older history reads,
+retain the oldest paging boundary, preserve newer live records and nested native
+question bindings, and remove silent record truncation. Keep existing explicit
+20-turn native pagination; add no transcript store or timestamp-sort workaround.
+
+The user selected one additional progress helper for worker monitoring, linked
+tasks/blockers and sidebar publication. Keep it separate from the two optional
+approval analysts. Reuse native RPC/events, current main model/effort and shared
+instructions. Give it only bounded worker reads and sidebar publication, no
+approval, execution, messaging or task writes. Main final checks and concern
+responses remain authoritative; routine monitoring must not gate approvals.
+Preserve pauses, stops, unknown outcomes and genuine pending native decisions.

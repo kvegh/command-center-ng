@@ -16,9 +16,12 @@ is required.
 
 The coordinator can list watched workers, read their recent conversation history
 and older pages, inspect project instructions and bounded source files, and read
-their linked Beads state. It publishes a concise recap, blocker and next step in
-each worker sidebar. These recaps are interpretation, distinct from the stored
-Beads task states shown below. The coordinator does not update task records.
+their linked Beads state. Since 1.16.0, one dedicated internal native progress
+helper handles routine worker monitoring, linked tasks/blockers and publication
+of each sidebar recap, blocker and next step. The main Coordinator retains
+approval reviews, genuine user decisions, direct questions and relevant relays.
+These recaps are interpretation, distinct from the stored Beads task states
+shown below. The coordinator does not update task records.
 
 From 0.11.1, a recap names the work and explains the useful result, unfinished
 work and concrete blocker or next action. It distinguishes implementation and
@@ -63,6 +66,29 @@ Pause coordinator stops automatic coordination and interrupts its own active tur
 leaving workers running. Resume coordinator restarts event processing. App shutdown
 also stops the coordinator's active turn. Closed worker tabs leave its watched
 set and discard waiting messages for that worker.
+
+## Independent progress helper
+
+One helper processes changed worker evidence independently of the main
+Coordinator and the two optional approval analysts. Its only tools are bounded
+worker reads (at most three per update) and one sidebar publication. It receives
+the main Coordinator's selected model/effort and shared instructions. It cannot
+answer requests, approve work, send messages, modify tasks or execute commands.
+The main Coordinator still reads the exact context needed for each approval.
+
+The helper uses existing native RPC/events and scheduling; it has no extra
+service, timer, task store or worker tab. Duplicate evidence is coalesced per
+worker. Changed identity, evidence, connection, stop, handoff and pause guards
+reject stale publications. Unknown native starts retain their slot and expose
+an error; bounded native status checks never treat idle metadata as success or
+retry unknown work. Unexpected native decisions remain pending. Ephemeral
+helper conversations are archived only after confirmed completion and no pending
+native request. Existing main publish tools remain for saved-client compatibility;
+each event tells the main Coordinator to leave routine monitoring to the helper.
+
+Synthetic lifecycle and Workspace integration checks cover concurrent main
+approval, two analysts and this helper. These checks do not establish actual
+provider latency, browser picker behavior or a genuine model publication.
 
 ## Scope-based approval review
 
@@ -394,8 +420,8 @@ startup/recurring report request; their dashboard uses available stored evidence
 Manual Report now is still allowed. Selecting Never cancels only unsent automatic
 requests, preserving explicit manual, failed/unconfirmed and in-flight delivery.
 
-The coordinator publishes useful sidebar summary/blocker/nextStep fields using
-available evidence immediately. It qualifies unavailable trackers or pending
+The dedicated progress helper publishes useful sidebar summary/blocker/nextStep
+fields using available evidence immediately. It qualifies unavailable trackers or pending
 reports instead of showing invented completion or zero tasks. Fresh results
 request a throttled update for the relevant worker; one blocked/external session
 does not gate the rest of the dashboard. Startup inputs remain hidden in both
