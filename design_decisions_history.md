@@ -3449,3 +3449,21 @@ adjacent branch/handoff checks passed37. The production build passes. Independen
 source review has no remaining blocking finding. Live publication/installation
 outcomes are recorded separately below;
 synthetic delivery does not establish actual browser/model input acceptance.
+
+Published payload `7266e358261103245cdad737de01c29bca0bfe84` installed through
+authorized AAP3608 (success19.376s). Nine protected files/metadata, six saved
+workers, Coordinator identity/pause/report settings and the native runtime
+version were preserved. Independent AAP3609 succeeded7.183s:108 installed
+source matches, actual1.9.0 trusted HTTPS/assets/authentication gates/listeners
+and64 installed backend regressions. Native reads still find every saved
+conversation; the Coordinator is active again, and an existing worker approval
+remains pending. No test message or approval answer was submitted.
+
+Earlier update preflights stopped before installation on a diagnostic key typo
+and an overly strict spelling check for the existing Git origin. Read-only
+inspection confirmed the same repository with an HTTPS URL lacking the optional
+.git suffix. Fetching used its SSH equivalent without changing saved origin.
+One intermediate read-only diagnostic had a Python indentation error; it made
+no changes. None of these attempts installed code or restarted the service.
+Physical browser submission remains unverified until a genuine user follow-up;
+the source/installed tests do not replace that acceptance.
