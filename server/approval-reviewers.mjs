@@ -30,7 +30,7 @@ export class ApprovalReviewers {
   }
   current(run) { return this.jobs.get(run.job.reviewToken) === run; }
   allowed(run) { return !this.stopped && !this.paused && this.rpc.ready && this.current(run) && this.canRun(run.job); }
-  queuedRun(job) { return { job: structuredClone(job), status: 'queued', candidates: new Map(), completions: new Map(), requests: new Map(), pendingTools: [] }; }
+  queuedRun(job) { return { job: structuredClone(job), status: 'queued', queuedAt: this.now(), candidates: new Map(), completions: new Map(), requests: new Map(), pendingTools: [] }; }
   snapshot(token) {
     const run = this.jobs.get(token); if (!run) return null;
     return this.snapshotRun(run);
@@ -38,7 +38,8 @@ export class ApprovalReviewers {
   snapshots() { return [...new Set([...this.jobs.values(), ...this.active])].map(run => this.snapshotRun(run)); }
   snapshotRun(run) {
     return { reviewToken: run.job.reviewToken, fingerprint: run.job.fingerprint, current: this.current(run), active: this.active.has(run), status: run.status, threadId: run.threadId || null, turnId: run.turnId || null,
-      startedAt: run.startedAt ?? null, finishedAt: run.finishedAt ?? null, error: run.error || null, recommendation: run.recommendation || null,
+      queuedAt: run.queuedAt, startedAt: run.startedAt ?? null, turnAcknowledgedAt: run.turnAcknowledgedAt ?? null,
+      firstProgressAt: run.firstProgressAt ?? null, finishedAt: run.finishedAt ?? null, error: run.error || null, recommendation: run.recommendation || null,
       lastProgressAt: run.lastProgressAt ?? null, lastResult: run.lastResult || null,
       cleanupError: run.cleanupError || null,
       cleanupStatus: run.cleanupStatus || null, cleanupConfirmedAt: run.cleanupConfirmedAt ?? null,
@@ -53,6 +54,14 @@ export class ApprovalReviewers {
     try { this.onError(run.job, message, this.snapshotRun(run)); }
     catch (error) { run.callbackError = error.message; }
     this.changed();
+  }
+  progress(run, observedAt, result) {
+    // Delayed identity confirmation can validate an earlier received event.
+    // These are client observations, not provider queue/processing timestamps.
+    run.firstProgressAt = Math.min(run.firstProgressAt ?? observedAt, observedAt);
+    if (run.lastProgressAt == null || observedAt >= run.lastProgressAt) {
+      run.lastProgressAt = observedAt; run.lastResult = result;
+    }
   }
   reconcile(jobs) {
     if (this.stopped) return;
@@ -102,6 +111,7 @@ export class ApprovalReviewers {
     for (const run of this.jobs.values()) {
       if (this.active.size >= APPROVAL_REVIEWER_LIMIT) break;
       if (run.status !== 'queued' || !this.allowed(run) || [...this.active].some(active => active.job.reviewToken === run.job.reviewToken)) continue;
+      // Dispatch/options preparation begins here; native execution is unproven.
       run.status = 'starting'; run.startedAt = this.now(); this.active.add(run);
       void this.start(run);
     }
@@ -128,9 +138,14 @@ export class ApprovalReviewers {
         instruction: 'Analyze only this exact request under the supplied shared review rules. Return JSON only with decision (approve, ask or decline), rationale, authorizationMessageId and authorizationQuote. Use null authority references when none exist. This is a recommendation; only the main Coordinator may approve. Keep Request/Concern/Next when you cannot approve.'
       })) });
       if (typeof result?.turn?.id !== 'string' || !result.turn.id) throw fail('The native reviewer turn identity was not confirmed.');
-      run.turnId = result.turn.id; run.confirmed = true;
+      run.turnId = result.turn.id; run.confirmed = true; run.turnAcknowledgedAt = this.now();
       if (run.status !== 'stale' && run.status !== 'blocked') run.status = 'running';
-      for (const message of run.pendingTools.splice(0)) void this.handleTool(message);
+      const candidate = run.candidates.get(run.turnId);
+      if (candidate) {
+        this.progress(run, candidate.firstProgressAt, 'Analyst message received; terminal outcome not yet confirmed.');
+        this.progress(run, candidate.lastProgressAt, 'Analyst message received; terminal outcome not yet confirmed.');
+      }
+      for (const pending of run.pendingTools.splice(0)) void this.handleTool(pending.message, pending.observedAt);
       this.finish(run);
       if (this.stopped) void this.interrupt(run);
       this.changed();
@@ -139,7 +154,7 @@ export class ApprovalReviewers {
       // uncertain slot or retry simply because no native ID was returned.
       if (stage === 'options' || (stage === 'thread/start' && run.nativeStartIdle && !run.turnRequested)) { this.error(run, error.message, 'failed'); this.release(run); }
       else this.error(run, error.message);
-      for (const message of run.pendingTools.splice(0)) this.reply(message, false, 'Reviewer start was not confirmed; this read was not executed.');
+      for (const pending of run.pendingTools.splice(0)) this.reply(pending.message, false, 'Reviewer start was not confirmed; this read was not executed.');
     }
   }
   hasThread(id) { return this.threads.has(id); }
@@ -156,7 +171,7 @@ export class ApprovalReviewers {
     try { this.rpc.respond(message.id, { success, contentItems: [{ type: 'inputText', text: typeof value === 'string' && !success ? value : JSON.stringify(value) }] }); }
     catch (error) { const run = this.threads.get(message.params?.threadId); if (run) this.error(run, 'Reviewer tool response delivery was not confirmed: ' + error.message); }
   }
-  async handleTool(message) {
+  async handleTool(message, observedAt = this.now()) {
     const params = message.params || {}; const run = this.threads.get(params.threadId);
     if (!run || message.method !== 'item/tool/call') return false;
     if (!this.allowed(run) || !this.active.has(run) || run.requests.size || !this.toolNames.has(params.tool)) {
@@ -164,15 +179,15 @@ export class ApprovalReviewers {
     }
     if (!run.confirmed) {
       if (!run.turnRequested || run.status === 'unknown' || run.pendingTools.length >= 8) this.reply(message, false, 'The reviewer turn is not confirmed.');
-      else run.pendingTools.push(message);
+      else run.pendingTools.push({ message, observedAt });
       return true;
     }
     if (params.turnId !== run.turnId) { this.reply(message, false, 'This reviewer turn is no longer current.'); return true; }
-    run.lastProgressAt = this.now(); run.lastResult = 'Bound read requested: ' + params.tool;
+    this.progress(run, observedAt, 'Bound read requested: ' + params.tool);
     try {
       const value = await this.readTool(run.job, { tool: params.tool, arguments: params.arguments, threadId: params.threadId, turnId: params.turnId });
       if (!this.allowed(run) || !this.active.has(run) || params.turnId !== run.turnId) throw fail('This review changed or paused during its read; the result was not delivered.');
-      run.lastProgressAt = this.now(); run.lastResult = 'Bound read completed: ' + params.tool;
+      this.progress(run, this.now(), 'Bound read completed: ' + params.tool);
       this.reply(message, true, value);
     } catch (error) { this.reply(message, false, error.message); }
     return true;
@@ -183,12 +198,19 @@ export class ApprovalReviewers {
       run.requests.delete(params.requestId);
       if (!run.requests.size && run.status === 'blocked') { run.status = 'running'; run.error = null; this.finish(run); }
     }
-    if (method === 'item/completed' && params.item?.type === 'agentMessage' && params.item.phase !== 'commentary' && typeof params.turnId === 'string') {
-      run.lastProgressAt = this.now(); run.lastResult = 'Analyst message received; terminal outcome not yet confirmed.';
-      run.candidates.set(params.turnId, params.item.text); this.finish(run);
+    if (method === 'item/completed' && params.item?.type === 'agentMessage' && typeof params.item.text === 'string' && params.item.text.trim()
+      && typeof params.turnId === 'string' && (!run.confirmed || params.turnId === run.turnId)) {
+      const observedAt = this.now(), previous = run.candidates.get(params.turnId);
+      run.candidates.set(params.turnId, {
+        firstProgressAt: previous?.firstProgressAt ?? observedAt, lastProgressAt: observedAt,
+        text: params.item.phase === 'commentary' ? previous?.text : params.item.text
+      });
+      if (run.confirmed && this.active.has(run)) this.progress(run, observedAt, 'Analyst message received; terminal outcome not yet confirmed.');
+      this.finish(run);
     }
     if (method === 'turn/completed' && typeof params.turn?.id === 'string') {
-      run.completions.set(params.turn.id, params.turn); this.finish(run);
+      if (!run.completions.has(params.turn.id)) run.completions.set(params.turn.id, { ...params.turn, observedAt: this.now() });
+      this.finish(run);
     }
     if (method === 'thread/closed' && this.active.has(run) && !run.completions.has(run.turnId)) this.error(run, 'The reviewer thread closed without a confirmed terminal analysis outcome.');
     this.changed(); return true;
@@ -196,11 +218,11 @@ export class ApprovalReviewers {
   finish(run) {
     const terminal = run.confirmed && run.completions.get(run.turnId);
     if (!terminal || !this.active.has(run) || run.requests.size) return;
-    run.finishedAt = this.now();
+    run.finishedAt = terminal.observedAt;
     if (this.stopped || !this.current(run)) run.status = this.stopped ? 'stopped' : 'stale';
     else if (terminal.status !== 'completed') this.error(run, terminal.error?.message || 'The reviewer analysis did not complete successfully.', 'failed');
     else {
-      try { run.recommendation = parseReviewRecommendation(run.candidates.get(run.turnId)); run.status = 'ready'; run.error = null; }
+      try { run.recommendation = parseReviewRecommendation(run.candidates.get(run.turnId)?.text); run.status = 'ready'; run.error = null; }
       catch (error) { this.error(run, error.message, 'failed'); }
     }
     this.release(run); this.deliver(run);

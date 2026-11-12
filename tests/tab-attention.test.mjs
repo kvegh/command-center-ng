@@ -6,6 +6,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import ts from 'typescript';
+import postcss from 'postcss';
 import { createApp } from '../server/main.mjs';
 import { Workspace } from '../server/workspace.mjs';
 import { setPassword } from '../server/auth.mjs';
@@ -245,4 +246,35 @@ test('actual tab class and footer wiring keep unknown waits neutral while genuin
   }
   const presentation = footer.attributes.properties.find(attribute => ts.isJsxAttribute(attribute) && attribute.name.text === 'presentation');
   assert.equal(presentation?.initializer?.expression?.getText(ast), 'tabAttention.get(active.id)');
+});
+
+test('a genuine user request keeps its amber top frame when its tab is selected in every theme', async () => {
+  const sheet = postcss.parse(await readFile(new URL('../src/style.css', import.meta.url), 'utf8'));
+  // Resolve only the status/selection selectors and border shorthand involved
+  // in this regression; this is a cascade check, not browser layout emulation.
+  const style = (theme, active, property) => {
+    const selectors = ['.tab-wrap', '.tab-wrap.attention', ...(active ? ['.tab-wrap.active', '.tab-wrap.active.attention'] : [])];
+    const accepted = new Set(selectors.flatMap(selector => [selector, `:root[data-theme="${theme}"] ${selector}`]));
+    let winner = { specificity: -1, value: undefined };
+    sheet.nodes.filter(node => node.type === 'rule').forEach(rule => {
+      const matching = rule.selectors.filter(selector => accepted.has(selector));
+      if (!matching.length) return;
+      const specificity = Math.max(...matching.map(selector => (selector.match(/\.[a-z-]+|\[[^\]]+\]|:root/g) || []).length));
+      rule.nodes.filter(node => node.type === 'decl').forEach(declaration => {
+        const applies = declaration.prop === property || (property === 'border-top-color' && declaration.prop === 'border-color');
+        if (applies && specificity >= winner.specificity) winner = { specificity, value: declaration.value };
+      });
+    });
+    return winner.value;
+  };
+  for (const agent of [
+    worker({ questions: [command({ review: { decision: 'ask', rationale: 'Choose a target.' } })] }),
+    worker({ ownStatus: 'idle', questions: [], workers: [{ id: 'child', status: 'attention', questions: [command({ method: 'item/permissions/requestApproval' }, 'child')] }] }),
+  ]) {
+    assert.equal(tabAttentionView(agent, true).needsUser, true, 'the current main or child request genuinely needs a user decision');
+    for (const theme of ['classic', 'contrastful', 'light']) for (const active of [false, true]) {
+      assert.equal(style(theme, active, 'border-top-color'), 'var(--amber)', `${theme}: selected=${active} must keep the actual attention frame`);
+      assert.equal(style(theme, active, 'background'), active ? 'var(--chat-tab-background)' : 'var(--surface)', 'status framing must preserve the selected chat tint and inactive fill');
+    }
+  }
 });

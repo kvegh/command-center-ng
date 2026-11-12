@@ -595,6 +595,13 @@ alongside command/source hashes. The older reader checks approval references
 before the worker project and refuses ambiguous directories. Keep resolved
 hidden/sensitive paths excluded even when the caller supplies a relative name.
 
+Recognize an explicitly imported fully qualified Python module only at the exact
+approval cwd or its `src` layout, mapping the full dotted name to a `.py` file.
+Do not search packages, environment settings or virtual environments, resolve
+dependencies, import the module or execute embedded code for source inspection.
+Keep existing hidden/sensitive/data/content checks and source/command/cwd hashes.
+Reader fixes do not approve an action or clear an existing manual ask.
+
 
 ## Shared runtime rules, ordinary-chat inputs and local Claude
 
@@ -891,12 +898,36 @@ permission request, retain the exact callback, expose the error and native-clien
 next action, and grant no analyst permissions. Do not blindly retry uncertain
 starts, blocked requests or unconfirmed actions to free a slot.
 
+Before selecting canonical shared environment instructions for analysts, read
+the main Coordinator's actual native working-directory metadata; do not select
+the source from a stale cached directory. Carry up to twelve actual worker user
+instructions and up to eight existing older-authority page cursor hints. If the
+retained worker tail has no genuine user instruction, read at most one first
+native history page. Main review rechecks any original paged user instruction,
+including a first page identified by a null cursor. Preserve the existing
+authority-page records, exact user quotes and final authority checks; add no
+authority store or permission fallback. State missing actual sources honestly;
+missing context alone does not establish that the requested action is forbidden.
+
 Retain the earliest scheduled event wake and latch urgent priority across later
 routine events. Defaults are a 1.5-second urgent debounce and 30-second routine
 interval, not model-response or approval deadlines. Preserve native pause,
 ownership, questions, active-turn gates and existing report/task-check schedules;
 do not add another timer, dispatcher or permission path. Distinguish source and
 synthetic verification from production deployment and real model/browser tests.
+
+## Native request time and selected-tab attention
+
+Show approval creation time from native `startedAtMs`, using a full local date
+and time with seconds/time zone and its corresponding ISO value. Missing or
+invalid native time is unavailable; do not replace it with browser arrival,
+observation, chat time or rendering time, and add no timer or estimate.
+
+Keep genuine human-attention top edges amber on selected tabs across all three
+themes while preserving saved chat-colour fills. Eligible requests awaiting an
+available Coordinator remain neutral under the existing attention policy; a
+pending request alone does not establish that the user must answer. Preserve
+manual native controls, identity, permissions and confirmation behavior.
 
 
 ## Readable AAP references
@@ -920,3 +951,8 @@ examples generic, without real environment names or protected values.
 
 This is a reporting rule only. It grants no additional AAP access, configuration
 change, diagnostic scope, native permission or model change.
+
+Analysts are optional assistance, never a barrier to a main Coordinator decision
+when sufficient current action, source and actual user-authority evidence is
+already available. Retain every existing final check. Missing evidence may wait
+for analysis; a running label alone establishes neither progress nor authority.

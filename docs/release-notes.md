@@ -9,6 +9,43 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.12.0 — Native request time and approval context
+
+Source checkpoint: implementation, tests, build and independent review are in
+progress. This version is not yet published or installed; no live or browser
+acceptance is claimed here.
+
+Approval cards show **Requested at** from the native request's `startedAtMs`,
+with a full local date, seconds, time zone and corresponding ISO value. This is
+request creation time, separate from later chat/browser arrival or rendering.
+Missing or invalid native time stays unavailable; no observation-time fallback,
+estimate or new timer is added. Selected tabs retain their amber top edge for
+genuine human attention across all three themes. Eligible Coordinator-review
+waits remain neutral, and saved chat-colour fills are preserved.
+
+Bounded helper inspection recognizes explicitly imported fully qualified Python
+modules at the exact approval cwd or its `src` layout. It performs no package
+search, environment/virtual-environment lookup, import or embedded-code execution.
+Existing source guards, hashes and original manual asks remain unchanged.
+
+Analysts select canonical shared instructions from current main-Coordinator native
+working-directory metadata and receive actual worker user instructions plus
+existing older-authority page hints. If the retained tail has no genuine user
+instruction, one first native history page may supply it. The main Coordinator
+still rechecks the original native authority page, including a null first-page
+cursor. Missing context is reported honestly rather than treated as invented
+authority or an automatic prohibition. No authority store, permission fallback
+or change to the sole approval writer is added.
+
+See [request time and attention](usage.md#request-time-and-attention) and
+[approval review](usage.md#coordinator-approval-review) for current semantics.
+
+Analysts are optional assistance. The main Coordinator can decide without waiting
+when it already has sufficient current evidence, retaining all final checks.
+Existing analysis metadata distinguishes client queue/dispatch, native turn
+acknowledgement, first evidenced activity and terminal result; provider queue
+versus reasoning time is not inferred.
+
 ## 1.11.0 — Parallel approval analysis and earlier event wakes
 
 Published and installed on 2026-11-12. Independent verification matched111

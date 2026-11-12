@@ -55,7 +55,7 @@ test('relative helper names cannot bypass hidden or sensitive components in the 
 });
 
 test('auth-specific name tokens remain sensitive while authenticated and author words are ordinary source names', () => {
-  for (const path of ['hactar-v19-authenticated-host-readonly.py', 'authenticated/host-readonly.py', 'author.py', 'source/AuthorNotes.ts', 'authenticatedHostReadonly.py']) {
+  for (const path of ['demo-authenticated-host-readonly.py', 'authenticated/host-readonly.py', 'author.py', 'source/AuthorNotes.ts', 'authenticatedHostReadonly.py']) {
     assert.equal(isSensitiveSourcePath(path), false, path);
   }
   for (const path of ['auth.json', 'auth.py', 'auth-config/reader.py', 'scripts/auth_reader.py', 'authentication/reader.py', 'authorization.ts', 'oauth.py', 'OAuthClient.py', 'oauth2/helper.py', 'auth2Config.ts', 'AUTH_CONFIG.py', '.private/reader.py', 'secrets.py', 'mycredentials.py', 'passwords/reader.py', 'token.py', 'vault-data.py']) {
@@ -66,7 +66,7 @@ test('auth-specific name tokens remain sensitive while authenticated and author 
 test('an authenticated helper is inspected only as referenced source without execution and keeps content/command hashes', async () => {
   const cwd = await mkdtemp(join(tmpdir(), 'ccng-authenticated-source-'));
   try {
-    const name = 'hactar-v19-authenticated-host-readonly.py', path = join(cwd, name), command = 'python3 ' + name;
+    const name = 'demo-authenticated-host-readonly.py', path = join(cwd, name), command = 'python3 ' + name;
     const original = 'raise RuntimeError("Inspection must not execute this helper")\n';
     await writeFile(path, original);
     const source = await inspectApprovalSource(cwd, command, name);
@@ -100,4 +100,47 @@ test('auth source names, sensitive parent directories, data, symlinks and creden
     await writeFile(join(cwd, 'authenticated-reader.py'), 'password = "synthetic-credential-value"\n');
     await assert.rejects(inspectApprovalSource(cwd, 'python3 authenticated-reader.py', 'authenticated-reader.py'), /credential material/);
   } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('fully qualified Python imports map only to the exact approval cwd or its src project layout', () => {
+  const cwd = join(tmpdir(), 'approval-project');
+  const module = 'apme_engine.validators.ansible.rules.L059_argspec_mock';
+  const modulePath = 'apme_engine/validators/ansible/rules/L059_argspec_mock.py';
+  for (const command of ['from ' + module + ' import _SPEC_SCRIPT', 'import ' + module, 'import ' + module + ' as rule']) {
+    for (const path of [join(cwd, modulePath), join(cwd, 'src', modulePath)]) {
+      assert.equal(referencesApprovalSource(cwd, command, path), true, command + ' -> ' + path);
+    }
+    for (const path of [join(tmpdir(), 'unrelated-project', 'src', modulePath), join(cwd, 'unrelated', modulePath), join(cwd, 'src-other', modulePath), join(cwd, 'L059_argspec_mock.py')]) {
+      assert.equal(referencesApprovalSource(cwd, command, path), false, command + ' -> ' + path);
+    }
+  }
+  const source = join(cwd, 'src', modulePath);
+  for (const command of ['from ' + module + '_other import _SPEC_SCRIPT', 'from ' + module + '.extra import value', 'import ' + module + '.extra', 'from apme_engine.validators.ansible.rules import unrelated', 'print("L059_argspec_mock")']) {
+    assert.equal(referencesApprovalSource(cwd, command, source), false, command);
+  }
+  assert.equal(referencesApprovalSource(cwd, 'from another_package.L059_argspec_mock import _SPEC_SCRIPT', source), false);
+  assert.equal(referencesApprovalSource(cwd, 'from ' + module + ' import _SPEC_SCRIPT', source.replace('.py', '.json')), false);
+});
+
+test('a directly imported project module is inspected without executing its embedded code or discovering packages', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ccng-python-module-'));
+  try {
+    const cwd = join(root, 'approval-project'), other = join(root, 'unrelated-project');
+    const modulePath = 'apme_engine/validators/ansible/rules/L059_argspec_mock.py';
+    const command = "python -B - <<'PY'\nfrom apme_engine.validators.ansible.rules.L059_argspec_mock import _SPEC_SCRIPT\nprint(_SPEC_SCRIPT)\nPY";
+    for (const base of [cwd, join(cwd, 'src'), join(other, 'src')]) {
+      const path = join(base, modulePath); await mkdir(join(base, 'apme_engine/validators/ansible/rules'), { recursive: true });
+      await writeFile(path, 'raise RuntimeError("Source inspection must not import or execute this module")\n_SPEC_SCRIPT = "print(123)"\n');
+    }
+    for (const relativePath of [modulePath, join('src', modulePath)]) {
+      const source = await inspectApprovalSource(cwd, command, relativePath);
+      assert.match(source.text, /must not import or execute/); assert.match(source.sha256, /^[a-f0-9]{64}$/);
+      assert.equal(source.workingDirectory, cwd);
+      const absolute = await inspectApprovalSource(cwd, command, join(cwd, relativePath)); assert.deepEqual(absolute, source);
+    }
+    await assert.rejects(inspectApprovalSource(cwd, command, join(other, 'src', modulePath)), /not referenced/);
+    const sourcePath = join(cwd, 'src', modulePath), previous = await inspectApprovalSource(cwd, command, sourcePath);
+    await writeFile(sourcePath, '# Changed source must produce fresh hash evidence.\n');
+    assert.notEqual((await inspectApprovalSource(cwd, command, sourcePath)).sha256, previous.sha256);
+  } finally { await rm(root, { recursive: true, force: true }); }
 });

@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Workspace } from '../server/workspace.mjs';
 import { APPROVAL_REVIEWER_SOURCE } from '../server/approval-reviewers.mjs';
+import { COORDINATOR_PROMPT } from '../server/coordinator-prompt.mjs';
 
 const authority = 'Inspect disposable local test resources without changing production.';
 const history = (items, nextCursor = null) => ({ data: [{ id: 'past-turn', status: 'completed', items }], nextCursor });
@@ -225,6 +226,50 @@ test('a fresh main context read permits direct review while obsolete analyst wor
     const result = await f.review(question);
     assert.equal(result.outcome, 'resolved');
     assert.equal(f.rpc.replies.filter(reply => reply.id === question.id).length, 1, 'only the main Coordinator answers once');
+  } finally { await f.close(); }
+});
+
+test('main may approve before a running analyst finishes, while authority, command and source checks remain mandatory', async () => {
+  const f = await fixture();
+  try {
+    const path = join(f.cwd, 'immediate-check.py'), original = 'print("bounded synthetic diagnostic")\n';
+    await writeFile(path, original);
+    const command = `python3 ${path}`, question = f.ask({ command }), reviewer = await f.run(question);
+    await f.call('ccng_read_worker', { agentId: 'worker' });
+    await f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path });
+    assert.equal(f.coordinator.reviewers.snapshot(question.reviewToken).status, 'running');
+    assert.equal(f.coordinator.reviewers.snapshot(question.reviewToken).recommendation, null);
+    await assert.rejects(f.review(question, { authorizationQuote: 'The user never actually wrote this authorization.' }), /actual user instruction/);
+    question.params.command = command + ' --changed';
+    await assert.rejects(f.review(question), /changed|current/);
+    question.params.command = command;
+    await writeFile(path, original + '# Changed after main inspection.\n');
+    await assert.rejects(f.review(question), /source or the command changed/);
+    assert.ok(!f.rpc.replies.some(reply => reply.id === question.id));
+    await writeFile(path, original);
+    assert.equal((await f.review(question)).outcome, 'resolved');
+    assert.equal(f.rpc.replies.filter(reply => reply.id === question.id).length, 1);
+    assert.ok(f.coordinator.reviewers.active.has(reviewer), 'main approval does not cancel real analyst work without terminal evidence');
+    assert.ok(!f.rpc.calls.some(call => call.method === 'turn/interrupt'));
+  } finally { await f.close(); }
+});
+
+test('new and restored Coordinator guidance treats analyst assistance as optional and permits immediate guarded decisions', async () => {
+  const f = await fixture();
+  try {
+    let eventText;
+    f.main.turnId = null; f.main.thread.status = { type: 'idle' };
+    f.workspace.send = async (_id, text) => { eventText = text; };
+    f.coordinator.dirty.set('worker', new Set(['Current approval needs review']));
+    await f.coordinator.pump();
+    for (const guidance of [COORDINATOR_PROMPT, eventText]) {
+      assert.match(guidance, /optional assistance/);
+      assert.match(guidance, /decide immediately/);
+      assert.match(guidance, /existing final checks/);
+      assert.match(guidance, /finish promptly/);
+      assert.match(guidance, /Preserve Request\/Concern\/Next/);
+    }
+    assert.match(COORDINATOR_PROMPT, /not a required barrier/);
   } finally { await f.close(); }
 });
 

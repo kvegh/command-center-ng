@@ -278,8 +278,10 @@ test('changes outside the display cutoff invalidate an earlier coordinator read;
 
 test('an async worker-read response binds the body actually exposed, not a newer body arriving during instruction reads', async () => {
   const f = fixture(); f.w.request(f.request()); f.w.addItem(f.agent, f.item(), 'turn'); await coordinatorRead(f);
-  let complete; f.coordinator.instructions = async () => new Promise(resolve => { complete = resolve; });
+  let complete, started; const instructionRead = new Promise(resolve => { started = resolve; });
+  f.coordinator.instructions = async () => new Promise(resolve => { complete = resolve; started(); });
   const reading = f.coordinator.call({ threadId: 'coordinator', turnId: 'coordinator-turn', tool: 'ccng_read_worker', arguments: { agentId: 'worker' } });
+  await instructionRead;
   f.w.addItem(f.agent, f.item({ changes: [{ ...f.changes[0], diff: '+newer native body' }] }), 'turn');
   complete([]); const exposed = await reading;
   assert.deepEqual(exposed.questions[0].nativeItem.changes, f.changes);

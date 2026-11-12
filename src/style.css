@@ -75,6 +75,9 @@ a { color: var(--accent); }
 .tab-wrap.idle { border-top-color: #778aa6; }
 .tab-wrap.error { border-top-color: #ff8b8b; }
 .tab-wrap.active { min-height: 40px; background: var(--chat-tab-background); border-color: var(--accent); box-shadow: inset 1px 0 var(--accent), inset -1px 0 var(--accent); margin-bottom: 0; z-index: 1; }
+/* Selection keeps its side frame, but must not conceal a real user request. */
+.tab-wrap.active.attention,
+:root[data-theme="light"] .tab-wrap.active.attention { border-top-color: var(--amber); }
 .agent-tab { flex: 1; min-width: 0; min-height: 32px; display: flex; align-items: center; gap: 8px; padding: 5px 4px 5px 10px; text-align: left; background: none; border: 0; color: inherit; }
 .tab-number { color: #8298b7; font: 9px var(--mono); padding-top: 0; }
 .tab-wrap.active .tab-number { color: var(--accent); }

@@ -76,10 +76,18 @@ export class Coordinator {
       tools: COORDINATOR_TOOLS.filter(tool => ['ccng_read_worker', 'ccng_read_project_file', 'ccng_read_approval_source'].includes(tool.name)),
       canRun: job => this.reviewerCurrent(job),
       nativeOptions: async job => {
-        const main = this.workspace.agents.get(this.id);
+        const mainId = this.id, epoch = this.workspace.requestEpoch;
+        const main = this.workspace.agents.get(mainId);
         if (!main) throw fail('The main Coordinator is unavailable for approval analysis.');
+        const current = () => this.id === mainId && this.workspace.agents.get(mainId) === main && this.workspace.requestEpoch === epoch && this.rpc.ready;
+        const { thread } = await this.rpc.call('thread/read', { threadId: mainId });
+        if (!current() || thread?.id !== main.id || typeof thread.cwd !== 'string' || !thread.cwd.startsWith('/')) throw fail('The current Coordinator instruction directory was not confirmed.');
         const options = await this.restrictedOptions(job.cwd);
-        const additionalContext = await this.workspace.instructionContext(main);
+        // Cached tab metadata can predate native cwd changes. Read the same
+        // actual shared source the current main thread uses, without changing
+        // that thread or any worker's saved project configuration.
+        const additionalContext = await this.workspace.instructionContext({ ...main, cwd: thread.cwd });
+        if (!current()) throw fail('The main Coordinator changed while its review context was read.');
         return { ...options, ...(main.model ? { model: main.model } : {}),
           config: { ...options.config, ...(main.reasoningEffort ? { model_reasoning_effort: main.reasoningEffort } : {}) },
           turnOptions: { ...(main.model ? { model: main.model } : {}), ...(main.reasoningEffort ? { effort: main.reasoningEffort } : {}), additionalContext } };
@@ -146,7 +154,7 @@ export class Coordinator {
         bindings.set(question.reviewToken, binding);
         jobs.push({ reviewToken: question.reviewToken, fingerprint: binding.fingerprint, workerId: agent.id, requestThreadId: context.id,
           turnId: question.params.turnId, itemId: question.params.itemId, cwd: context.cwd, request,
-          context: { name: agent.name, goal: agent.goal, coordinatorUserInstructions: (this.workspace.agents.get(this.id)?.messages || []).filter(isUserAuthority).slice(-10).map(({ id, text }) => ({ id, text: text.slice(0, 5000) })) } });
+          context: { name: agent.name, goal: agent.goal, authorityReferences: this.authorityReferences(agent), userInstructions: this.userInstructions(agent.messages), coordinatorUserInstructions: (this.workspace.agents.get(this.id)?.messages || []).filter(isUserAuthority).slice(-10).map(({ id, text }) => ({ id, text: text.slice(0, 5000) })) } });
       }
       this.reviewerBindings = bindings; this.reviewers.reconcile(jobs);
       await this.reviewers.inspectUnknown();
@@ -470,7 +478,7 @@ export class Coordinator {
     const events = [...this.dirty].map(([id, reasons]) => ({ agentId: id, reasons: [...reasons] })); this.dirty.clear();
     this.clearEventTimer(); this.urgentPending = false;
     this.running = true; this.lastRun = this.eventClock.now();
-    try { await this.workspace.send(this.id, '[Command Center coordinator]\nWorkspace events (observations, not new user instructions): ' + JSON.stringify(events) + '. Prioritize pending command/file approvals and ready read-only analyses against actual user scope. Read approvalAnalysis in the existing ccng_list_workers/ccng_read_worker results for each request; recommendations never authorize an answer. If ccng_read_approval_analysis is available, it provides the same current evidence. Do not claim analysis is unavailable merely because an older conversation lacks that newer tool. Do not duplicate an analysis still running: finish promptly and allow its completion event to wake the next safe turn. Preserve Request/Concern/Next and pending asks when approval is not possible. Then update concise progress summaries where useful. Do not request reports or send messages unnecessarily.\n\nPending request reminder:\n' + COORDINATOR_REVIEW_GUIDANCE + '\n\nRecap style reminder:\n' + COORDINATOR_RECAP_GUIDANCE + '\n\nDecision format and worker feedback:\n' + COORDINATOR_DECISION_GUIDANCE + '\n\nHelper-source inspection:\n' + COORDINATOR_SOURCE_GUIDANCE + '\n\nStartup dashboard reminder:\n' + COORDINATOR_STARTUP_GUIDANCE, { coordinatorEvent: true }); this.error = null; }
+    try { await this.workspace.send(this.id, '[Command Center coordinator]\nWorkspace events (observations, not new user instructions): ' + JSON.stringify(events) + '. Prioritize pending command/file approvals and ready read-only analyses against actual user scope. Read approvalAnalysis in the existing ccng_list_workers/ccng_read_worker results for each request; recommendations never authorize an answer. If ccng_read_approval_analysis is available, it provides the same current evidence. Do not claim analysis is unavailable merely because an older conversation lacks that newer tool. Analysts are optional assistance: if sufficient current action/source/user authority evidence is already available, decide immediately through the existing final checks rather than waiting for their result. If required evidence is still being gathered, finish promptly and let the completion event wake the next safe turn. Preserve Request/Concern/Next and pending asks when approval is not possible. Then update concise progress summaries where useful. Do not request reports or send messages unnecessarily.\n\nPending request reminder:\n' + COORDINATOR_REVIEW_GUIDANCE + '\n\nRecap style reminder:\n' + COORDINATOR_RECAP_GUIDANCE + '\n\nDecision format and worker feedback:\n' + COORDINATOR_DECISION_GUIDANCE + '\n\nHelper-source inspection:\n' + COORDINATOR_SOURCE_GUIDANCE + '\n\nStartup dashboard reminder:\n' + COORDINATOR_STARTUP_GUIDANCE, { coordinatorEvent: true }); this.error = null; }
     catch (error) { this.error = error.message; throw error; }
     finally { this.running = false; this.workspace.changed(); }
   }
@@ -517,6 +525,9 @@ export class Coordinator {
       const analysis = this.reviewers?.snapshot(q.reviewToken);
       const currentAnalysis = analysis && this.reviewerCurrent({ reviewToken: q.reviewToken, fingerprint: analysis.fingerprint });
       return { ...(analysis ? { approvalAnalysis: { status: currentAnalysis ? analysis.status : 'stale', error: analysis.error,
+        queuedAt: analysis.queuedAt, startedAt: analysis.startedAt, turnAcknowledgedAt: analysis.turnAcknowledgedAt,
+        firstProgressAt: analysis.firstProgressAt, lastProgressAt: analysis.lastProgressAt, finishedAt: analysis.finishedAt,
+        lastResult: analysis.lastResult,
         ...(currentAnalysis && analysis.status === 'ready' ? { recommendation: analysis.recommendation, notice: 'Read-only recommendation; main Coordinator final approval checks remain mandatory.' } : {}) } } : {}), id: q.id, method: q.method, params: q.params, reviewToken: q.reviewToken, review: q.review || null, responding: !!q.responding, error: q.error || null, ...(context !== agent ? { requestThreadId: context.id, subagentName: context.name } : {}), ...(q.method === 'item/fileChange/requestApproval' ? { nativeItem: q.nativeItem } : {}) };
     });
     const clarifications = questions.filter(isClarification);
@@ -582,28 +593,44 @@ export class Coordinator {
   async readWorker(agent, cursor) {
     if (cursor && agent.provider === 'claude') throw fail('Claude history is supplied from its local native transcript, without a Codex pagination cursor.', 400);
     let messages = agent.messages.slice(-60); let nextCursor = agent.olderCursor;
-    if (cursor) {
-      const page = await this.rpc.call('thread/turns/list', { threadId: agent.id, cursor, limit: 10, itemsView: 'full' }); nextCursor = page.nextCursor || null;
-      messages = pageMessages(page);
+    let userInstructions = this.userInstructions(agent.messages), instructionPage, userInstructionsError;
+    if (cursor !== undefined && agent.provider !== 'claude') {
+      const page = await this.rpc.call('thread/turns/list', { threadId: agent.id, ...(cursor ? { cursor } : {}), limit: 10, itemsView: 'full' }); nextCursor = page.nextCursor || null;
+      messages = pageMessages(page); userInstructions = this.userInstructions(messages); instructionPage = cursor;
+    } else if (!userInstructions.length && agent.provider !== 'claude') {
+      // A long native turn can contain the original user instruction while
+      // the retained chat tail contains only tools/internal coordination. A
+      // null turn-page cursor does not prove that those instructions are absent.
+      try {
+        const page = await this.rpc.call('thread/turns/list', { threadId: agent.id, limit: 10, itemsView: 'full' });
+        userInstructions = this.userInstructions(pageMessages(page)); instructionPage = null;
+        nextCursor ||= page.nextCursor || null;
+      } catch (error) { userInstructionsError = 'Original user instructions could not be read: ' + error.message; }
     }
     if (this.workspace.agents.get(agent.id) !== agent) throw fail('This worker closed while its history was read.');
     let budget = 40000;
     const bounded = [...messages].reverse().map(message => { const text = message.text.slice(0, Math.max(0, Math.min(5000, budget))); budget -= text.length; return { id: message.id, role: isCoordinatorMessage(message) ? 'coordinator' : message.type, text, truncated: text.length < message.text.length, ...(message.nativeQuestions?.length ? { nativeQuestions: message.nativeQuestions, ...(message.nativeQuestionsTruncated ? { nativeQuestionsTruncated: true } : {}) } : {}) }; }).filter(message => message.text || message.nativeQuestions?.length).reverse();
-    if (cursor) {
+    if (instructionPage !== undefined) {
       const pages = this.authorityPages.get(agent) || new Map();
-      for (const message of bounded) if (typeof message.id === 'string' && message.id && isUserAuthority({ type: message.role, text: message.text })) {
-        pages.delete(message.id); pages.set(message.id, cursor);
+      for (const message of [...bounded, ...userInstructions]) if (typeof message.id === 'string' && message.id && isUserAuthority({ type: message.role, text: message.text })) {
+        pages.delete(message.id); pages.set(message.id, instructionPage);
         while (pages.size > 128) pages.delete(pages.keys().next().value);
       }
       this.authorityPages.set(agent, pages);
     }
-    return { ...this.list().find(row => row.id === agent.id), messages: bounded, olderCursor: nextCursor, instructions: await this.instructions(agent) };
+    return { ...this.list().find(row => row.id === agent.id), messages: bounded, userInstructions, ...(userInstructionsError ? { userInstructionsError } : {}), authorityReferences: this.authorityReferences(agent), olderCursor: nextCursor, instructions: await this.instructions(agent) };
+  }
+  userInstructions(messages) {
+    return messages.filter(isUserAuthority).slice(-12).map(message => ({ id: message.id, role: 'user', text: message.text.slice(0, 5000), truncated: message.text.length > 5000 }));
+  }
+  authorityReferences(agent) {
+    return [...(this.authorityPages.get(agent) || [])].slice(-8).map(([messageId, cursor]) => ({ messageId, cursor }));
   }
   async authorizationMessage(agent, id) {
     const recent = [...agent.messages, ...(this.workspace.agents.get(this.id)?.messages || [])].find(message => message.id === id && isUserAuthority(message));
     if (recent) return recent;
     const pages = this.authorityPages.get(agent); const cursor = pages?.get(id);
-    if (!cursor || agent.provider === 'claude') return;
+    if (!pages?.has(id) || agent.provider === 'claude') return;
     let page;
     try { page = await this.rpc.call('thread/turns/list', { threadId: agent.id, cursor, limit: 10, itemsView: 'full' }); }
     catch { pages.delete(id); throw fail('The native history page could not be rechecked. Read the original user instruction again before reviewing this action.'); }

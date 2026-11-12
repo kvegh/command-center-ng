@@ -172,7 +172,7 @@ shows each question. Opening a card does not answer or dismiss it.
 
 ### Coordinator approval review
 
-The 1.11.0 source supports up to two internal read-only approval analysts working
+CCNG supports up to two internal read-only approval analysts working
 on independent current requests. They use the same review policy as the main
 Coordinator and can read only the context and source bound to their assigned
 request. They return recommendations; the main Coordinator remains the sole
@@ -183,6 +183,26 @@ request, real user authorization, command and working directory, and any inspect
 source hashes. A worker's assertion or analyst recommendation is not authority.
 Stale or changed evidence cannot authorize an answer. Ready analyses and pending
 approvals take priority over optional recaps; running analysis is not duplicated.
+
+Analysts load the canonical shared environment instructions using the main
+Coordinator's current native working-directory metadata, rather than an old
+cached directory. They also receive actual worker user instructions and hints
+to already known older authorization pages. If retained worker history has no
+real user instruction, one first native history page may supply it; this is not
+an unbounded history search. The main Coordinator rechecks any original native
+page used as authority, including a first page whose cursor is null. Missing or
+truncated context stays explicit; it does not become invented authority or an
+automatic declaration that the requested action is forbidden.
+
+Source inspection recognizes an explicitly imported fully qualified Python
+module only at the exact approval working directory or its `src` layout, with
+the dotted name mapped to a `.py` file. It does not search installed packages,
+inspect a virtual environment or environment configuration, import the module,
+execute embedded scripts or recurse into dependencies. A helper named with
+the ordinary word authenticated is not automatically authentication data;
+auth-specific names, hidden/credential/Vault paths and sensitive content remain
+protected. These source-reader corrections do not approve the command or
+resolve an existing manual ask.
 
 The rationale starts with `Request:` to describe the action. When approval is
 not possible, `Concern:` and `Next:` explain the concrete obstacle and next user
@@ -205,9 +225,11 @@ and a **30-second routine interval**; these are scheduling intervals, not approv
 deadlines. Native pause, question, ownership and safe-turn gates still apply.
 Saved report intervals and the separate ten-minute task-check cadence are unchanged.
 
-This describes implemented source. Deployment and real model/browser end-to-end
-verification of this change are pending at this documentation checkpoint;
-source and synthetic tests cannot establish response time or model compliance.
+The 1.12.0 source changes are not yet published or installed at this documentation
+checkpoint. Verification is ongoing; source and synthetic tests cannot establish
+real model compliance, browser acceptance or end-to-end approval latency. See
+the [release notes](release-notes.md#1120--native-request-time-and-approval-context)
+for the release checkpoint.
 
 ### Delivered worker and child requests
 
@@ -336,10 +358,22 @@ input unless tab/dialog changes or visibility make that unsafe. Decline,
 coordinator review and failed answers do not move focus. Claude approval work
 remains postponed.
 
+### Request time and attention
+
+An approval card's **Requested at** value comes from the native request's
+`startedAtMs`: the time that request started. It shows the full local date and
+time, including seconds and time zone, with its corresponding ISO value.
+CCNG may receive or render the card later; browser arrival, first observation,
+chat-message time and rendering time are different events. Missing or invalid
+native time is shown as unavailable, without a substituted timestamp, estimate
+or new timer.
+
 Agent tabs stay neutral while a delivered command/file approval awaits an
 available Coordinator. Amber means your attention is needed: a referral, a
 manual-only question or permission, or an actual answer error. A native wait
 without a delivered request stays neutral with **Request details unavailable**.
+When the selected conversation genuinely needs your attention, its top tab
+edge stays amber in all three themes while its saved chat-colour fill remains.
 The input header uses the same request evidence, including child requests,
 Coordinator review and native confirmation. These indicators do not change
 the actual pending request, its answer controls or execution gates.
@@ -470,11 +504,6 @@ supported choices. Changes apply to subsequent turns without interrupting the
 current turn or changing global permissions. Use follow-up messages to correct
 earlier instructions, or the existing branch action for a separate conversation.
 
-A helper named with the ordinary word authenticated is source, not automatically
-authentication data. Bounded source inspection still rejects auth-specific names,
-hidden/credential/Vault paths and sensitive content. Fixing a reader refusal does
-not resolve an existing manual ask or approve the command.
-
 ### Readable AAP references
 
 AAP procedures, results, reports and input requests pair object IDs with verified
@@ -601,3 +630,7 @@ your decision until you explicitly ask the Coordinator to review again. Matching
 requires a request fingerprint and a stable native identifier; old or ambiguous
 records remain history-only. Answer current requests in Open questions.
 See [storage details](coordinator.md#decision-summaries-after-restart).
+
+The Coordinator can decide immediately when it already has sufficient current
+action, source and original user-authorization evidence. It retains all final
+checks; an analyst still running is not a reason by itself to delay that decision.

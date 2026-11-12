@@ -9,7 +9,7 @@ import vm from 'node:vm';
 
 function fixture() {
   const rpc = new EventEmitter(); rpc.ready = true;
-  rpc.call = async () => { throw new Error('No native mutation expected'); };
+  rpc.call = async method => { if (method === 'thread/turns/list') return { data: [], nextCursor: null }; throw new Error('No native mutation expected'); };
   const workspace = new Workspace(rpc, { beads: null });
   const agent = { id: 'worker', name: 'Example', role: 'worker', cwd: '/example', canSend: true, messages: [], questions: [], tasks: [], workers: [], turnId: 'turn', thread: { id: 'worker', status: { type: 'active' } } };
   workspace.agents.set(agent.id, agent); workspace.watched.add(agent.id);

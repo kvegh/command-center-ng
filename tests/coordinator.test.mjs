@@ -579,9 +579,11 @@ test('older authority references are bounded and exclude native messages omitted
     await f.call('ccng_read_worker', { agentId: 'worker', cursor: 'past-newest-page' });
     const references = f.coordinator.authorityPages.get(worker);
     assert.equal(references.size, 128); assert.equal(references.has('past-bounded-0'), false); assert.equal(references.get('past-newest-user'), 'past-newest-page');
-    f.rpc.historyPages.set(JSON.stringify(['worker', 'past-trimmed-page']), historyPage(historyUser('past-unexposed-user', quote), ...Array.from({ length: 9 }, (_, index) => ({ type: 'agentMessage', id: 'large-past-reply-' + index, text: 'x'.repeat(5000) }))));
+    f.rpc.historyPages.set(JSON.stringify(['worker', 'past-trimmed-page']), historyPage(historyUser('past-unexposed-user', quote), ...Array.from({ length: 12 }, (_, index) => historyUser('delivered-instruction-' + index, quote)), ...Array.from({ length: 9 }, (_, index) => ({ type: 'agentMessage', id: 'large-past-reply-' + index, text: 'x'.repeat(5000) }))));
     const result = await f.call('ccng_read_worker', { agentId: 'worker', cursor: 'past-trimmed-page' });
     assert.equal(result.messages.some(message => message.id === 'past-unexposed-user'), false);
+    assert.equal(result.userInstructions.some(message => message.id === 'past-unexposed-user'), false);
+    assert.equal(result.userInstructions.length, 12);
     assert.equal(references.has('past-unexposed-user'), false);
     f.rpc.ask('evicted-history-approval', 'worker'); const question = worker.questions[0];
     for (const id of ['past-bounded-0', 'past-unexposed-user']) await assert.rejects(f.call('ccng_review_approval', historyReview(question, id, quote)), /actual user instruction/);

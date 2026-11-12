@@ -29,6 +29,16 @@ export function approvalWorkingDirectory(question, fallbackCwd) {
   return resolve(cwd);
 }
 
+function referencesProjectPythonModule(cwd, command, requested) {
+  // Recognize only explicit imports mapped to the two ordinary project layouts.
+  // This does not resolve Python packages, consult a venv or follow dependencies.
+  return [resolve(cwd), resolve(cwd, 'src')].some(root => {
+    const module = relative(root, requested).slice(0, -3).split('/').join('.');
+    if (!/^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+$/.test(module)) return false;
+    return new RegExp(`\\b(?:from\\s+${escaped(module)}\\s+import\\b|import\\s+${escaped(module)}(?=\\s|[,;]|$))`).test(command);
+  });
+}
+
 export function referencesApprovalSource(cwd, command, path) {
   const requested = resolve(cwd, path);
   if (!extensions.has(extname(requested))) return false;
@@ -36,7 +46,8 @@ export function referencesApprovalSource(cwd, command, path) {
   const module = basename(requested, '.py');
   const pythonImport = extname(requested) === '.py' && /^[A-Za-z_]\w*$/.test(module) && new RegExp(`\\b(?:from\\s+${escaped(module)}\\s+import\\b|import\\s+${escaped(module)}\\b)`).test(command);
   const importDirectory = dirname(requested) === resolve(cwd) || (dirname(requested) !== '/' && mentions(command, dirname(requested)));
-  return mentions(command, requested) || mentions(command, path) || mentions(command, relativePath) || mentions(command, './' + relativePath) || (pythonImport && importDirectory);
+  return mentions(command, requested) || mentions(command, path) || mentions(command, relativePath) || mentions(command, './' + relativePath)
+    || (pythonImport && importDirectory) || (extname(requested) === '.py' && referencesProjectPythonModule(cwd, command, requested));
 }
 
 export async function inspectApprovalSource(cwd, command, path, startLine = 1) {

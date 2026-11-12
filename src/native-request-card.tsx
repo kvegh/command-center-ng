@@ -10,6 +10,22 @@ function safeExternalUrl(value: unknown) {
   try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) ? value : null; } catch { return null; }
 }
 
+export function approvalRequestTime(startedAtMs: unknown, timeZone?: string) {
+  // Only the native approval's own Unix-millisecond timestamp is evidence of
+  // when it was raised; message, turn and arrival times describe other events.
+  if (typeof startedAtMs !== 'number' || !Number.isSafeInteger(startedAtMs) || startedAtMs < 0) return null;
+  const date = new Date(startedAtMs);
+  if (!Number.isFinite(date.getTime())) return null;
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    year: 'numeric', month: 'short', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    timeZoneName: 'longOffset', ...(timeZone ? { timeZone } : {}),
+  });
+  const label = formatter.format(date);
+  return { iso: date.toISOString(), label,
+    title: `Native approval request started at ${label} (${formatter.resolvedOptions().timeZone})` };
+}
+
 type RequestCardProps = {
   question: Question; agentId: string; workerName: string;
   requestThreadId?: string;
@@ -133,6 +149,8 @@ function NativeRequestFields({ question, agentId, requestThreadId, workerName, r
   const unsupportedCommand = question.method === COMMAND_APPROVAL && !isSupportedCommandApprovalKind(question);
   const kind = humanApproval ? 'Human approval required' : unsupportedCommand ? 'Unsupported command approval' : requestKind(question);
   const approval = [COMMAND_APPROVAL, FILE_APPROVAL].includes(question.method) || toolApproval;
+  const hasRequestTime = [COMMAND_APPROVAL, FILE_APPROVAL].includes(question.method);
+  const requestedAt = hasRequestTime ? approvalRequestTime(question.params.startedAtMs) : null;
   const clarification = question.method === CLARIFICATION;
   const permissions = question.method === PERMISSIONS;
   const mcp = question.method === MCP_REQUEST || question.method === 'claude/mcp/elicitation/request';
@@ -153,6 +171,9 @@ function NativeRequestFields({ question, agentId, requestThreadId, workerName, r
   };
   return <section id={questionTarget(nativeThreadId, question.id)} className="question-card native-request" tabIndex={-1} aria-label={`${kind} for ${workerName}`}>
     <div className="eyebrow">{kind} · {workerName}{question.params.serverName ? ` · ${question.params.serverName}` : ''}</div>
+    {hasRequestTime && <p className="field-note approval-request-time">{requestedAt
+      ? <>Requested at <time dateTime={requestedAt.iso} title={requestedAt.title}>{requestedAt.label}</time></>
+      : 'Request time unavailable'}</p>}
     {question.params.message && <p className="native-request-message">{question.params.message}</p>}
     {question.params.reason && <p>{question.params.reason}</p>}
     {question.responding && <p role="status">Waiting for the native agent to confirm resolution…</p>}

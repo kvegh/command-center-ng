@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { requestKind } from '../server/native-requests.mjs';
 
 export type Question = {
-  id: string | number; method: string; params: Record<string, any>;
+  id: string | number; method: string;
+  params: Record<string, any> & { startedAtMs?: number | null };
   reviewToken?: string;
   responding?: boolean; error?: string | null;
   review?: { decision: string; rationale: string; historicalAt?: string; decisionId?: string };

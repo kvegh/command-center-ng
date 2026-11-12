@@ -76,6 +76,49 @@ test('two read-only analyses use existing native transport and selected policy/m
   assert.ok(f.calls.every(call => ['thread/start', 'turn/start', 'thread/archive'].includes(call.method)));
 });
 
+test('queue, client dispatch, native acknowledgement and actual progress have distinct observed times', async () => {
+  const acknowledgement = gate();
+  const f = fixture({ call: async (method, params) => {
+    if (method === 'turn/start' && params.threadId === 'reviewer-3') await acknowledgement.promise;
+  } });
+  f.pool.reconcile([job(1), job(2), job(3)]); await waitFor(() => f.pool.snapshot('token-2').status === 'running');
+  assert.deepEqual({ queuedAt: f.pool.snapshot('token-3').queuedAt, startedAt: f.pool.snapshot('token-3').startedAt }, { queuedAt: 1000, startedAt: null });
+  assert.equal(f.pool.snapshot('token-2').firstProgressAt, null, 'native acknowledgement alone is not progress evidence');
+  f.advance(20); f.complete('token-1'); await waitFor(() => f.calls.some(call => call.method === 'turn/start' && call.params.threadId === 'reviewer-3'));
+  assert.equal(f.pool.snapshot('token-3').startedAt, 1020); assert.equal(f.pool.snapshot('token-3').turnAcknowledgedAt, null);
+  f.advance(30); acknowledgement.release(); await waitFor(() => f.pool.snapshot('token-3').status === 'running');
+  assert.equal(f.pool.snapshot('token-3').turnAcknowledgedAt, 1050);
+  assert.equal(f.pool.snapshot('token-3').firstProgressAt, null); assert.equal(f.pool.snapshot('token-3').lastProgressAt, null);
+  await f.pool.handleTool(f.toolCall('token-3', { turnId: 'wrong-turn' }));
+  assert.equal(f.pool.snapshot('token-3').firstProgressAt, null, 'a foreign turn cannot create progress evidence');
+  f.advance(7); await f.pool.handleTool(f.toolCall('token-3'));
+  f.advance(7); f.complete('token-3');
+  const result = f.pool.snapshot('token-3');
+  assert.deepEqual({ queuedAt: result.queuedAt, startedAt: result.startedAt, turnAcknowledgedAt: result.turnAcknowledgedAt,
+    firstProgressAt: result.firstProgressAt, lastProgressAt: result.lastProgressAt, finishedAt: result.finishedAt },
+  { queuedAt: 1000, startedAt: 1020, turnAcknowledgedAt: 1050, firstProgressAt: 1057, lastProgressAt: 1064, finishedAt: 1064 });
+});
+
+test('fast pre-ack native progress and terminal evidence retain receipt times after exact turn confirmation', async () => {
+  const acknowledgement = gate();
+  const f = fixture({ call: async (method, params, pool) => {
+    if (method !== 'turn/start') return;
+    f.advance(20);
+    pool.notification({ method: 'item/completed', params: { threadId: params.threadId, turnId: 'fast-timed-turn', item: { type: 'agentMessage', text: recommendation() } } });
+    f.advance(10);
+    pool.notification({ method: 'turn/completed', params: { threadId: params.threadId, turn: { id: 'fast-timed-turn', status: 'completed' } } });
+    f.advance(5);
+    pool.notification({ method: 'turn/completed', params: { threadId: params.threadId, turn: { id: 'fast-timed-turn', status: 'completed' } } });
+    await acknowledgement.promise; return { turn: { id: 'fast-timed-turn' } };
+  } });
+  f.pool.reconcile([job(1)]); await waitFor(() => f.calls.some(call => call.method === 'turn/start'));
+  assert.equal(f.pool.snapshot('token-1').firstProgressAt, null); assert.equal(f.pool.snapshot('token-1').finishedAt, null);
+  f.advance(45); acknowledgement.release(); await waitFor(() => f.pool.snapshot('token-1').status === 'ready');
+  const result = f.pool.snapshot('token-1');
+  assert.equal(result.turnAcknowledgedAt, 1080); assert.equal(result.firstProgressAt, 1020);
+  assert.equal(result.lastProgressAt, 1020); assert.equal(result.finishedAt, 1030, 'terminal receipt is not moved to later acknowledgement time');
+});
+
 test('read callbacks are whitelisted, bound to the current owned turn and rechecked against current request scope', async () => {
   const f = fixture(); f.pool.reconcile([job(1)]); await waitFor(() => f.pool.snapshot('token-1').status === 'running');
   assert.equal(f.pool.hasThread(f.pool.snapshot('token-1').threadId), true);
