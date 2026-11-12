@@ -3647,3 +3647,19 @@ Publication and existing-install deployment follow this implementation commit.
 At this record's checkpoint installed behavior, actual model recommendations and
 end-to-end latency are not yet verified; physical browser acceptance remains
 separate. These checks are development validation, not formal project acceptance.
+
+
+### 1.11.0 publication and installed verification
+
+Implementation `a5e25c5f6aac4a3930334c0a29dd6738c086087e` and payload
+`a8510501051ab3b574fb3e604069de45a675a888` were published over SSH and remote
+HEAD independently matched. The authorized existing-install update completed
+in22.499s, preserving nine protected files/metadata and all seven saved worker
+IDs plus Coordinator identity, pause, report settings and native runtime version.
+Independent installed verification completed in10.921s:111 source matches, live
+1.11.0 service/TLS/authentication/assets/listeners,294 installed synthetic-native
+backend cases (5.403s), existing tracker access and silence instructions passed.
+Installed checks confirm identical shared approval policy, two-reviewer limit,
+AAP-name guidance and the authenticated-filename correction without executing
+the originally requested helper or submitting its approval. Actual model
+recommendations and end-to-end timing remain unverified by these checks.

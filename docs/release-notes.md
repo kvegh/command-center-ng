@@ -11,8 +11,11 @@ is retrievable in the [README before this reorganization](https://github.com/kve
 
 ## 1.11.0 — Parallel approval analysis and earlier event wakes
 
-Implemented source; production deployment and real model/browser end-to-end
-verification are pending at this documentation checkpoint.
+Published and installed on 2026-11-12. Independent verification matched111
+installed source files and passed294 installed backend cases using synthetic
+native transport; trusted HTTPS/assets and protected saved state also passed.
+Actual model recommendations, end-to-end latency and physical browser acceptance
+remain separate verification gaps.
 
 Use up to two internal read-only analysts for independent approval requests under
 the same policy as the main Coordinator. Recommendations are evidence; the main
