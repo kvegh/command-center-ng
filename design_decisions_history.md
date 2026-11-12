@@ -3783,3 +3783,28 @@ runtime checks because trimming an unrelated test block also removed its Node
 executable-path initialization. Restore that verifier variable and rerun the
 read-only check; no application fix, reinstall or second restart was needed.
 Physical-phone rendering, keyboard and rotation remain unverified.
+
+## 2026-11-12 — Show each mobile navigation destination independently
+
+Implementation: `10862443279feb139f9d60a0e16f319e08750f2b` (1.14.0).
+
+The user clarified that Top and Bottom are independent controls: show Top when
+the app section above history is out of view, Bottom when the history end is
+out of view, and both in the middle. Replace the single document-start switch
+with actual history bounds. This also keeps Bottom available while the overview
+is visible at a nonzero page offset. Each button retains its own direction even
+before a scroll event is processed, and refreshes visibility after navigation.
+
+Retain the existing sticky document-scrolling control and a stable-height row
+so appearing buttons do not move their own visibility boundary. Observe both
+history and its surrounding panel for content/overview resizing. Keep current
+composer geometry for Bottom, without focusing input. Desktop positions, drafts,
+native actions, explicit pagination, dependencies and storage are unchanged.
+
+Ten actual-component regression cases pass, including both/one/neither states,
+viewport boundaries, delayed scroll events, growth/collapse, switching and
+cleanup. Four adjacent test files pass in 2.700s, the TypeScript/build checks
+pass, and independent source review found no blocking issue. These are simulated
+geometry and source checks; physical-phone keyboard, rotation and sticky
+rendering remain unverified. Publication and existing-install verification
+follow this source checkpoint.
