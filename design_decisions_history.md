@@ -3592,3 +3592,16 @@ occurred in these final patch checks. The broader1.10.0 full-suite restrictions
 remain recorded above; those unrelated failures were not hidden or rerun around
 permissions. Actual browser geometry and operating-system notification display
 remain unverified. Publication/installation outcomes follow separately.
+
+
+Published payload `e237972993c55078f527d2dc47804a10c0b78062` installed as1.10.1
+through authorized AAP3642 (success20.644s,2026-11-12 12:02:05–12:02:26UTC),
+preserving all nine protected files/metadata and eight saved workers plus
+Coordinator identity/pause/report settings/native version. Independent AAP3643
+succeeded9.363s (12:02:55–12:03:04UTC):110 exact source matches, actual1.10.1
+trusted HTTPS/assets/authentication gates/listeners,209 installed backend cases
+and existing Beads unit/read pass. Served CSS contains available-width sizing
+and no task-banner rules; served JS retains opt-in native notifications.
+Installed silence instructions pass. No native model input, approval answer,
+permission change or bootstrap was submitted. Browser geometry and OS display
+remain unverified; refresh the browser to load the new bundle.
