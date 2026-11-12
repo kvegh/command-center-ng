@@ -11,9 +11,11 @@ is retrievable in the [README before this reorganization](https://github.com/kve
 
 ## 1.12.0 — Native request time and approval context
 
-Source checkpoint: implementation, tests, build and independent review are in
-progress. This version is not yet published or installed; no live or browser
-acceptance is claimed here.
+Published and installed on 2026-11-12. Independent verification matched111
+installed source files and passed308 installed backend cases (synthetic native
+transport), trusted HTTPS/assets/authentication and protected-state checks.
+Actual browser rendering and subsequent end-to-end approval latency remain
+separate verification gaps.
 
 Approval cards show **Requested at** from the native request's `startedAtMs`,
 with a full local date, seconds, time zone and corresponding ISO value. This is
