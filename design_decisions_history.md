@@ -3605,3 +3605,45 @@ and no task-banner rules; served JS retains opt-in native notifications.
 Installed silence instructions pass. No native model input, approval answer,
 permission change or bootstrap was submitted. Browser geometry and OS display
 remain unverified; refresh the browser to load the new bundle.
+
+
+## 2026-11-12 — Share approval analysis while keeping one final approver
+
+Implementation: `a5e25c5f6aac4a3930334c0a29dd6738c086087e` (1.11.0).
+
+The user selected two read-only reviewers after observed approval waits and
+required the main Coordinator to keep its concern/next-step explanations and
+identical review criteria. Use two bounded ephemeral native analysis threads on
+the existing connection. Share the actual policy text and bounded read tools;
+recommendations never approve anything. Preserve current request/user/source
+checks, native confirmations, manual asks, pauses and unknown outcomes. Supply
+findings through existing list/read tools so saved Coordinator conversations
+need no replacement or new dynamic tool. Retain unknown work until evidence
+resolves it, and prune terminal ownership without a new scheduler or store.
+
+Fix the independent scheduling defect by retaining the earliest event wake and
+urgent priority through a busy main turn. This removes avoidable timer delays;
+neither it nor two parallel analyses establishes an end-to-end response deadline.
+
+The user also requires readable verified AAP object names beside IDs. Put one
+shared reporting rule in worker and Coordinator guidance, with explicit unknown
+names and ad hoc purposes rather than invented templates or secret reads.
+A reported source-reader refusal exposed an auth-substring filename false
+positive. Share one path predicate between generic and exact-token readers,
+recognizing auth-specific name components while allowing ordinary authenticated
+and author words; retain all other source, credential and request protections.
+The original command is never executed or approved by fixing its reader.
+
+Validation: all17 affected backend/instruction test files pass (6.426s), including
+20 reviewer lifecycle and12 real-Workspace/fake-native integration cases. Build
+and independent bounded review pass. Broader verification initially exposed
+older Coordinator callback stubs and two unrelated-fixture scheduling assumptions;
+optional routing and explicit isolated-fixture settings corrected those without
+weakening their assertions. Real native capability checks confirm read-only
+ephemeral options; ephemeral history paging is unsupported, and unsubscribe does
+not prove immediate unload. No model turn or approval was submitted for that probe.
+
+Publication and existing-install deployment follow this implementation commit.
+At this record's checkpoint installed behavior, actual model recommendations and
+end-to-end latency are not yet verified; physical browser acceptance remains
+separate. These checks are development validation, not formal project acceptance.
