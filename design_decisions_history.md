@@ -3732,3 +3732,12 @@ the artifact showed equivalent backtick literals. Correct the artifact matcher
 to accept those quote styles without changing the application or time semantics.
 Physical rendering and fresh live end-to-end latency remain unverified by these
 checks; no model turn, original helper or approval was executed by verification.
+
+
+A bounded genuine-review observation during the restart completion window found
+an approximately129s request-to-confirmed decision: about52s analyst dispatch to
+terminal result and70s afterward to the main decision. This is not a clean
+before/after benchmark, and the latter interval is not isolated model-processing
+time. It confirms residual latency rather than a general speedup guarantee.
+Further reasoning-effort tuning is a separate user choice; no effort or model
+setting was changed by this release or diagnostic.
