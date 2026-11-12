@@ -3467,3 +3467,26 @@ One intermediate read-only diagnostic had a Python indentation error; it made
 no changes. None of these attempts installed code or restarted the service.
 Physical browser submission remains unverified until a genuine user follow-up;
 the source/installed tests do not replace that acceptance.
+
+## 2026-11-12 — Keep internal task checks free of routine commentary
+
+Implementation: `ce44c3849b660778af27f8cd662d0f01c0cf91ab` (1.9.1).
+
+The user reported repeated acknowledgements before silent checks. Some workers
+were following ordinary tool-introduction guidance despite the existing request
+for silence. Make the specific internal-control exception explicit: no opening
+commentary, tool introduction, acknowledgement, plan or no-change summary, even
+before tools. Unchanged held, deferred or blocked tasks are not new findings.
+Useful findings, failures, real questions and substantive work updates stay visible.
+
+Put the rule in runtime base guidance for new/restored turns and in each check
+payload for already-active steering. Keep existing native history, rendering,
+provenance, cadence, queues and permission guards unchanged. Authoritative and
+mirrored shared instructions receive the same scoped rule; preserve unrelated drafts.
+
+The affected existing instruction, cadence, import, restoration, Coordinator and
+message/provenance checks pass 147 cases. The production build and independent
+source review pass. No model call was manufactured to test obedience. Backend
+restart is needed to load the new module text; successful instruction delivery
+does not prove future model compliance. Publication/installation and the next
+genuine silent-check observation remain separate evidence.
