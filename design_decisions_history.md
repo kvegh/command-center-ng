@@ -3820,3 +3820,33 @@ in 5.133s: 112 installed files matched, live 1.14.0 trusted HTTPS/authentication
 both served assets, listeners, existing tracker and navigation labels/styles
 passed. No model/native request was created or answered for verification.
 Physical-phone rendering, keyboard and rotation remain open acceptance gaps.
+
+## 2026-11-12 — Review safe playbooks and documents
+
+Implementation: `857944dd584c70b85071ccb2a215ef665f09e9a8` (1.15.0).
+
+The user requested that the existing source reader review playbooks, JSON, YAML
+and Markdown as well as Python/shell helpers. The old approval-bound extension
+list excluded these documents, while the ordinary project reader also lacked
+JSON. Extend those existing paths rather than introducing another reader or
+changing native tool grants. The compatibility path remains available to older
+saved Coordinators without the dedicated approval-source tool.
+
+Preserve exact request, token, cwd and source-hash checks for outside-project
+files and recognize literal Ansible `@file` inputs. File content remains evidence,
+not user authority; reads execute nothing and resolve no template values. Add
+shared format-aware credential checks and recheck sensitive resolved project
+paths so the wider formats retain secret/Vault protection. Native JSON parsing
+handles escaped keys without executing source. Keep code annotations and normal
+environment/Jinja references readable. Conservative detection can still require
+private review of credential-like metadata or unusual YAML; it does not certify
+that arbitrary source is secret-free.
+
+Independent review identified numeric/escaped JSON values, a mixed-template
+literal gap and false refusals for ordinary code/prose. Focused corrections and
+regressions resolved those findings. Final 13 source-reader and 97 Coordinator
+cases pass; six adjacent reviewer/context/hook suites pass in 1.057s. Syntax,
+TypeScript/build and diff checks pass, and independent re-review found no
+remaining blocking issue. These are synthetic file/tool-request checks, not a
+genuine pending approval or formal AAP acceptance. Publication and installed
+verification follow this source checkpoint.
