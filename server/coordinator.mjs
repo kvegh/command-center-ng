@@ -7,6 +7,7 @@ import { isBranchControlMessage } from './branch-summary.mjs';
 import { taskSummary } from './task-summary.mjs';
 import { progressWordCount, RECAP_WORD_LIMIT, RECAP_WORD_TARGET } from './progress-recap.mjs';
 import { WORKER_REPORT_REQUEST, WORKER_DETAILED_REPORT_REQUEST, WORKER_TASK_PING_REQUEST, REPORT_INTERVALS } from './worker-instructions.mjs';
+import { taskReportFormatError } from './task-report-format.mjs';
 import { approvalCommand, approvalWorkingDirectory, inspectApprovalSource, referencesApprovalSource } from './approval-source.mjs';
 import { nativeMessageQuestions } from './native-requests.mjs';
 import { hasOpenAsyncQuestions, nativeQuestionAnswerTexts } from './async-question-replies.mjs';
@@ -35,26 +36,6 @@ const isApproval = question => ['item/commandExecution/requestApproval', 'item/f
 const isReviewableApproval = question => isApproval(question) && !isHumanCommandApproval(question)
   && (question.method !== 'item/commandExecution/requestApproval' || isSupportedCommandApprovalKind(question));
 const isUnreviewedApproval = question => isReviewableApproval(question) && !question.review && !question.responding && !question.error;
-// Topic-labelled reports can omit red when no input is needed; recognition
-// acknowledges a summary, never infers that blockers or unfinished work are absent.
-const reportSections = [
-  /^(?:[-*+]\s+)?(?:\*\*)?🟩\s*(?:\*\*)?[\p{L}\p{N}]/u,
-  /^(?:[-*+]\s+)?(?:\*\*)?🟨\s*(?:\*\*)?[\p{L}\p{N}]/u,
-  /^(?:[-*+]\s+)?(?:\*\*)?🟦\s*(?:\*\*)?Next\b/i
-];
-function isStandardReport(text) {
-  if (typeof text !== 'string' || text.length > 32_000) return false;
-  let section = 0, fence = null;
-  for (const raw of text.split('\n')) {
-    const line = raw.trimStart();
-    if (line.startsWith('>')) continue;
-    const marker = line.match(/^(`{3,}|~{3,})/);
-    if (marker) { if (!fence) fence = marker[1]; else if (marker[1][0] === fence[0] && marker[1].length >= fence.length) fence = null; continue; }
-    if (fence || /^(?: {4}|\t)/.test(raw)) continue;
-    if (reportSections[section].test(line) && ++section === reportSections.length) return true;
-  }
-  return false;
-}
 export const COORDINATOR_NAME = 'Command Center coordinator';
 export const COORDINATOR_THREAD_SOURCE = 'command-center-coordinator';
 export const isCoordinatorThread = thread => thread?.threadSource === COORDINATOR_THREAD_SOURCE || thread?.name === COORDINATOR_NAME;
@@ -569,14 +550,17 @@ export class Coordinator {
   reportMessageCompleted(id, message) {
     const response = this.reportResponses.get(id); const agent = this.workspace.agents.get(id);
     if (this.stopped || !response || !agent || !this.reportPending.has(id) || message?.type !== 'assistant' || message.state !== 'completed' || typeof message.id !== 'string' || response.previousIds.has(message.id) || (message.nativeMessageId && response.previousIds.has(message.nativeMessageId))) return false;
-    if (typeof message.turnId !== 'string' || !message.turnId || !isStandardReport(message.text)) return false;
+    if (typeof message.turnId !== 'string' || !message.turnId) return false;
+    const formatError = taskReportFormatError(message.text);
     if (!response.confirmed) {
       // A live report can precede the native acknowledgement. Keep it only in
       // this pending response until the actual delivery turn is known.
-      response.candidates.set(message.turnId, { id: message.id, turnId: message.turnId });
+      if (formatError) response.formatErrors.set(message.turnId, formatError);
+      else response.candidates.set(message.turnId, { id: message.id, turnId: message.turnId });
       return false;
     }
     if (message.turnId !== response.turnId) return false;
+    if (formatError) { response.formatError = formatError; return false; }
     response.candidate = { id: message.id, turnId: message.turnId };
     return this.finishReportResponse(id, response);
   }
@@ -598,7 +582,8 @@ export class Coordinator {
     const agent = this.workspace.agents.get(id); if (!agent) return false;
     this.reportResponses.delete(id); this.reportPending.delete(id);
     if (agent.coordinatorDeliveryKind === 'report') agent.coordinatorDeliveryKind = null;
-    agent.reportError = 'The worker turn ended without a recognized Standard Task Report.';
+    agent.reportError = 'The worker turn ended without a recognized Standard Task Report. '
+      + (response.formatError || 'Expected the Task | Status | Outcome / next step table and Release: evidence line.');
     this.record({ agentId: id, action: 'report', outcome: 'missing-response', rationale: agent.reportError });
     if (response.startupDashboard) this.settleStartupDashboard(id, 'failed', agent);
     else if (!response.scheduledReport) this.mark(id, 'Requested report was not received', true);
@@ -620,7 +605,7 @@ export class Coordinator {
     const previousTaskPing = !!agent.taskPingInProgress;
     const response = message.kind === 'report' ? {
       requestId: message.id, turnId: agent.provider === 'claude' ? agent.turnId || null : null, confirmed: false, scheduledReport: !!message.scheduledReport, startupDashboard: !!message.startupDashboard, detailed: !!message.detailed,
-      candidates: new Map(), completedTurns: new Set(),
+      candidates: new Map(), formatErrors: new Map(), completedTurns: new Set(),
       previousIds: new Set(agent.messages.filter(item => item.type === 'assistant').flatMap(item => [item.id, item.nativeMessageId].filter(Boolean)))
     } : null;
     if (response) this.reportResponses.set(id, response);
@@ -637,8 +622,9 @@ export class Coordinator {
         const completedClaudeTurn = agent.provider === 'claude' && response.completedTurns.has(agent.finishedTurn?.id) ? agent.finishedTurn.id : null;
         response.turnId = delivery?.turnId || (agent.provider === 'claude' ? response.turnId || agent.turnId || completedClaudeTurn : null);
         response.candidate = response.candidates.get(response.turnId) || null;
+        response.formatError = response.formatErrors.get(response.turnId) || null;
         response.turnCompleted = response.completedTurns.has(response.turnId);
-        delete response.candidates; delete response.completedTurns;
+        delete response.candidates; delete response.formatErrors; delete response.completedTurns;
         response.confirmed = true;
         if (!this.finishReportResponse(id, response)) this.finishMissingReportResponse(id, response);
       }

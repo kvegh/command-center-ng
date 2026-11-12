@@ -23,6 +23,7 @@ export class TabReorder {
     targetAt(x: number, y: number): string | null;
     commit(source: string, target: string): void;
     change(state: TabDragState): void;
+    allowVerticalStart?: () => boolean;
     now?: () => number;
   }) {}
   get dragging() { return !!this.session?.dragging; }
@@ -42,7 +43,7 @@ export class TabReorder {
     if (!session.dragging) {
       const dx = Math.abs(event.clientX - session.x), dy = Math.abs(event.clientY - session.y);
       if (Math.max(dx, dy) < 6) return;
-      if (dy > dx) { this.cancel(); return; }
+      if (dy > dx && !this.options.allowVerticalStart?.()) { this.cancel(); return; }
       session.dragging = true;
     }
     event.preventDefault();

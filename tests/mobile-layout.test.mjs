@@ -48,7 +48,7 @@ test('mobile CSS and composer share the width/coarse-pointer query and responsiv
   assert.equal(matchingQueries.length, 2, 'initial state and responsive updates use the same query');
 });
 
-test('compact layout uses normal page flow, full-width overview and wrapping tabs', () => {
+test('compact layout uses normal page flow, full-width overview and one scrollable tab row', () => {
   const attribute = (element, name) => element.attributes.properties.find(value => ts.isJsxAttribute(value) && value.name.text === name)?.initializer;
   const panel = findNodes(node => ts.isJsxElement(node) && attribute(node.openingElement, 'id')?.text === 'agent-panel')[0];
   const historyIndex = panel.children.findIndex(node => ts.isJsxElement(node) && attribute(node.openingElement, 'className')?.text === 'conversation');
@@ -62,7 +62,10 @@ test('compact layout uses normal page flow, full-width overview and wrapping tab
     assert.deepEqual(properties('.workspace-frame .agent-panel', ['display', 'flex-direction', 'height', 'max-height'], media), { display: 'flex', 'flex-direction': 'column', height: 'auto', 'max-height': 'none' });
     assert.deepEqual(properties('.context', ['width', 'max-height', 'overflow'], media), { width: '100%', 'max-height': 'none', overflow: 'visible' });
     assert.equal(declarations('.task-summary', media)['flex-direction'], 'column', 'task header, list and notification controls stack without competing for mobile width');
-    assert.deepEqual(properties('.topbar > .tabs-row .tabs', ['width', 'flex-wrap', 'overflow'], media), { width: '100%', 'flex-wrap': 'wrap', overflow: 'visible' });
+    assert.deepEqual(properties('.topbar > .tabs-row .tabs', ['display', 'width', 'flex-wrap', 'overflow'], media), { display: 'flex', width: 'auto', 'flex-wrap': 'nowrap', overflow: 'auto hidden' });
+    assert.equal(declarations('.topbar > .tabs-row', media).display, 'flex', 'Coordinator remains beside the same scrolling row');
+    assert.equal(declarations('.topbar .tabs .tab-wrap', media).flex, '0 0 170px', 'touch tabs keep a stable width instead of shrinking or wrapping');
+    assert.match(declarations('.tab-wrap[data-worker-tab] > .agent-tab', media)['touch-action'], /pan-x/, 'finger swipes can scroll the tabs horizontally');
     for (const selector of ['.overview-section[data-section="recap"]', '.sidebar-divider', '.overview-section-divider', '.composer-divider']) {
       assert.equal(declarations(selector, media).display, 'none', `${selector} stays hidden on narrow and wide coarse-pointer devices`);
     }

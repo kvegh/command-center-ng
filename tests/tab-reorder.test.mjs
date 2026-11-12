@@ -7,7 +7,7 @@ const source = await readFile(new URL('../src/tab-reorder.ts', import.meta.url),
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 const { TabReorder, reorderTabs } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
 
-function fixture(ids = ['alpha', 'beta', 'gamma']) {
+function fixture(ids = ['alpha', 'beta', 'gamma'], options = {}) {
   let order = [...ids], target = 'alpha', now = 1000, capture = null;
   const changes = [], commits = [], prevented = [];
   const element = {
@@ -18,7 +18,8 @@ function fixture(ids = ['alpha', 'beta', 'gamma']) {
   const drag = new TabReorder({
     targetAt: () => target, now: () => now,
     commit: (source, target) => { commits.push([source, target]); order = reorderTabs(order, source, target); },
-    change: state => changes.push(state)
+    change: state => changes.push(state),
+    ...options
   });
   const event = (x, y = 10, extras = {}) => ({ pointerId: 1, button: 0, isPrimary: true, clientX: x, clientY: y, currentTarget: element, preventDefault: () => prevented.push(true), ...extras });
   return { drag, element, event, changes, commits, prevented, order: () => order, capture: () => capture, target: value => { target = value; }, replace: value => { order = value; }, advance: ms => { now += ms; } };
@@ -60,6 +61,26 @@ test('finger taps and diagonal swipes retain native scrolling and never reorder 
 test('vertical scrolling cancels without changing order or blocking a later click', () => {
   const f = fixture(); f.drag.down(f.event(10), 'alpha'); f.drag.move(f.event(12, 70)); f.drag.up(f.event(12, 70));
   assert.equal(f.commits.length, 0); assert.equal(f.capture(), null); assert.equal(f.drag.consumeClick(1), false);
+});
+
+test('two-row desktop permits a direct vertical drop while one-row and touch gestures retain native scrolling', () => {
+  let twoRows = true;
+  const f = fixture(['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta'], { allowVerticalStart: () => twoRows });
+  f.drag.down(f.event(10, 10), 'alpha');
+  f.target('delta'); f.drag.move(f.event(10, 54)); f.drag.up(f.event(10, 54));
+  assert.deepEqual(f.commits, [['alpha', 'delta']]);
+  assert.deepEqual(f.order(), ['beta', 'gamma', 'delta', 'alpha', 'epsilon', 'zeta']);
+  assert.equal(f.capture(), null);
+  assert.equal(f.drag.consumeClick(1), true);
+  twoRows = false;
+  f.drag.down(f.event(10, 10), 'beta'); f.target('epsilon'); f.drag.move(f.event(10, 54)); f.drag.up(f.event(10, 54));
+  assert.equal(f.commits.length, 1, 'returning to one row restores vertical gesture cancellation');
+  twoRows = true;
+  const touch = (x, y) => f.event(x, y, { pointerType: 'touch' });
+  f.drag.down(touch(10, 10), 'beta');
+  assert.equal(f.capture(), null);
+  f.target('epsilon'); f.drag.move(touch(10, 54)); f.drag.up(touch(10, 54));
+  assert.equal(f.commits.length, 1, 'a finger never starts a drag, even with two rows');
 });
 
 test('pointer cancellation and lost capture discard the drop', () => {

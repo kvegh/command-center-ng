@@ -56,14 +56,25 @@ a { color: var(--accent); }
 .eyebrow { color: #8398b7; font: 9px var(--mono); letter-spacing: 1.7px; margin-bottom: 9px; }
 .workspace-frame { border: 1px solid #324058; border-radius: 11px; background: var(--surface); overflow: hidden; box-shadow: 0 15px 60px #00000025; }
 .tabs-row { display: flex; align-items: stretch; gap: 10px; min-height: 48px; padding: 0 15px; background: #101723; border-bottom: 1px solid var(--line); }
-.tabs { flex: 1; min-width: 0; display: flex; align-items: flex-end; gap: 4px; overflow-x: auto; overflow-y: hidden; padding-top: 0; scrollbar-width: none; }
+.tabs { flex: 1; min-width: 0; display: grid; grid-auto-columns: max-content; grid-template-rows: 40px; align-items: end; gap: 4px; overflow-x: auto; overflow-y: hidden; padding-top: 0; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
+.tabs[data-two-rows="true"] { grid-template-rows: repeat(2, 40px); }
+.tabs > .tab-wrap { flex: 0 0 170px; width: 170px; min-width: 0; max-width: none; height: 34px; }
+.tabs > .tab-wrap.active { height: 40px; }
+/* Intrinsic columns push their neighbours aside without changing row membership
+   or letting flex shrink move the hovered tab out from under the pointer. */
+@media (min-width: 901px) and (hover: hover) and (pointer: fine) {
+  .tabs:not(.reordering) > .tab-wrap:hover { width: max-content; min-width: 170px; }
+  .tabs:not(.reordering) > .tab-wrap:hover .agent-tab { flex: none; }
+  .tabs:not(.reordering) > .tab-wrap:hover .tab-text { flex: none; }
+  .tabs:not(.reordering) > .tab-wrap:hover .tab-text strong { overflow: visible; }
+}
 .tab-wrap { position: relative; display: flex; align-items: stretch; flex: 1; min-width: 155px; max-width: 260px; min-height: 34px; background: var(--surface); border: 1px solid transparent; border-bottom: 0; border-top: 2px solid #495970; border-radius: 7px 7px 0 0; color: #8193ad; }
 .tab-wrap.running { border-top-color: var(--green); }
 .tab-wrap.attention { border-top-color: var(--amber); }
 .tab-wrap.idle { border-top-color: #778aa6; }
 .tab-wrap.error { border-top-color: #ff8b8b; }
-.tab-wrap.active { min-height: 40px; background: linear-gradient(180deg, #234252, #1b2c3c 55%, var(--surface)); border-color: var(--accent); box-shadow: inset 1px 0 var(--accent), inset -1px 0 var(--accent); margin-bottom: 0; z-index: 1; }
+.tab-wrap.active { min-height: 40px; background: var(--chat-tab-background); border-color: var(--accent); box-shadow: inset 1px 0 var(--accent), inset -1px 0 var(--accent); margin-bottom: 0; z-index: 1; }
 .agent-tab { flex: 1; min-width: 0; min-height: 32px; display: flex; align-items: center; gap: 8px; padding: 5px 4px 5px 10px; text-align: left; background: none; border: 0; color: inherit; }
 .tab-number { color: #8298b7; font: 9px var(--mono); padding-top: 0; }
 .tab-wrap.active .tab-number { color: var(--accent); }
@@ -157,16 +168,18 @@ a { color: var(--accent); }
 .conversation { flex: 1; min-height: 0; margin-top: 12px; overflow: auto; overscroll-behavior: contain; padding: 20px 27px 26px; scrollbar-width: thin; scrollbar-color: #3a4c65 transparent; }
 .conversation-top { display: flex; justify-content: space-between; color: #7086a7; font: 9px var(--mono); letter-spacing: 1px; margin-bottom: 25px; }
 .conversation-top > span:last-child { color: #8096b6; letter-spacing: 0; }
-.chat-header { --chat-colour: var(--accent); --chat-blue: #8cb7ff; --chat-teal: #62d9d0; --chat-rose: #efa3c1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; flex-shrink: 0; gap: 4px 16px; min-width: 0; padding: 0 8px; margin-bottom: 0; border: 0; background: transparent; }
-.chat-header[data-chat-colour="violet"] { --chat-colour: var(--violet); }
-.chat-header[data-chat-colour="green"] { --chat-colour: var(--green); }
-.chat-header[data-chat-colour="blue"] { --chat-colour: var(--chat-blue); }
-.chat-header[data-chat-colour="teal"] { --chat-colour: var(--chat-teal); }
-.chat-header[data-chat-colour="rose"] { --chat-colour: var(--chat-rose); }
-:root[data-theme="light"] .chat-header { --chat-blue: #285fbb; --chat-teal: #0f6c6b; --chat-rose: #a33d68; }
+/* Chat identity fills are shared; status frames keep their separate palette. */
+[data-chat-colour] { --chat-colour: var(--accent); --chat-blue: #8cb7ff; --chat-teal: #62d9d0; --chat-rose: #efa3c1; --chat-tab-background: color-mix(in srgb, var(--chat-colour) 16%, var(--surface)); }
+.chat-header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; flex-shrink: 0; gap: 4px 16px; min-width: 0; padding: 0 8px; margin-bottom: 0; border: 0; background: transparent; }
+[data-chat-colour="violet"] { --chat-colour: var(--violet); }
+[data-chat-colour="green"] { --chat-colour: var(--green); }
+[data-chat-colour="blue"] { --chat-colour: var(--chat-blue); }
+[data-chat-colour="teal"] { --chat-colour: var(--chat-teal); }
+[data-chat-colour="rose"] { --chat-colour: var(--chat-rose); }
+:root[data-theme="light"] [data-chat-colour] { --chat-blue: #285fbb; --chat-teal: #0f6c6b; --chat-rose: #a33d68; }
 .chat-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
 /* Only the title joins the input like a folder tab; its sibling controls stay neutral. */
-.chat-title-tab { position: relative; z-index: 1; display: flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; min-height: 30px; padding: 5px 9px; border: 1px solid var(--chat-colour); border-bottom: 0; border-radius: 7px 7px 0 0; background: var(--surface); background: color-mix(in srgb, var(--chat-colour) 16%, var(--surface)); transform: translateY(1px); }
+.chat-title-tab { position: relative; z-index: 1; display: flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; min-height: 30px; padding: 5px 9px; border: 1px solid var(--chat-colour); border-bottom: 0; border-radius: 7px 7px 0 0; background: var(--chat-tab-background); transform: translateY(1px); }
 .chat-heading h2 { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 1.5; font-weight: 500; color: var(--ink); }
 .chat-colour-marker { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--chat-colour); }
 .chat-heading select { width: 78px; flex-shrink: 0; padding: 3px 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); font-size: 11px; }
@@ -736,7 +749,7 @@ kbd { font-family: inherit; }
 :root[data-theme="light"] .tab-wrap.running { border-top-color: var(--green); }
 :root[data-theme="light"] .tab-wrap.attention { border-top-color: var(--amber); }
 :root[data-theme="light"] .tab-wrap.error { border-top-color: #a52a3a; }
-:root[data-theme="light"] .tab-wrap.active { background: linear-gradient(180deg, #d4eef7, #e8f5fb 55%, var(--surface)); border-color: var(--accent); }
+:root[data-theme="light"] .tab-wrap.active { border-color: var(--accent); }
 :root[data-theme="light"] .tab-text strong,
 :root[data-theme="light"] .tab-wrap.active .tab-text strong,
 :root[data-theme="light"] .agent-count,
@@ -1015,10 +1028,10 @@ kbd { font-family: inherit; }
 @media (max-width: 900px), (hover: none) and (pointer: coarse) {
   .app-shell { height: auto; min-height: 100dvh; overflow: visible; }
   .topbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; padding: 16px 8px 8px; }
-  .topbar > .tabs-row { display: contents; }
-  .topbar > .tabs-row .tabs { flex: 1 0 100%; width: 100%; flex-wrap: wrap; overflow: visible; align-items: flex-end; }
-  .topbar .tabs .tab-wrap { flex: 1 1 150px; min-width: 130px; max-width: 260px; }
-  .tab-wrap[data-worker-tab] > .agent-tab { cursor: pointer; touch-action: pan-y pinch-zoom; }
+  .topbar > .tabs-row { display: flex; flex: 1 0 100%; width: 100%; min-width: 0; }
+  .topbar > .tabs-row .tabs { display: flex; flex: 1 1 0; width: auto; flex-wrap: nowrap; overflow: auto hidden; align-items: flex-end; touch-action: pan-x pan-y pinch-zoom; }
+  .topbar .tabs .tab-wrap { flex: 0 0 170px; width: 170px; min-width: 0; max-width: none; }
+  .tab-wrap[data-worker-tab] > .agent-tab { cursor: pointer; touch-action: pan-x pan-y pinch-zoom; }
   .coordinator-tab-group { align-self: auto; }
   .overview-header { flex: 1 1 200px; flex-wrap: wrap; container-type: normal; padding-left: 0; gap: 6px; }
   .workspace { flex: none; padding: 0 8px 8px; }

@@ -20,8 +20,9 @@ its view and report schedule, not its native history or running conversation.
 The selected tab has a larger bold title and highlighted edges. Status dots
 indicate running or attention states independently of selection. Selecting a
 tab focuses its input; the title directly above the input helps identify where
-the next message will go. Only the compact title folder tab is coloured and
-attached to the input below; its adjacent colour selector and status indicators
+the next message will go. The active conversation tab matches the saved
+background tint of the compact title folder tab attached to the input below.
+Status/frame colours remain independent; inactive top tabs, the adjacent selector and status indicators
 stay on neutral backgrounds. Choose **cyan**, **violet**, **green**, **blue**,
 **teal** or **rose**. Older saved amber choices become blue, leaving amber for
 attention states and preserving other preferences. Narrow layouts place stacked
@@ -367,10 +368,27 @@ plus one-off **Report now**. Never is the default. Saved intervals belong to
 CCNG's existing backend timer; browser refresh does not reset the deadline or
 require selecting the radio again. Workers do not need their own report loops.
 
-Reports use concise coloured Done / In progress / Blocked or needs input / Next
-bullets, covering all active workstreams and the project's release/publication
-status. This format is in [worker base instructions](../server/worker-instructions.md).
-Instruction guidance cannot guarantee perfect model compliance.
+Reports begin with this fixed table, with one actual task per row (an optional
+`## Standard Task Report` heading may precede it):
+
+| Task | Status | Outcome / next step |
+| --- | --- | --- |
+| Example implementation | 🟨 In progress | Finish the affected checks. |
+
+Statuses are **🟩 Done**, **🟨 In progress**, **🟥 Blocked**, **🟥 Needs input**,
+**🟥 Failed**, **🟪 On hold**, **🟦 Queued**, **🟧 Deferred** or **⬜ Unknown**.
+Each task and outcome must be nonempty. The overview covers every active
+workstream in this conversation's authorized scope, using known evidence.
+End the table with a blank line, then write the release evidence line:
+`Release: <version or unknown>; publication: <evidence or unknown>; deployment: <verified scope or unverified>.`
+An empty table must state `Tasks: none in scope.` or
+`Tasks: unavailable — <reason>.` before that line; do not invent placeholder tasks.
+The same schema is sent in manual, scheduled and detailed requests, including
+steering an already-active worker. It is defined in
+[worker base instructions](../server/worker-instructions.md).
+CCNG validates the shape and exact status labels; it cannot establish factual
+truth or force the model to comply. A nonconforming final reply remains visible
+and produces a format error, without an automatic resend.
 
 Select **Detailed report** beside **Report now** for a one-off expanded report.
 It starts with the normal overview, then each linked Beads task actually marked
@@ -455,7 +473,14 @@ windows and long feedback can scroll within the settings area. Existing divider
 keyboard controls and reset remain available. Mobile keeps its continuous page
 and compact expandable settings rather than a pinned desktop footer.
 
-Mobile uses one naturally scrolling full-width page with wrapped tabs, compact
+Desktop tabs expand horizontally on hover to reveal the full title and push
+neighbours aside; only the selected tab is taller. More than six conversation
+tabs, counting Coordinator, use two stable rows. Selecting a worker places its
+row nearest the chat without changing the saved tab order. The worker strip
+scrolls horizontally beside Coordinator, so overflow remains reachable.
+
+Mobile keeps one horizontally scrollable tab row, without hover expansion or
+row switching. It uses one naturally scrolling full-width page with compact
 overview and the chat history in the page flow, followed by a six-line input.
 There is no separate 30-line history scroll area. Long input scrolls internally.
 Mobile hides resize handles and worker coordinator recaps,
@@ -478,11 +503,11 @@ without a recognized Standard Task Report, a visible error replaces a false read
 announcement. Pending permissions and unsafe work are not interrupted, and
 unconfirmed delivery is not automatically retried.
 
-Recognition accepts a fresh completed status summary with green outcomes,
-yellow work and a blue Next bullet, including topic labels instead of the
-recommended section names. A red blocker bullet is optional for recognition;
-its absence does not establish that no blockers exist. Quoted/code examples,
-older messages and other turns cannot satisfy an outstanding request.
+Recognition requires the table and release line above in a fresh completed
+assistant reply associated with the confirmed request's exact turn. Quoted/code
+examples, older messages and other turns cannot satisfy it. Invalid table
+format is distinguished from a turn that produced no report. Existing native
+permissions, pause, ownership and delivery guards remain unchanged.
 
 
 ## Correcting earlier messages

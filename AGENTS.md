@@ -381,8 +381,18 @@ separate question items in one tool call. Do not guess how to split or rewrite
 native approval commands, modify another worker's input records, or treat a
 partial reply as resolving unanswered choices. Preserve pending native controls.
 
-Task reports use concise vivid bullets with explicit labels: 🟩 Done, 🟨 In
-progress, 🟥 Blocked/needs input, and 🟦 Next. Name actual work and useful outcomes;
+Task reports begin with the fixed GFM table `Task | Status | Outcome / next step`
+(optionally preceded by `## Standard Task Report`),
+with one actual nonempty task and useful outcome/next action per row. Use exact
+status labels: 🟩 Done, 🟨 In progress, 🟥 Blocked, 🟥 Needs input, 🟥 Failed,
+🟪 On hold, 🟦 Queued, 🟧 Deferred or ⬜ Unknown. End the table with a
+blank line, then follow it with
+`Release: <version or unknown>; publication: <evidence or unknown>; deployment: <verified scope or unverified>.`
+An empty header-only table must state `Tasks: none in scope.` or
+`Tasks: unavailable — <reason>.` before that release line; never invent a task.
+Use this same overview for Report now, scheduled and Detailed reports. CCNG
+validates the shape and flags invalid replies visibly without automatic resends;
+validation does not establish factual truth. Name actual work and useful outcomes;
 cover every currently active workstream, including delegated implementation,
 audits, research, documentation, verification and publication, even when unchanged.
 Group related work concisely without silently omitting it. Distinguish active,
@@ -769,9 +779,11 @@ strict public-origin checks while permitting exact same-origin native HTTPS on
 the local listener only with loopback socket endpoints. This fixes SSH tunnel
 login; it does not grant HTTP/proxy-header exceptions or certificate trust.
 
-Chat colour applies only to the compact title folder tab directly above and
-attached to the input. Keep its saved tint visible while typing; the selector,
-status area, input frame and top agent tabs retain their neutral/existing fills.
+Chat colour applies to the compact title folder tab attached above the input
+and to the currently active top conversation tab, using the same background
+tint. Preserve the status/frame colours. Keep the saved tint visible while
+typing; inactive top tabs, selector, status area and input frame retain their
+neutral/existing fills.
 Preserve readable contrast across all three themes, small text and visible
 keyboard focus. When narrow layouts stack status indicators, place them above
 the title row so they do not separate the folder tab from the input.
@@ -781,7 +793,8 @@ multi-line pastes remain readable. Keep Markdown/code/table support and assistan
 formatting, raw-HTML exclusion, copied source and native history unchanged. Do
 not execute, classify or rewrite pasted terminal content.
 
-The approved mobile layout is one naturally scrolling page: wrapped worker tabs,
+The approved mobile layout is one naturally scrolling page: one horizontally
+scrollable tab row without hover expansion or row switching,
 full-width overview above chat history in the document flow, then a six-line
 input with internal overflow. The user selected one-page history scrolling,
 superseding the earlier approximately 30-line nested chat viewport. Do not
@@ -843,3 +856,14 @@ an unconfirmed native outcome or trigger retries. Graceful shutdown drains queue
 writes; hard kills and future unrecorded native acknowledgements have no durability
 guarantee. Use bounded streaming/append and existing Node facilities, no database
 or service, no silent truncation/rotation or automatic permission changes.
+
+
+## Approved desktop tab expansion and rows
+
+Above six conversation tabs, counting Coordinator, show two stable desktop rows;
+place the selected worker row nearest the chat without changing saved order or
+worker numbering. Hover reveals the full title by expanding horizontally and
+pushing neighbours aside; only the selected tab is taller. Keep Coordinator
+separate and overflow reachable. Mobile overrides this with one horizontally
+scrollable row, without hover expansion or row switching. Preserve native state,
+focus, drafts, keyboard ordering, drag behavior and touch scrolling.

@@ -94,7 +94,7 @@ test('report-looking question titles cannot settle a pending Standard Task Repor
   const f = fixture(); f.workspace.coordinator = f.coordinator;
   const response = { confirmed: true, turnId: 'turn', previousIds: new Set(), candidates: new Map() };
   f.coordinator.reportPending.add('worker'); f.coordinator.reportResponses.set('worker', response);
-  const title = '🟩 Done: outcome.\n🟨 In progress: work.\n🟥 Blocked: none.\n🟦 Next: verify.';
+  const title = '| Task | Status | Outcome / next step |\n| --- | --- | --- |\n| Verify application | 🟨 In progress | Finish the existing checks. |\n\nRelease: unknown; publication: unknown; deployment: unverified.';
   f.workspace.addItem(f.agent, f.item({ questions: [{ title, options: null }] }), 'turn', false, { live: true, completed: true });
   assert.equal(f.agent.messages[0].text, ''); assert.equal(f.coordinator.reportPending.has('worker'), true);
   assert.equal(f.coordinator.reportResponses.get('worker'), response); assert.equal(response.candidate, undefined);

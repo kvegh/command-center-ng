@@ -56,7 +56,9 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Attempt automatic reconnection of eligible active Codex waits with missing request details, without answering approvals. A delivered file approval missing its proposal can receive one guarded live snapshot after bounded history lookup.
 - Branch a Codex conversation, then hand tasks and a summary back to its parent.
 - See linked Beads tasks with input needs and blockers first, conditional On hold states and optional task notifications.
-- Request concise task reports or optional detailed action histories; choose a saved interval, or Never to disable automatic startup and recurring reports.
+- Request task reports in a consistent colourful task/status table, with optional detailed action histories; choose a saved interval, or Never to disable automatic startup and recurring reports.
+- Match the active conversation tab background to its chat-input title tab while retaining status frame colours.
+- Reveal desktop tab titles on hover; above six conversations use two rows with the selected row nearest the chat. Mobile keeps one horizontally scrollable row.
 - Recheck overlooked tasks and stalled delegated work silently every 10 minutes, including safe recovery of stalled child waits, with the next check shown in the coordinator.
   Internal checks omit routine acknowledgements and tool introductions; useful findings and questions remain visible.
 - Keep coordinator decision summaries across restarts in a private local file.

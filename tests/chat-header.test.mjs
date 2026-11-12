@@ -56,14 +56,27 @@ test('colour changes stay bound to the originating chat and reject arbitrary val
   assert.deepEqual(changed, [['one', 'blue'], ['two', 'green'], ['one', 'teal'], ['two', 'rose']]);
 });
 
-test('six chat colours fill only the attached title tab, with readable text in all three themes', async () => {
+test('six chat colours share matching active agent/title fills with readable text in all three themes', async () => {
   const sheet = postcss.parse(await readFile(new URL('../src/style.css', import.meta.url), 'utf8'));
   const header = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === '.chat-header');
   const title = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === '.chat-title-tab');
+  const sharedColours = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === '[data-chat-colour]');
+  const activeTab = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === '.tab-wrap.active');
   const declaration = (rule, property) => rule.nodes.filter(node => node.type === 'decl' && node.prop === property).at(-1)?.value;
   const background = declaration(title, 'background');
-  const mix = /^color-mix\(in srgb, var\(--chat-colour\) (\d+)%, var\(--surface\)\)$/.exec(background);
-  assert.ok(mix, 'the title itself carries its persistent selected-colour background');
+  const mix = /^color-mix\(in srgb, var\(--chat-colour\) (\d+)%, var\(--surface\)\)$/.exec(declaration(sharedColours, '--chat-tab-background'));
+  assert.ok(mix, 'one shared colour mix defines both backgrounds');
+  assert.equal(background, 'var(--chat-tab-background)');
+  assert.equal(declaration(activeTab, 'background'), background, 'active worker and Coordinator tabs use the same fill token as the input title');
+  assert.equal(declaration(activeTab, 'border-color'), 'var(--accent)', 'selected frame colour is unchanged');
+  assert.equal(declaration(activeTab, 'box-shadow'), 'inset 1px 0 var(--accent), inset -1px 0 var(--accent)');
+  for (const [state, colour] of [['running', 'var(--green)'], ['attention', 'var(--amber)'], ['idle', '#778aa6'], ['error', '#ff8b8b']]) {
+    const rule = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === `.tab-wrap.${state}`);
+    assert.equal(declaration(rule, 'border-top-color'), colour, `${state} keeps its status frame`);
+    assert.equal(declaration(rule, 'background'), undefined);
+  }
+  const inactiveTab = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === '.tab-wrap');
+  assert.equal(declaration(inactiveTab, 'background'), 'var(--surface)', 'inactive tabs keep their neutral fill');
   assert.equal(declaration(header, 'background'), 'transparent');
   assert.equal(declaration(header, 'border'), '0');
   assert.equal(declaration(header, 'margin-bottom'), '0');
@@ -87,13 +100,15 @@ test('six chat colours fill only the attached title tab, with readable text in a
         assert.ok(!rule.nodes.some(node => node.type === 'decl' && node.value.includes('--chat-colour')), 'chat colouring stays outside the composer/input frame');
       }
     });
-    header.walkDecls(decl => { if (decl.prop.startsWith('--chat-')) palette[decl.prop] = decl.value; });
-    const themedHeader = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === `:root[data-theme="${theme}"] .chat-header`);
-    themedHeader?.walkDecls(decl => { palette[decl.prop] = decl.value; });
+    sharedColours.walkDecls(decl => { if (decl.prop.startsWith('--chat-')) palette[decl.prop] = decl.value; });
+    const themedColours = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === `:root[data-theme="${theme}"] [data-chat-colour]`);
+    themedColours?.walkDecls(decl => { palette[decl.prop] = decl.value; });
+    const themedActive = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === `:root[data-theme="${theme}"] .tab-wrap.active`);
+    assert.equal(themedActive && declaration(themedActive, 'background'), undefined, `${theme}: no theme-specific gradient overrides the shared fill`);
     const backgrounds = new Set();
     for (const colour of ['cyan', 'violet', 'green', 'blue', 'teal', 'rose']) {
-      const rule = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === `.chat-header[data-chat-colour="${colour}"]`);
-      const selected = declaration(rule || header, '--chat-colour');
+      const rule = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === `[data-chat-colour="${colour}"]`);
+      const selected = declaration(rule || sharedColours, '--chat-colour');
       const variable = /^var\((--[a-z-]+)\)$/.exec(selected)?.[1];
       assert.ok(variable && palette[variable], `${theme}/${colour}: selected colour resolves through the current theme`);
       const fraction = Number(mix[1]) / 100;
@@ -113,6 +128,37 @@ test('six chat colours fill only the attached title tab, with readable text in a
   assert.equal(declaration(mobile.nodes.find(rule => rule.selector === '.chat-header-status'), 'grid-row'), '1', 'wrapped status stays above the attached title');
   const focus = sheet.nodes.find(rule => rule.type === 'rule' && rule.selector === '.chat-heading select:focus-visible');
   assert.equal(declaration(focus, 'outline'), '2px solid var(--accent)');
+});
+
+test('worker and Coordinator tabs bind the same saved chat colour and default as their input title', async () => {
+  const source = await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8');
+  const main = ts.createSourceFile('main.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let tabColour, inputColour;
+  const visit = node => {
+    if (ts.isJsxAttribute(node) && node.name.text === 'data-chat-colour') tabColour = node.initializer.expression;
+    if (ts.isJsxOpeningElement(node) && node.tagName.getText(main) === 'ChatHeader') {
+      inputColour = node.attributes.properties.find(attribute => ts.isJsxAttribute(attribute) && attribute.name.text === 'colour')?.initializer.expression;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(main);
+  assert.ok(tabColour && inputColour);
+  const compiled = ts.transpileModule(`
+    export const topColour = (chatColours, agent) => (${tabColour.getText(main)});
+    export const titleColour = (chatColours, active) => (${inputColour.getText(main)});
+  `, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
+  const { topColour, titleColour } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
+  for (const role of ['worker', 'coordinator']) {
+    const agent = { id: role, role };
+    const colours = {};
+    assert.equal(topColour(colours, agent), 'cyan');
+    assert.equal(topColour(colours, agent), titleColour(colours, agent));
+    for (const colour of ['cyan', 'violet', 'green', 'blue', 'teal', 'rose']) {
+      colours[agent.id] = colour;
+      assert.equal(topColour(colours, agent), colour, 'changing the existing selection updates the top tab');
+      assert.equal(topColour(colours, agent), titleColour(colours, agent));
+    }
+  }
 });
 
 test('input receipt waits for native-backed acknowledgement and stays with its worker across selection changes', async () => {

@@ -54,8 +54,8 @@ function fakeReportClock() {
     advance(ms) { now += ms; for (const [id, timer] of [...timers]) if (timer.at <= now) { timers.delete(id); timer.run(); } }
   };
 }
-const standardReport = '- 🟩 **Done:** Published version 0.26.0.\n- 🟨 **In progress:** Continue the authorized build.\n- 🟥 **Blocked / needs input:** None.\n- 🟦 **Next:** Finish verification.';
-const topicReport = '- 🟩 **Published source:** The reviewed release is available.\n- 🟩 **Import fix:** The correction is verified.\n- 🟨 **MCP:** Validation continues.\n- 🟨 **Firewall:** Waiting for the existing test.\n- 🟦 **Next:** Finish the authorized checks.';
+const standardReport = '| Task | Status | Outcome / next step |\n| --- | --- | --- |\n| Publish release | 🟩 Done | Source publication is verified. |\n| Build | 🟨 In progress | Finish verification. |\n\nRelease: 0.26.0; publication: verified; deployment: unverified.';
+const topicReport = '| Task | Status | Outcome / next step |\n| --- | --- | --- |\n| Published source | 🟩 Done | The reviewed release is available. |\n| Import fix | 🟩 Done | The correction is verified. |\n| MCP | 🟨 In progress | Finish validation. |\n| Firewall | 🟥 Needs input | Choose the intended test target. |\n\nRelease: unknown; publication: unknown; deployment: unverified.';
 
 async function fixture(coordinatorOptions = {}) {
   const cwd = await mkdtemp(join(tmpdir(), 'ccng-coordinator-')); const rpc = new Rpc(cwd);
@@ -1316,7 +1316,7 @@ test('report completion ignores partial, quoted, stale, other-turn and historica
     f.rpc.historyPages.set(JSON.stringify(['worker', 'older-report']), historyPage({ id: 'historical-report', type: 'agentMessage', text: standardReport }));
     await f.workspace.history('worker', 'older-report');
     assert.equal(f.coordinator.reportPending.has('worker'), true);
-    const plain = standardReport.replaceAll('**', '').replace('Blocked / needs input', 'Needs input');
+    const plain = standardReport.replace('🟨 In progress', '🟥 Needs input');
     assert.equal(f.coordinator.reportMessageCompleted('worker', { ...message, text: plain }), true);
     assert.equal(f.coordinator.reportPending.has('worker'), false);
     assert.equal(worker.turnId, 'active-work'); assert.equal(f.rpc.replies.length, 0);
@@ -1340,11 +1340,11 @@ test('a report observed before send acknowledgement stays pending until native d
   } finally { await f.close(); }
 });
 
-test('topic-labelled green and yellow report sections with blue Next are recognized without a red section', async () => {
+test('canonical task tables are recognized with truthful statuses and release evidence', async () => {
   const f = await fixture();
   try {
     const worker = f.workspace.agent('worker'); worker.turnId = 'report-work'; worker.thread.status = { type: 'active' };
-    for (const [index, text] of [topicReport, topicReport.replace('- 🟦', '- 🟥 **Needs input:** Choose the intended test target.\n- 🟦')].entries()) {
+    for (const [index, text] of [topicReport, topicReport.replace('🟥 Needs input', '🟪 On hold')].entries()) {
       f.coordinator.requestUserReport('worker');
       await waitFor(() => !worker.coordinatorSending);
       assert.equal(f.coordinator.reportPending.has('worker'), true);
@@ -1355,18 +1355,57 @@ test('topic-labelled green and yellow report sections with blue Next are recogni
   } finally { await f.close(); }
 });
 
-test('topic report recognition keeps partial, non-Next, quoted, code, reversed and other-turn negatives', async () => {
+test('task table recognition keeps partial, noncanonical, quoted, code, reversed and other-turn negatives', async () => {
   const f = await fixture();
   try {
     const worker = f.workspace.agent('worker'); worker.turnId = 'report-work'; worker.thread.status = { type: 'active' };
     f.coordinator.requestUserReport('worker'); await waitFor(() => !worker.coordinatorSending);
     for (const text of [
-      topicReport.split('\n').slice(0, -1).join('\n'), topicReport.replace('**Next:**', '**Notes:**'),
+      topicReport.split('\n').slice(0, -1).join('\n'), topicReport.replace('🟥 Needs input', 'Needs input'),
       topicReport.split('\n').reverse().join('\n'), topicReport.split('\n').map(line => '> ' + line).join('\n'),
       '```markdown\n' + topicReport + '\n```', topicReport.split('\n').map(line => '    ' + line).join('\n'),
     ]) assert.equal(f.coordinator.reportMessageCompleted('worker', { id: 'not-a-report', type: 'assistant', state: 'completed', turnId: 'report-work', text }), false);
     assert.equal(f.coordinator.reportMessageCompleted('worker', { id: 'wrong-turn', type: 'assistant', state: 'completed', turnId: 'another-turn', text: topicReport }), false);
     assert.equal(f.coordinator.reportPending.has('worker'), true);
+  } finally { await f.close(); }
+});
+
+test('a malformed terminal report stays visible, fails with a useful format error and never retries', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'report-work'; worker.thread.status = { type: 'active' };
+    f.coordinator.requestUserReport('worker'); await waitFor(() => !worker.coordinatorSending);
+    const malformed = standardReport.replace('🟨 In progress', 'Building');
+    f.rpc.emit('notification', { method: 'item/completed', params: { threadId: 'worker', turnId: 'report-work', item: { id: 'invalid-table', type: 'agentMessage', text: malformed } } });
+    assert.equal(f.coordinator.reportPending.has('worker'), true);
+    const sent = f.rpc.calls.filter(call => ['turn/start', 'turn/steer'].includes(call.method)).length;
+    f.rpc.complete('worker', 'report-work');
+    assert.match(worker.reportError, /canonical coloured status/);
+    assert.equal(f.coordinator.reportPending.has('worker'), false);
+    assert.equal(f.coordinator.reportResponses.size, 0);
+    assert.ok(worker.messages.some(message => message.type === 'assistant' && message.text === malformed), 'original response remains available to the user');
+    assert.equal(f.rpc.calls.filter(call => ['turn/start', 'turn/steer'].includes(call.method)).length, sent);
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('fast malformed report evidence waits for acknowledgement and uses only the actual delivery turn error', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'active-work'; worker.thread.status = { type: 'active' };
+    const send = f.workspace.send.bind(f.workspace); let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    f.workspace.send = async (...args) => { const result = await send(...args); await gate; return result; };
+    f.coordinator.requestUserReport('worker'); await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer'));
+    f.coordinator.reportMessageCompleted('worker', { id: 'invalid-fast', type: 'assistant', state: 'completed', turnId: 'active-work', text: standardReport.replace('🟨 In progress', 'Building') });
+    f.coordinator.reportMessageCompleted('worker', { id: 'unrelated-invalid', type: 'assistant', state: 'completed', turnId: 'unrelated-turn', text: 'Unrelated reply.' });
+    f.rpc.complete('worker', 'active-work');
+    assert.equal(worker.reportError, null);
+    assert.equal(f.coordinator.reportPending.has('worker'), true);
+    release(); await waitFor(() => !worker.coordinatorSending);
+    assert.match(worker.reportError, /canonical coloured status/);
+    assert.equal(f.coordinator.reportPending.has('worker'), false);
   } finally { await f.close(); }
 });
 

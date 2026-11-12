@@ -9,6 +9,23 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.10.0 — Consistent task tables and reachable tabs
+
+Report now, scheduled and Detailed reports use the same task/status/outcome table,
+with exact colourful status labels and a release/publication/deployment line.
+CCNG checks the format on the existing completed-report path. Invalid replies
+remain visible with a specific error and no automatic retry; validation cannot
+establish factual truth. Detailed history and native delivery guards are preserved.
+
+Desktop tab titles expand horizontally on hover. Above six conversation tabs,
+counting Coordinator, two rows keep the selected worker row nearest the chat
+without changing saved order or numbering. Overflow remains reachable beside
+Coordinator; two-row mouse dragging and single-row/touch protections are retained.
+Mobile explicitly uses one horizontally scrollable row without hover/row switching.
+The active worker/Coordinator tab shares its input-title background tint across
+all themes; inactive fills and status frame colours are preserved.
+Source checks/builds do not establish actual browser hover or physical-phone behavior.
+
 ## 1.9.1 — Keep silent task checks silent
 
 Make the internal-check exception explicit in worker guidance and each task-check

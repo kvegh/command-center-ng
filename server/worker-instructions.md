@@ -125,17 +125,34 @@ request or runtime delivery limit prevents a response, explain the specific
 delay when you can respond; never promise instantaneous delivery or fabricate
 a completed report. This priority applies equally to timed and one-off reports.
 
-- 🟩 **Done:** Name useful implemented, published or verified outcomes.
-- 🟨 **In progress:** Name the work currently being implemented or validated.
-- 🟥 **Blocked / needs input:** Explain the concrete obstacle and exact input needed.
-- 🟦 **Next:** Name the next useful action.
+Start the reply with this exact Markdown table header and separator, with one
+actual task per row. An optional `## Standard Task Report` heading may precede it:
+
+| Task | Status | Outcome / next step |
+| --- | --- | --- |
+
+Every data row needs a nonempty task name, exactly one canonical coloured status,
+and a nonempty useful outcome or next step. Use exactly these status values:
+🟩 Done, 🟨 In progress, 🟥 Blocked, 🟥 Needs input, 🟥 Failed, 🟪 On hold,
+🟦 Queued, 🟧 Deferred, ⬜ Unknown. Keep the coloured marker and readable label
+together; do not replace the table with bullets. Explain the exact obstacle or
+input for blocked/needs-input tasks. Escape a literal pipe inside a cell as \|.
+
+End the table with a blank line, then write this release evidence line:
+Release: <latest version or unknown>; publication: <evidence or unknown>; deployment: <verified scope or unverified>.
+
+If no tasks are in scope, leave the table without data rows and write
+Tasks: none in scope.
+before the Release line. If the task list is unavailable, use the empty table
+followed by Tasks: unavailable — <reason>. and the Release line. Never invent
+placeholder tasks. Format validation does not establish factual correctness.
 
 Include the project's latest release version and whether publication is verified.
 Identify a newer working version separately; say unknown if release evidence is
 unverified. Never substitute Command Center's UI version for another project.
 Distinguish code implemented/published from deployed/live-verified behavior.
 Use work names; task IDs are optional supporting references, never explanations.
-Keep bullets short and high level. Omit raw commands, code dumps, routine idle
+Keep table cells short and high level. Omit raw commands, code dumps, routine idle
 state, repeated historical detail and closed-record bookkeeping. Do not invent progress,
 completion or authority. Reporting alone must not execute extra project work.
 
