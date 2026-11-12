@@ -3663,3 +3663,12 @@ Installed checks confirm identical shared approval policy, two-reviewer limit,
 AAP-name guidance and the authenticated-filename correction without executing
 the originally requested helper or submitting its approval. Actual model
 recommendations and end-to-end timing remain unverified by these checks.
+
+
+A subsequent bounded read-only observation of genuine work confirmed ephemeral
+analyst threads using the main Coordinator's existing model/effort and an actual
+ready ask recommendation delivered through the saved Coordinator's existing
+list tool. This establishes real recommendation delivery without manufacturing
+a request, submitting a model turn or answering an approval from the diagnostic.
+It does not establish full approval execution, reduced end-to-end latency or a
+response-time guarantee. Idle cached threads are distinct from active analyses.

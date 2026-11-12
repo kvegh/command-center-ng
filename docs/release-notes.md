@@ -14,8 +14,10 @@ is retrievable in the [README before this reorganization](https://github.com/kve
 Published and installed on 2026-11-12. Independent verification matched111
 installed source files and passed294 installed backend cases using synthetic
 native transport; trusted HTTPS/assets and protected saved state also passed.
-Actual model recommendations, end-to-end latency and physical browser acceptance
-remain separate verification gaps.
+A subsequent read-only observation confirmed an actual analyst recommendation
+reached the saved Coordinator through its existing tools on a genuine request.
+Final native approval execution, end-to-end latency and physical browser
+acceptance remain separate verification gaps.
 
 Use up to two internal read-only analysts for independent approval requests under
 the same policy as the main Coordinator. Recommendations are evidence; the main
