@@ -19,11 +19,14 @@ desktop chat positions. Narrow layouts and landscape coarse-pointer phones use
 the same control. History pagination and native request actions are unchanged.
 
 Six new component behavior cases cover navigation, live geometry, switching,
-viewport changes and listener cleanup. Five affected test files pass in4.156s,
+viewport changes and listener cleanup. Five affected test files pass in 4.156s,
 the TypeScript/production build passes, and independent source review found no
-blocking issue. Publication and installed verification follow this source
-checkpoint. Physical-phone keyboard, browser rendering and rotation acceptance
-remain separate from source/component and artifact checks.
+blocking issue. Published and installed on 2026-11-12: independent verification
+matched 112 installed source files, live 1.13.0 HTTPS/authentication/assets and
+the served navigation labels/sticky styles. Nine protected files and all eight
+saved worker identities, Coordinator and report settings were preserved.
+Physical-phone keyboard, browser rendering and rotation acceptance remain
+separate from source/component and artifact checks.
 
 ## 1.12.0 — Native request time and approval context
 

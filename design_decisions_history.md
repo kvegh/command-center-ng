@@ -3767,3 +3767,19 @@ TypeScript/build checks pass, and independent source review found no blocker.
 These checks do not establish physical phone rendering, sticky geometry,
 keyboard or rotation acceptance. Publication and existing-install verification
 follow this source checkpoint; the broader phone acceptance task remains open.
+
+### 1.13.0 installed outcome
+
+Implementation `6757d403f8a1a40175dfc4d7bba7396ff4d028b8` and
+payload `2468772f14af2594b5abce7b26747f8ec6d21b29` were published over SSH and
+independently matched to the remote. The 21.698-second existing-install update
+preserved nine protected files/metadata, all eight saved worker identities,
+Coordinator/pause/report settings and the native runtime version.
+
+The 5.085-second corrected read-only verifier matched 112 installed source files,
+live 1.13.0 HTTPS/authentication/assets/listeners, tracker access and the served
+mobile navigation labels/sticky styles. An earlier verifier failed after those
+runtime checks because trimming an unrelated test block also removed its Node
+executable-path initialization. Restore that verifier variable and rerun the
+read-only check; no application fix, reinstall or second restart was needed.
+Physical-phone rendering, keyboard and rotation remain unverified.
