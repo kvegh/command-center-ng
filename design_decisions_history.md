@@ -3741,3 +3741,29 @@ before/after benchmark, and the latter interval is not isolated model-processing
 time. It confirms residual latency rather than a general speedup guarantee.
 Further reasoning-effort tuning is a separate user choice; no effort or model
 setting was changed by this release or diagnostic.
+
+## 2026-11-12 — Mobile chat jump navigation
+
+Implementation: `6757d403f8a1a40175dfc4d7bba7396ff4d028b8` (1.13.0).
+
+The user wanted a top-of-screen control while reading long mobile conversations,
+with Jump to end available after returning to the beginning. Keep the existing
+document scroller and add one mobile-only sticky button above the header. Its
+normal-flow position leaves header controls reachable at page start; sticky
+positioning keeps the button available during a long scroll.
+
+Use the current page position to choose the action. Jump to top returns to the
+document beginning. Jump to end reads the selected conversation's current
+composer bounds, revealing the latest history and input without focusing it or
+opening the keyboard. Recalculate after scrolling, resizing and history growth;
+remove observers/listeners when changing chats, leaving mobile or unmounting.
+Keep desktop reading positions, explicit history pagination, drafts and native
+request behavior unchanged. No dependency, storage or native-runtime change is
+needed for this browser interaction.
+
+Six new behavior cases exercise actual component handlers with simulated hooks
+and geometry. Five affected test files pass in 4.156 seconds, the production
+TypeScript/build checks pass, and independent source review found no blocker.
+These checks do not establish physical phone rendering, sticky geometry,
+keyboard or rotation acceptance. Publication and existing-install verification
+follow this source checkpoint; the broader phone acceptance task remains open.
