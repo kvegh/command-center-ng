@@ -3490,3 +3490,14 @@ source review pass. No model call was manufactured to test obedience. Backend
 restart is needed to load the new module text; successful instruction delivery
 does not prove future model compliance. Publication/installation and the next
 genuine silent-check observation remain separate evidence.
+
+Published payload `8b28acb51108e648c78168302e0f851f90caa1ee` installed through
+authorized AAP3613 (success 19.373s). Nine protected files/metadata, six saved
+workers, Coordinator identity/pause/report intervals and native runtime version
+were preserved. Independent AAP3614 succeeded in 7.596s: 108 installed source
+matches, actual 1.9.1 trusted HTTPS/assets/authentication gates/listeners and
+95 installed backend cases pass. The installed base guidance and active-check
+payload both contain the explicit silence exception. No native model test,
+approval answer, permission change or timer change was performed. Actual future
+agent compliance remains unverified; an acknowledgement recurrence is a reason
+to reopen this correction, not evidence that output filtering was implemented.
