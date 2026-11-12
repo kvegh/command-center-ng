@@ -3902,3 +3902,30 @@ EPERM and installer fixture EROFS under the local sandbox; tests and permissions
 were preserved. Normal-backend full-suite verification and existing-install
 update remain pending at this source checkpoint. Synthetic tests do not prove
 real model-helper publication, picker behavior or latency improvement.
+
+### 1.16.0 publication and installed outcome
+
+Implementation `9e18470664691de18050e46ea20265687b665e35` and installed payload
+`a3503417df5bf6d195770e1cdbcce34b501d4f7f` were published by an exact standalone
+SSH push and independently read back. The prior compound commit/push invocation
+ran under restricted permissions and failed the system SSH ownership check; no
+SSH configuration, credentials or permissions changed and no backend Git-bundle
+publication workaround was used. The earlier general SSH-blocker diagnosis was
+superseded; no pending user choice was answered on their behalf.
+
+Initial backend validation lacked source-checkout build dependencies and stopped
+before installation. Preparing the exact declared lockfile dependencies, already
+used by the authorized installer, enabled the unchanged full suite: 1,071 passed,
+zero failed, one skipped in 56.338s. The resulting validation/update completed in
+82.029s, preserving nine protected files/metadata, eight saved workers, Coordinator
+identity/pause/report settings and native runtime version. Installed verification
+matched 113 source files, confirmed live 1.16.0 HTTPS/authentication/assets/listeners
+and tracker behavior, and passed all 288 checks across 16 suites against installed
+server modules in 2.951s. The temporary test harness was cleaned afterward.
+
+Natural ephemeral progress-helper threads using the selected model were observed,
+including one active. The provider refuses both paged and includeTurns history for
+ephemeral threads. Metadata is evidence of startup, not completed publication or
+latency improvement; these outcomes and actual browser acceptance remain unverified.
+No synthetic native model turn or approval was created. The separate source-reader
+false-positive investigation remains held; this release changes no reader filter.

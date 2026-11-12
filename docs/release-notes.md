@@ -27,9 +27,21 @@ native decisions remain untouched. No extra service, timer or task store.
 Source validation: 16 history and 5 timestamp cases pass, together with 10
 progress lifecycle and 4 Workspace wiring cases. Independent targeted reviews,
 TypeScript/production build and syntax/diff checks pass. Full local npm test
-passed 95 of 102 file suites; seven listener/installer/subprocess suites require
-validation in the normal deployment environment. Publication/installation
-outcomes remain pending here. No genuine model or approval was manufactured.
+passed 95 of 102 file suites; the seven sandbox-limited suites were subsequently
+covered by the unchanged backend suite: 1,071 checks passed, none failed and one
+was skipped in 56.338s. The backend source checkout first lacked build packages;
+preparing the already-declared lockfile dependencies resolved that setup issue.
+
+Published and installed on 2026-11-12. The 82.029s validation/update preserved
+nine protected files/metadata, eight saved workers and Coordinator/report/native
+settings. Installed verification matched 113 files and passed HTTPS/authentication,
+assets/listeners/tracker checks plus all 288 checks across 16 suites in 2.951s.
+Natural progress-helper threads using the selected model were observed, one active.
+The provider refuses ephemeral history reads; completed native publication and
+latency improvement remain unverified. Browser acceptance is separate. No test
+model turn or approval was manufactured. A standalone SSH push succeeded without
+configuration changes; the earlier compound-command failure did not require a
+backend publication workaround.
 
 ## 1.15.0 — Review safe playbooks and documents
 
