@@ -3672,3 +3672,45 @@ list tool. This establishes real recommendation delivery without manufacturing
 a request, submitting a model turn or answering an approval from the diagnostic.
 It does not establish full approval execution, reduced end-to-end latency or a
 response-time guarantee. Idle cached threads are distinct from active analyses.
+
+
+## 2026-11-12 — Native approval times and optional analyst assistance
+
+Implementation: `d6830c58523f7ccbfdf7444fb498b8ea280c3d50` (1.12.0).
+
+The user wanted the time an approval was actually raised, after message age was
+mistaken for waiting time. Use the native command/file request startedAtMs field
+for Requested at with full local date, seconds, timezone and exact ISO datetime.
+Missing/invalid native time stays unavailable; do not infer it from chat, tools,
+arrival or restoration. Keep native actions and identity unchanged.
+
+A reported slow visualization review exposed avoidable context and instruction
+problems. Analysts now receive shared rules from current main native metadata
+rather than stale tab cwd, plus bounded original user instructions and existing
+page-reference hints. A single native first-page read may recover user context
+missing from the retained tail. Main approval still refetches the original page;
+references and assistant summaries never authorize actions. Context-read failure
+remains explicit while preserving request metadata and pending manual asks.
+
+Remove the unnecessary instruction to wait for an analyst when sufficient
+current action, source and real-user evidence is already available. The main
+Coordinator may decide immediately through its unchanged final guards. Analyst
+queue/dispatch, native acknowledgement, evidenced activity and terminal receipt
+are distinct lifecycle facts; provider queue versus reasoning time is unknown.
+This does not reduce model effort or guarantee a response time.
+
+A directly imported Python module can map only to exact approval cwd or cwd/src
+source layouts. There is no package lookup, import execution or dependency walk.
+A separate selected-tab CSS bug hid genuine human-attention amber beneath the
+selection frame; preserve the amber top in all themes without changing chat tint
+or the neutral indication for eligible Coordinator review.
+
+Validation:18 affected test files pass in7.617s, production build and bounded
+independent review pass. Focused suites cover22 lifecycle,14 actual-Workspace
+integration,8 context,9 source,5 timestamp and16 attention cases. These checks
+use synthetic transports, genuine schema definitions and rendered test markup;
+physical browser behavior and subsequent live approval latency remain unverified.
+Async file-context tests now wait for the actual instruction-read boundary, and
+old history fixtures distinguish records omitted from all delivered channels
+from newly delivered original-user context; native mutation guards remain.
+Publication and installed verification follow this implementation checkpoint.
