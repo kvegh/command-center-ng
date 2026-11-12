@@ -3869,3 +3869,36 @@ repeatable procedure. No application fix, second update/restart, dependency,
 framework or genuine native approval/model call was needed. Native-client tool
 exposure and subsequent genuine approval outcomes are not established by these
 isolated checks; existing pending user decisions remain unchanged.
+
+## 2026-11-12 — Preserve native chat order and delegate progress
+
+Implementation `9e18470664691de18050e46ea20265687b665e35` (1.16.0) fixes native-history merging so
+recent refreshes preserve loaded older pages, the oldest cursor and newer live
+messages/completion state. Native turn/item order remains authoritative; no
+clock sorting or transcript rewrite is introduced. The silent 600-record trim
+was removed because it discarded fetched records, including large native turns.
+Existing explicit 20-turn native pagination remains; loading larger histories
+uses more process memory. The quoted incident's original messages remained in
+native history, so this is an order/loaded-view correction, not recovered
+deleted content. Concurrent pagination and live-update races were fixed after
+independent review, while nested native question bindings remain intact.
+
+The user selected one additional native progress helper combining routine
+worker progress, linked-task/blocker monitoring and sidebar publication. This
+separates routine monitoring from the sole automated approver and the existing
+two optional approval analysts. The helper has bounded worker-read/sidebar
+tools, the main model/effort/shared instructions and existing RPC/events. It
+cannot approve, execute, message workers or change tasks; main approval checks
+and concern responses remain. Unknown starts retain their slot and native
+decisions remain pending. No extra service, timer or persistent store was added.
+A concurrent publication race found in review was fixed with a reservation.
+
+Validation: 16 history, 5 timestamp, 10 helper lifecycle and 4 Workspace wiring
+cases pass. Wiring covers a final main approval while the helper and both
+analysts are active. Independent targeted reviews, TypeScript/production build
+and syntax/diff checks pass. Local full npm test passed 95/102 file suites in
+50.078s. Bounded direct checks traced the seven failures to socket/subprocess
+EPERM and installer fixture EROFS under the local sandbox; tests and permissions
+were preserved. Normal-backend full-suite verification and existing-install
+update remain pending at this source checkpoint. Synthetic tests do not prove
+real model-helper publication, picker behavior or latency improvement.
