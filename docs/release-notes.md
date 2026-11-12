@@ -9,6 +9,22 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.13.0 — Mobile chat navigation
+
+Mobile chat has a sticky **Jump to top** button at the top of the viewport. At
+the page beginning it switches to **Jump to end**, showing the latest history
+and composer without opening the keyboard. The control uses the existing page
+scroller, follows conversation changes and current content height, and preserves
+desktop chat positions. Narrow layouts and landscape coarse-pointer phones use
+the same control. History pagination and native request actions are unchanged.
+
+Six new component behavior cases cover navigation, live geometry, switching,
+viewport changes and listener cleanup. Five affected test files pass in4.156s,
+the TypeScript/production build passes, and independent source review found no
+blocking issue. Publication and installed verification follow this source
+checkpoint. Physical-phone keyboard, browser rendering and rotation acceptance
+remain separate from source/component and artifact checks.
+
 ## 1.12.0 — Native request time and approval context
 
 Published and installed on 2026-11-12. Independent verification matched111

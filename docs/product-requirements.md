@@ -50,7 +50,7 @@ Existing RAM-only sessions cannot be migrated and require one final sign-in.
 
 ### Approved mobile layout
 
-Use a single naturally scrolling, full-width page with wrapping worker tabs.
+Use a single naturally scrolling, full-width page with one horizontally scrollable worker-tab row.
 Place the overview above the chat history in the ordinary page flow, then a
 composer textarea with six visible lines. This supersedes the earlier approximately
 30-line inner history viewport: scrolling the phone page moves through the chat.
@@ -63,6 +63,13 @@ and composer heights without erasing them. Preserve the existing desktop layout
 and restore its preferences when returning to desktop. Mobile notifications
 remain postponed. The history-scroll change is part of working 1.3.0; rendered
 phone acceptance has not been established.
+
+Keep an accessible chat-navigation button at the top of the mobile viewport
+while scrolling. Away from the page top it offers Jump to top; at the top it
+offers Jump to end, revealing the latest chat and its composer. Use the existing
+document scroller, preserve desktop reading positions and do not focus the input
+or open the phone keyboard merely to navigate. Earlier history remains available
+through the existing explicit Load earlier messages action.
 
 Compact the overview on mobile only: reduce padding and gaps and put task labels,
 totals and Link tasks in a wrapping row. Omit empty native Open questions only

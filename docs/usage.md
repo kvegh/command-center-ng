@@ -225,9 +225,9 @@ and a **30-second routine interval**; these are scheduling intervals, not approv
 deadlines. Native pause, question, ownership and safe-turn gates still apply.
 Saved report intervals and the separate ten-minute task-check cadence are unchanged.
 
-The 1.12.0 source changes are not yet published or installed at this documentation
-checkpoint. Verification is ongoing; source and synthetic tests cannot establish
-real model compliance, browser acceptance or end-to-end approval latency. See
+The 1.12.0 source changes are published and installed. Recorded source and
+installed checks do not establish every real model interaction, browser workflow
+or an end-to-end approval latency improvement. See
 the [release notes](release-notes.md#1120--native-request-time-and-approval-context)
 for the release checkpoint.
 
@@ -576,6 +576,12 @@ Mobile keeps one horizontally scrollable tab row, without hover expansion or
 row switching. It uses one naturally scrolling full-width page with compact
 overview and the chat history in the page flow, followed by a six-line input.
 There is no separate 30-line history scroll area. Long input scrolls internally.
+An accessible button stays at the top of the viewport while the page scrolls.
+Use **Jump to top** to return to the page beginning; there it switches to
+**Jump to end**, revealing the latest chat and its composer without focusing the
+input. It follows the selected conversation and uses its current height after
+new messages arrive. Earlier messages still load only through **Load earlier
+messages**. Desktop chat scrolling and saved reading positions are unchanged.
 Mobile hides resize handles and worker coordinator recaps,
 ignores desktop sizes without erasing them, and keeps the actual coordinator
 dashboard. Worker settings collapse to a cadence/Report now row; expand for the

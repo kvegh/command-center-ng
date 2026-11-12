@@ -69,7 +69,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Reload an unloaded Codex conversation when sending input, preserving its saved history and native permissions.
 - Read Markdown, copy messages/code, and paste or attach images to a draft.
 - Keep desktop settings at the bottom of a full-height overview, with scrollable tasks and questions.
-- Use desktop resizing, natural mobile page scrolling through the chat, and three colour themes.
+- Use desktop resizing, natural mobile page scrolling with a sticky Jump to top / Jump to end button, and three colour themes.
 
 Native checkpoints requiring a fresh human decision stay manual: the Coordinator
 cannot answer them or turn them into reusable permissions.
