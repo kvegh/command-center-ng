@@ -45,7 +45,7 @@ CCNG. Native unload/close observations retain the saved tab and history; the nex
 eligible send reloads that same conversation before submitting input. Background
 observation does not resume an unloaded worker. Replayed approvals remain pending
 and block input normally; the Coordinator retains its restricted activation.
-An activation failure or changed connection submits no message. If unloading
+An activation failure or connection change during activation submits no message. If unloading
 races the final input call, its error remains visible without an automatic retry
 or resend. Check native receipt before manually repeating uncertain input.
 

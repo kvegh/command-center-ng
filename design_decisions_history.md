@@ -3422,3 +3422,30 @@ message to its worker and appeared second in the verified native task projection
 Its parent relationship remains intact, without a false prerequisite blocker.
 No task record or native approval was changed by this visibility fix. Actual
 browser rendering remains separate from installed projection evidence.
+
+## 2026-11-12 — Reload unloaded native conversations before input
+
+Implementation: `91ac24a56aafdcdc27e9c721fc43f3026f4ea6ad` (1.9.0).
+
+The user reported that saved chats refused input with native thread-not-found
+errors. Read-only native inspection confirmed that every saved conversation
+still existed, while several were unloaded. A previously attached CCNG view
+could observe this state but skip activation because it had been loaded before.
+The next input then targeted a missing live session rather than its saved history.
+
+Use the existing activation path when current native status is notLoaded, and
+observe native close notifications. Keep background reads passive. Resume the
+same worker with no model or permission overrides; the Coordinator reapplies
+its existing restrictions and requires native read-only confirmation. Verify
+exact identity, current connection/ownership and returned input permission before
+submitting a message. Preserve pending requests, explicit stops, handoff gates
+and active steering; never catch and resend an uncertain native submission.
+
+Independent regressions first reproduced the defect (nine failures among eleven
+initial cases). Sixteen final cases cover unload events/polling, exact activation,
+single delivery, replayed approvals, failures, identity/connection races and
+Coordinator restrictions. The focused source and draft checks passed137 cases;
+adjacent branch/handoff checks passed37. The production build passes. Independent
+source review has no remaining blocking finding. Live publication/installation
+outcomes are recorded separately below;
+synthetic delivery does not establish actual browser/model input acceptance.
