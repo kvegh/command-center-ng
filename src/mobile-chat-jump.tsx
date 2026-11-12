@@ -8,7 +8,18 @@ type MobileChatJumpProps = {
 
 export function MobileChatJump({ compact, conversationRef, conversationId }: MobileChatJumpProps) {
   const [ready, setReady] = useState(false);
-  const [atTop, setAtTop] = useState(true);
+  const [showTop, setShowTop] = useState(false);
+  const [showBottom, setShowBottom] = useState(false);
+
+  const measure = () => {
+    const conversation = conversationRef.current;
+    if (!conversation) return;
+    const { top, bottom } = conversation.getBoundingClientRect();
+    // The overview can remain visible well below document scroll position zero.
+    // Each end has its own control, so both remain reachable in long histories.
+    setShowTop(top <= 0);
+    setShowBottom(bottom < 0 || bottom > window.innerHeight);
+  };
 
   useEffect(() => {
     if (!compact || !conversationId) return;
@@ -16,12 +27,12 @@ export function MobileChatJump({ compact, conversationRef, conversationId }: Mob
     setReady(!!conversation);
     if (!conversation) return;
 
-    const measure = () => setAtTop(window.scrollY <= 4);
     measure();
     window.addEventListener('scroll', measure, { passive: true });
     window.addEventListener('resize', measure);
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
     observer?.observe(conversation);
+    if (conversation.parentElement) observer?.observe(conversation.parentElement);
     return () => {
       window.removeEventListener('scroll', measure);
       window.removeEventListener('resize', measure);
@@ -30,14 +41,20 @@ export function MobileChatJump({ compact, conversationRef, conversationId }: Mob
   }, [compact, conversationId, conversationRef]);
 
   if (!compact || !conversationId || !ready) return null;
-  const label = atTop ? 'Jump to end' : 'Jump to top';
-  return <button type="button" className="mobile-chat-jump" onClick={() => {
-    const conversation = conversationRef.current;
-    if (!conversation) return;
-    // Align this chat's composer with the viewport bottom, keeping the latest
-    // messages visible above it without scrolling through the sidebar.
-    const end = conversation.parentElement?.querySelector<HTMLElement>('.composer') || conversation;
-    const top = window.scrollY <= 4 ? Math.max(0, end.getBoundingClientRect().bottom + window.scrollY - window.innerHeight) : 0;
-    window.scrollTo({ top, behavior: 'instant' });
-  }}>{label}</button>;
+  return <div className="mobile-chat-jump">
+    {showTop && <button type="button" onClick={() => {
+      if (!conversationRef.current) return;
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      measure();
+    }}>Jump to top</button>}
+    {showBottom && <button type="button" onClick={() => {
+      const conversation = conversationRef.current;
+      if (!conversation) return;
+      // Reveal the latest history and input without focusing it or opening the keyboard.
+      const end = conversation.parentElement?.querySelector<HTMLElement>('.composer') || conversation;
+      const top = Math.max(0, end.getBoundingClientRect().bottom + window.scrollY - window.innerHeight);
+      window.scrollTo({ top, behavior: 'instant' });
+      measure();
+    }}>Jump to bottom</button>}
+  </div>;
 }

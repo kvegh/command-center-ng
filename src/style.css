@@ -1015,9 +1015,10 @@ kbd { font-family: inherit; }
 .mobile-chat-jump { display: none; }
 @media (max-width: 900px), (hover: none) and (pointer: coarse) {
   .app-shell { height: auto; min-height: 100dvh; overflow: visible; }
-  /* Stay reachable during document scrolling without covering controls at the
-     beginning of the page or introducing a separate history scroll region. */
-  .mobile-chat-jump { display: inline-flex; position: sticky; top: max(8px, env(safe-area-inset-top)); z-index: 8; align-self: flex-end; flex: 0 0 auto; min-height: 44px; max-width: calc(100% - 24px); margin: 8px 12px 0 auto; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); color: var(--ink); font-size: 13px; font-weight: 600; }
+  /* Keep a stable row even when neither control is needed: showing a button
+     must not move the history and change its own visibility measurement. */
+  .mobile-chat-jump { display: flex; position: sticky; top: max(8px, env(safe-area-inset-top)); z-index: 8; align-self: flex-end; flex: 0 0 auto; gap: 8px; min-height: 44px; max-width: calc(100% - 24px); margin: 8px 12px 0 auto; }
+  .mobile-chat-jump button { min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); color: var(--ink); font-size: 13px; font-weight: 600; }
   .topbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; padding: 16px 8px 8px; }
   .topbar > .tabs-row { display: flex; flex: 1 0 100%; width: 100%; min-width: 0; }
   .topbar > .tabs-row .tabs { display: flex; flex: 1 1 0; width: auto; flex-wrap: nowrap; overflow: auto hidden; align-items: flex-end; touch-action: pan-x pan-y pinch-zoom; }

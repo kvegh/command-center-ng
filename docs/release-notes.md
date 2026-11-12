@@ -9,6 +9,27 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.14.0 — Independent mobile chat navigation
+
+Mobile navigation now uses two independent buttons. **Jump to top** appears
+when the app section above the chat history has scrolled out of view.
+**Jump to bottom** appears when the end of the chat is outside the viewport.
+Both are available in the middle of a long history; neither is needed when both
+ends fit on screen. This replaces the single control that offered the end action
+only within four pixels of the document beginning.
+
+Visibility follows actual history bounds, viewport changes and overview/history
+resizing. Buttons keep their own destinations even before a scroll event is
+processed. The existing document scroller, composer destination, desktop reading
+positions, drafts and native controls are preserved. No dependency is added.
+
+Ten component behavior cases pass, covering both/one/neither button, visibility
+boundaries, growth, switching, deferred scroll events and cleanup. Four adjacent
+test files pass in 2.700s, the TypeScript/production build passes, and independent
+source review found no blocking issue. Existing
+installation update remains pending at this source checkpoint; physical-phone
+geometry, keyboard and rotation remain separate acceptance checks.
+
 ## 1.13.0 — Mobile chat navigation
 
 Mobile chat has a sticky **Jump to top** button at the top of the viewport. At

@@ -64,12 +64,15 @@ and restore its preferences when returning to desktop. Mobile notifications
 remain postponed. The history-scroll change is part of working 1.3.0; rendered
 phone acceptance has not been established.
 
-Keep an accessible chat-navigation button at the top of the mobile viewport
-while scrolling. Away from the page top it offers Jump to top; at the top it
-offers Jump to end, revealing the latest chat and its composer. Use the existing
-document scroller, preserve desktop reading positions and do not focus the input
-or open the phone keyboard merely to navigate. Earlier history remains available
-through the existing explicit Load earlier messages action.
+Keep accessible chat-navigation buttons at the top of the mobile viewport
+while scrolling. Show Jump to top when the app section above the history has
+scrolled out of view. Independently show Jump to bottom when the end of the chat
+is outside the viewport. Both appear in the middle of a long conversation; when
+both ends are visible, neither is needed. Top returns to the page beginning;
+bottom reveals the latest chat and its composer. Use the existing document
+scroller, preserve desktop reading positions and do not focus the input or open
+the phone keyboard merely to navigate. Earlier history remains available through
+the existing explicit Load earlier messages action.
 
 Compact the overview on mobile only: reduce padding and gaps and put task labels,
 totals and Link tasks in a wrapping row. Omit empty native Open questions only

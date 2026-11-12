@@ -576,12 +576,14 @@ Mobile keeps one horizontally scrollable tab row, without hover expansion or
 row switching. It uses one naturally scrolling full-width page with compact
 overview and the chat history in the page flow, followed by a six-line input.
 There is no separate 30-line history scroll area. Long input scrolls internally.
-An accessible button stays at the top of the viewport while the page scrolls.
-Use **Jump to top** to return to the page beginning; there it switches to
-**Jump to end**, revealing the latest chat and its composer without focusing the
-input. It follows the selected conversation and uses its current height after
-new messages arrive. Earlier messages still load only through **Load earlier
-messages**. Desktop chat scrolling and saved reading positions are unchanged.
+Accessible navigation controls stay at the top of the viewport while the page
+scrolls. **Jump to top** appears when the app section above history is out of
+view and returns to the page beginning. **Jump to bottom** appears independently
+when the end of the chat is out of view, revealing the latest chat and its
+composer without focusing the input. Both buttons appear in the middle; neither
+is needed when both ends are visible. They follow the selected conversation and
+its current height as messages arrive. Earlier messages still load only through
+**Load earlier messages**. Desktop scrolling and saved positions are unchanged.
 Mobile hides resize handles and worker coordinator recaps,
 ignores desktop sizes without erasing them, and keeps the actual coordinator
 dashboard. Worker settings collapse to a cadence/Report now row; expand for the
