@@ -4,8 +4,54 @@ import { resolve, relative, isAbsolute, dirname, basename, extname } from 'node:
 import { createHash } from 'node:crypto';
 
 const fail = message => Object.assign(new Error(message), { status: 400 });
-const extensions = new Set(['.py', '.js', '.mjs', '.cjs', '.ts', '.tsx', '.sh']);
+const extensions = new Set(['.py', '.js', '.mjs', '.cjs', '.ts', '.tsx', '.sh', '.yml', '.yaml', '.json', '.md']);
 const digest = value => createHash('sha256').update(value).digest('hex');
+const credentialMarkers = /-----BEGIN .*PRIVATE KEY-----|\b(?:ghp_|github_pat_|sk-)[A-Za-z0-9_-]{20,}|\$ANSIBLE_VAULT;|!vault\b/;
+const credentialName = /[\w-]*(?:password|passwd|token|secret|api[_-]?key)[\w-]*/i;
+const isSourceReference = value => typeof value === 'string' && (
+  /^\{\{\s*[A-Za-z_]\w*(?:(?!\}\})[\s\S])*\}\}$/.test(value.trim())
+  || /^\$(?:\{[A-Za-z_]\w*\}|[A-Za-z_]\w*)$/.test(value.trim())
+);
+
+export function sourceContainsCredentials(content, extension) {
+  if (content.includes('\0') || credentialMarkers.test(content)) return true;
+  if (extension === '.json') {
+    let parsed;
+    try { parsed = JSON.parse(content); } catch { /* Malformed files still receive text inspection below. */ }
+    if (parsed !== undefined) {
+      // Native JSON parsing exposes escaped keys without executing anything.
+      // Walk iteratively so nested documents do not consume the call stack.
+      const pending = [parsed];
+      while (pending.length) {
+        const current = pending.pop();
+        if (typeof current === 'string' && credentialMarkers.test(current)) return true;
+        if (!current || typeof current !== 'object') continue;
+        for (const [key, value] of Object.entries(current)) {
+          if (credentialName.test(key) && value !== null && value !== '' && typeof value !== 'boolean' && !isSourceReference(value)) return true;
+          pending.push(value);
+        }
+      }
+      return false;
+    }
+  }
+  // JSON/YAML/Markdown literals need colon checks; code annotations and ordinary
+  // expressions such as token: str or password: process.env.NAME are not values.
+  const document = ['.json', '.yml', '.yaml', '.md'].includes(extension);
+  const text = content.split('\n').filter(line => !line.trimStart().startsWith('#')).join('\n');
+  const assignments = /(?:^|[\s{,])["']?([\w-]*(?:password|passwd|token|secret|api[_-]?key)[\w-]*)["']?\s*([:=])\s*("(?:\\.|[^"\\\r\n])*"|'(?:''|[^'\r\n])*'|[^\r\n,}\]]+)/gim;
+  for (const [, , separator, raw] of text.matchAll(assignments)) {
+    const quoted = raw.startsWith('"') || raw.startsWith("'");
+    const value = (quoted ? raw.slice(1, -1) : raw.replace(/\s+#.*$/, '')).trim();
+    if (isSourceReference(value)) continue;
+    if (separator === ':' && !document && !quoted) continue;
+    if (document && /^[|>][+-]?\d?$/.test(value)) return true;
+    // Preserve readable helper expressions such as os.environ[...].
+    if (separator === '=' && !quoted) continue;
+    if (!value || (!quoted && /^(?:null|none|true|false|~)$/i.test(value))) continue;
+    if (document || value.length >= 8) return true;
+  }
+  return false;
+}
 export function isSensitiveSourcePath(path) {
   return path.split(/[\\/]/).some(part => {
     if (part.startsWith('.') || /secret|credential|password|token|vault/i.test(part)) return true;
@@ -16,7 +62,7 @@ export function isSensitiveSourcePath(path) {
   });
 }
 const escaped = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const mentions = (text, value) => new RegExp(`(?:^|[\\s"'\x60(=])${escaped(value)}(?=$|[\\s"'\x60),;])`, 'm').test(text);
+const mentions = (text, value) => new RegExp(`(?:^|[\\s"'\x60(=@])${escaped(value)}(?=$|[\\s"'\x60),;])`, 'm').test(text);
 
 export function approvalCommand(question) {
   const command = question.params.command;
@@ -56,7 +102,7 @@ export async function inspectApprovalSource(cwd, command, path, startLine = 1) {
   const requested = resolve(cwd, path);
   if (isSensitiveSourcePath(requested)) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
   const file = await realpath(requested);
-  if (file !== requested || !extensions.has(extname(file))) throw fail('Read a regular helper source file directly; symlinks and configuration/data files are not allowed.');
+  if (file !== requested || !extensions.has(extname(file))) throw fail('Read a regular supported source file directly; symlinks and unsupported file types are not allowed.');
   if (!referencesApprovalSource(cwd, command, path)) throw fail('This helper source is not referenced by the exact pending approval.');
   const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
@@ -66,7 +112,7 @@ export async function inspectApprovalSource(cwd, command, path, startLine = 1) {
     while (length < buffer.length) { const { bytesRead } = await handle.read(buffer, length, buffer.length - length, null); if (!bytesRead) break; length += bytesRead; }
     if (length > 500000) throw fail('This helper source grew beyond the review limit.');
     const bytes = buffer.subarray(0, length); const content = bytes.toString('utf8');
-    if (content.includes('\u0000') || /-----BEGIN .*PRIVATE KEY-----|\b(?:ghp_|github_pat_|sk-)[A-Za-z0-9_-]{20,}|^\s*\w*(?:password|token|secret|api_key)\w*\s*=\s*["'][^"'\n]{8,}["']/im.test(content)) throw fail('This helper source appears to contain credential material. Review it privately.');
+    if (sourceContainsCredentials(content, extname(file))) throw fail('This source appears to contain credential material, Vault content or binary data. Review it privately.');
     const lines = content.split('\n'); const page = []; let size = 0;
     for (const line of lines.slice(startLine - 1, startLine + 159)) {
       if (line.length > 16000) throw fail('This helper has a line too large for bounded inspection. Review it privately.');

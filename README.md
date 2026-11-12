@@ -64,6 +64,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
   Internal checks omit routine acknowledgements and tool introductions; useful findings and questions remain visible.
 - Keep coordinator decision summaries across restarts in a private local file.
 - Review independent approval requests with up to two read-only analysts; the Coordinator remains the sole automated approver. See [review boundaries and timing](docs/usage.md#coordinator-approval-review).
+- Inspect safe playbooks, JSON, YAML, Markdown, Python and shell source through bounded read-only review tools, with secret protection and exact approval binding for outside-project files.
 - Save the open-agent list when creating, opening, branching or closing tabs;
   restore the same conversations after restart and reconnect when Codex starts later.
 - Reload an unloaded Codex conversation when sending input, preserving its saved history and native permissions.
@@ -285,3 +286,19 @@ See the [contributor workflow](AGENTS.md#workflow) and
 This repository is public. Keep secrets, private configuration and transcripts
 outside it; protected deployment data belongs in the private Vault companion.
 No license has been selected; public visibility alone does not grant a license.
+
+### Verify source-reader behavior
+
+With the existing Node runtime and installed application dependencies, run from
+the checkout or installation directory:
+
+```sh
+node --test tests/approval-source.test.mjs tests/coordinator.test.mjs
+```
+
+The tests use temporary synthetic files and isolated Coordinator requests, and
+exit nonzero on failure. They exercise both source-reading interfaces, supported
+formats, secret/Vault rejection and request/directory/hash checks. No protected
+inputs, external service, live model turn or genuine approval answer is needed.
+Passing these tests does not establish a native client's current tool exposure
+or resolve a pending human decision. See the [source-reader limits](docs/usage.md#coordinator-approval-review).

@@ -204,6 +204,24 @@ auth-specific names, hidden/credential/Vault paths and sensitive content remain
 protected. These source-reader corrections do not approve the command or
 resolve an existing manual ask.
 
+The **source reader** is a restricted read-only tool the Coordinator uses to
+inspect a file before deciding whether an action is authorized. It can review
+safe playbooks and `.yml`, `.yaml`, `.json`, `.md`, `.py` and `.sh` files alongside
+the existing JavaScript/TypeScript formats. Project files stay within the worker
+directory. A directly referenced file outside that directory needs the exact
+current command approval; Ansible `@file.yml` and `@file.json` arguments are
+recognized. Older Coordinators can use their existing project-file tool for
+these same bound reads when the dedicated approval-source tool is unavailable.
+
+The reader returns text; it does not execute Python, shell or playbooks, resolve
+template/environment values, follow imported dependencies or grant approval.
+Hidden/sensitive paths, Vault payloads, detected literal credentials, binary data
+and existing size/page limits remain protected. JSON keys are decoded before
+credential checks; ordinary Jinja and environment references remain readable.
+Detection is conservative, not proof that arbitrary text is secret-free:
+credential-like metadata or unusual YAML tags/aliases may require private
+review. Files outside the project remain unavailable after their approval ends.
+
 The rationale starts with `Request:` to describe the action. When approval is
 not possible, `Concern:` and `Next:` explain the concrete obstacle and next user
 decision or permitted action on separate lines. An **ask** stays pending for your

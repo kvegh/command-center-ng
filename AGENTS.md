@@ -589,6 +589,14 @@ The existing source-reader tool can use the same helper checks and return exact
 current approval bindings, preserving older coordinator conversations. Reading
 source does not approve a command or expand native permissions.
 
+Source review includes safe playbooks, `.yml`, `.yaml`, `.json`, `.md`, `.py` and
+`.sh` files alongside existing code formats. The file format alone is not a
+reason to refuse a referenced playbook or document. Preserve exact approval
+binding for outside-project files, existing project boundaries, content/path
+secret protections, no execution and the current user-authority checks. Literal
+credentials and Vault payloads remain excluded; source references are not
+resolved to retrieve protected values.
+
 Resolve approval-linked helper paths under the exact native approval cwd, using
 worker cwd only when native cwd is absent/null. Return and recheck the directory
 alongside command/source hashes. The older reader checks approval references

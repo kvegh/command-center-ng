@@ -1727,6 +1727,103 @@ test('approval-linked helper reads are readonly, token-scoped and reject changed
   } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
 });
 
+test('both source tools inspect referenced playbooks and documents without resolving the approval', async () => {
+  const f = await fixture(); const outside = await mkdtemp(join(tmpdir(), 'ccng-document-review-'));
+  try {
+    f.rpc.ask('document-action', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    const files = [
+      ['build.yml', '- hosts: all\n  tasks: []\n'],
+      ['build.yaml', 'registry_password: "{{ registry_password }}"\n'],
+      ['build.json', '{"image":"registry.example.invalid/demo:latest","push":false}\n'],
+      ['build.md', '# Reviewed publication procedure\n'],
+      ['build.py', 'raise RuntimeError("inspection must not execute")\n'],
+      ['build.sh', 'exit 77 # inspection must not execute\n'],
+    ];
+    question.params.cwd = outside;
+    question.params.command = 'inspect ' + files.map(([name]) => JSON.stringify(join(outside, name))).join(' ');
+    const before = f.rpc.calls.length;
+    for (const [name, body] of files) {
+      const path = join(outside, name); await writeFile(path, body);
+      const args = { agentId: 'worker', reviewToken: question.reviewToken, path };
+      const exact = await f.call('ccng_read_approval_source', args);
+      const compatible = await f.call('ccng_read_project_file', { agentId: 'worker', path });
+      assert.equal(exact.text, body); assert.equal(compatible.text, body);
+      assert.equal(exact.path, path); assert.equal(exact.workingDirectory, outside);
+      assert.equal(exact.sha256, compatible.sha256);
+      assert.deepEqual(compatible.approvalBindings, [{ requestId: question.id, reviewToken: question.reviewToken }]);
+      await assert.rejects(f.call('ccng_read_approval_source', { ...args, reviewToken: 'stale-token' }), /exact current command/);
+    }
+    const unreferenced = join(outside, 'unrelated.md'); await writeFile(unreferenced, '# Not in this action\n');
+    await assert.rejects(f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path: unreferenced }), /not referenced/);
+    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: unreferenced }), /inside this worker directory or a helper/);
+    assert.equal(f.rpc.calls.length, before); assert.equal(f.rpc.replies.length, 0);
+    assert.equal(question.review, undefined); assert.equal(f.workspace.agent('worker').questions.length, 1);
+    await writeFile(join(outside, 'build.json'), '{"image":"registry.example.invalid/demo:changed","push":false}\n');
+    await assert.rejects(f.call('ccng_review_approval', historyReview(question, 'user-worker', 'Create and clean up disposable test resources.')), /source or the command changed/);
+    assert.equal(f.rpc.replies.length, 0, 'changed document evidence never answers the native request');
+  } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
+});
+
+test('Ansible at-file inputs use exact-token and legacy readers in their current approval directory', async () => {
+  const f = await fixture(); const approvalCwd = await mkdtemp(join(tmpdir(), 'ccng-at-file-review-'));
+  try {
+    f.rpc.ask('at-file-action', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    question.params.cwd = approvalCwd;
+    for (const [name, body] of [['settings.yml', 'push: false\n'], ['settings.json', '{"push":false}\n']]) {
+      await writeFile(join(approvalCwd, name), body);
+      await writeFile(join(f.cwd, name), 'worker directory decoy\n');
+      question.params.command = 'ansible-playbook build.yml --extra-vars @' + name;
+      const args = { agentId: 'worker', reviewToken: question.reviewToken, path: name };
+      const source = await f.call('ccng_read_approval_source', args);
+      const legacy = await f.call('ccng_read_project_file', { agentId: 'worker', path: name });
+      assert.equal(source.path, join(approvalCwd, name)); assert.equal(source.workingDirectory, approvalCwd);
+      assert.equal(source.text, body); assert.equal(legacy.text, body); assert.equal(source.sha256, legacy.sha256);
+      assert.deepEqual(legacy.approvalBindings, [{ requestId: question.id, reviewToken: question.reviewToken }]);
+      await assert.rejects(f.call('ccng_read_approval_source', { ...args, reviewToken: 'stale-token' }), /exact current command/);
+    }
+    assert.equal(f.rpc.replies.length, 0); assert.equal(question.review, undefined);
+  } finally { await f.close(); await rm(approvalCwd, { recursive: true, force: true }); }
+});
+
+test('project document reads allow safe formats while retaining credential and disguised Vault rejection', async () => {
+  const f = await fixture();
+  try {
+    const safe = [
+      ['build.json', '{"image":"registry.example.invalid/demo:latest"}\n'],
+      ['build.yml', '- hosts: all\n  tasks: []\n'],
+      ['build.yaml', 'registry_password: "{{ registry_password }}"\n'],
+      ['build.md', '# Generic build procedure\n'],
+      ['build.md', '# Password: rotating tokens\n'],
+      ['build.js', 'const current = { reviewToken: question.reviewToken, password: process.env.DEMO_PASSWORD };\n'],
+      ['build.ts', 'const current = { reviewToken: question.reviewToken, password: process.env.DEMO_PASSWORD };\n'],
+      ['build.py', 'raise RuntimeError("do not execute")\n'],
+      ['build.py', 'token: str\n'],
+      ['build.sh', 'exit 77 # do not execute\n'],
+    ];
+    for (const [path, body] of safe) {
+      await writeFile(join(f.cwd, path), body);
+      assert.equal((await f.call('ccng_read_project_file', { agentId: 'worker', path })).text, body, path);
+    }
+    for (const [path, body] of [
+      ['build.json', '{"password":"synthetic-private-value"}\n'],
+      ['build.json', '{"password":1234}\n'],
+      ['build.json', '{"pass\\u0077ord":"synthetic-private-value"}\n'],
+      ['build.yml', 'registry_password: synthetic-private-value\n'],
+      ['build.yml', 'password: 1234\n'],
+      ['build.yml', 'password: "{{ prefix }}synthetic-private-value{{ suffix }}"\n'],
+      ['build.md', '$ANSIBLE_VAULT;1.1;AES256\nnot-real-ciphertext\n'],
+    ]) {
+      await writeFile(join(f.cwd, path), body);
+      await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path }), /credential|Vault|private/i, path);
+    }
+    await mkdir(join(f.cwd, 'credentials'));
+    await writeFile(join(f.cwd, 'credentials', 'settings.json'), '{"value":"must remain private"}\n');
+    await symlink(join(f.cwd, 'credentials', 'settings.json'), join(f.cwd, 'ordinary.json'));
+    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: 'ordinary.json' }), /sensitive|credential|symlink|private/i);
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
 test('helper inspection refuses unrelated, symlinked, sensitive, non-source and oversized files without resolving requests', async () => {
   const f = await fixture(); const outside = await mkdtemp(join(tmpdir(), 'ccng-helper-'));
   try {
@@ -1737,7 +1834,7 @@ test('helper inspection refuses unrelated, symlinked, sensitive, non-source and 
     };
     await assert.rejects(read('unrelated.py', 'print("example")'), /not referenced/);
     await assert.rejects(read('credentials.py', 'print("example")', 'python3 HELPER'), /credential and Vault paths/);
-    await assert.rejects(read('settings.json', '{}', 'cat HELPER'), /source file directly/);
+    await assert.rejects(read('settings.zip', 'not an archive', 'cat HELPER'), /source file|format|extension/i);
     await assert.rejects(read('large.py', 'x'.repeat(500001), 'python3 HELPER'), /500000/);
     await assert.rejects(read('embedded.py', 'ACCESS_TOKEN = "synthetic-placeholder-only"', 'python3 HELPER'), /credential material/);
     const path = join(outside, 'linked.py'); await symlink(join(outside, 'unrelated.py'), path); question.params.command = 'python3 ' + JSON.stringify(path);

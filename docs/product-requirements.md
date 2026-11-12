@@ -684,6 +684,13 @@ Version 0.18.1 saves the user's proportionate helper-review rule: inspect direct
 referenced helper source when necessary, including startup behavior and called
 functions, without a routine recursive dependency audit. Referrals require a
 concrete unresolved concern; absent source-reader tooling is reported separately.
+
+The existing bounded source readers must accept safe playbooks and JSON, YAML
+(`.yml`/`.yaml`), Markdown, Python and shell files. Outside-project reads remain
+bound to directly referenced files of an exact current command approval, including
+Ansible `@file` inputs. Preserve native approval/cwd/hash checks, no execution,
+secret/Vault/path protection and legacy project-reader compatibility. Reviewing
+file contents does not authorize the action or resolve an existing manual ask.
 The existing reader applies the same exact-current-approval helper checks for
 older coordinators, preserving their conversation and native tool registration.
 

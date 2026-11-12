@@ -9,6 +9,26 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.15.0 — Review safe playbooks and documents
+
+Both Coordinator source readers now accept safe YAML playbooks, JSON and
+Markdown, alongside Python/shell and existing code formats. The project reader
+also accepts JSON. Exact Ansible `@file` references use the approval's directory;
+older Coordinators retain the existing bound project-reader path.
+
+Reads do not run files or answer requests. Existing token/directory/source-hash,
+path and size/page checks remain. Shared format-aware checks reject detected
+literal credentials, renamed Vault payloads and binary content; JSON escaped
+keys are decoded and template/environment references are not resolved. The
+project reader rechecks resolved sensitive paths. Conservative content filtering
+may still require private review of credential-like metadata or unusual YAML.
+
+Final source tests: 13 source-reader cases and 97 Coordinator cases pass, plus
+six adjacent reviewer/context/hook suites in 1.057s. TypeScript/production build,
+syntax and diff checks pass; independent focused review found no remaining
+blocker. Publication and existing-install verification follow this checkpoint;
+no genuine pending approval or model turn was created for testing.
+
 ## 1.14.0 — Independent mobile chat navigation
 
 Mobile navigation now uses two independent buttons. **Jump to top** appears
