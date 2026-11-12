@@ -354,9 +354,11 @@ tools are unavailable, agents record input needs in Beads; those appear once in
 Tasks with a **Question** label. Native approvals remain in Open questions.
 
 **Notify me** watches observed input needs, errors and completion for that task.
-Dismissible in-app alerts remain available while the page is open. Optional
-desktop notifications require browser consent and a supported secure context;
-denial leaves in-app alerts working. Mobile notification work is postponed.
+Alerts use native browser notifications while CCNG is open, including when its
+page has focus. Browser consent and a supported secure context are required.
+CCNG does not insert completion banners or substitute an in-app alert panel;
+permission problems use existing settings feedback. Clicking a notification
+opens the originating worker/task. Mobile notification work is postponed.
 Refresh/reconnect establishes a baseline instead of replaying historical events.
 Missing records do not imply completion, and Beads closure is not independent
 proof of successful delivery. There is no closed-browser or email delivery.
@@ -473,8 +475,9 @@ windows and long feedback can scroll within the settings area. Existing divider
 keyboard controls and reset remain available. Mobile keeps its continuous page
 and compact expandable settings rather than a pinned desktop footer.
 
-Desktop tabs expand horizontally on hover to reveal the full title and push
-neighbours aside; only the selected tab is taller. More than six conversation
+Desktop tabs share the available strip width up to Coordinator. On hover they
+expand horizontally to reveal the full title, temporarily show their own saved
+chat-colour tint and push neighbours aside; only the selected tab is taller. More than six conversation
 tabs, counting Coordinator, use two stable rows. Selecting a worker places its
 row nearest the chat without changing the saved tab order. The worker strip
 scrolls horizontally beside Coordinator, so overflow remains reachable.

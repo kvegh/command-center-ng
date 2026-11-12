@@ -639,8 +639,10 @@ worker/task subscription IDs in existing browser workspace preferences. Use
 existing snapshots and first-observation baselines, never infer completion from
 missing records or replay historical changes on refresh/reconnect. Runtime
 requests/errors without task identity stay worker-scoped. Desktop notifications
-are optional, generic, permission-gated and only attempted for a hidden/unfocused
-page; keep in-app alerts available on denial or unsupported browsers. No external
+are optional, generic and permission-gated. Send observed opted-in events through
+the browser Notification API even when the page has focus; do not add in-app
+completion/needs-input/error notification banners or a fallback panel. Permission
+problems remain visible through existing settings feedback. No external
 delivery service, service worker, separate store or closed-browser delivery is
 approved. Notifications must never answer a question or change task state.
 
@@ -862,8 +864,10 @@ or service, no silent truncation/rotation or automatic permission changes.
 
 Above six conversation tabs, counting Coordinator, show two stable desktop rows;
 place the selected worker row nearest the chat without changing saved order or
-worker numbering. Hover reveals the full title by expanding horizontally and
-pushing neighbours aside; only the selected tab is taller. Keep Coordinator
+worker numbering. Normal desktop tabs share available strip width up to
+Coordinator, retaining a minimum width for overflow. Hover expands horizontally
+to reveal the full title, pushes neighbours aside and temporarily uses the tab's
+saved chat tint; only the selected tab is taller. Keep Coordinator
 separate and overflow reachable. Mobile overrides this with one horizontally
 scrollable row, without hover expansion or row switching. Preserve native state,
 focus, drafts, keyboard ordering, drag behavior and touch scrolling.

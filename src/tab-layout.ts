@@ -6,6 +6,7 @@ export function tabGridLayout(ids: readonly string[], hasCoordinator: boolean, s
   const firstRow = twoRows && selectedIndex >= 0 && selectedIndex < split ? 2 : 1;
   return {
     twoRows,
+    columns: Math.max(1, split),
     positions: ids.map((id, index) => ({
       id,
       row: index < split ? firstRow : 3 - firstRow,

@@ -14,11 +14,10 @@ export type DesktopNotificationBrowser = {
   focus(): void;
 };
 
-const inApp = ' In-app alerts remain available.';
-const unsupported = 'Desktop notifications are not supported by this browser.' + inApp;
-const insecure = 'Desktop notifications require HTTPS or a trusted local page.' + inApp;
-const denied = 'Desktop notifications are blocked in browser settings.' + inApp;
-const ungranted = 'Desktop notification permission was not granted.' + inApp;
+const unsupported = 'Desktop notifications are not supported by this browser.';
+const insecure = 'Desktop notifications require HTTPS or a trusted local page.';
+const denied = 'Desktop notifications are blocked in browser settings.';
+const ungranted = 'Desktop notification permission was not granted.';
 
 function currentBrowser(): DesktopNotificationBrowser | undefined {
   return typeof window === 'undefined' ? undefined : window;
@@ -43,7 +42,7 @@ export async function requestDesktopNotifications(browser = currentBrowser()): P
       ? { enabled: true, notice: 'Desktop notifications enabled.' }
       : { enabled: false, notice: permission === 'denied' ? denied : ungranted };
   } catch {
-    return { enabled: false, notice: 'The browser could not enable desktop notifications.' + inApp };
+    return { enabled: false, notice: 'The browser could not enable desktop notifications.' };
   }
 }
 
@@ -62,7 +61,7 @@ export function showTaskDesktopNotification(event: DesktopNotificationEvent, ope
     const Native = browser!.Notification!;
     if (Native.permission !== 'granted') return Native.permission === 'denied' ? denied : ungranted;
     if (typeof event.id !== 'string' || !event.id.trim() || event.id.length > 512 || !Object.hasOwn(bodies, event.kind)) {
-      return 'The desktop alert could not be prepared.' + inApp;
+      return 'The desktop alert could not be prepared.';
     }
     // Only generic copy is sent to the desktop. The stable tag identifies repeat events.
     const notification = new Native('Command Center NG', { body: bodies[event.kind], tag: 'ccng-task-watch:' + event.id });
@@ -75,6 +74,6 @@ export function showTaskDesktopNotification(event: DesktopNotificationEvent, ope
     };
     return null;
   } catch {
-    return 'The browser could not show a desktop notification.' + inApp;
+    return 'The browser could not show a desktop notification.';
   }
 }

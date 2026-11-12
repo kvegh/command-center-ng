@@ -23,7 +23,7 @@ import { TaskListViewport } from './task-list-viewport';
 import { BackgroundRequests, type BackgroundWorker } from './background-requests';
 import { TaskDiscussion } from './task-discussion';
 import { TaskInputLink } from './task-input-link';
-import { TaskNotifyToggle, TaskNotificationAlerts, type TaskNotificationEvent } from './task-notification-controls';
+import { TaskNotifyToggle, type TaskNotificationEvent } from './task-notification-controls';
 import { TaskNotificationEngine } from './task-notifications';
 import { requestDesktopNotifications, showTaskDesktopNotification } from './desktop-notifications';
 import { Markdown } from './markdown';
@@ -268,7 +268,6 @@ function App() {
   const [browserError, setBrowserError] = useState(savedBrowser.error);
   const [theme, setTheme] = useState<ThemeName>(() => savedBrowser.state.theme || 'classic');
   const [taskWatches, setTaskWatches] = useState<Record<string, string[]>>(savedBrowser.state.taskWatches || {});
-  const [taskAlerts, setTaskAlerts] = useState<TaskNotificationEvent[]>([]);
   const [messageQuestionInputs, setMessageQuestionInputs] = useState<Record<string, NativeQuestionInput>>({});
   const [notificationNotice, setNotificationNotice] = useState('');
   const notificationEngine = useRef(new TaskNotificationEngine());
@@ -487,23 +486,14 @@ function App() {
     if (enabled) void enableDesktopAlerts();
   };
   useEffect(() => {
-    if (!authenticated) { notificationEngine.current.reset(); setTaskAlerts([]); return; }
+    if (!authenticated) { notificationEngine.current.reset(); return; }
     const watches = Object.entries(taskWatches).flatMap(([workerId, ids]) => ids.map(taskId => ({ workerId, taskId })));
     const connected = state.connected && !['pending', 'restoring'].includes(state.restoration?.status || '');
-    const events = notificationEngine.current.update(state.agents, watches, connected).map(event => ({
-      id: event.id, workerId: event.workerId, taskId: event.taskId, kind: event.kind,
-      title: event.taskTitle || event.workerName,
-      detail: event.scope === 'worker'
-        ? `${event.workerName}: ${event.kind === 'request' ? 'a new question or approval needs attention' : 'the worker encountered an error'} while you are watching its tasks. The event is not assigned to a particular task.`
-        : `${event.workerName}: ${event.kind === 'completed' ? 'this task was marked completed in Beads' : event.kind === 'needs-input' ? 'this task now needs your input' : 'this task was marked failed'}.`
-    }));
+    const events = notificationEngine.current.update(state.agents, watches, connected);
     if (!events.length) return;
-    setTaskAlerts(previous => [...previous, ...events].slice(-20));
-    if (document.visibilityState === 'hidden' || !document.hasFocus()) {
-      for (const event of events) {
-        const problem = showTaskDesktopNotification(event, () => openTaskAlert.current(event));
-        if (problem) setNotificationNotice(problem);
-      }
+    for (const event of events) {
+      const problem = showTaskDesktopNotification(event, () => openTaskAlert.current(event));
+      if (problem) setNotificationNotice(problem);
     }
   }, [authenticated, state, taskWatches]);
   const act = async (path: string, data: unknown) => { setError(''); try { await api(path, data); return true; } catch (error) { setError((error as Error).message); return false; } };
@@ -590,7 +580,7 @@ function App() {
   return <div className="app-shell" style={{ '--overview-width': `${effectiveOverviewWidth}px` } as React.CSSProperties}>
     <header className="topbar">
       <div className="tabs-row">
-        <div className={`tabs ${tabDrag ? 'reordering' : ''}`} data-two-rows={tabLayout.twoRows} ref={tabStrip} role="tablist" aria-label="Worker agents">{workers.map(tab)}</div>
+        <div className={`tabs ${tabDrag ? 'reordering' : ''}`} data-two-rows={tabLayout.twoRows} style={{ '--tab-columns': tabLayout.columns } as React.CSSProperties} ref={tabStrip} role="tablist" aria-label="Worker agents">{workers.map(tab)}</div>
         {state.coordinator && <div className="coordinator-tab-group" role="tablist" aria-label="Workspace coordinator">{coordinator ? tab(coordinator, 0) : <div className={`tab-wrap coordinator-tab ${state.coordinator.error ? 'error' : ''}`}><button className="agent-tab" disabled={!runtimeReady(state, 'codex') || state.coordinator.starting || !workers.length} onClick={() => void act('coordinator', {})}><span className="tab-number"><Icon name="compass" size={16} /></span><span className="tab-text"><strong>{state.coordinator.starting ? 'Starting coordinator…' : state.coordinator.error ? 'Retry coordinator' : 'Coordinator'}</strong></span></button></div>}</div>}
       </div>
       <div className="overview-header">
@@ -617,7 +607,6 @@ function App() {
       {browserError && <div className="connection-banner" role="status">{browserError}</div>}
       {state.nativeWarning && <div className="connection-banner" role="alert">Codex warning: {state.nativeWarning}</div>}
       {active?.nativeWarning && <div className="connection-banner" role="alert">Codex warning · {active.name}: {active.nativeWarning}</div>}
-      <TaskNotificationAlerts events={taskAlerts.filter(event => state.agents.some(worker => worker.id === event.workerId))} open={event => openTaskAlert.current(event)} dismiss={id => setTaskAlerts(previous => previous.filter(event => event.id !== id))} />
       <section className="workspace-frame">
         {state.restoration?.status === 'restoring' ? <div className="workspace-restoring" role="status">Restoring your conversations…</div> : active ? <div id="agent-panel" role="tabpanel" className="agent-panel"><SidebarDivider width={effectiveOverviewWidth} panelWidth={viewportWidth - 26} change={setOverviewWidth} />{active.role === 'coordinator' ? <CoordinatorContext compact={compactLayout} state={state} act={act} choose={choose} heights={overviewHeights} resize={resizeOverview} /> : <aside id="overview-panel" className="context" aria-label="Project, current tasks and open questions">
 <OverviewSections heights={overviewHeights} change={resizeOverview} bottomSection="settings" sections={[

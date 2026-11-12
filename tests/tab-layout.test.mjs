@@ -13,11 +13,26 @@ test('six conversation tabs stay on one row; Coordinator counts toward the seven
   for (const [ids, coordinator] of [[workers, false], [workers.slice(0, 5), true], [[], true]]) {
     const layout = tabGridLayout(ids, coordinator, ids[0]);
     assert.equal(layout.twoRows, false);
+    assert.equal(layout.columns, Math.max(1, ids.length));
     assert.deepEqual(layout.positions.map(tab => tab.row), ids.map(() => 1));
     assert.deepEqual(layout.positions.map(tab => tab.column), ids.map((_, index) => index + 1));
   }
   assert.equal(tabGridLayout(workers, true).twoRows, true);
   assert.equal(tabGridLayout([...workers, 'eta'], false).twoRows, true);
+});
+
+test('available width is shared by the stable number of grid columns in either row arrangement', () => {
+  for (const [ids, coordinator, expected] of [
+    [['alpha'], true, 1], [workers.slice(0, 5), true, 5], [workers, false, 6],
+    [workers, true, 3], [[...workers, 'eta'], true, 4],
+    [Array.from({ length: 16 }, (_, index) => `worker-${index}`), true, 8],
+  ]) {
+    for (const selected of [...ids, 'coordinator']) {
+      const layout = tabGridLayout(ids, coordinator, selected);
+      assert.equal(layout.columns, expected);
+      assert.equal(Math.max(...layout.positions.map(tab => tab.column)), expected);
+    }
+  }
 });
 
 test('selection swaps visual rows while saved membership, column order and worker numbering remain stable', () => {
@@ -67,6 +82,9 @@ test('desktop CSS grows intrinsic tab width without vertical growth or Coordinat
   };
   assert.equal(declarations('.tabs').display, 'grid');
   assert.equal(declarations('.tabs')['grid-auto-columns'], 'max-content');
+  assert.equal(declarations('.tabs')['container-type'], 'inline-size', 'the worker strip measures its own available width, excluding Coordinator');
+  assert.equal(declarations('.tabs > .tab-wrap')['--tab-width'], 'max(170px, calc((100cqw - (var(--tab-columns) - 1) * 4px) / var(--tab-columns)))', 'columns fill the strip after their gaps, retaining a scrollable minimum');
+  assert.equal(declarations('.tabs > .tab-wrap').width, 'var(--tab-width)');
   assert.equal(declarations('.tabs')['overflow-x'], 'auto');
   assert.equal(declarations('.tabs')['scrollbar-width'], 'none', 'scrolling does not introduce a gutter between the selected row and chat');
   assert.equal(declarations('.tabs')['min-width'], '0');
@@ -79,7 +97,9 @@ test('desktop CSS grows intrinsic tab width without vertical growth or Coordinat
   assert.ok(hover, 'hover expansion is absent on compact/touch layouts');
   const expansion = hover.nodes.find(rule => rule.selector === '.tabs:not(.reordering) > .tab-wrap:hover');
   assert.equal(expansion.nodes.find(decl => decl.prop === 'width').value, 'max-content');
-  assert.equal(expansion.nodes.find(decl => decl.prop === 'min-width').value, '170px');
+  assert.equal(expansion.nodes.find(decl => decl.prop === 'min-width').value, 'var(--tab-width)', 'hover never shrinks a short title below its normal allocated width');
+  assert.equal(expansion.nodes.find(decl => decl.prop === 'background').value, 'var(--chat-tab-background)', 'desktop hover shares the tab’s own chat input colour');
+  assert.equal(declarations('.tab-wrap').background, 'var(--surface)', 'leaving hover restores the normal inactive fill');
   assert.ok(!expansion.nodes.some(decl => /height|transform|position/.test(decl.prop)), 'hover cannot raise or overlay the tab');
 });
 
@@ -94,6 +114,7 @@ test('main keeps keyed tab siblings, global indices and native drag controls whi
   assert.equal(attribute(wrap, 'key').expression.getText(main), 'agent.id');
   assert.match(attribute(wrap, 'style').expression.getText(main), /gridRow: tabLayout.positions\[index\].row, gridColumn: tabLayout.positions\[index\].column/);
   const strip = nodes.find(node => ts.isJsxElement(node) && attribute(node.openingElement, 'data-two-rows'));
+  assert.match(attribute(strip.openingElement, 'style').expression.getText(main), /'--tab-columns': tabLayout.columns/, 'the measured strip uses the stable column count');
   assert.equal(strip.children.filter(ts.isJsxExpression)[0].expression.getText(main), 'workers.map(tab)', 'row changes do not remount tabs in different parents');
   assert.match(text, /tabGridLayout\(ids, !!state.coordinator, active\?\.id\)/);
   assert.match(text, /workers\[index \+ \(event.key === 'ArrowLeft' \? -1 : 1\)\]/);

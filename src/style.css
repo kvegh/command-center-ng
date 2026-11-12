@@ -56,15 +56,15 @@ a { color: var(--accent); }
 .eyebrow { color: #8398b7; font: 9px var(--mono); letter-spacing: 1.7px; margin-bottom: 9px; }
 .workspace-frame { border: 1px solid #324058; border-radius: 11px; background: var(--surface); overflow: hidden; box-shadow: 0 15px 60px #00000025; }
 .tabs-row { display: flex; align-items: stretch; gap: 10px; min-height: 48px; padding: 0 15px; background: #101723; border-bottom: 1px solid var(--line); }
-.tabs { flex: 1; min-width: 0; display: grid; grid-auto-columns: max-content; grid-template-rows: 40px; align-items: end; gap: 4px; overflow-x: auto; overflow-y: hidden; padding-top: 0; scrollbar-width: none; }
+.tabs { flex: 1; min-width: 0; container-type: inline-size; display: grid; grid-auto-columns: max-content; grid-template-rows: 40px; align-items: end; gap: 4px; overflow-x: auto; overflow-y: hidden; padding-top: 0; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tabs[data-two-rows="true"] { grid-template-rows: repeat(2, 40px); }
-.tabs > .tab-wrap { flex: 0 0 170px; width: 170px; min-width: 0; max-width: none; height: 34px; }
+.tabs > .tab-wrap { --tab-width: max(170px, calc((100cqw - (var(--tab-columns) - 1) * 4px) / var(--tab-columns))); flex: 0 0 170px; width: var(--tab-width); min-width: 0; max-width: none; height: 34px; }
 .tabs > .tab-wrap.active { height: 40px; }
-/* Intrinsic columns push their neighbours aside without changing row membership
-   or letting flex shrink move the hovered tab out from under the pointer. */
+/* Normal columns share the strip's available width. The viewport-based minimum
+   stays stable as intrinsic hover width pushes neighbours aside. */
 @media (min-width: 901px) and (hover: hover) and (pointer: fine) {
-  .tabs:not(.reordering) > .tab-wrap:hover { width: max-content; min-width: 170px; }
+  .tabs:not(.reordering) > .tab-wrap:hover { width: max-content; min-width: var(--tab-width); background: var(--chat-tab-background); }
   .tabs:not(.reordering) > .tab-wrap:hover .agent-tab { flex: none; }
   .tabs:not(.reordering) > .tab-wrap:hover .tab-text { flex: none; }
   .tabs:not(.reordering) > .tab-wrap:hover .tab-text strong { overflow: visible; }
@@ -935,22 +935,6 @@ kbd { font-family: inherit; }
 .task-notify-control input { width: 13px; height: 13px; margin: 2px 0; padding: 0; accent-color: var(--accent); }
 .task-summary > .task-notification-settings { flex: none; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .task-notification-settings .field-note { margin: 0; font-size: 10px; }
-.task-notification-alerts { flex: 0 0 auto; max-height: min(28vh, 240px); overflow-y: auto; overscroll-behavior: contain; background: var(--surface); border: 1px solid var(--line); }
-.task-notification-list { list-style: none; margin: 0; padding: 6px; display: grid; gap: 6px; }
-.task-notification-alert { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-left: 3px solid var(--amber); background: var(--surface-raised); }
-.task-notification-completed { border-color: var(--green); }
-.task-notification-error { border-color: #e67878; }
-.task-notification-content { min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
-.task-notification-kind { margin-right: 8px; color: var(--muted); font-size: 10px; }
-.task-notification-title { font-size: 12px; }
-.task-notification-detail { margin: 3px 0 0; font-size: 11px; line-height: 1.5; }
-.task-notification-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
-.task-notification-open { font-size: 11px; padding: 5px 8px; }
-.task-notification-dismiss { width: 28px; height: 28px; }
-@media (max-width: 430px) {
-  .task-notification-alert { align-items: flex-start; gap: 6px; }
-  .task-notification-actions { flex-direction: column-reverse; align-items: flex-end; }
-}
 
 .coordinator-worker-heading { display: flex; align-items: baseline; gap: 8px; flex: 1; min-width: 0; }
 .coordinator-worker-heading strong { flex: 0 1 auto; }

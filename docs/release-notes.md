@@ -9,6 +9,19 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.10.1 — Fill tab space and use browser notifications
+
+Normal desktop tabs share available width before Coordinator, retaining a minimum
+width when overflow is necessary. Hover reveals the full title and temporarily
+shows that conversation's saved chat-colour tint. Mobile remains one fixed-width
+horizontally scrollable row; row membership and status frames stay unchanged.
+
+Task alerts use native browser notifications for opted-in observed events,
+including while the page is focused. Remove the additional in-app completion
+banners and fallback-panel wording. Keep existing subscriptions, permission
+controls, deduplication, reconnect baselines and notification-click navigation.
+No background delivery service or closed-browser delivery is added.
+
 ## 1.10.0 — Consistent task tables and reachable tabs
 
 Report now, scheduled and Detailed reports use the same task/status/outcome table,
