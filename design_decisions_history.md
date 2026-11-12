@@ -3501,3 +3501,48 @@ payload both contain the explicit silence exception. No native model test,
 approval answer, permission change or timer change was performed. Actual future
 agent compliance remains unverified; an acknowledgement recurrence is a reason
 to reopen this correction, not evidence that output filtering was implemented.
+
+
+## 2026-11-12 — Enforce task-table reports and improve conversation tabs
+
+Implementation: `9c74a68e065f107812db291362c5997a185733ff` (1.10.0).
+
+The user requires a consistent vivid Report now overview: one task, exact
+coloured status and useful outcome/next action per table row. Put the canonical
+format in base guidance and every manual/scheduled/Detailed trigger, including
+already-active steering. A small dependency-free validator replaces the older
+colour-bullet recognizer in the existing completed-report path. Require a blank
+line after the table and release/publication/deployment evidence. Empty or
+unavailable task lists are explicit, without invented placeholder tasks.
+
+Reject tables inside prose, code, quotes or comments by requiring the overview
+at the start, optionally after the exact Standard Task Report heading. Invalid
+replies remain visible with a useful format error; no automatic resend, hidden
+output or new reporting pipeline is added. Preserve exact turn/message/native
+acknowledgement guards and Detailed history bounds. Shape validation cannot
+establish task truth or guarantee model obedience.
+
+Desktop hover reveals full titles horizontally while only selection increases
+height. Above six conversation tabs, counting Coordinator, use two stable grid
+rows and put the selected worker row nearest the chat. Preserve saved/global
+order and keyed tab identities. Keep a separate Coordinator and a native
+horizontal overflow strip without a scrollbar gutter. Mobile explicitly
+supersedes older wrapped-tab guidance: one horizontally scrollable row with no
+hover/row switching. The user's follow-up makes the active worker/Coordinator
+background match its input-title tint using shared existing palette tokens;
+inactive fills and status/frame rules are unchanged.
+
+Independent review found direct vertical cross-row dragging still cancelled, a
+scrollbar gutter regression and hidden-example false report acceptance. Focused
+fixes and regressions address each. The full initial suite passed86/94 test
+files; one in-scope old report fixture was corrected, retaining a conforming
+question-title negative. The other seven files hit restricted sockets/home
+fixture/process execution or empty child-CLI output. Direct app help succeeds,
+but the exact cause of empty child output remains unknown. No permission
+changes, weakened assertions or remote retries bypass those local limits.
+
+After the fixture and tint corrections,287 affected individual cases pass,
+production build and whitespace checks pass, and independent final source review
+has no blocker. Actual browser hover/edge reachability, phone interaction and
+live model report generation remain unverified. Publication and installed
+verification outcomes are recorded separately after execution.
