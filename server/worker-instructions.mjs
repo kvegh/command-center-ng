@@ -4,6 +4,7 @@ import { REPORT_FORMAT_INSTRUCTIONS } from './task-report-format.mjs';
 export const REPORT_INTERVALS = [0, 5, 15, 60];
 
 export const WORKER_BASE_INSTRUCTIONS = readFileSync(new URL('./worker-instructions.md', import.meta.url), 'utf8');
+export const WORKER_AAP_REFERENCE_INSTRUCTIONS = WORKER_BASE_INSTRUCTIONS.split('## Readable AAP references\n')[1].split('## Task lifecycle\n')[0].trim();
 export const WORKER_REPORT_INSTRUCTIONS = WORKER_BASE_INSTRUCTIONS.split('## Standard Task Report\n')[1].split('## Structured questions\n')[0].trim();
 
 export const WORKER_REPORT_REQUEST = 'Standard Task Report, once. Command Center now owns report timing. Cancel any previous agent-owned Standard Task Report clock loops or native schedules; do not start another. High priority: report at the next safe response checkpoint before ordinary project work; use known evidence without additional commands or waiting for task completion, then resume authorized work. Cover every workstream in this conversation’s authorized scope, including delegated work, and state unknown coverage. Follow the named routine in your base instructions. This internal trigger needs no acknowledgement. Pending questions and native permissions remain unchanged.\n\n' + REPORT_FORMAT_INSTRUCTIONS;

@@ -9,6 +9,38 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.11.0 — Parallel approval analysis and earlier event wakes
+
+Implemented source; production deployment and real model/browser end-to-end
+verification are pending at this documentation checkpoint.
+
+Use up to two internal read-only analysts for independent approval requests under
+the same policy as the main Coordinator. Recommendations are evidence; the main
+Coordinator remains the sole automated approver and retains all exact-request,
+real-user authority, command/cwd, source-hash and native-confirmation checks.
+Keep Request/Concern/Next explanations and manual pending asks. Unexpected analyst
+native questions/permissions remain preserved with a visible error and exact
+native-client next action; no analyst permission grants or blind retries are added.
+
+Keep the earliest event wake instead of postponing it during a burst, and retain
+urgent priority when later routine events arrive. Defaults remain a 1.5-second
+urgent debounce and a 30-second routine interval. Neither these intervals nor the
+initial two-analyst limit guarantee approval latency; model reasoning, tool round
+trips and native waits remain separate contributors. Report and task-check
+schedules keep their existing behavior.
+
+Source inspection now recognizes auth-specific path/name words without rejecting
+ordinary authenticated/author helper filenames. The older generic-reader path
+and exact-token source reader share the same predicate; protected auth data,
+hidden/credential/Vault paths, content checks and pending manual asks stay guarded.
+
+Worker and Coordinator guidance now pairs AAP object IDs with verified readable
+names, including actual job/workflow template names and differing run names.
+Ad hoc jobs use verified purposes; unavailable names are explicit and secret
+values are not requested. This changes reporting only, without expanding access.
+See [approval review](usage.md#coordinator-approval-review) and
+[AAP references](usage.md#readable-aap-references).
+
 ## 1.10.1 — Fill tab space and use browser notifications
 
 Normal desktop tabs share available width before Coordinator, retaining a minimum

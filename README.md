@@ -62,6 +62,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Recheck overlooked tasks and stalled delegated work silently every 10 minutes, including safe recovery of stalled child waits, with the next check shown in the coordinator.
   Internal checks omit routine acknowledgements and tool introductions; useful findings and questions remain visible.
 - Keep coordinator decision summaries across restarts in a private local file.
+- Review independent approval requests with up to two read-only analysts; the Coordinator remains the sole automated approver. See [review boundaries and timing](docs/usage.md#coordinator-approval-review).
 - Save the open-agent list when creating, opening, branching or closing tabs;
   restore the same conversations after restart and reconnect when Codex starts later.
 - Reload an unloaded Codex conversation when sending input, preserving its saved history and native permissions.

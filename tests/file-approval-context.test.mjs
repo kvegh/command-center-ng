@@ -10,7 +10,7 @@ function fixture() {
   const w = new Workspace(rpc, { beads: null });
   const agent = { id: 'worker', name: 'Example', cwd: '/example/project', role: 'worker', canSend: true, messages: [], questions: [], tasks: [], workers: [], turnId: 'turn', thread: { id: 'worker', cwd: '/example/project', status: { type: 'active' } } };
   w.agents.set(agent.id, agent); w.watched.add(agent.id);
-  const coordinator = new Coordinator(w); coordinator.paused = true;
+  const coordinator = new Coordinator(w, { approvalReviewers: false }); coordinator.paused = true;
   const changes = [{ path: '/example/project/config.yml', kind: { type: 'update', move_path: null }, diff: '-previous\n+reviewed\n' }];
   const item = (extra = {}) => ({ type: 'fileChange', id: 'changes', status: 'inProgress', changes: structuredClone(changes), ...extra });
   const request = (extra = {}) => ({ id: 17, method: 'item/fileChange/requestApproval', params: { threadId: 'worker', turnId: 'turn', itemId: 'changes', reason: null, grantRoot: null, ...extra } });

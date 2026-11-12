@@ -6,7 +6,15 @@ import { createHash } from 'node:crypto';
 const fail = message => Object.assign(new Error(message), { status: 400 });
 const extensions = new Set(['.py', '.js', '.mjs', '.cjs', '.ts', '.tsx', '.sh']);
 const digest = value => createHash('sha256').update(value).digest('hex');
-const sensitivePath = path => path.split(/[\\/]/).some(part => part.startsWith('.') || /secret|credential|password|token|vault|auth/i.test(part));
+export function isSensitiveSourcePath(path) {
+  return path.split(/[\\/]/).some(part => {
+    if (part.startsWith('.') || /secret|credential|password|token|vault/i.test(part)) return true;
+    // Protect auth-specific path/name words without rejecting ordinary words
+    // such as "authenticated" or "author". Include camelCase/acronym names.
+    const words = part.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2').split(/[^a-z0-9]+/i);
+    return words.some(word => /^(?:auth|oauth|authentication|authorization)\d*$/i.test(word));
+  });
+}
 const escaped = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const mentions = (text, value) => new RegExp(`(?:^|[\\s"'\x60(=])${escaped(value)}(?=$|[\\s"'\x60),;])`, 'm').test(text);
 
@@ -32,10 +40,10 @@ export function referencesApprovalSource(cwd, command, path) {
 }
 
 export async function inspectApprovalSource(cwd, command, path, startLine = 1) {
-  if (typeof path !== 'string' || !path || path.length > 1000 || /[\x00-\x1f]/.test(path) || sensitivePath(path)) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
+  if (typeof path !== 'string' || !path || path.length > 1000 || /[\x00-\x1f]/.test(path) || isSensitiveSourcePath(path)) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
   if (!Number.isInteger(startLine) || startLine < 1) throw fail('Choose a valid starting line.');
   const requested = resolve(cwd, path);
-  if (sensitivePath(requested)) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
+  if (isSensitiveSourcePath(requested)) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
   const file = await realpath(requested);
   if (file !== requested || !extensions.has(extname(file))) throw fail('Read a regular helper source file directly; symlinks and configuration/data files are not allowed.');
   if (!referencesApprovalSource(cwd, command, path)) throw fail('This helper source is not referenced by the exact pending approval.');

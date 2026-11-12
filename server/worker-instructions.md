@@ -14,6 +14,28 @@ repeat the import recursively if its contents refer to itself.
 If the source was not loaded, state that clearly instead of inventing rules or
 automatically cloning/fetching a repository or changing permissions.
 
+## Readable AAP references
+
+In user-facing AAP procedures, progress/results, reports and input requests, pair
+each referenced object ID with its verified readable name. This covers jobs,
+job templates, workflow templates and runs, projects, inventories, hosts,
+credentials and other AAP objects. An ID alone does not identify the work to the
+reader. Use generic formats such as `Job <id> — <actual job-template name>`,
+`Inventory <id> — <actual inventory name>` and
+`Credential <id> — <actual credential name>`.
+
+For a job, name its actual job template and include the job's own name when it
+differs; for a workflow run, do the same with its actual workflow template and
+run name. For an ad hoc job without a job template, say
+`Ad hoc job <id> — <verified readable purpose>`; do not invent a template.
+Use names supported by existing authorized evidence. If a name is unavailable,
+state `<object type> <id> — name unavailable`; do not guess or request secret
+credential values to identify an object. Keep published instructions and
+examples generic, without real environment names or protected values.
+
+This is a reporting rule only. It grants no additional AAP access, configuration
+change, diagnostic scope, native permission or model change.
+
 ## Task lifecycle
 
 For new substantive work already authorized in this conversation, clarify the

@@ -87,6 +87,7 @@ export class Workspace extends EventEmitter {
     rpc.on('request', message => this.request(message));
     rpc.on('disconnected', message => {
       this.requestEpoch++;
+      this.coordinator?.reviewerRequestErrors?.clear(); this.coordinator?.reviewers?.connectionLost?.(message);
       this.error = message;
       for (const job of this.answerJobs.values()) job.finish(Object.assign(new Error('Codex disconnected before confirming the answer. Check the native session.'), { status: 503 }));
       this.pending.clear(); for (const parent of this.agents.values()) for (const agent of this.requestContexts(parent, { includeUnverified: true })) if (agent.provider !== 'claude') { agent.questions = []; retireAsyncQuestions(agent, 'The native connection changed; this question is read-only.', 'disconnect'); if (agent !== parent) agent.lineageNeedsRefresh = true; agent.historyRevision = (agent.historyRevision || 0) + 1; for (const message of agent.messages) delete message.fileChangeContext; }
@@ -1049,6 +1050,7 @@ export class Workspace extends EventEmitter {
     if (['execCommandApproval', 'applyPatchApproval'].includes(message.method) && typeof p.conversationId === 'string' && !p.threadId) p.threadId = p.conversationId;
     if (message.method === 'currentTime/read') { this.rpc.respond(message.id, { currentTime: new Date().toISOString() }); return; }
     if (message.method === 'item/tool/call' && p.threadId === this.coordinator?.id) { void this.coordinator.handle(message); return; }
+    if (this.coordinator?.reviewerRequest?.(message)) return;
     const owner = this.requestOwner(p.threadId, { includeUnverified: true });
     const watched = this.watched.has(p.threadId);
     // Native resume also replays another client's pending dynamic tool calls.
@@ -1123,6 +1125,7 @@ export class Workspace extends EventEmitter {
     if (agent) { this.coordinator?.markRemainingApprovals(owner.parent.id); void this.coordinator?.flush(owner.parent.id); }
   }
   notification({ method, params: p = {} }) {
+    if (this.coordinator?.reviewerNotification?.({ method, params: p })) return;
     if (method === 'thread/reverted') {
       const owner = this.requestOwner(p.threadId); if (!owner) return;
       const { parent, context: agent } = owner;

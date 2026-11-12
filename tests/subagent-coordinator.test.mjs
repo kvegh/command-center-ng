@@ -43,7 +43,7 @@ async function fixture(t) {
   const workspace = new Workspace(rpc, { beads: null, answerTimeout: 500 });
   const parent = agent('parent', parentDir); workspace.agents.set(parent.id, parent); workspace.watched.add(parent.id);
   workspace.addItem(parent, { id: 'parent-user-scope', type: 'userMessage', content: [{ type: 'text', text: scope }] }, 'scope-turn');
-  const coordinator = new Coordinator(workspace, { debounceMs: 1_000_000, intervalMs: 1_000_000 });
+  const coordinator = new Coordinator(workspace, { approvalReviewers: false, debounceMs: 1_000_000, intervalMs: 1_000_000 });
   workspace.coordinator = coordinator; coordinator.id = 'coordinator';
   const supervisor = agent(coordinator.id, directory, 'coordinator'); supervisor.turnId = 'coordinator-turn'; supervisor.thread.status = { type: 'active' };
   workspace.agents.set(supervisor.id, supervisor);

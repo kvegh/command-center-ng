@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { WORKER_BASE_INSTRUCTIONS, WORKER_REPORT_INSTRUCTIONS, WORKER_QUESTION_INSTRUCTIONS } from '../server/worker-instructions.mjs';
+import { WORKER_BASE_INSTRUCTIONS, WORKER_AAP_REFERENCE_INSTRUCTIONS, WORKER_REPORT_INSTRUCTIONS, WORKER_QUESTION_INSTRUCTIONS } from '../server/worker-instructions.mjs';
 
 const heading = '## Task lifecycle\n';
 const section = WORKER_BASE_INSTRUCTIONS.split(heading)[1]?.split('\n## ')[0];
@@ -10,6 +10,8 @@ test('ordinary task lifecycle guidance remains worker-scoped with existing repor
   assert.ok(WORKER_BASE_INSTRUCTIONS.indexOf(heading) < WORKER_BASE_INSTRUCTIONS.indexOf('## Standard Task Report\n'));
   assert.doesNotMatch(WORKER_REPORT_INSTRUCTIONS, /## Task lifecycle|withdrew native Goal integration/);
   assert.doesNotMatch(WORKER_QUESTION_INSTRUCTIONS, /## Task lifecycle|withdrew native Goal integration/);
+  assert.doesNotMatch(WORKER_AAP_REFERENCE_INSTRUCTIONS, /## Task lifecycle|withdrew native Goal integration/);
+  assert.doesNotMatch(section, /## Readable AAP references|each referenced object ID/);
   assert.match(WORKER_REPORT_INSTRUCTIONS, /high-priority user request/);
   assert.match(WORKER_QUESTION_INSTRUCTIONS, /structured request-user-input\/question tool/);
 });

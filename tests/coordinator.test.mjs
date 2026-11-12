@@ -59,7 +59,7 @@ const topicReport = '| Task | Status | Outcome / next step |\n| --- | --- | --- 
 
 async function fixture(coordinatorOptions = {}) {
   const cwd = await mkdtemp(join(tmpdir(), 'ccng-coordinator-')); const rpc = new Rpc(cwd);
-  const workspace = new Workspace(rpc, { beads: null, coordinator: { debounceMs: 1000000, intervalMs: 1000000, ...coordinatorOptions } }); rpc.workspace = workspace;
+  const workspace = new Workspace(rpc, { beads: null, coordinator: { approvalReviewers: false, debounceMs: 1000000, intervalMs: 1000000, ...coordinatorOptions } }); rpc.workspace = workspace;
   await workspace.open('worker'); await workspace.coordinator.ensure();
   const coordinator = workspace.coordinator; workspace.agent(coordinator.id).turnId = 'coord-turn'; workspace.agent(coordinator.id).thread.status = { type: 'active' };
   const call = (tool, args = {}, threadId = coordinator.id) => coordinator.call({ threadId, turnId: workspace.agents.get(threadId)?.turnId, tool, arguments: args });
@@ -793,6 +793,108 @@ test('events coalesce without steering a busy coordinator and stale tool turns c
     await assert.rejects(f.coordinator.call({ threadId: agent.id, turnId: 'old-turn', tool: 'ccng_list_workers', arguments: {} }), /no longer active/);
     await f.coordinator.pump(); assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
     assert.equal(f.coordinator.dirty.size, 0);
+  } finally { await f.close(); }
+});
+
+async function eventFixture() {
+  const clock = fakeReportClock(); clock.advance(10000);
+  const f = await fixture({ debounceMs: 1500, intervalMs: 30000, eventClock: clock });
+  f.coordinator.clearEventTimer(); f.coordinator.dirty.clear(); f.coordinator.urgentPending = false;
+  f.coordinator.lastRun = 9500;
+  const coordinatorAgent = f.workspace.agent(f.coordinator.id);
+  coordinatorAgent.turnId = null; coordinatorAgent.thread.status = { type: 'idle' };
+  return { ...f, clock, coordinatorAgent };
+}
+
+test('an ordinary event cannot postpone the earlier urgent approval wake', async () => {
+  const f = await eventFixture();
+  try {
+    f.coordinator.mark('worker', 'Approval arrived', true);
+    const timer = f.coordinator.timer;
+    assert.equal(f.coordinator.timerAt, 11500);
+    f.clock.advance(500); f.coordinator.mark('worker', 'Task changed');
+    assert.equal(f.coordinator.timer, timer);
+    assert.equal(f.coordinator.timerAt, 11500);
+    assert.equal(f.clock.timers.size, 1);
+    f.clock.advance(999); assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 0);
+    f.clock.advance(1); await delivered(f);
+    const input = f.rpc.calls.find(call => call.method === 'turn/start').params.input[0].text;
+    assert.match(input, /Approval arrived/); assert.match(input, /Task changed/);
+    assert.equal(f.coordinator.dirty.size, 0); assert.equal(f.coordinator.urgentPending, false);
+  } finally { await f.close(); }
+});
+
+test('event bursts coalesce at the earliest deadline while urgent events can advance ordinary throttling', async () => {
+  const f = await eventFixture();
+  try {
+    f.coordinator.mark('worker', 'Ordinary progress');
+    assert.equal(f.coordinator.timerAt, 39500, 'ordinary updates retain the existing thirty-second throttle');
+    f.clock.advance(500); f.coordinator.mark('worker', 'Approval arrived', true);
+    assert.equal(f.coordinator.timerAt, 12000);
+    f.clock.advance(500); f.coordinator.mark('worker', 'Another approval', true); f.coordinator.mark('worker', 'Another progress update');
+    assert.equal(f.coordinator.timerAt, 12000);
+    assert.equal(f.clock.timers.size, 1);
+    f.clock.advance(1000); await delivered(f);
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
+    f.rpc.complete(f.coordinator.id);
+    f.coordinator.mark('worker', 'Later ordinary update');
+    assert.equal(f.coordinator.timerAt, 42000, 'handling an urgent burst does not disable subsequent ordinary throttling');
+  } finally { await f.close(); }
+});
+
+test('urgent work arriving during a busy Coordinator survives until safe completion without steering or interrupting it', async () => {
+  const f = await eventFixture();
+  try {
+    f.coordinator.lastRun = 10000;
+    f.coordinatorAgent.turnId = 'busy-coordinator'; f.coordinatorAgent.thread.status = { type: 'active' };
+    f.coordinator.mark('worker', 'Approval while busy', true);
+    f.clock.advance(1500); await f.coordinator.pump();
+    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false);
+    assert.equal(f.coordinator.urgentPending, true); assert.equal(f.coordinator.timer, null);
+    assert.ok(f.coordinator.dirty.get('worker').has('Approval while busy'));
+    f.rpc.complete(f.coordinator.id, 'busy-coordinator');
+    assert.equal(f.coordinator.timerAt, 13000, 'safe completion retains urgent coalescing instead of adding the normal thirty-second throttle');
+    f.clock.advance(1499); assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+    f.clock.advance(1); await delivered(f);
+    assert.equal(f.rpc.calls.some(call => ['turn/steer', 'turn/interrupt'].includes(call.method)), false);
+    assert.equal(f.rpc.replies.length, 0, 'scheduling does not answer native approvals');
+  } finally { await f.close(); }
+});
+
+test('pause cancels event wakes, resume coalesces safely and stop prevents future event turns', async () => {
+  const f = await eventFixture();
+  try {
+    f.coordinator.mark('worker', 'Pending approval', true); await f.coordinator.setPaused(true);
+    assert.equal(f.clock.timers.size, 0); assert.equal(f.coordinator.timerAt, null);
+    f.clock.advance(5000); assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+    await f.coordinator.setPaused(false);
+    assert.equal(f.coordinator.timerAt, 16500); assert.equal(f.clock.timers.size, 1);
+    f.clock.advance(1500); await delivered(f);
+    f.coordinator.mark('worker', 'Another approval', true); f.coordinator.stop();
+    assert.equal(f.clock.timers.size, 0); assert.equal(f.coordinator.timerAt, null);
+    f.clock.advance(30000); f.coordinator.mark('worker', 'After stop', true); await f.coordinator.pump();
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
+    assert.equal(f.rpc.calls.some(call => ['turn/steer', 'turn/interrupt'].includes(call.method)), false);
+  } finally { await f.close(); }
+});
+
+test('event wakes preserve disconnect, restoration, native-question and worker-closure gates', async () => {
+  const f = await eventFixture();
+  try {
+    f.coordinator.mark('worker', 'Pending approval', true);
+    f.rpc.ready = false; f.clock.advance(1500); await f.coordinator.pump();
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+    f.rpc.ready = true; f.workspace.restoring = true; await f.coordinator.pump();
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+    f.workspace.restoring = false;
+    f.coordinatorAgent.questions.push({ id: 'native-wait' }); await f.coordinator.pump();
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+    assert.equal(f.coordinator.urgentPending, true);
+    f.coordinator.mark('worker', 'Still pending', true);
+    f.coordinator.closed('worker');
+    assert.equal(f.clock.timers.size, 0); assert.equal(f.coordinator.urgentPending, false);
+    f.coordinatorAgent.questions = []; await f.coordinator.pump();
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
   } finally { await f.close(); }
 });
 

@@ -871,3 +871,52 @@ saved chat tint; only the selected tab is taller. Keep Coordinator
 separate and overflow reachable. Mobile overrides this with one horizontally
 scrollable row, without hover expansion or row switching. Preserve native state,
 focus, drafts, keyboard ordering, drag behavior and touch scrolling.
+
+
+## Approved parallel approval analysis and event timing
+
+Use at most two internal read-only approval analysts concurrently for independent
+exact current requests. This is the initial bounded throughput choice, not a
+latency guarantee. Analysts use the same policy as the main Coordinator and
+only the bound read-only tools/context; they cannot execute commands, change
+files, send messages, delegate or answer approvals. The main Coordinator remains
+the sole automated approver, preserving real user authority, exact request/token,
+command/cwd/source checks, native confirmation and all manual controls.
+
+Prioritize pending approvals and ready findings over optional recaps. Findings
+are recommendations, never authority; do not duplicate running analysis or
+accept changed/stale evidence. Preserve Request/Concern/Next explanations and
+manual pending asks. If an analyst receives an unexpected native question or
+permission request, retain the exact callback, expose the error and native-client
+next action, and grant no analyst permissions. Do not blindly retry uncertain
+starts, blocked requests or unconfirmed actions to free a slot.
+
+Retain the earliest scheduled event wake and latch urgent priority across later
+routine events. Defaults are a 1.5-second urgent debounce and 30-second routine
+interval, not model-response or approval deadlines. Preserve native pause,
+ownership, questions, active-turn gates and existing report/task-check schedules;
+do not add another timer, dispatcher or permission path. Distinguish source and
+synthetic verification from production deployment and real model/browser tests.
+
+
+## Readable AAP references
+
+In user-facing AAP procedures, progress/results, reports and input requests, pair
+each referenced object ID with its verified readable name. This covers jobs,
+job templates, workflow templates and runs, projects, inventories, hosts,
+credentials and other AAP objects. An ID alone does not identify the work to the
+reader. Use generic formats such as `Job <id> — <actual job-template name>`,
+`Inventory <id> — <actual inventory name>` and
+`Credential <id> — <actual credential name>`.
+
+For a job, name its actual job template and include the job's own name when it
+differs; for a workflow run, do the same with its actual workflow template and
+run name. For an ad hoc job without a job template, say
+`Ad hoc job <id> — <verified readable purpose>`; do not invent a template.
+Use names supported by existing authorized evidence. If a name is unavailable,
+state `<object type> <id> — name unavailable`; do not guess or request secret
+credential values to identify an object. Keep published instructions and
+examples generic, without real environment names or protected values.
+
+This is a reporting rule only. It grants no additional AAP access, configuration
+change, diagnostic scope, native permission or model change.

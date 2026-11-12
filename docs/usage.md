@@ -170,6 +170,47 @@ sends a summary, archives a branch or answers a question.
 Open one to reach its existing answer card. A request with several questions
 shows each question. Opening a card does not answer or dismiss it.
 
+### Coordinator approval review
+
+The 1.11.0 source supports up to two internal read-only approval analysts working
+on independent current requests. They use the same review policy as the main
+Coordinator and can read only the context and source bound to their assigned
+request. They return recommendations; the main Coordinator remains the sole
+automated approver, with your existing manual controls unchanged.
+
+Before applying a recommendation, the Coordinator still checks the exact live
+request, real user authorization, command and working directory, and any inspected
+source hashes. A worker's assertion or analyst recommendation is not authority.
+Stale or changed evidence cannot authorize an answer. Ready analyses and pending
+approvals take priority over optional recaps; running analysis is not duplicated.
+
+The rationale starts with `Request:` to describe the action. When approval is
+not possible, `Concern:` and `Next:` explain the concrete obstacle and next user
+decision or permitted action on separate lines. An **ask** stays pending for your
+decision; it is not a decline and is not automatically retried. You can answer
+the current request manually or explicitly request a fresh Coordinator review.
+
+If an analyst unexpectedly receives a native question or permission request,
+CCNG preserves it and shows a Coordinator error identifying that exact native
+conversation and request. Open that conversation in the native client to inspect
+it. CCNG does not grant analyst permissions, answer the request or blindly retry
+uncertain analysis to clear the wait.
+
+Two analysts are the initial bounded concurrency choice for independent work,
+not a response-time guarantee. Model reasoning, source/tool round trips, active
+native turns and pending decisions can still delay completion. The event timer
+retains the earliest scheduled wake and keeps urgent work urgent when ordinary
+events arrive later. Its defaults are a **1.5-second debounce** for urgent work
+and a **30-second routine interval**; these are scheduling intervals, not approval
+deadlines. Native pause, question, ownership and safe-turn gates still apply.
+Saved report intervals and the separate ten-minute task-check cadence are unchanged.
+
+This describes implemented source. Deployment and real model/browser end-to-end
+verification of this change are pending at this documentation checkpoint;
+source and synthetic tests cannot establish response time or model compliance.
+
+### Delivered worker and child requests
+
 Known native Codex child runs expose delivered pending requests under their
 parent, without separate child tabs. Expand **Subagents**, below Tasks, to view
 their activity/status; this section starts collapsed. Pending approval/question
@@ -428,6 +469,26 @@ The Codex **Model** and **Effort** controls use the native runtime's catalog and
 supported choices. Changes apply to subsequent turns without interrupting the
 current turn or changing global permissions. Use follow-up messages to correct
 earlier instructions, or the existing branch action for a separate conversation.
+
+A helper named with the ordinary word authenticated is source, not automatically
+authentication data. Bounded source inspection still rejects auth-specific names,
+hidden/credential/Vault paths and sensitive content. Fixing a reader refusal does
+not resolve an existing manual ask or approve the command.
+
+### Readable AAP references
+
+AAP procedures, results, reports and input requests pair object IDs with verified
+readable names: jobs, job/workflow templates, workflow runs, projects, inventories,
+hosts, credentials and other referenced objects. A job names its actual job
+template and includes its own name when different; workflow runs follow the same
+rule. Generic examples are `Job <id> — <actual job-template name>` and
+`Inventory <id> — <actual inventory name>`.
+
+An ad hoc job without a template uses a verified readable purpose rather than an
+invented template. If the name is unavailable, say
+`<object type> <id> — name unavailable`; do not guess or request secret credential
+values to identify it. This is reporting guidance, not additional AAP access,
+configuration, native permissions or model authority. Public examples stay generic.
 
 ## Images, Markdown and copying
 
