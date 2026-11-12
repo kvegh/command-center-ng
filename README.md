@@ -289,8 +289,8 @@ No license has been selected; public visibility alone does not grant a license.
 
 ### Verify source-reader behavior
 
-With the existing Node runtime and installed application dependencies, run from
-the checkout or installation directory:
+With the existing Node runtime and application dependencies, run from the
+source checkout:
 
 ```sh
 node --test tests/approval-source.test.mjs tests/coordinator.test.mjs
@@ -300,5 +300,24 @@ The tests use temporary synthetic files and isolated Coordinator requests, and
 exit nonzero on failure. They exercise both source-reading interfaces, supported
 formats, secret/Vault rejection and request/directory/hash checks. No protected
 inputs, external service, live model turn or genuine approval answer is needed.
+To exercise the actual installed server modules, use the same source release
+as the installation. Development tests are not shipped inside the installation;
+stage the existing tests temporarily and link their server imports to it:
+
+```sh
+(
+  set -eu
+  CCNG_READER_INSTALL="/absolute/path/to/installation"
+  test -f "$CCNG_READER_INSTALL/server/coordinator.mjs"
+  CCNG_READER_TEST_DIR=$(mktemp -d)
+  trap 'rm -rf -- "$CCNG_READER_TEST_DIR"' EXIT
+  mkdir "$CCNG_READER_TEST_DIR/tests"
+  cp tests/approval-source.test.mjs tests/coordinator.test.mjs "$CCNG_READER_TEST_DIR/tests/"
+  ln -s "$CCNG_READER_INSTALL/server" "$CCNG_READER_TEST_DIR/server"
+  node --test "$CCNG_READER_TEST_DIR/tests/approval-source.test.mjs" "$CCNG_READER_TEST_DIR/tests/coordinator.test.mjs"
+)
+```
+
+The temporary files are removed on exit; the installation remains unchanged.
 Passing these tests does not establish a native client's current tool exposure
 or resolve a pending human decision. See the [source-reader limits](docs/usage.md#coordinator-approval-review).

@@ -26,8 +26,15 @@ may still require private review of credential-like metadata or unusual YAML.
 Final source tests: 13 source-reader cases and 97 Coordinator cases pass, plus
 six adjacent reviewer/context/hook suites in 1.057s. TypeScript/production build,
 syntax and diff checks pass; independent focused review found no remaining
-blocker. Publication and existing-install verification follow this checkpoint;
-no genuine pending approval or model turn was created for testing.
+blocker. Published and installed on 2026-11-12: the 23.162s update preserved nine
+protected files/metadata, eight saved workers and Coordinator/report/native
+settings. Corrected 7.445s verification matched 112 installed files and checked
+live 1.15.0 HTTPS/authentication/assets/listeners/tracker. All 170 checks across
+eight suites passed against installed server modules in 2.176s, using existing
+tests staged temporarily from the source checkout. The first verifier assumed
+tests were shipped inside the installation; correcting the harness required no
+application change, reinstall or restart. No genuine approval or model turn was
+created for testing, and no pending human decision was resolved.
 
 ## 1.14.0 — Independent mobile chat navigation
 

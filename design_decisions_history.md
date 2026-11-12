@@ -3850,3 +3850,22 @@ TypeScript/build and diff checks pass, and independent re-review found no
 remaining blocking issue. These are synthetic file/tool-request checks, not a
 genuine pending approval or formal AAP acceptance. Publication and installed
 verification follow this source checkpoint.
+
+### 1.15.0 installed outcome
+
+Implementation `857944dd584c70b85071ccb2a215ef665f09e9a8` and installed payload
+`c9eed7d4744d1598d67bc133b2b8804c2cf2ab65` were published over SSH and
+independently matched to the remote. The 23.162s update preserved nine protected
+files/metadata, eight saved workers, Coordinator/pause/reports and native runtime.
+Corrected 7.445s read-only verification matched 112 installed files, live 1.15.0
+trusted HTTPS/authentication/assets/listeners/tracker and existing controls.
+
+All 170 checks across eight existing suites passed against the actual installed
+server modules in 2.176s. The installer does not ship development tests; an
+initial verifier failed by assuming otherwise. Stage the existing versioned
+tests in a private temporary directory with their server imports linked to the
+installed modules, then remove that directory on exit. README now records this
+repeatable procedure. No application fix, second update/restart, dependency,
+framework or genuine native approval/model call was needed. Native-client tool
+exposure and subsequent genuine approval outcomes are not established by these
+isolated checks; existing pending user decisions remain unchanged.
