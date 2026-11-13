@@ -4134,44 +4134,6 @@ submitted. Actual user-browser colours and a naturally occurring post-update
 turn race remain unverified; synthetic cases establish only their tested scope.
 Final outcome documentation is newer than the installed payload.
 
-## 2026-11-13 — Forward concerns for proactive in-scope engineering fixes
-
-Implementation `28bfb906eaccb439f9a8ad90f25fce8b794a2fe3` is version 1.21.0.
-The user asked the Coordinator to collect its concerns and send details to the
-engineering conversation so recurring in-scope problems can be investigated and
-fixed proactively. They clarified the goal was future prevention; genuine user
-decisions remain with the user. The selected implementation uses the existing
-worker-message queue and an optional destination in existing private runtime
-configuration, without a second approval stage, store, service or timer.
-
-Only new actual main ask decisions are captured. Batches are released after
-their exact main turn completes, preserving source project, parent/child and
-request identities plus bounded concern fields. They exclude raw action/source
-serialization, protect credential-looking content and remove the exact live
-approval token even when echoed in otherwise ordinary text. Historical asks and
-analyst recommendations do not trigger notices. Original requests remain pending;
-forwarding is not authority, an answer or automatic re-review.
-
-The existing queue delivers only at a verified authorized idle point. Exact
-destination object, native epoch and queue membership are checked again after
-context loading and immediately before the native write, alongside stop/pause,
-handoff, ownership and native/async question gates. Unavailable destinations/full
-queues remain explicit, uncertain deliveries never replay, and clear/close can
-cancel an unsent notice during preparation. A notice cannot route back to its
-own originating parent/child or to the Coordinator/Claude/external session.
-
-Independent streams implemented runtime configuration and regression/security
-review. Nine synthetic scenarios exposed and retained regressions for credential
-assignment leakage, exact-token echo, generic-guard ordering and cancellation
-during context loading; all were corrected before publication. Final direct
-routing cases and the combined five-file check pass, with TypeScript/production
-build passing. Four local runtime-options subprocess-output assertions returned
-empty output, including three pre-existing tests; a minimal child-process
-reproducer confirmed that environment limitation while direct CLI checks passed.
-The backend full suite is required before installation; it is not waived or
-weakened. Actual publication, configured destination, deployment and natural
-message/repair acceptance are recorded separately when evidenced.
-
 The user subsequently supplied the three card headings. Bounded native
 Coordinator snapshots matched both visualization commands and the container
 regression command: all three were unreviewed approvals with no review error,
@@ -4230,4 +4192,68 @@ HTTPS/authentication/assets/listeners/tracker checks passed and 491 checks acros
 the installed module while credential protection remained. No original test
 source, container command, native approval or model turn was executed. Actual
 browser interaction and the separate Windows test remain unverified here.
+Final outcome documentation is newer than the installed payload.
+
+## 2026-11-13 — Forward concerns for proactive in-scope engineering fixes
+
+Implementation `28bfb906eaccb439f9a8ad90f25fce8b794a2fe3` is version 1.21.0.
+The user asked the Coordinator to collect its concerns and send details to the
+engineering conversation so recurring in-scope problems can be investigated and
+fixed proactively. They clarified the goal was future prevention; genuine user
+decisions remain with the user. The selected implementation uses the existing
+worker-message queue and an optional destination in existing private runtime
+configuration, without a second approval stage, store, service or timer.
+
+Only new actual main ask decisions are captured. Batches are released after
+their exact main turn completes, preserving source project, parent/child and
+request identities plus bounded concern fields. They exclude raw action/source
+serialization, protect credential-looking content and remove the exact live
+approval token even when echoed in otherwise ordinary text. Historical asks and
+analyst recommendations do not trigger notices. Original requests remain pending;
+forwarding is not authority, an answer or automatic re-review.
+
+The existing queue delivers only at a verified authorized idle point. Exact
+destination object, native epoch and queue membership are checked again after
+context loading and immediately before the native write, alongside stop/pause,
+handoff, ownership and native/async question gates. Unavailable destinations/full
+queues remain explicit, uncertain deliveries never replay, and clear/close can
+cancel an unsent notice during preparation. A notice cannot route back to its
+own originating parent/child or to the Coordinator/Claude/external session.
+
+Independent streams implemented runtime configuration and regression/security
+review. Nine synthetic scenarios exposed and retained regressions for credential
+assignment leakage, exact-token echo, generic-guard ordering and cancellation
+during context loading; all were corrected before publication. Final direct
+routing cases and the combined five-file check pass, with TypeScript/production
+build passing. Four local runtime-options subprocess-output assertions returned
+empty output, including three pre-existing tests; a minimal child-process
+reproducer confirmed that environment limitation while direct CLI checks passed.
+The backend full suite is required before installation; it is not waived or
+weakened. Actual publication, configured destination, deployment and natural
+message/repair acceptance are recorded separately when evidenced.
+
+Published payload `a0ebfffa84c81e8fb3ee10c74e7e6f737e1c2aa1` was independently
+confirmed at public main. The existing update succeeded in 89.284s
+(10:53:53.799140–10:55:23.083622 UTC), after 1,128 backend checks passed with
+zero failures and one skip in 60.727s, including the unchanged CLI tests. The
+exact existing engineering chat was configured in the private runtime file;
+previous config bytes and metadata, eight other protected files, eight saved
+workers, Coordinator/pause/report settings and native runtime were preserved.
+Only the existing CCNG application service restarted.
+
+Initial installed verification failed four CLI assertions because its temporary
+server symlink bypassed the entrypoint guard; the other 517 checks and live
+checks passed. A bounded diagnostic reproduced that alias behavior and confirmed
+the real installed CLI help/invalid-destination behavior. The temporary verifier
+was corrected to run CLI checks against the canonical installed path, retaining
+the versioned tests unchanged. No application fix or second install was needed.
+
+Final verification succeeded in 17.116s (10:58:38.787331–10:58:55.902903 UTC):
+113 installed source files matched, actual HTTPS/authentication/assets/listeners/
+tracker checks passed, and 511 checks across 32 suites imported installed modules
+and passed in 10.944s. Actual installed CLI help and invalid-destination checks
+passed separately. The selected runtime destination and absence of a different
+CLI/environment override were verified. No real approval/model turn, historical
+concern replay or test notification was created. Natural concern receipt and a
+resulting proactive repair remain observational acceptance, not fixture claims.
 Final outcome documentation is newer than the installed payload.
