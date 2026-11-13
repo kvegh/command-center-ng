@@ -4023,3 +4023,38 @@ feature's purpose, experimental status, profile-wide suppression scope and the
 fact that previously retained CCNG banner text is not cleared by saving a setting.
 The installer continues to preserve experimental warnings by default. Warning-free
 future native loading remains unverified without disturbing active work.
+
+## 2026-11-13 — Recognize container test files and expose blocked-task context
+
+Implementation `2434d83bae4aa34e090f9523ea55bffef3e1387d` is version 1.18.0.
+The original Windows review refused an outside-project test because its command
+named a Python unittest module inside a read-only container mount. The reader
+did not associate that module with its host file; the credential scan was never
+reached in the confirmed main-reader failure. This corrects the earlier suspicion
+that this particular refusal came from secret detection. Recorded native command
+metadata reproduces false before the change and true afterward, without opening
+the test or executing its command. The analyst's retained recommendation reports
+access refusals, but its exact underlying reader error was not retained.
+
+The fix recognizes only literal supported unittest targets, optionally through
+one explicit read-only Podman mount and working directory. Review caught ambiguous
+unquoted Bash wrappers and reserved unittest discovery targets; both are refused.
+Unrelated files, writable/ambiguous or shadowed mounts, traversal, import-path
+overrides and shell expressions stay outside this supported form. Existing
+credential/path/size/symlink, current-request and changed-source hash checks remain.
+The separate historical Vault-helper content false-positive investigation is
+still unresolved; this change does not relax that detector or answer approvals.
+
+The user also reported task popups that announced input needs without useful
+context. Ordinary task descriptions and notes now appear directly, with queued
+prerequisite names. Only actual current question metadata activates Needed/Why
+answer presentation. Old question text remains recorded context. Ordinary blockers
+offer Ask about blocker, requesting the real blocker and next step without
+inventing a user action or authorizing more project work. Native-send and draft
+guards are preserved. No new component, dependency or store was introduced.
+
+Focused source, Coordinator/reviewer integration and task UI checks pass, including
+16 source-reader cases and 21 task-context/23 worker-UI cases. Root's five-file
+combined run passed in 3.812s; TypeScript and production build passed. These are
+development checks; publication, installation and live verification are recorded
+separately once completed. No actual native test approval was manufactured.
