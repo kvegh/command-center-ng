@@ -26,6 +26,29 @@ review of the actual CSS/test diff found no change needed. These checks establis
 stylesheet policy, not browser/OS/touchpad behavior; no installed acceptance or
 physical gesture success is claimed before deployment verification and user trial.
 
+Published payload `72551fe7165cfad6e60da880daeec047e220db13` was independently
+SSH-verified. Ad hoc job 3956 — Update existing CCNG with Tasks scroll correction
+— succeeded 22:29:06.204405–22:30:33.758893 UTC (87.554s) after the full suite
+passed 1,171 checks with zero failures and one existing skip (61.544s). Ten
+protected files now include the active private YAML policy; its bytes/metadata,
+eight workers, workspace, Coordinator/pause/report settings and native version
+were preserved. Only the existing CCNG service restarted.
+
+Ad hoc job 3957 — Verify installed Tasks scroll correction — succeeded
+22:31:08.096315–22:31:15.488126 UTC (7.392s): 116 installed source files matched,
+actual HTTPS/authentication/assets/listeners passed, and the served stylesheet
+contains both Tasks vertical-handoff overrides while retaining outer containment.
+All 38 checks across the three affected suites passed against installed modules
+(2.065s). The private read-all policy still loads as all/enabled without error.
+
+Physical browser/touchpad acceptance remains unverified. An existing-provider
+structured question asks the user to try Tasks on 1.27.2; implementation and
+installed stylesheet verification do not close that remaining acceptance step.
+The baseline-to-installed-verification test span was approximately 5m40s from
+the evidenced 22:25:35 UTC baseline clock; active effort and waiting were not
+separately measured. Outcome documentation is newer than the installed payload.
+
+
 
 ## 1.27.1 — Complete policy packaging before deployment — 2026-11-13
 
