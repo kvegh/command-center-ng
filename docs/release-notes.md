@@ -9,6 +9,21 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.20.0 — Recognize direct container test scripts
+
+Source review also recognizes a literal absolute Python script in the validated
+read-only Podman working directory, ordinary absolute Python entrypoints and
+the exact `--userns=keep-id` option. The earlier unittest module form remains
+supported. The reader maps only that explicit script to its host file; it never
+runs a container or script, searches unrelated mounted files or changes access.
+Credential, symlink, path, size and exact-current-request protections remain.
+
+This corrects a confirmed reference-recognition refusal before content scanning.
+A separately reported container execution `Permission denied` remains a runtime
+access issue; source review does not fix it or establish test success. Historical
+approval and source-reader failures remain diagnosable after a human resolves
+the original request, without replaying it or granting a standing permission.
+
 ## 1.19.0 — Preserve current turns and reserve amber for user action
 
 Amber tab frames now mean actual user action: a Coordinator referral/concern,

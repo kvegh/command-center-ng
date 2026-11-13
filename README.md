@@ -73,7 +73,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Keep loaded chat pages in native order across refreshes without the former silent 600-record trim; load earlier pages explicitly.
 - Review independent approval requests with up to two read-only analysts; the Coordinator remains the sole automated approver. See [review boundaries and timing](docs/usage.md#coordinator-approval-review).
 - Inspect safe playbooks, JSON, YAML, Markdown, Python and shell source through bounded read-only review tools, with secret protection and exact approval binding for outside-project files.
-  Explicit Python unittest references in supported read-only Podman mounts can
+  Explicit Python unittest modules or direct script paths in supported read-only Podman mounts can
   identify their host test file without running the test or the container.
 - Save the open-agent list when creating, opening, branching or closing tabs;
   restore the same conversations after restart and reconnect when Codex starts later.
@@ -309,7 +309,7 @@ node --test tests/approval-source.test.mjs tests/coordinator.test.mjs
 
 The tests use temporary synthetic files and isolated Coordinator requests, and
 exit nonzero on failure. They exercise both source-reading interfaces, supported
-formats, secret/Vault rejection and request/directory/hash checks. No protected
+formats, exact container-script mapping, secret/Vault rejection and request/directory/hash checks. No protected
 inputs, external service, live model turn or genuine approval answer is needed.
 To exercise the actual installed server modules, use the same source release
 as the installation. Development tests are not shipped inside the installation;

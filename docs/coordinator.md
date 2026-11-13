@@ -356,6 +356,12 @@ explicit module through the command's read-only host volume and container workin
 directory to its host file. It does not run the command, inspect a running
 container, expand shell expressions, infer arbitrary imports or allow unrelated
 files in the volume. Ambiguous or unsupported command forms remain refused.
+The same literal mapping supports direct absolute `.py` paths in that container
+working directory, with an ordinary Python entrypoint such as `/usr/bin/python3`
+and optional exact `--userns=keep-id`. Only the exact mapped host file is
+readable; another directory, mount or user-namespace mode is not inferred.
+Source recognition does not establish that the container can open or execute
+the file. Report a later execution permission error separately from inspection.
 The existing sensitive-path/content, symlink, size, source-hash and current-request
 checks still apply. A failed file-reference check is different from a credential
 content refusal; report the actual reader error rather than assuming its cause.
