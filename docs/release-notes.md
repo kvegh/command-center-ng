@@ -26,6 +26,14 @@ their explicit question presentation; historical Needed text alone does not
 establish a current question. Blocker clarification asks for the actual blocker
 and next step while preserving scope, draft and native-send guards.
 
+Installed on 2026-11-13 after the full backend suite passed 1,093 checks with no
+failures and one skip. Independent installed verification matched 113 source
+files, checked HTTPS/authentication/served assets and passed all 411 checks across
+25 affected suites. The installed matcher recognizes the exact original command
+metadata without reading or executing its test. The served build includes the new
+task-context controls; an actual browser click remains unverified. Nine protected
+files/metadata, eight workers and native runtime settings were preserved.
+
 ## 1.17.1 — Restore web sending and handle large update streams
 
 Browser-stream loss no longer appears as native Codex disconnection. Recovery

@@ -4058,3 +4058,17 @@ Focused source, Coordinator/reviewer integration and task UI checks pass, includ
 combined run passed in 3.812s; TypeScript and production build passed. These are
 development checks; publication, installation and live verification are recorded
 separately once completed. No actual native test approval was manufactured.
+
+The exact 1.18.0 payload `23044b7d17ed38458325266ccd544271cbd0ce95` was subsequently
+SSH-published and installed on 2026-11-13. The existing validation/update completed
+in 91.817s after the full backend suite passed 1,093 checks, zero failed and one
+was skipped in 63.444s. Nine protected files/metadata, eight saved workers,
+Coordinator/pause/report settings and the native runtime were preserved; only the
+existing application service restarted. Independent installed verification took
+15.874s: 113 source files matched, live HTTPS/authentication/assets/listeners/tracker
+checks passed and 411 checks across 25 suites passed in 9.938s. The installed
+reader recognizes the exact original native command metadata while the credential
+control remains blocked; no actual test source, container command or approval was
+executed. The served build includes recorded task context and Ask about blocker,
+and removes the obsolete empty-input placeholder. Actual user browser interaction
+with the revised popup remains unverified. The temporary harness was cleaned.
