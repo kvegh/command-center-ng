@@ -4116,3 +4116,31 @@ check and TypeScript/production build pass. Published source, installation and
 deployed checks are recorded separately when complete. The reasons for three
 unnamed current request cards remain pending their visible headings; no concern,
 approval answer or private source content was invented to explain them.
+
+Publication and deployment outcome: payload
+`19626ee5b40566434e7e4d276814162413833078` was independently confirmed at public
+main before installation. The existing application update succeeded in 85.276s
+(09:37:13.653579–09:38:38.929121 UTC), after the full backend suite passed 1,111
+checks with zero failures and one skip in 59.122s. Nine protected files/metadata,
+eight saved workers, Coordinator/pause/report settings and native runtime were
+preserved; only the existing application service restarted.
+
+Independent installed verification succeeded in 16.365s
+(09:39:15.018898–09:39:31.383489 UTC): 113 source files matched, live
+HTTPS/authentication/assets/listeners/tracker checks passed and 488 checks across
+30 installed suites passed in 11.125s. The served build contains the new
+task-attention label. No genuine native approval, model turn or user message was
+submitted. Actual user-browser colours and a naturally occurring post-update
+turn race remain unverified; synthetic cases establish only their tested scope.
+Final outcome documentation is newer than the installed payload.
+
+The user subsequently supplied the three card headings. Bounded native
+Coordinator snapshots matched both visualization commands and the container
+regression command: all three were unreviewed approvals with no review error,
+no recorded referral and zero requests needing the user. Two analyses had
+evidenced source-read activity and one was queued. Card presence alone was not
+a human decision; approval itself remained the main Coordinator's responsibility.
+A diagnostic quoting error failed before execution and was corrected before the
+successful read. No native request was answered, dismissed or replayed by this
+engineering worker. Later review decisions must be reported from their actual
+records rather than predicted from this checkpoint.
