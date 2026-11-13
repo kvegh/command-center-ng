@@ -3,23 +3,22 @@
 Updated: 2026-11-13. This is a development handover snapshot. Beads remains the
 task source of truth; do not use this file as a second backlog.
 
-Current published and installed release is **1.23.0**, implementation
-`6a570110bd9fef4e12183756f5263a1461125619`, installed payload
-`fcbffb8eda5160b8671a48d0edf2e2fc0356c027`. Both source readers explain content
-refusals with fixed categories while withholding matches and preserving all
-allow/block decisions. Full suite: 1,134 passed, zero failed, one skipped;
-installed modules: 517/517 checks across 32 suites passed. All 113 installed
-source files matched; actual HTTPS/authentication/assets/listeners/tracker and
-canonical CLI checks passed. Nine protected files and saved worker/native/
-Coordinator settings were preserved. Final outcome documentation is newer than
-the installed payload. The exact Windows source trigger remains unknown; its
-manual approval was not answered and its test was not executed here. Beads
-retains that investigation awaiting supported nonsecret diagnostic evidence.
+Current published and installed release is **1.24.0**, implementation
+`b2d678cbe9b33ce11271f3a3aba3c44fa8605cd7`, installed payload
+`72796593dd766dd4deb6216bf1e907b88c900dc9`. Engineering notices explain the
+first matching fixed withholding category while preserving every prior field
+redaction decision, scan boundary and token guard. Ordinary prose can match
+code-like text; this is not proof of code or credentials. Earlier source-reader
+refusal categories remain intact. Source-binding support and original manual
+asks are unchanged; original Windows tests were not executed here.
 
-Working **1.24.0** adds fixed withholding categories to engineering concern
-notices while preserving the exact redaction rules. Publication and installed
-verification are pending. The original inline-Python source-binding limit and
-manual approvals remain unchanged.
+Full suite: 1,137 passed, zero failed, one skipped. Installed modules: 520/520
+checks across 32 suites passed; all 113 source files matched. Actual HTTPS,
+authentication, assets, listeners, tracker and canonical CLI checks passed.
+Nine protected files and saved worker/native/Coordinator settings were preserved;
+only the existing CCNG service restarted. Final outcome documentation is newer
+than the installed payload. The exact older Windows content trigger and owner
+handoff remain held in Beads; this release does not resolve those original tasks.
 
 Older version and task statements below are historical checkpoints, superseded
 by current Beads records and the dated decision history.

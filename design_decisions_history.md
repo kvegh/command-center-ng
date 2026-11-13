@@ -33,6 +33,22 @@ Focused source/notice/Coordinator tests passed in 1.484s, the production build
 passed in 413ms, and independent review found no blocker. Publication and
 installed verification are recorded below only after their actual outcomes.
 
+Published payload `72796593dd766dd4deb6216bf1e907b88c900dc9` was independently
+confirmed at public main. The existing update succeeded at
+12:35:04.511378–12:36:29.536721 UTC (85.025s), after 1,137 full-suite checks
+passed with zero failures and one skip in 58.892s. Nine protected files/metadata,
+eight workers, native runtime and Coordinator/workspace settings were preserved;
+only the existing CCNG application service restarted.
+
+Installed verification succeeded at 12:36:58.983506–12:37:16.949307 UTC
+(17.966s): 113 source files matched, actual HTTPS/authentication/assets/listeners,
+tracker and canonical CLI checks passed, and 520/520 checks across 32 installed
+suites passed in 11.506s. These include fixed-category notice tests with complete
+withholding and no original approval answers. A future natural notice with the
+new category has not been manufactured or claimed as observed. The original
+inline-Python action remains separate; final outcome docs are newer than the
+installed payload.
+
 ## 2026-11-13 — Explain protected-content refusals without revealing matches (1.23.0)
 
 Implementation commit: `6a570110bd9fef4e12183756f5263a1461125619`.
