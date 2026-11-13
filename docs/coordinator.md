@@ -360,8 +360,12 @@ inference and a separate question store are not implemented.
 ## Approval-linked helper source
 
 Starting in 0.16.0, ccng_read_approval_source reads bounded ordinary helper source
-outside a worker's project only when the exact current command approval refers
-to it. Supply the worker ID, current reviewToken, source path and optional start
+outside a worker's startup project when the exact current command approval
+refers to it. The user additionally permits supported project source inside the
+current request's non-root native working directory on the same backend host,
+even if the chat was started elsewhere and the filename is constructed by the
+command. This does not evaluate that command or follow arbitrary dependencies.
+Supply the worker ID, current reviewToken, source path and optional start
 line. Follow nextStartLine to inspect more pages. Literal script paths and
 explicit Python imports with a visible search directory are supported. Read the
 direct helper's top-level statements and called functions; routinely following
@@ -389,15 +393,21 @@ sent merely by reading source; the coordinator may still need the user when
 a concrete concern about the action remains after reading its direct helper.
 For a specific approval, prefer ccng_read_approval_source with its current token.
 The existing ccng_read_project_file tool also reads an outside-project helper
-when one or more exact current command approvals directly reference it. The same
-helper-source checker and hash records apply; approvalBindings names every
-matching request and token. Review each action separately. Unrelated outside
-source stays refused. This lets older saved coordinators use their existing
+when one or more exact current command approvals directly reference it, or when
+it is supported project source inside their authorized native working directory.
+The same helper-source checker and hash records apply; approvalBindings names
+every matching request and token. Review each action separately. Unrelated source
+outside both project directories stays refused. This lets older saved coordinators use their existing
 reader without changing the registered native tool catalog or conversation.
 It resolves matching approval helpers before looking in the worker directory,
 so a stale worker cwd cannot cause ENOENT or select a same-named decoy. Matches
 from different approval directories are ambiguous: use the exact-token reader
-for each request. Ordinary project reads still use the worker's directory.
+for each request. Ordinary project reads still use the worker's directory. The
+request-project exception requires a still-current command request; resolved,
+responding or stale requests cannot grant directory access. Filesystem root is
+not an additional project root. Symlink, credential/Vault, supported-type, size,
+paging and changed-source protections remain; no tool catalog, native working
+directory, remote access or approval answer is changed.
 
 Python unittest commands can name a module, class and method instead of a `.py`
 filename. For the supported literal Podman command form, the reader maps that

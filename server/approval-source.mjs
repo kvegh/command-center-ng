@@ -174,10 +174,14 @@ function referencesPythonCommandSource(cwd, command, requested) {
   return /^[A-Za-z_]\w*$/.test(module) && targets.some(target => new RegExp(`^${escaped(module)}(?:\\.[A-Za-z_]\\w*){0,2}$`).test(target));
 }
 
-export function referencesApprovalSource(cwd, command, path) {
+export function referencesApprovalSource(cwd, command, path, { includeProjectDirectory = false } = {}) {
   const requested = resolve(cwd, path);
   if (!extensions.has(extname(requested))) return false;
   const relativePath = relative(cwd, requested);
+  // Callers enable this only after binding an exact current native request.
+  // A root cwd must never turn project-source access into a host-wide reader.
+  if (includeProjectDirectory && isAbsolute(cwd) && resolve(cwd) !== '/' && relativePath
+    && relativePath !== '..' && !relativePath.startsWith('../') && !isAbsolute(relativePath)) return true;
   const module = basename(requested, '.py');
   const pythonImport = extname(requested) === '.py' && /^[A-Za-z_]\w*$/.test(module) && new RegExp(`\\b(?:from\\s+${escaped(module)}\\s+import\\b|import\\s+${escaped(module)}\\b)`).test(command);
   const importDirectory = dirname(requested) === resolve(cwd) || (dirname(requested) !== '/' && mentions(command, dirname(requested)));
@@ -186,14 +190,14 @@ export function referencesApprovalSource(cwd, command, path) {
     || referencesPythonCommandSource(cwd, command, requested);
 }
 
-export async function inspectApprovalSource(cwd, command, path, startLine = 1) {
+export async function inspectApprovalSource(cwd, command, path, startLine = 1, options = {}) {
   if (typeof path !== 'string' || !path || path.length > 1000 || /[\x00-\x1f]/.test(path) || isSensitiveSourcePath(path)) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
   if (!Number.isInteger(startLine) || startLine < 1) throw fail('Choose a valid starting line.');
   const requested = resolve(cwd, path);
   if (isSensitiveSourcePath(requested)) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
   const file = await realpath(requested);
   if (file !== requested || !extensions.has(extname(file))) throw fail('Read a regular supported source file directly; symlinks and unsupported file types are not allowed.');
-  if (!referencesApprovalSource(cwd, command, path)) throw fail('This helper source is not referenced by the exact pending approval.');
+  if (!referencesApprovalSource(cwd, command, path, options)) throw fail('This helper source is not referenced by the exact pending approval.');
   const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const info = await handle.stat();

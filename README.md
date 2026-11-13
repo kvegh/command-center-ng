@@ -73,7 +73,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Keep loaded chat pages in native order across refreshes without the former silent 600-record trim; load earlier pages explicitly.
 - Review independent approval requests with up to two read-only analysts; the Coordinator remains the sole automated approver. See [review boundaries and timing](docs/usage.md#coordinator-approval-review).
 - Forward new Coordinator concerns to a designated engineering chat for proactive in-scope fixes, using the existing message queue while preserving every original approval. Withheld fields explain their fixed redaction category without revealing matches. See [concern review](docs/coordinator.md#engineering-review-of-recurring-concerns).
-- Inspect safe playbooks, JSON, YAML, Markdown, Python and shell source through bounded read-only review tools, with secret protection and exact approval binding for outside-project files.
+- Inspect safe playbooks, JSON, YAML, Markdown, Python and shell source through bounded read-only review tools, with secret protection and exact approval binding for source in a current request’s same-host project directory, even when the chat started elsewhere. Other outside-project helpers still require a direct command reference.
   Explicit Python unittest selectors or direct script paths in supported read-only Podman mounts can
   identify their host test file without running the test or the container.
   Multiple named tests retain exact file mapping; recognition does not approve container options or execute tests.

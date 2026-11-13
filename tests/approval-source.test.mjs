@@ -554,3 +554,50 @@ test('multi-selector container source inspection stays read-only, hashed, bounde
     await assert.rejects(readFile(marker), { code: 'ENOENT' });
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test('explicit current-request project scope permits unreferenced source only inside its non-root directory', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ccng-request-project-'));
+  try {
+    const cwd = join(root, 'project'), outside = join(root, 'project-other');
+    await mkdir(join(cwd, 'src'), { recursive: true }); await mkdir(outside);
+    const path = join(cwd, 'src', 'engine.py'), other = join(outside, 'engine.py'), marker = join(root, 'must-not-exist');
+    const body = `from pathlib import Path\nPath(${JSON.stringify(marker)}).write_text("must not run")\n`;
+    await writeFile(path, body); await writeFile(other, '# Outside the current project.\n');
+    const command = 'example-tool --check', options = { includeProjectDirectory: true };
+    assert.equal(referencesApprovalSource(cwd, command, path), false, 'standalone source binding remains strict by default');
+    await assert.rejects(inspectApprovalSource(cwd, command, path), /not referenced/);
+    for (const requested of [path, 'src/engine.py']) {
+      assert.equal(referencesApprovalSource(cwd, command, requested, options), true);
+      const source = await inspectApprovalSource(cwd, command, requested, 1, options);
+      assert.equal(source.path, path); assert.equal(source.text, body); assert.equal(source.workingDirectory, cwd);
+      assert.match(source.sha256, /^[a-f0-9]{64}$/); assert.match(source.commandSha256, /^[a-f0-9]{64}$/);
+    }
+    assert.equal(referencesApprovalSource(cwd, command, other, options), false, 'a directory-prefix neighbor is outside the project');
+    await assert.rejects(inspectApprovalSource(cwd, command, other, 1, options), /not referenced/);
+    assert.equal((await inspectApprovalSource(cwd, 'cat ' + other, other, 1, options)).path, other, 'the existing exact outside reference remains supported');
+    for (const cwd of ['/', '/tmp/..']) assert.equal(referencesApprovalSource(cwd, command, path, options), false, 'a root or root alias never grants project-wide host access');
+    await assert.rejects(readFile(marker), { code: 'ENOENT' });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('current-request project scope retains source type, symlink, path, content and size refusals', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ccng-request-project-guards-'));
+  try {
+    const options = { includeProjectDirectory: true }, command = 'example-tool --check';
+    for (const [name, body, error] of [
+      ['auth.py', '# Sensitive source name.\n', /hidden, credential and Vault paths/],
+      ['.private.py', '# Hidden source name.\n', /hidden, credential and Vault paths/],
+      ['example.py', 'password = "synthetic-private-value"\n', /credential-named literal assignment/],
+      ['example.yml', '$ANSIBLE_VAULT;1.1;AES256\nsynthetic-body\n', /Vault marker/],
+      ['example.py', 'x'.repeat(500001), /500000 bytes/],
+      ['example.ini', 'ordinary=true\n', /unsupported file types/],
+    ]) {
+      await writeFile(join(cwd, name), body);
+      await assert.rejects(inspectApprovalSource(cwd, command, name, 1, options), error);
+    }
+    await writeFile(join(cwd, 'actual.py'), '# Ordinary synthetic source.\n');
+    await symlink(join(cwd, 'actual.py'), join(cwd, 'linked.py'));
+    await assert.rejects(inspectApprovalSource(cwd, command, 'linked.py', 1, options), /symlinks/);
+    await assert.rejects(inspectApprovalSource(cwd, command, './actual.py', 1, options), /hidden, credential and Vault paths/);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});

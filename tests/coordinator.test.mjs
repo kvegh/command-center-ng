@@ -1795,8 +1795,8 @@ test('both source tools inspect referenced playbooks and documents without resol
       await assert.rejects(f.call('ccng_read_approval_source', { ...args, reviewToken: 'stale-token' }), /exact current command/);
     }
     const unreferenced = join(outside, 'unrelated.md'); await writeFile(unreferenced, '# Not in this action\n');
-    await assert.rejects(f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path: unreferenced }), /not referenced/);
-    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: unreferenced }), /inside this worker directory or a helper/);
+    assert.equal((await f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path: unreferenced })).text, '# Not in this action\n', 'the exact native project is readable without a literal command reference');
+    assert.deepEqual((await f.call('ccng_read_project_file', { agentId: 'worker', path: unreferenced })).approvalBindings, [{ requestId: question.id, reviewToken: question.reviewToken }]);
     assert.equal(f.rpc.calls.length, before); assert.equal(f.rpc.replies.length, 0);
     assert.equal(question.review, undefined); assert.equal(f.workspace.agent('worker').questions.length, 1);
     await writeFile(join(outside, 'build.json'), '{"image":"registry.example.invalid/demo:changed","push":false}\n');
@@ -1929,8 +1929,8 @@ test('both helper readers resolve subprocess source against the approval directo
       }
     }
     const unrelated = join(approvalCwd, 'unrelated.py'); await writeFile(unrelated, 'print("unrelated source")\n');
-    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: unrelated }), /inside this worker directory or a helper/);
-    await assert.rejects(f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path: unrelated }), /not referenced/);
+    assert.equal((await f.call('ccng_read_project_file', { agentId: 'worker', path: unrelated })).text, 'print("unrelated source")\n');
+    assert.equal((await f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path: unrelated })).path, unrelated);
     assert.equal(f.rpc.calls.length, before); assert.equal(f.rpc.replies.length, 0); assert.equal(question.review, undefined);
   } finally { await f.close(); await rm(approvalCwd, { recursive: true, force: true }); }
 });
@@ -1952,6 +1952,96 @@ test('a changed approval directory invalidates inspected evidence even when an a
     assert.equal(reread.workingDirectory, second); assert.equal(reread.sha256, source.sha256);
     assert.equal(f.coordinator.approvalSources.get(question.reviewToken).get(path).workingDirectory, second);
   } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
+});
+
+test('an exact current native project permits unreferenced source across startup directories with bound hash evidence', async () => {
+  const f = await fixture(), project = await mkdtemp(join(tmpdir(), 'ccng-native-project-'));
+  const elsewhere = await mkdtemp(join(tmpdir(), 'ccng-native-project-other-'));
+  try {
+    await mkdir(join(project, 'src'));
+    const path = join(project, 'src', 'engine.py'), marker = join(project, 'must-not-exist');
+    const body = `from pathlib import Path\nPath(${JSON.stringify(marker)}).write_text("must not run")\n`;
+    await writeFile(path, body);
+    await mkdir(join(f.cwd, 'src')); await writeFile(join(f.cwd, 'src', 'engine.py'), '# Startup directory decoy.\n');
+    f.rpc.ask('native-project-action', 'worker'); const worker = f.workspace.agent('worker'), question = worker.questions[0];
+    question.params.cwd = project; question.params.command = 'python3 - <<\'PY\'\nfrom integration import run\nrun()\nPY';
+    const before = f.rpc.calls.length, args = { agentId: 'worker', reviewToken: question.reviewToken, path: 'src/engine.py' };
+    const exact = await f.call('ccng_read_approval_source', args);
+    const generic = await f.call('ccng_read_project_file', { agentId: 'worker', path: args.path });
+    assert.equal(exact.text, body); assert.equal(generic.text, body); assert.equal(exact.path, path);
+    assert.equal(exact.workingDirectory, project); assert.equal(exact.sha256, generic.sha256);
+    assert.deepEqual(generic.approvalBindings, [{ requestId: question.id, reviewToken: question.reviewToken }]);
+    assert.equal(f.coordinator.approvalSources.get(question.reviewToken).get(path).sha256, exact.sha256);
+    assert.equal(worker.cwd, f.cwd); assert.equal(worker.thread.cwd, f.cwd, 'reading does not change the native startup directory');
+    await assert.rejects(readFile(marker), { code: 'ENOENT' });
+    const other = join(elsewhere, 'engine.py'); await writeFile(other, '# Unreferenced outside source.\n');
+    await assert.rejects(f.call('ccng_read_approval_source', { ...args, path: other }), /not referenced/);
+    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: other }), /inside this worker directory or a helper/);
+    await assert.rejects(f.call('ccng_read_approval_source', { ...args, reviewToken: 'stale-token' }), /exact current command/);
+    await writeFile(path, '# Changed native project source.\n');
+    const review = historyReview(question, 'user-worker', 'Create and clean up disposable test resources.');
+    await assert.rejects(f.call('ccng_review_approval', review), /source or the command changed/);
+    assert.equal(f.rpc.calls.length, before); assert.equal(f.rpc.replies.length, 0);
+    question.responding = true;
+    await assert.rejects(f.call('ccng_read_approval_source', args), /exact current command/);
+    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path }), /inside this worker directory or a helper/);
+    question.responding = false;
+    f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: worker.id, requestId: question.id } });
+    await assert.rejects(f.call('ccng_read_approval_source', args), /exact current command/);
+    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path }), /inside this worker directory or a helper/);
+  } finally { await f.close(); await rm(project, { recursive: true, force: true }); await rm(elsewhere, { recursive: true, force: true }); }
+});
+
+test('native-project source reads reject a request changed before their final current-request check', async () => {
+  for (const change of ['cwd', 'command', 'token', 'responding', 'resolved']) {
+    const f = await fixture(), project = await mkdtemp(join(tmpdir(), 'ccng-native-project-race-'));
+    try {
+      const path = join(project, 'engine.py'); await writeFile(path, '# Synthetic unreferenced project source.\n');
+      f.rpc.ask('native-project-race', 'worker'); const worker = f.workspace.agent('worker'), question = worker.questions[0];
+      question.params.cwd = project;
+      const args = { agentId: 'worker', reviewToken: question.reviewToken, path };
+      const current = f.coordinator.requestCurrent.bind(f.coordinator);
+      f.coordinator.requestCurrent = (...arguments_) => {
+        if (change === 'cwd') question.params.cwd = f.cwd;
+        if (change === 'command') question.params.command += ' --changed';
+        if (change === 'token') question.reviewToken += '-changed';
+        if (change === 'responding') question.responding = true;
+        if (change === 'resolved') worker.questions = [];
+        return current(...arguments_);
+      };
+      await assert.rejects(f.call('ccng_read_approval_source', args), /changed or resolved during inspection/, change);
+      assert.equal(f.coordinator.approvalSources.size, 0, change);
+      assert.equal(f.rpc.replies.length, 0, change);
+    } finally { await f.close(); await rm(project, { recursive: true, force: true }); }
+  }
+});
+
+test('cross-directory native projects retain root-alias, sensitive, symlink and credential protections', async () => {
+  const f = await fixture(), project = await mkdtemp(join(tmpdir(), 'ccng-native-project-guards-'));
+  try {
+    f.rpc.ask('native-project-guards', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    question.params.cwd = project;
+    const args = { agentId: 'worker', reviewToken: question.reviewToken };
+    for (const [name, body, error] of [
+      ['engine.py', 'password = "synthetic-private-value"\n', /credential-named literal assignment/],
+      ['auth.py', '# Sensitive file.\n', /sensitive|credential/],
+      ['engine.yml', '$ANSIBLE_VAULT;1.1;AES256\nsynthetic-body\n', /Vault marker/],
+    ]) {
+      const path = join(project, name); await writeFile(path, body);
+      await assert.rejects(f.call('ccng_read_approval_source', { ...args, path }), error);
+      await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path }), error);
+    }
+    const actual = join(project, 'actual.py'), linked = join(project, 'linked.py');
+    await writeFile(actual, '# Synthetic ordinary source.\n'); await symlink(actual, linked);
+    await assert.rejects(f.call('ccng_read_approval_source', { ...args, path: linked }), /symlinks/);
+    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: linked }), /symlinks/);
+    for (const cwd of ['/', '/tmp/..']) {
+      question.params.cwd = cwd;
+      await assert.rejects(f.call('ccng_read_approval_source', { ...args, path: actual }), /not referenced/);
+      await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: actual }), /inside this worker directory or a helper/);
+    }
+    assert.equal(f.coordinator.approvalSources.size, 0); assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); await rm(project, { recursive: true, force: true }); }
 });
 
 test('omitted and null approval directories retain worker-directory helper inspection without resolving requests', async () => {
@@ -2001,7 +2091,7 @@ test('relative helper reads refuse different approval directories with identical
       assert.equal(source.text, 'print("identical helper bytes")\n');
     }
     await writeFile(join(f.cwd, 'README.md'), '# Ordinary worker project\n');
-    const ordinary = await f.call('ccng_read_project_file', { agentId: 'worker', path: 'README.md' });
+    const ordinary = await f.call('ccng_read_project_file', { agentId: 'worker', path: join(f.cwd, 'README.md') });
     assert.equal(ordinary.text, '# Ordinary worker project\n'); assert.equal(ordinary.approvalBindings, undefined);
     assert.equal(f.rpc.replies.length, 0); assert.equal(questions.length, 2);
   } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
