@@ -33,7 +33,21 @@ in 5.059s and TypeScript/production build passed (Vite 356ms). The built assets
 contain both labels, finite fade and reduced-motion rules. README includes the
 repeatable installed-component check and its limits. Real-browser rendering,
 keyboard use and animation appearance remain unverified; no browser was installed.
-Publication and installed acceptance follow when their outcomes are known.
+Published payload `250a18e492fe06cbafd1b004aed0d68806672355` was independently
+confirmed at public main. Ad hoc job 3910 — Validate full suite and update
+existing CCNG 1.26.0 succeeded in 88.038s
+(14:20:15.196983–14:21:43.235236 UTC), after 1,150 passes, zero failures and one
+skip in 61.780s. Nine protected files, eight saved workers, native runtime and
+Coordinator/pause/report settings were preserved.
+
+Ad hoc job 3911 — Verify installed CCNG 1.26.0 succeeded in 19.933s
+(14:22:02.126738–14:22:22.059838 UTC): 114 source files matched, actual HTTPS/
+authentication/assets/listeners/tracker/CLI checks passed, and 533 checks across
+33 suites imported installed modules and passed in 12.519s. Served JavaScript
+and CSS include both status labels, the finite three-cycle fade and reduced-motion
+rules. No real approval or model turn was created or answered. This verifies the
+installed component and served release; real-browser appearance and interaction
+remain unverified. Final outcome docs are newer than the installed payload.
 
 ## 2026-11-13 — Count backpressure writes relative to a legitimate baseline (1.25.1)
 
