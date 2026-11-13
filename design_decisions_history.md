@@ -4144,3 +4144,37 @@ A diagnostic quoting error failed before execution and was corrected before the
 successful read. No native request was answered, dismissed or replayed by this
 engineering worker. Later review decisions must be reported from their actual
 records rather than predicted from this checkpoint.
+
+## 2026-11-13 — Recognize literal direct container Python scripts
+
+Implementation `d160e17f96babb2452264a9b5a74d491e91671ed` is version 1.20.0.
+After the earlier module-form fix, a new pending test command used a direct
+absolute container script, an absolute Python entrypoint and `--userns=keep-id`.
+All three forms were independently outside the narrow reader grammar. The
+recorded project-reader refusal occurred before credential content scanning.
+Normalizing only some forms still failed; the earlier supported module form
+passed only when all three differences were normalized. This reproduced the
+recognition gap using historical command metadata without opening the external
+test or running its command.
+
+The existing literal parser now accepts the exact keep-id option once and the
+existing ordinary Python executable grammar for entrypoints. A direct normalized
+absolute `.py` path must be in the already validated container workdir and map
+through the sole explicit read-only volume to exactly the requested host file.
+Other namespace modes, shadowing/ambiguous mounts, traversal, shell expressions,
+unrelated files and existing secret/path/symlink/size restrictions remain refused.
+No permission, component, dependency, shell execution or automatic approval was
+added; original pending asks remain authoritative.
+
+Three added synthetic cases exercise exact mapping and exclusions, fresh source
+and command hashes, protected contents and a marker proving source was not
+executed. Independent implementation review found no blocker. The source-reader
+and Coordinator suites pass, and TypeScript/production build passes. Publication,
+installation and deployed verification are recorded separately when complete.
+
+The user approved the original test while diagnosis continued. Its later
+execution failed with file access denied, independently of CCNG source review;
+the old sidebar wording described a missing file and awaiting review inaccurately.
+The failure and resolved approval were reported from native history rather than
+assuming the file was absent, permission was granted or the test passed. Container
+runtime changes belong to the owning worker; this fix does not alter its access.
