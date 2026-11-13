@@ -3967,3 +3967,15 @@ code-payload mismatch and a test selector that matched the wrong conditional;
 behavior assertions were preserved. Backend full-suite, installation and live
 stream observation are pending at this source checkpoint. This is focused
 application verification, not formal Ansible/AAP acceptance.
+
+### 1.17.1 pre-install test correction
+
+Patch `34089af2039f6e4cc374f2c2df776ee7e0891b90` retains the 1.17.0 application behavior and
+corrects one obsolete source-text assertion requiring the former session-guard
+spelling. The guard now also validates authentication generation; its actual
+behavior is covered by seventeen effect tests, including stale-login callbacks.
+Removing that redundant spelling check preserves the existing behavioral cases
+and all other login assertions; independent review agreed. The first backend
+suite passed 1,084 checks with one such failure and one skip, so installation
+never started. Corrected login tests passed 12/12 and effect tests 17/17; the
+1.17.1 production build passed. Full-backend and installed verification follow.
