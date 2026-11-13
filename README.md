@@ -56,6 +56,12 @@ states are historical. EXIF metadata was removed without changing image pixels.
   and retry ordinary input once when safe; uncertain deliveries are not repeated.
 - See received native requests and matching file-change details automatically, including verified Codex child requests in their parent chat. Distinguish requests needing your answer from native waits with unavailable details.
 - See native approval creation times and selected-tab attention highlights. See [request time and attention](docs/usage.md#request-time-and-attention).
+  The Coordinator tab has two rows: its name above and green **Evaluating…**
+  below during active approval review. A newly raised concern shows amber
+  **Concerned.**, softly fades in and out three times over nine seconds, then
+  clears. Reduced motion shows the text without animation for the same period.
+  Refresh/reconnect does not replay old concerns; pending question cards remain
+  available after the temporary indicator disappears.
   Amber marks actual user action: a concern or referral, a decision question or
   specific input. Configured Coordinator review and confirmation waits stay neutral.
 - Attempt automatic reconnection of eligible active Codex waits with missing request details, without answering approvals. A delivered file approval missing its proposal can receive one guarded live snapshot after bounded history lookup.
@@ -345,3 +351,36 @@ stage the existing tests temporarily and link their server imports to it:
 The temporary files are removed on exit; the installation remains unchanged.
 Passing these tests does not establish a native client's current tool exposure
 or resolve a pending human decision. See the [source-reader limits](docs/usage.md#coordinator-approval-review).
+
+### Verify Coordinator tab indicators
+
+Run `node --test tests/coordinator-tab-status.test.mjs` from the source checkout
+with its existing development dependencies. It exits nonzero if current review
+detection, concern baselines, rendered labels, theme colors or finite fade rules
+regress. It uses synthetic requests and needs no protected inputs or live model.
+
+To check the installed component, use a source checkout at the same release and
+an absolute installation path. This reuses the versioned tests without changing
+the service or any real approval:
+
+```sh
+(
+  set -eu
+  CCNG_TAB_INSTALL="/absolute/path/to/installation"
+  test -f "$CCNG_TAB_INSTALL/src/coordinator-tab-status.tsx"
+  CCNG_TAB_TEST_DIR=$(mktemp -d)
+  trap 'rm -rf -- "$CCNG_TAB_TEST_DIR"' EXIT
+  mkdir "$CCNG_TAB_TEST_DIR/tests"
+  cp tests/coordinator-tab-status.test.mjs "$CCNG_TAB_TEST_DIR/tests/"
+  ln -s "$CCNG_TAB_INSTALL/server" "$CCNG_TAB_TEST_DIR/server"
+  ln -s "$CCNG_TAB_INSTALL/src" "$CCNG_TAB_TEST_DIR/src"
+  ln -s "$PWD/node_modules" "$CCNG_TAB_TEST_DIR/node_modules"
+  node --test "$CCNG_TAB_TEST_DIR/tests/coordinator-tab-status.test.mjs"
+)
+```
+
+These are installed-component checks, not browser interaction tests. Actual
+layout, keyboard interaction and fade appearance still require a browser against
+the deployed UI; [expected behavior](docs/usage.md#coordinator-approval-review)
+describes the states. Do not create or answer a genuine approval just to test
+an indicator.

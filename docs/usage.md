@@ -183,6 +183,26 @@ shows each question. Opening a card does not answer or dismiss it.
 
 ### Coordinator approval review
 
+The Coordinator tab is twice the normal tab height, with its name in the upper
+half. Its lower half shows green **Evaluating…** while the main Coordinator or a
+current, active analyst reviews an eligible request. It clears once that review
+settles; another active review can keep it visible. Queued or superseded analyst
+runs do not count as active evaluation.
+
+A new Coordinator concern shows amber **Concerned.** with three gentle fade
+cycles over nine seconds, then disappears. With reduced motion enabled it stays
+static for nine seconds instead. Existing concerns are not replayed after a
+refresh, restoration or reconnection. This temporary notice does not dismiss an
+approval card or change the worker's attention state. Existing cards retain the
+actual decision, reason and answer controls.
+
+Regression checks: `node --test tests/coordinator-tab-status.test.mjs` exercises
+current review detection, restored audit baselines, rendered indicator markup,
+all-theme color precedence, layout rules and reduced-motion cleanup. It uses
+synthetic state and makes no native request. `npm run build` checks TypeScript
+and production assets. These checks do not establish real-browser geometry or
+animation appearance; verify those visually against the deployed UI.
+
 CCNG supports up to two internal read-only approval analysts working
 on independent current requests. They use the same review policy as the main
 Coordinator and can read only the context and source bound to their assigned
