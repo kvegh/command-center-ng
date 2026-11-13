@@ -4257,3 +4257,36 @@ CLI/environment override were verified. No real approval/model turn, historical
 concern replay or test notification was created. Natural concern receipt and a
 resulting proactive repair remain observational acceptance, not fixture claims.
 Final outcome documentation is newer than the installed payload.
+
+## 2026-11-13 — Fix the first genuine routed source-review concern
+
+Implementation `d620a7764977ee8f652f897e9164dcb49bf07f8d` is version 1.22.0.
+A genuine Coordinator concern about two offline Windows regression tests reached
+the configured engineering chat. Bounded native history independently verified
+the originating main ask and actual engineering receipt while the original
+request remained pending. This supersedes the earlier natural-delivery gap;
+receipt itself was not treated as proof of diagnosis or repair.
+
+The exact recorded project-reader refusal occurred before credential scanning:
+the literal command added a numeric container user, a read-only SELinux-label
+mount option and two explicit unittest selectors. Normalizing only some forms
+still failed; normalizing all three made the old matcher recognize the module.
+This used command metadata only, without opening the refused source or running
+the command. The original held credential-content issue was not reopened.
+
+The existing literal parser now accepts one numeric UID:GID, exact `ro,Z` or
+`ro,z` alongside `ro`, and multiple validated explicit selectors. Only an
+actually named module in the validated workdir maps to its host `.py` source;
+package/dependency discovery, unknown selectors/options, ambiguous/writable
+mounts and unrelated files remain excluded. Existing request, cwd, hash, secret,
+symlink and size checks remain. Relabel options can change host metadata if a
+command executes; recognizing their source reference does not authorize that
+effect, change permissions, execute Podman or answer an approval.
+
+Independent implementation and read-only review found no remaining blocker.
+Twenty-two source-reader cases passed; root's source-reader/Coordinator/concern
+three-file check passed in 1.993s and TypeScript/production build in 466ms.
+Generic multi-module and negative mapping/no-execution cases preserve the direct
+reference boundary. The captured actual command is now recognized, without
+reading its original source. Published source and installed checks follow below
+when verified; this repair does not establish Windows regression success.
