@@ -11,6 +11,8 @@ import { parseRuntimeConfig, readRuntimeConfig, runtimeConfigFile, normalizeConc
 import { loadRuntimeOptions, createApp } from '../server/main.mjs';
 import { setPassword } from '../server/auth.mjs';
 import { Workspace } from '../server/workspace.mjs';
+import { BeadsTasks } from '../server/beads.mjs';
+import { ClaudeSessions } from '../server/claude.mjs';
 
 async function fixture(t) {
   const appDir = await mkdtemp(join(tmpdir(), 'ccng-runtime-config-'));
@@ -39,6 +41,23 @@ test('literal certificate paths resolve against the config directory and preserv
   assert.equal(options['tls-key'], '/example/private keys/server.key');
   assert.equal(options.host, '192.0.2.15'); assert.equal(options.port, '4545');
   assert.equal(options['public-origin'], 'https://command-center.example');
+});
+
+test('approval policy uses the optional installed path or an explicitly selected literal config-relative path', async t => {
+  const f = await fixture(t);
+  let options = await loadRuntimeOptions([], {}, { appDir: f.appDir });
+  assert.equal(options.approvalPolicyFile, join(f.appDir, 'etc', 'approval-policy.yml'));
+  assert.equal(options.approvalPolicyConfigured, false);
+  await f.write('approval_policy: policies/local #1.yml\n');
+  options = await loadRuntimeOptions([], {}, { appDir: f.appDir });
+  assert.equal(options.approvalPolicyFile, join(f.appDir, 'etc', 'policies', 'local #1.yml'));
+  assert.equal(options.approvalPolicyConfigured, true);
+  await f.write('approval_policy: /example/private/policy.yml\n');
+  assert.equal((await loadRuntimeOptions([], {}, { appDir: f.appDir })).approvalPolicyFile, '/example/private/policy.yml');
+  await f.write('approval_policy: ~/private-policy.yml\n');
+  await assert.rejects(loadRuntimeOptions([], {}, { appDir: f.appDir }), /~ is not expanded/);
+  await f.write('approval_policy: first.yml\napproval_policy: second.yml\n');
+  await assert.rejects(loadRuntimeOptions([], {}, { appDir: f.appDir }), /duplicate setting/);
 });
 
 test('existing explicit environment and CLI settings override installed file values', async t => {
@@ -127,6 +146,37 @@ test('app settings normalize concern routing and explicit values alone update a 
   }
   assert.deepEqual(updates, ['worker-review', null, null], 'omission preserves an existing Coordinator setting while explicit disable clears it');
   await assert.rejects(createApp({ authFile: join(f.appDir, 'missing-auth.json'), config: { concernReviewWorkerId: 'worker/name' } }), /concern_review_worker/);
+});
+
+test('fresh app startup gives the Coordinator its selected policy without starting or approving native work', async t => {
+  const f = await fixture(t), authFile = join(f.appDir, 'auth.json');
+  await setPassword(randomBytes(24).toString('base64url'), authFile);
+  t.mock.method(BeadsTasks.prototype, 'checkAvailable', async () => {});
+  t.mock.method(ClaudeSessions.prototype, 'initialize', async () => false);
+  const warnings = [];
+  t.mock.method(console, 'warn', message => warnings.push(message));
+  const policy = join(f.appDir, 'policy.yml');
+  for (const [index, text, expected] of [
+    [0, null, { sourceReading: 'restricted', approvalEnabled: true }],
+    [1, 'version: 1\nsource_reading: all\napproval_instructions: |\n  Respect the authorized project boundaries.\n', { sourceReading: 'all', approvalEnabled: true }],
+    [2, 'source_reading: all\nCANARY: private-value\n', { sourceReading: 'restricted', approvalEnabled: false }],
+  ]) {
+    if (text !== null) await writeFile(policy, text, { mode: 0o600 });
+    const rpc = new EventEmitter(); rpc.ready = false; rpc.close = () => {};
+    rpc.call = async () => assert.fail('Policy startup must not run native work.');
+    rpc.respond = () => assert.fail('Policy startup must not answer native requests.');
+    const app = await createApp({ rpc, authFile, workspaceFile: join(f.appDir, `workspace-${index}.json`),
+      config: { cwd: f.appDir, approvalPolicyFile: text === null ? join(f.appDir, 'missing.yml') : policy, approvalPolicyConfigured: text !== null } });
+    try {
+      const actual = app.workspace.coordinator.approvalPolicy;
+      assert.equal(actual.sourceReading, expected.sourceReading);
+      assert.equal(actual.approvalEnabled, expected.approvalEnabled);
+      assert.equal(app.workspace.agents.size, 0);
+    } finally { await app.close(); }
+  }
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /Automatic approvals are disabled/);
+  assert.doesNotMatch(warnings[0], /CANARY|private-value/);
 });
 
 test('malformed unknown duplicate and invalid settings fail safely rather than being evaluated or ignored', async t => {

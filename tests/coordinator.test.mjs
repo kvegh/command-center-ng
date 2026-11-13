@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Workspace } from '../server/workspace.mjs';
 import { COORDINATOR_TOOLS } from '../server/coordinator.mjs';
+import { DEFAULT_APPROVAL_POLICY } from '../server/approval-policy.mjs';
+const allReadingPolicy = { ...DEFAULT_APPROVAL_POLICY, sourceReading: 'all', instructions: 'Inspect all local text for this authorized deployment; preserve native permissions.' };
 import { DecisionStore, approvalRequestFingerprint } from '../server/decision-store.mjs';
 import { COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUIDANCE, COORDINATOR_DECISION_GUIDANCE, COORDINATOR_RATIONALE_GUIDANCE, COORDINATOR_SOURCE_GUIDANCE } from '../server/coordinator-prompt.mjs';
 
@@ -146,7 +148,7 @@ test('coordinator tools read only watched workers and bounded source, and publis
     await writeFile(join(f.cwd, 'logic.py'), 'print("synthetic source")\n');
     assert.match((await f.call('ccng_read_project_file', { agentId: 'worker', path: 'logic.py' })).text, /synthetic source/);
     await symlink('/etc/passwd', join(f.cwd, 'escape.py'));
-    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: 'escape.py' }), /inside this worker/);
+    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: 'escape.py' }), /inside this worker|symlinks/);
     for (const path of ['../outside.py', '.env', 'credentials.py', 'vault.yml']) await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path }), /sensitive paths/);
     const progress = { agentId: 'worker', summary: 'Testing the resource lifecycle.', nextStep: 'Verify cleanup.', blocker: '' };
     await f.call('ccng_publish_progress', progress); assert.equal(f.workspace.agent('worker').progress.summary, progress.summary);
@@ -1826,7 +1828,7 @@ test('Ansible at-file inputs use exact-token and legacy readers in their current
   } finally { await f.close(); await rm(approvalCwd, { recursive: true, force: true }); }
 });
 
-test('project document reads allow safe formats while retaining credential and disguised Vault rejection', async () => {
+test('default project document reads allow safe formats while retaining Vault and credential protections', async () => {
   const f = await fixture();
   try {
     const safe = [
@@ -1846,13 +1848,15 @@ test('project document reads allow safe formats while retaining credential and d
       assert.equal((await f.call('ccng_read_project_file', { agentId: 'worker', path })).text, body, path);
     }
     for (const [path, body] of [
+      ['build.md', '$ANSIBLE_VAULT;1.1;AES256\nnot-real-ciphertext\n'],
+      ['build.js', 'assert(output.includes("$ANSIBLE_VAULT;")); // !vault fixture\n'],
       ['build.json', '{"password":"synthetic-private-value"}\n'],
       ['build.json', '{"password":1234}\n'],
       ['build.json', '{"pass\\u0077ord":"synthetic-private-value"}\n'],
       ['build.yml', 'registry_password: synthetic-private-value\n'],
       ['build.yml', 'password: 1234\n'],
       ['build.yml', 'password: "{{ prefix }}synthetic-private-value{{ suffix }}"\n'],
-      ['build.md', '$ANSIBLE_VAULT;1.1;AES256\nnot-real-ciphertext\n'],
+      ['build.md', '$ANSIBLE_VAULT;1.1;AES256\nghp_synthetic_marker_example_not_real\n'],
     ]) {
       await writeFile(join(f.cwd, path), body);
       await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path }), /credential|Vault|private/i, path);
@@ -2025,7 +2029,7 @@ test('cross-directory native projects retain root-alias, sensitive, symlink and 
     for (const [name, body, error] of [
       ['engine.py', 'password = "synthetic-private-value"\n', /credential-named literal assignment/],
       ['auth.py', '# Sensitive file.\n', /sensitive|credential/],
-      ['engine.yml', '$ANSIBLE_VAULT;1.1;AES256\nsynthetic-body\n', /Vault marker/],
+      ['engine.yml', '$ANSIBLE_VAULT;1.1;AES256\npassword: synthetic-private-value\n', /Vault marker/],
     ]) {
       const path = join(project, name); await writeFile(path, body);
       await assert.rejects(f.call('ccng_read_approval_source', { ...args, path }), error);
@@ -2042,6 +2046,36 @@ test('cross-directory native projects retain root-alias, sensitive, symlink and 
     }
     assert.equal(f.coordinator.approvalSources.size, 0); assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); await rm(project, { recursive: true, force: true }); }
+});
+
+test('current-project Vault-marker source uses both bound readers and the same final hash check without decrypting or answering', async () => {
+  const f = await fixture({ approvalPolicy: allReadingPolicy }), project = await mkdtemp(join(tmpdir(), 'ccng-marked-project-'));
+  const outside = await mkdtemp(join(tmpdir(), 'ccng-marked-outside-'));
+  try {
+    const path = join(project, 'engine.py'), body = 'assert "!vault" in rendered\n# $ANSIBLE_VAULT;1.1;AES256\n';
+    await writeFile(path, body);
+    f.rpc.ask('marked-project-action', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    question.params.cwd = project;
+    const args = { agentId: 'worker', reviewToken: question.reviewToken, path };
+    const before = f.rpc.calls.length;
+    const exact = await f.call('ccng_read_approval_source', args);
+    const generic = await f.call('ccng_read_project_file', { agentId: 'worker', path });
+    assert.equal(exact.text, body); assert.equal(generic.text, body); assert.equal(exact.sha256, generic.sha256);
+    assert.deepEqual(generic.approvalBindings, [{ requestId: question.id, reviewToken: question.reviewToken }]);
+    await assert.rejects(f.call('ccng_read_approval_source', { ...args, reviewToken: 'stale-token' }), /exact current command/);
+    const unrelated = join(outside, 'engine.py'); await writeFile(unrelated, body);
+    assert.equal((await f.call('ccng_read_approval_source', { ...args, path: unrelated })).text, body);
+    assert.equal((await f.call('ccng_read_project_file', { agentId: 'worker', path: unrelated })).text, body);
+    await writeFile(path, body + '# Changed source remains Vault-marked.\n');
+    await assert.rejects(f.call('ccng_review_approval', historyReview(question, 'user-worker', 'Create and clean up disposable test resources.')), /source or the command changed/);
+    await writeFile(path, '$ANSIBLE_VAULT;\npassword = "synthetic-private-value"\n');
+    assert.match((await f.call('ccng_read_approval_source', args)).text, /synthetic-private-value/);
+    assert.match((await f.call('ccng_read_project_file', { agentId: 'worker', path })).text, /synthetic-private-value/);
+    await writeFile(path, '{"value":"\\u0024ANSIBLE_VAULT;","nested":[{"pass\\u0077ord":"synthetic-private-value"}]}');
+    const jsonPath = join(project, 'engine.json'); await writeFile(jsonPath, await readFile(path));
+    assert.match((await f.call('ccng_read_approval_source', { ...args, path: jsonPath })).text, /synthetic-private-value/);
+    assert.equal(f.rpc.calls.length, before); assert.equal(f.rpc.replies.length, 0); assert.equal(question.review, undefined);
+  } finally { await f.close(); await rm(project, { recursive: true, force: true }); await rm(outside, { recursive: true, force: true }); }
 });
 
 test('omitted and null approval directories retain worker-directory helper inspection without resolving requests', async () => {
@@ -2333,5 +2367,36 @@ test('coordinator counts nested Codex and Claude questions separately from manua
     assert.equal(row.requestSummary.clarificationQuestions, 3); assert.equal(row.requestSummary.otherRequests, 1);
     await assert.rejects(f.call('ccng_review_approval', { agentId: 'worker', reviewToken: 'tool-three', decision: 'approve', rationale: 'Visible tool call.' }), /cannot answer user preferences or broad permission/);
     assert.equal(f.rpc.replies.length, 0); assert.equal(f.workspace.agent('worker').questions.length, 3);
+  } finally { await f.close(); }
+});
+
+
+test('private all-reading policy reaches main and analysts and permits ordinary sensitive outside text without executing it', async () => {
+  const f = await fixture({ approvalPolicy: allReadingPolicy, approvalReviewers: true });
+  const outside = await mkdtemp(join(tmpdir(), 'ccng-policy-secret-'));
+  try {
+    const path = join(outside, '.vault-credentials.conf');
+    const body = '$ANSIBLE_VAULT;1.1;AES256\npassword: synthetic-example-value\n';
+    await writeFile(path, body);
+    const start = f.rpc.calls.find(call => call.method === 'thread/start').params;
+    assert.ok(start.developerInstructions.endsWith(f.coordinator.policyGuidance));
+    assert.ok(f.coordinator.reviewers.instructions.endsWith(f.coordinator.policyGuidance));
+    assert.match(f.coordinator.policyGuidance, /supersedes earlier/);
+    const before = f.rpc.calls.length;
+    assert.equal((await f.call('ccng_read_project_file', { agentId: 'worker', path })).text, body);
+    assert.equal(f.rpc.calls.length, before); assert.equal(f.rpc.replies.length, 0);
+    assert.equal(f.coordinator.snapshot().approvalPolicy.sourceReading, 'all');
+  } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
+});
+
+test('invalid configured policy exposes a fixed error and refuses automated approval without answering the request', async () => {
+  const error = 'Approval policy is unavailable or invalid.';
+  const f = await fixture({ approvalPolicy: { ...DEFAULT_APPROVAL_POLICY, approvalEnabled: false, error } });
+  try {
+    f.rpc.ask('invalid-policy-action', 'worker');
+    const question = f.workspace.agent('worker').questions[0];
+    await assert.rejects(f.call('ccng_review_approval', historyReview(question, 'user-worker', 'Create and clean up disposable test resources.')), /requires manual review/);
+    assert.equal(f.coordinator.snapshot().error, error);
+    assert.equal(f.rpc.replies.length, 0); assert.equal(question.review, undefined);
   } finally { await f.close(); }
 });

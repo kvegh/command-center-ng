@@ -246,9 +246,11 @@ these same bound reads when the dedicated approval-source tool is unavailable.
 
 The reader returns text; it does not execute Python, shell or playbooks, resolve
 template/environment values, follow imported dependencies or grant approval.
-Hidden/sensitive paths, Vault payloads, detected literal credentials, binary data
-and existing size/page limits remain protected. JSON keys are decoded before
-credential checks; ordinary Jinja and environment references remain readable.
+The [private deployment policy](approval-policy.md) selects restricted or all
+local-text reading. Restricted defaults reject credential/Vault content and
+sensitive paths; explicitly selected all mode permits them without decryption.
+Native permissions, bounded UTF-8/no-NUL files, symlink refusal, paging and exact
+current-request/hash checks remain. Hook/concern/name sanitizers stay strict.
 Detection is conservative, not proof that arbitrary text is secret-free:
 credential-like metadata or unusual YAML tags/aliases may require private
 review. Files outside the project remain unavailable after their approval ends.

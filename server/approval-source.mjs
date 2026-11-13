@@ -13,19 +13,25 @@ const isSourceReference = value => typeof value === 'string' && (
   || /^\$(?:\{[A-Za-z_]\w*\}|[A-Za-z_]\w*)$/.test(value.trim())
 );
 
-function credentialMarkerReason(content) {
-  const match = credentialMarkers.exec(content);
-  if (!match) return null;
-  if (match[0].startsWith('-----BEGIN ')) return 'private-key marker';
-  if (match[0] === '!vault' || match[0].startsWith('$ANSIBLE_VAULT;')) return 'Vault marker';
-  return 'provider-token marker';
+function credentialMarkerReason(content, allowVaultMarkers) {
+  // A permitted Vault marker cannot conceal another protected marker later in
+  // the file. Use a local iterator without changing shared regex state.
+  for (const [marker] of content.matchAll(new RegExp(credentialMarkers.source, 'g'))) {
+    if (marker.startsWith('-----BEGIN ')) return 'private-key marker';
+    if (marker === '!vault' || marker.startsWith('$ANSIBLE_VAULT;')) {
+      if (allowVaultMarkers) continue;
+      return 'Vault marker';
+    }
+    return 'provider-token marker';
+  }
+  return null;
 }
 
 // Return fixed rule names only: never expose matching text, keys or values.
 // Keep the existing detector order and thresholds, including synthetic literals.
-export function sourceCredentialReason(content, extension) {
+export function sourceCredentialReason(content, extension, { allowVaultMarkers = false } = {}) {
   if (content.includes('\0')) return 'binary data';
-  const marker = credentialMarkerReason(content);
+  const marker = credentialMarkerReason(content, allowVaultMarkers);
   if (marker) return marker;
   if (extension === '.json') {
     let parsed;
@@ -37,7 +43,7 @@ export function sourceCredentialReason(content, extension) {
       while (pending.length) {
         const current = pending.pop();
         if (typeof current === 'string') {
-          const marker = credentialMarkerReason(current);
+          const marker = credentialMarkerReason(current, allowVaultMarkers);
           if (marker) return marker;
         }
         if (!current || typeof current !== 'object') continue;
@@ -67,8 +73,8 @@ export function sourceCredentialReason(content, extension) {
   }
   return null;
 }
-export function sourceContainsCredentials(content, extension) {
-  return sourceCredentialReason(content, extension) !== null;
+export function sourceContainsCredentials(content, extension, options = {}) {
+  return sourceCredentialReason(content, extension, options) !== null;
 }
 export function isSensitiveSourcePath(path) {
   return path.split(/[\\/]/).some(part => {
@@ -190,14 +196,14 @@ export function referencesApprovalSource(cwd, command, path, { includeProjectDir
     || referencesPythonCommandSource(cwd, command, requested);
 }
 
-export async function inspectApprovalSource(cwd, command, path, startLine = 1, options = {}) {
-  if (typeof path !== 'string' || !path || path.length > 1000 || /[\x00-\x1f]/.test(path) || isSensitiveSourcePath(path)) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
+export async function readSourceText(path, startLine = 1, options = {}) {
+  const readAll = options.sourceReading === 'all';
+  if (typeof path !== 'string' || !path || path.length > 1000 || /[\x00-\x1f]/.test(path)
+    || !isAbsolute(path) || resolve(path) !== path) throw fail('Choose a normalized absolute local file path.');
+  if (!readAll && isSensitiveSourcePath(path)) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
   if (!Number.isInteger(startLine) || startLine < 1) throw fail('Choose a valid starting line.');
-  const requested = resolve(cwd, path);
-  if (isSensitiveSourcePath(requested)) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
-  const file = await realpath(requested);
-  if (file !== requested || !extensions.has(extname(file))) throw fail('Read a regular supported source file directly; symlinks and unsupported file types are not allowed.');
-  if (!referencesApprovalSource(cwd, command, path, options)) throw fail('This helper source is not referenced by the exact pending approval.');
+  const file = await realpath(path);
+  if (file !== path) throw fail('Read a regular source file directly; symlinks are not allowed.');
   const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const info = await handle.stat();
@@ -205,8 +211,15 @@ export async function inspectApprovalSource(cwd, command, path, startLine = 1, o
     const buffer = Buffer.alloc(500001); let length = 0;
     while (length < buffer.length) { const { bytesRead } = await handle.read(buffer, length, buffer.length - length, null); if (!bytesRead) break; length += bytesRead; }
     if (length > 500000) throw fail('This helper source grew beyond the review limit.');
-    const bytes = buffer.subarray(0, length); const content = bytes.toString('utf8');
-    const credentialReason = sourceCredentialReason(content, extname(file));
+    const bytes = buffer.subarray(0, length);
+    let content;
+    try { content = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes); }
+    catch { throw fail('Read only UTF-8 text files; binary data is not supported.'); }
+    // A deployment's read-all policy removes content exclusions, not the text
+    // reader's format/size limits or the operating system's native permissions.
+    let credentialReason = null;
+    if (content.includes('\0')) credentialReason = 'binary data';
+    else if (!readAll) credentialReason = sourceCredentialReason(content, extname(file), options);
     if (credentialReason) throw fail('This source appears to contain credential material, Vault content or binary data. Review it privately. Reason: ' + credentialReason + '.');
     const lines = content.split('\n'); const page = []; let size = 0;
     for (const line of lines.slice(startLine - 1, startLine + 159)) {
@@ -215,6 +228,20 @@ export async function inspectApprovalSource(cwd, command, path, startLine = 1, o
       page.push(line); size += line.length + 1;
     }
     const next = startLine - 1 + page.length;
-    return { path: file, workingDirectory: resolve(cwd), sha256: digest(bytes), commandSha256: digest(command), startLine, totalLines: lines.length, nextStartLine: next < lines.length ? next + 1 : null, text: page.join('\n') };
+    return { path: file, sha256: digest(bytes), startLine, totalLines: lines.length, nextStartLine: next < lines.length ? next + 1 : null, text: page.join('\n') };
   } finally { await handle.close(); }
+}
+
+export async function inspectApprovalSource(cwd, command, path, startLine = 1, options = {}) {
+  const readAll = options.sourceReading === 'all';
+  if (typeof path !== 'string' || !path || path.length > 1000 || /[\x00-\x1f]/.test(path)
+    || (!readAll && isSensitiveSourcePath(path))) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
+  if (!Number.isInteger(startLine) || startLine < 1) throw fail('Choose a valid starting line.');
+  const requested = resolve(cwd, path);
+  if (!readAll && isSensitiveSourcePath(requested)) throw fail('Read only ordinary helper source; hidden, credential and Vault paths require private user review.');
+  const file = await realpath(requested);
+  if (file !== requested || (!readAll && !extensions.has(extname(file)))) throw fail('Read a regular supported source file directly; symlinks and unsupported file types are not allowed.');
+  if (!readAll && !referencesApprovalSource(cwd, command, path, options)) throw fail('This helper source is not referenced by the exact pending approval.');
+  const source = await readSourceText(file, startLine, options);
+  return { ...source, workingDirectory: resolve(cwd), commandSha256: digest(command) };
 }

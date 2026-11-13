@@ -306,27 +306,34 @@ This repository is public. Keep secrets, private configuration and transcripts
 outside it; protected deployment data belongs in the private Vault companion.
 No license has been selected; public visibility alone does not grant a license.
 
-### Verify source-reader behavior
+### Approval policy and source-reader verification
 
-When helper inspection refuses content, the error names a fixed detection
-category (binary data, a key/token/Vault marker, a credential-named JSON field,
-or a credential-named literal assignment). It does not return matching text,
-field names, values or source excerpts. A category explains the refusal; it
-does not establish whether a test fixture is a real secret. The same content
-remains blocked, including synthetic fixtures. Existing manual approvals stay
-pending; diagnostic detail does not approve, execute or retry their commands.
+Deployment-specific approval instructions and source-reading exceptions belong
+in a private YAML policy, outside this public repository. The installer ships
+only `etc/approval-policy-template.yml` with conservative defaults, preserving
+any separate active `etc/approval-policy.yml` on updates. See
+[policy configuration](docs/approval-policy.md) for the schema, private-file
+requirements and verification command. Actual secret/environment payloads remain
+encrypted; an operator policy contains instructions, not credential values.
 
-With the existing Node runtime and application dependencies, run from the
-source checkout:
+Restricted defaults reject sensitive paths and detected credential/Vault content.
+An operator can explicitly select `source_reading: all` for native-readable local
+text, including credential/Vault-named files and helpers outside project paths.
+Both modes retain bounded UTF-8 text, no symlinks or execution, and exact current
+approval/command/directory/source-hash checks. Reading never authorizes an action
+or clears a pending manual request. Hook and concern sanitizers stay strict.
 
-```sh
-node --test tests/approval-source.test.mjs tests/coordinator.test.mjs
+Run the affected automated checks from a normal development checkout:
+
+```bash
+node --test tests/approval-policy.test.mjs tests/runtime-config.test.mjs tests/approval-source.test.mjs tests/coordinator.test.mjs tests/approval-reviewers.test.mjs tests/installer.test.mjs
 ```
 
-The tests use temporary synthetic files and isolated Coordinator requests, and
-exit nonzero on failure. They exercise both source-reading interfaces, supported
-formats, exact container-script mapping, secret/Vault rejection and request/directory/hash checks. No protected
-inputs, external service, live model turn or genuine approval answer is needed.
+The tests use synthetic temporary files, mocked provider transport and isolated
+requests. They exit nonzero on failure and cover policy loading, source reads,
+strict defaults, request/hash checks, manual decisions and installer preservation.
+They do not run helpers, decrypt private payloads or answer genuine approvals.
+
 Browser-stream regressions also include earlier unblocked snapshots and verify
 exact write increments while blocked and after drain, avoiding startup-timing
 assumptions without loosening backpressure checks.

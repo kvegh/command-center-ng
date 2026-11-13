@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { approvalWorkingDirectory, inspectApprovalSource, referencesApprovalSource, isSensitiveSourcePath, sourceContainsCredentials, sourceCredentialReason } from '../server/approval-source.mjs';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { createHash } from 'node:crypto';
+import { approvalWorkingDirectory, inspectApprovalSource, readSourceText, referencesApprovalSource, isSensitiveSourcePath, sourceContainsCredentials, sourceCredentialReason } from '../server/approval-source.mjs';
 
 const subprocessCommand = 'python3 - <<\'PY\'\nimport subprocess\nsubprocess.run(["python3", "src/bump-version.py"], check=True)\nsubprocess.run([\'python3\', \'scripts/sync_todo.py\', \'--check\'], check=True)\nPY';
 
@@ -599,5 +602,157 @@ test('current-request project scope retains source type, symlink, path, content 
     await symlink(join(cwd, 'actual.py'), join(cwd, 'linked.py'));
     await assert.rejects(inspectApprovalSource(cwd, command, 'linked.py', 1, options), /symlinks/);
     await assert.rejects(inspectApprovalSource(cwd, command, './actual.py', 1, options), /hidden, credential and Vault paths/);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('the explicit Vault read option skips only Vault markers and keeps default sanitizers strict', () => {
+  const options = { allowVaultMarkers: true };
+  for (const [extension, content] of [
+    ['.js', 'assert(output.includes("$ANSIBLE_VAULT;"));\n// !vault fixture marker\n'],
+    ['.py', '# $ANSIBLE_VAULT; is expected in this fixture\nassert "!vault" in output\n'],
+    ['.yml', '$ANSIBLE_VAULT;1.1;AES256\n61626364656630313233343536373839\n'],
+    ['.yaml', 'value: !vault |\n  61626364656630313233343536373839\n'],
+    ['.json', '{"value":"\\u0024ANSIBLE_VAULT;1.1;AES256","nested":["\\u0021vault"]}'],
+  ]) {
+    assert.equal(sourceCredentialReason(content, extension), 'Vault marker');
+    assert.equal(sourceContainsCredentials(content, extension), true);
+    assert.equal(sourceCredentialReason(content, extension, options), null);
+    assert.equal(sourceContainsCredentials(content, extension, options), false);
+    assert.equal(sourceCredentialReason(content, extension), 'Vault marker', 'an opt-in read cannot change later strict sanitizer calls');
+  }
+  for (const [extension, content, reason] of [
+    ['.py', '$ANSIBLE_VAULT;\n-----BEGIN SYNTHETIC PRIVATE KEY-----\n', 'private-key marker'],
+    ['.py', '!vault $ANSIBLE_VAULT; !vault ghp_synthetic_marker_example_not_real', 'provider-token marker'],
+    ['.py', 'ghp_synthetic_marker_example_not_real !vault', 'provider-token marker'],
+    ['.py', '$ANSIBLE_VAULT;\0', 'binary data'],
+    ['.json', '{"value":"\\u0024ANSIBLE_VAULT; \\u0067hp_synthetic_marker_example_not_real"}', 'provider-token marker'],
+    ['.json', '{"value":"$ANSIBLE_VAULT;","nested":[{"pass\\u0077ord":"synthetic-private-value"}]}', 'credential-named JSON field'],
+    ['.json', '{"password":"$ANSIBLE_VAULT;1.1;AES256"}', 'credential-named JSON field'],
+    ['.py', '# $ANSIBLE_VAULT;\npassword = "synthetic-private-value"\n', 'credential-named literal assignment'],
+    ['.yaml', 'password: !vault |\n  61626364656630313233343536373839\n', 'credential-named literal assignment'],
+  ]) {
+    assert.equal(sourceCredentialReason(content, extension, options), reason);
+    assert.equal(sourceContainsCredentials(content, extension, options), true);
+  }
+});
+
+test('Vault-marker source reads expose bounded original text without decryption or relaxing file binding and limits', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ccng-marker-reading-'));
+  try {
+    const options = { allowVaultMarkers: true }, name = 'example.py', path = join(cwd, name), command = 'python3 ' + name;
+    const body = 'assert "!vault" in output\n# $ANSIBLE_VAULT;1.1;AES256\n';
+    await writeFile(path, body);
+    await assert.rejects(inspectApprovalSource(cwd, command, name), /Reason: Vault marker/);
+    const source = await inspectApprovalSource(cwd, command, name, 1, options);
+    assert.equal(source.text, body); assert.equal(source.path, path); assert.match(source.sha256, /^[a-f0-9]{64}$/); assert.match(source.commandSha256, /^[a-f0-9]{64}$/);
+    await assert.rejects(inspectApprovalSource(cwd, 'unrelated-command', name, 1, options), /not referenced/);
+    await writeFile(path, '$ANSIBLE_VAULT;1.1;AES256\n61626364656630313233343536373839\n');
+    assert.notEqual((await inspectApprovalSource(cwd, command, name, 1, options)).sha256, source.sha256);
+    await writeFile(path, '$ANSIBLE_VAULT;\nghp_synthetic_marker_example_not_real\n');
+    await assert.rejects(inspectApprovalSource(cwd, command, name, 1, options), /provider-token marker/);
+    await writeFile(path, 'x'.repeat(500001));
+    await assert.rejects(inspectApprovalSource(cwd, command, name, 1, options), /500000 bytes/);
+    await writeFile(join(cwd, 'vault-example.py'), body);
+    await assert.rejects(inspectApprovalSource(cwd, 'cat vault-example.py', 'vault-example.py', 1, options), /hidden, credential and Vault paths/);
+    await rm(path); await writeFile(join(cwd, 'actual.py'), body); await symlink(join(cwd, 'actual.py'), path);
+    await assert.rejects(inspectApprovalSource(cwd, command, name, 1, options), /symlinks/);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('a deployment read-all policy permits local text across content, path, extension and reference exclusions without executing it', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ccng-policy-source-'));
+  try {
+    const cwd = join(root, 'worker'), external = join(root, '.private', 'credentials');
+    await mkdir(cwd); await mkdir(external, { recursive: true });
+    const marker = join(root, 'must-not-exist');
+    const body = `password = "synthetic-fixture-value"\n# !vault $ANSIBLE_VAULT;1.1;AES256\n-----BEGIN SYNTHETIC PRIVATE KEY-----\nfrom pathlib import Path\nPath(${JSON.stringify(marker)}).write_text("must not run")\n`;
+    const path = join(external, 'auth-token.conf'); await writeFile(path, body);
+    const options = { sourceReading: 'all' }, command = 'example-tool --check';
+    await assert.rejects(inspectApprovalSource(cwd, command, path), /hidden, credential and Vault paths/);
+    const source = await inspectApprovalSource(cwd, command, path, 1, options);
+    assert.equal(source.text, body); assert.equal(source.path, path); assert.equal(source.workingDirectory, cwd);
+    assert.equal(source.sha256, createHash('sha256').update(body).digest('hex'));
+    assert.equal(source.commandSha256, createHash('sha256').update(command).digest('hex'));
+    assert.equal((await readSourceText(path, 1, options)).text, body);
+    assert.equal(sourceContainsCredentials(body, '.py'), true, 'read-all does not mutate strict sanitizers');
+    const changedCommand = await inspectApprovalSource(cwd, command + ' --verbose', path, 1, options);
+    assert.equal(changedCommand.sha256, source.sha256); assert.notEqual(changedCommand.commandSha256, source.commandSha256);
+    await assert.rejects(readFile(marker), { code: 'ENOENT' });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('source reading remains conservative unless the normalized policy explicitly selects all', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ccng-policy-default-'));
+  try {
+    const ordinary = join(cwd, 'example.py');
+    for (const options of [{}, { sourceReading: 'restricted' }, { sourceReading: 'ALL' }]) {
+      await writeFile(ordinary, 'password = "synthetic-fixture-value"\n');
+      await assert.rejects(inspectApprovalSource(cwd, 'python3 example.py', ordinary, 1, options), /credential material/);
+      await writeFile(ordinary, '# !vault $ANSIBLE_VAULT;1.1;AES256\n');
+      await assert.rejects(readSourceText(ordinary, 1, options), /Vault marker/);
+      await writeFile(ordinary, '# Ordinary source.\n');
+      await assert.rejects(inspectApprovalSource(cwd, 'unrelated-tool', ordinary, 1, options), /not referenced/);
+      const unsupported = join(cwd, 'example.conf'); await writeFile(unsupported, '# Ordinary text.\n');
+      await assert.rejects(inspectApprovalSource(cwd, 'cat example.conf', unsupported, 1, options), /unsupported file types/);
+    }
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('read-all still refuses invalid UTF-8, NUL data, oversized files, long lines and invalid line positions', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ccng-policy-text-limits-'));
+  try {
+    const path = join(cwd, 'source'), options = { sourceReading: 'all' };
+    for (const [body, expected] of [
+      [Buffer.from([0xff, 0xfe, 0x41]), /UTF-8/],
+      ['ordinary\0text', /binary data/],
+      ['x'.repeat(500001), /500000 bytes/],
+      ['x'.repeat(16001), /line too large/],
+    ]) {
+      await writeFile(path, body);
+      await assert.rejects(inspectApprovalSource(cwd, 'unrelated-tool', path, 1, options), expected);
+    }
+    await writeFile(path, 'ordinary text');
+    for (const line of [0, -1, 1.5, '1', NaN]) await assert.rejects(readSourceText(path, line, options), /starting line/);
+    for (const path of ['relative-file', '/tmp/../etc/example', '/tmp/invalid\nfile', 'https://example.invalid/file']) {
+      await assert.rejects(readSourceText(path, 1, options), /absolute local file path/);
+    }
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('read-all retains bounded paging and hashes of the original local bytes', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ccng-policy-source-pages-'));
+  try {
+    const path = join(cwd, 'source'), options = { sourceReading: 'all' };
+    const lines = Array.from({ length: 200 }, (_, index) => `line ${index + 1}`), body = lines.join('\n');
+    await writeFile(path, body);
+    const first = await readSourceText(path, 1, options), last = await readSourceText(path, first.nextStartLine, options);
+    assert.equal(first.text, lines.slice(0, 160).join('\n')); assert.equal(first.nextStartLine, 161);
+    assert.equal(last.text, lines.slice(160).join('\n')); assert.equal(last.nextStartLine, null);
+    assert.equal(first.totalLines, 200); assert.equal(first.sha256, last.sha256);
+    await writeFile(path, body + '\nchanged');
+    assert.notEqual((await readSourceText(path, 1, options)).sha256, first.sha256);
+    const unicode = '\ufeffOriginal UTF-8 text: \u00e9\n'; await writeFile(path, unicode);
+    assert.equal((await readSourceText(path, 1, options)).text, unicode, 'text inspection preserves original BOM and Unicode');
+    await writeFile(path, Array.from({ length: 100 }, () => 'x'.repeat(999)).join('\n'));
+    const bounded = await readSourceText(path, 1, options);
+    assert.ok(bounded.text.length <= 16000); assert.equal(bounded.nextStartLine, 17);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('read-all rejects file and ancestor symlinks, directories and nonblocking FIFOs', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ccng-policy-file-types-'));
+  try {
+    const options = { sourceReading: 'all' }, actual = join(cwd, 'actual');
+    await writeFile(actual, 'ordinary text');
+    await symlink(actual, join(cwd, 'linked'));
+    await assert.rejects(readSourceText(join(cwd, 'linked'), 1, options), /symlinks/);
+    await mkdir(join(cwd, 'directory')); await writeFile(join(cwd, 'directory', 'source'), 'ordinary text');
+    await symlink(join(cwd, 'directory'), join(cwd, 'linked-directory'));
+    await assert.rejects(readSourceText(join(cwd, 'linked-directory', 'source'), 1, options), /symlinks/);
+    await assert.rejects(readSourceText(join(cwd, 'directory'), 1, options), /regular helper source/);
+    if (process.platform !== 'win32') {
+      const fifo = join(cwd, 'fifo'); await promisify(execFile)('mkfifo', [fifo]);
+      await assert.rejects(readSourceText(fifo, 1, options), /regular helper source/);
+    }
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });

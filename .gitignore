@@ -54,3 +54,6 @@ transcripts/
 .ansible/
 __pycache__/
 *.pyc
+
+# Operator policy is private; only the conservative template belongs here.
+/etc/approval-policy.yml

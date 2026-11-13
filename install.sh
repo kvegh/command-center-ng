@@ -105,7 +105,9 @@ PATH="$CCNG_STAGE/app/tools/bin:$CCNG_STAGE/app/tools/node_modules/.bin:$CCNG_US
 export PATH
 ccng_agent_prerequisites
 case "$CCNG_CODEX_BIN" in "$CCNG_STAGE/app/"*) CCNG_CODEX_BIN="$CCNG_INSTALL_DIR/${CCNG_CODEX_BIN#"$CCNG_STAGE/app/"}" ;; esac
-tar -C "$CCNG_SOURCE_DIR" -cf "$CCNG_STAGE/source.tar" package.json package-lock.json index.html tsconfig.json vite.config.mjs src server README.md docs AGENTS.md design_decisions_history.md
+# Ship only the conservative example. The active policy comes from the operator
+# and was copied with etc/ above, so source updates cannot replace it.
+tar -C "$CCNG_SOURCE_DIR" -cf "$CCNG_STAGE/source.tar" package.json package-lock.json index.html tsconfig.json vite.config.mjs src server README.md docs AGENTS.md design_decisions_history.md etc/approval-policy-template.yml
 tar -C "$CCNG_STAGE/app" -xf "$CCNG_STAGE/source.tar"
 (
     cd "$CCNG_STAGE/app"
@@ -208,6 +210,7 @@ CCNG_VERSION=$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[
 echo "Installed Command Center NG $CCNG_VERSION into $CCNG_INSTALL_DIR"
 echo "Launcher: $CCNG_INSTALL_DIR/command-center-ng"
 echo "Connection settings: $CCNG_INSTALL_DIR/etc/config.conf (existing settings are preserved)."
+echo "Approval policy template: $CCNG_INSTALL_DIR/etc/approval-policy-template.yml (active approval-policy.yml is preserved)."
 echo 'Existing application passwords are preserved. No default password is created.'
 echo 'For local setup, choose your password with:'
 echo "  node '$CCNG_INSTALL_DIR/server/password.mjs'"

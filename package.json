@@ -1,6 +1,6 @@
 {
   "name": "command-center-ng",
-  "version": "1.26.0",
+  "version": "1.27.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -19,7 +19,8 @@
     "react-dom": "19.2.7",
     "react-markdown": "10.1.0",
     "remark-gfm": "4.0.1",
-    "ws": "8.18.3"
+    "ws": "8.18.3",
+    "yaml": "2.9.1"
   },
   "devDependencies": {
     "@types/react": "19.3.0",

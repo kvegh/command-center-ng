@@ -79,10 +79,9 @@ start worker/model turns merely to restore tabs. Reuse the same coordinator;
 reapply its restrictions before activation. Do not replay approvals or queued
 messages. No separate storage service or database is approved. The user authorized a native Codex coordinator alongside up to sixteen workers,
 with its own visually separated chat tab, progress recaps, report requests,
-summary messages and scope-based approval review. Authorized work can include
-resource creation/deletion and disposable test-VM lifecycle. Use the explicit
-scope, real user instructions and existing restrictions; uncertain scope and new
-decisions return to the user. A worker's assertion is not authorization.
+summary messages and approval review. Deployment-specific approval criteria and
+source-reading exceptions belong in the operator's private YAML policy, not
+product instructions. A worker's assertion or policy file is not action authority.
 
 Coordinator tools must be limited to open workers, bounded project reads,
 progress/communication and exact command/file approval requests. Keep its native
@@ -438,27 +437,29 @@ parent receipt and fresh lifecycle/task checks; do not steal focus from an
 unrelated selected tab. Keep coordination in the existing process; restart
 does not replay or fabricate completed handoffs.
 
-## Approved approval-source inspection and report queue
+## Deployment approval policy and report queue
 
-The user approved bounded read-only helper source inspection tied to an exact
-current pending approval/token, including source outside project boundaries.
-The user also approved safe project-source reads within the exact current
-command request's non-root native working directory on this same backend host,
-even when the worker's startup directory is elsewhere. Such project filenames
-need not appear literally in the command. Both readers retain exact current
-approval bindings, source/command hashes and directory rechecks. Source outside the
-worker project and current request project still needs a direct command reference.
-This authorizes no remote reads, native permission changes or source execution.
-Never execute/import the helper for review, read credential/Vault data, broaden
-native coordinator permissions or treat inspected source as authority. Keep
-reference checks, source/command hashes and stale-request checks; changed source
-requires rereading and review. Unknown effects/dependencies may still require
-user input. One-off and timer-due reports use the existing bounded queue during active
-work/questions. Delivery retains current native request/pause/handoff/ownership
-gates; do not interrupt unsafe work or answer a question to deliver them. Never
-cancels unsent scheduled requests while preserving explicit Report now requests
-and uncertain in-flight/failed actions. Restoration does not replay old requests;
-after loading saved state, enabled intervals start the authorized backend timer.
+Load approval-policy.yml at application startup from the installation's etc/
+directory, or the approval_policy path in config.conf. Keep deployment-specific
+approval instructions and source-reading exceptions in this private YAML file.
+Ship only approval-policy-template.yml with conservative defaults; updates must
+preserve the active file. Never commit an active operator policy to this public
+repository. Unknown, malformed or explicitly missing policy disables automated
+approvals with a visible error; an absent unconfigured policy uses strict defaults.
+
+The selected source_reading mode applies equally to ordinary, generic/exact-token,
+analyst and final hash reads. Restricted defaults reject sensitive paths/content
+and unrelated files. Explicit all mode permits native-readable local text without
+filename, credential/Vault-content or project-reference exclusions. Retain bounded
+regular UTF-8/no-NUL files, no symlinks, paging, byte hashes, current request/token,
+command and working-directory checks. Do not execute/import/decrypt source or
+change native permissions. A read or policy change never answers a request,
+authorizes an action, or replays a manual ask. Hook and concern/name/message
+sanitizers keep their independent strict protections.
+
+One-off and timer-due reports use the existing bounded queue during active
+work/questions. Preserve native requests, pause, handoff, ownership, uncertain
+sends and the user's saved cadence. Add no replacement timer or approval store.
 
 ## Approved native request controls
 
@@ -582,42 +583,14 @@ The named Standard Task Report format lives in server/worker-instructions.md;
 the coordinator backend owns saved intervals and sends silent one-off timer triggers.
 
 
-## Proportionate coordinator helper review
+## Approval source evidence
 
-When needed for an exact pending action, read the directly referenced helper's
-source, including startup statements and called functions. Do not routinely
-recurse into imports or library implementations. An unread dependency alone is
-not a reason to refer an otherwise understood, authorized action to the user.
-Escalate concrete unresolved effects, targets or authority concerns revealed by
-the action/helper. Keep source reads bounded, read-only and tied to current
-command approvals, with changed-source checks; never execute the helper or read
-credential/Vault data. Existing approved credential sources need no new choice.
-The existing source-reader tool can use the same helper checks and return exact
-current approval bindings, preserving older coordinator conversations. Reading
-source does not approve a command or expand native permissions.
-
-Source review includes safe playbooks, `.yml`, `.yaml`, `.json`, `.md`, `.py` and
-`.sh` files alongside existing code formats. The file format alone is not a
-reason to refuse a referenced playbook or document. Preserve exact approval
-binding for source in the current request project or directly referenced outside
-helpers, the approved same-host project boundaries, content/path
-secret protections, no execution and the current user-authority checks. Literal
-credentials and Vault payloads remain excluded; source references are not
-resolved to retrieve protected values.
-
-Resolve approval-linked helper paths under the exact native approval cwd, using
-worker cwd only when native cwd is absent/null. Return and recheck the directory
-alongside command/source hashes. The older reader checks approval references
-before the worker project and refuses ambiguous directories. Keep resolved
-hidden/sensitive paths excluded even when the caller supplies a relative name.
-
-Recognize an explicitly imported fully qualified Python module only at the exact
-approval cwd or its `src` layout, mapping the full dotted name to a `.py` file.
-Do not search packages, environment settings or virtual environments, resolve
-dependencies, import the module or execute embedded code for source inspection.
-Keep existing hidden/sensitive/data/content checks and source/command/cwd hashes.
-Reader fixes do not approve an action or clear an existing manual ask.
-
+Use the deployment's private approval instructions for review depth and local
+source access. Product readers never execute a command, resolve environment or
+template values, decrypt content, import modules or inspect containers. Native
+approval cwd precedes worker cwd when present. Preserve exact current tokens,
+source/command/cwd hashes, changed-source rejection and manual user decisions.
+Do not infer execution authority from readable source or policy instructions.
 
 ## Shared runtime rules, ordinary-chat inputs and local Claude
 

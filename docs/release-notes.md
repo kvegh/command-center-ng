@@ -9,6 +9,15 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.27.0 — Private YAML approval policy
+
+Move deployment approval instructions and source-reading exceptions into a private
+YAML file. The product ships a conservative `approval-policy-template.yml` and
+preserves active policy on updates. Explicit all-reading mode covers ordinary,
+exact-token, analyst and final-hash local text reads without weakening native
+permissions or answering pending requests. Invalid selected policy disables
+automatic approval with a fixed error. See [policy configuration](approval-policy.md).
+
 ## 1.22.0 — Review explicit multi-test container commands
 
 The first genuine engineering concern exposed another literal source-reference

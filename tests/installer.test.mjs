@@ -19,6 +19,8 @@ test('installer updates distinguish nested installation output from actual sourc
     await mkdir(upstream);
     await cp(fileURLToPath(new URL('../install.sh', import.meta.url)), join(upstream, 'install.sh'));
     await cp(fileURLToPath(new URL('../installer', import.meta.url)), join(upstream, 'installer'), { recursive: true });
+    await mkdir(join(upstream, 'etc'));
+    await writeFile(join(upstream, 'etc', 'approval-policy-template.yml'), 'version: 1\nsource_reading: restricted\napproval_instructions: |\n  Conservative fixture.\n');
     for (const name of ['src', 'server', 'docs']) { await mkdir(join(upstream, name)); await writeFile(join(upstream, name, 'fixture'), 'synthetic fixture'); }
     for (const name of ['beads.mjs', 'beads-check.mjs']) await cp(fileURLToPath(new URL('../server/' + name, import.meta.url)), join(upstream, 'server', name));
     await writeFile(join(upstream, 'package.json'), JSON.stringify({ name: 'command-center-ng', version: '0.0.1' }));
@@ -33,15 +35,25 @@ test('installer updates distinguish nested installation output from actual sourc
     const bin = join(dir, 'bin'); await mkdir(bin);
     // Stop at the build boundary: these tests exercise real Git and the shell
     // installer without installing dependencies or replacing the fixture target.
-    await writeFile(join(bin, 'npm'), '#!/bin/sh\nif [ "$1" = --version ]; then echo 10.9.2; exit 0; fi\necho CCNG_FIXTURE_BUILD_REACHED\nexit 42\n', { mode: 0o755 });
+    await writeFile(join(bin, 'npm'), '#!/bin/sh\nif [ "$1" = --version ]; then echo 10.9.2; exit 0; fi\n'
+      + 'test -f etc/approval-policy-template.yml || exit 43\n'
+      + 'grep -qx "source_reading: restricted" etc/approval-policy-template.yml || exit 43\n'
+      + 'if [ "$CCNG_FIXTURE_EXPECT_ACTIVE" = absent ]; then\n'
+      + '  test ! -e etc/approval-policy.yml || exit 43\n'
+      + 'else\n'
+      + '  test "$(cat etc/approval-policy.yml)" = "operator policy remains unchanged" || exit 43\n'
+      + 'fi\necho CCNG_FIXTURE_POLICY_VERIFIED\necho CCNG_FIXTURE_BUILD_REACHED\nexit 42\n', { mode: 0o755 });
     await writeFile(join(bin, 'bd'), '#!/bin/sh\ncase \"$*\" in *version*) echo \"bd version 1.3.2\" ;; *) echo \"--json --readonly --brief --flat\" ;; esac\n', { mode: 0o755 });
     await writeFile(join(bin, 'codex'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
     const env = { ...process.env, PATH: bin + ':' + process.env.PATH };
     await mkdir(join(checkout, targetName));
     await writeFile(join(checkout, targetName, 'package.json'), JSON.stringify({ name: 'command-center-ng', version: '0.0.1' }));
     await writeFile(join(checkout, targetName, 'README.md'), 'Existing installed version');
+    await mkdir(join(checkout, targetName, 'etc'));
+    const activePolicy = join(checkout, targetName, 'etc', 'approval-policy.yml');
+    await writeFile(activePolicy, 'operator policy remains unchanged\n');
     const update = () => exec('sh', [join(checkout, 'install.sh'), '--update', '--prefix', './' + targetName], { cwd: checkout, env });
-    const reachesBuild = () => assert.rejects(update(), error => error.code === 42 && error.stdout.includes('CCNG_FIXTURE_BUILD_REACHED'));
+    const reachesBuild = () => assert.rejects(update(), error => error.code === 42 && error.stdout.includes('CCNG_FIXTURE_BUILD_REACHED') && error.stdout.includes('CCNG_FIXTURE_POLICY_VERIFIED'));
     const rejectsSourceChanges = () => assert.rejects(update(), error => error.code === 1 && error.stderr.includes('local changes'));
 
     await t.test('untracked targetdir permits fetching, fast-forwarding, and the build', async () => {
@@ -49,6 +61,15 @@ test('installer updates distinguish nested installation output from actual sourc
       await reachesBuild();
       assert.equal((await git(checkout, 'rev-parse', 'HEAD')).stdout, (await git(upstream, 'rev-parse', 'HEAD')).stdout);
       assert.equal(await readFile(join(checkout, targetName, 'README.md'), 'utf8'), 'Existing installed version');
+      assert.equal(await readFile(activePolicy, 'utf8'), 'operator policy remains unchanged\n');
+    });
+    await t.test('packaging ships a conservative template without creating an active policy', async () => {
+      await rm(activePolicy);
+      env.CCNG_FIXTURE_EXPECT_ACTIVE = 'absent';
+      await reachesBuild();
+      await assert.rejects(readFile(activePolicy), { code: 'ENOENT' });
+      delete env.CCNG_FIXTURE_EXPECT_ACTIVE;
+      await writeFile(activePolicy, 'operator policy remains unchanged\n');
     });
     await t.test('unrelated untracked files remain protected', async () => {
       await writeFile(join(checkout, 'local-note'), 'Local work'); await rejectsSourceChanges(); await rm(join(checkout, 'local-note'));

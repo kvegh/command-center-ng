@@ -405,9 +405,17 @@ from different approval directories are ambiguous: use the exact-token reader
 for each request. Ordinary project reads still use the worker's directory. The
 request-project exception requires a still-current command request; resolved,
 responding or stale requests cannot grant directory access. Filesystem root is
-not an additional project root. Symlink, credential/Vault, supported-type, size,
+not an additional project root. Under restricted defaults, symlink, credential/Vault, supported-type, size,
 paging and changed-source protections remain; no tool catalog, native working
 directory, remote access or approval answer is changed.
+
+Source exclusions are controlled by the [private deployment policy](approval-policy.md).
+Restricted defaults include Vault/credential and sensitive-name refusals. Explicit
+`source_reading: all` removes content/name/project-reference exclusions for local
+text, including ordinary reads, exact approval reads, analysts and final hash
+rechecks. It grants no native permissions, remote reads, execution or decryption.
+The same selected policy instructions reach the main Coordinator and analysts.
+Existing manual asks remain manual; policy changes do not replay requests.
 
 Python unittest commands can name a module, class and method instead of a `.py`
 filename. For the supported literal Podman command form, the reader maps that
