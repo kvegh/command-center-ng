@@ -290,7 +290,10 @@ test('direct unittest targets use only the approval directory without discovery 
     assert.equal(referencesApprovalSource(cwd, command, path), true, command);
     assert.equal(referencesApprovalSource(join(tmpdir(), 'other-project'), command, path), false);
   }
-  for (const command of ['python3 -m unittest discover', 'python3 -m unittest test_other', 'python3 -m unittest test_example_other', 'python3 -m unittest test_example test_other', 'python3 -m unittest tests.test_example']) {
+  assert.equal(referencesApprovalSource(cwd, 'python3 -m unittest test_example test_other', path), true, 'multiple literal modules bind only explicitly named sources');
+  assert.equal(referencesApprovalSource(cwd, 'python3 -m unittest test_example test_other', join(cwd, 'test_other.py')), true);
+  assert.equal(referencesApprovalSource(cwd, 'python3 -m unittest test_example test_other', join(cwd, 'test_unrelated.py')), false);
+  for (const command of ['python3 -m unittest discover', 'python3 -m unittest test_other', 'python3 -m unittest test_example_other', 'python3 -m unittest tests.test_example']) {
     assert.equal(referencesApprovalSource(cwd, command, path), false, command);
   }
 });
@@ -407,6 +410,79 @@ test('direct container script inspection reads only synthetic source and retains
     assert.notEqual((await inspectApprovalSource(cwd, command, path)).sha256, source.sha256);
     await writeFile(join(directory, 'test_other.py'), '# Unrelated source.\n');
     await assert.rejects(inspectApprovalSource(cwd, command, join(directory, 'test_other.py')), /not referenced/);
+    await writeFile(path, 'password = "synthetic-credential-value"\n');
+    await assert.rejects(inspectApprovalSource(cwd, command, path), /credential material/);
+    await writeFile(path, 'x'.repeat(500001));
+    await assert.rejects(inspectApprovalSource(cwd, command, path), /500000 bytes/);
+    await rm(path); await writeFile(join(directory, 'actual.py'), '# Ordinary synthetic source.\n'); await symlink(join(directory, 'actual.py'), path);
+    await assert.rejects(inspectApprovalSource(cwd, command, path), /symlinks/);
+    await assert.rejects(readFile(marker), { code: 'ENOENT' });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+const multiContainerUnittest = sourceRoot => `podman run --rm --pull=never --userns=keep-id --user 1001:1001 --network=none --read-only --volume ${sourceRoot}:/code:ro,Z --workdir /code/tests --tmpfs /tmp:rw,mode=1777,size=128m -e TEST_CACHE=/tmp/cache --entrypoint /usr/bin/python3 localhost/demo-tests:1.0.0 -B -m unittest test_example.ExampleTests.test_first test_example.ExampleTests.test_second -v`;
+
+test('numeric container users and read-only SELinux mount forms bind each explicitly named unittest module', () => {
+  const cwd = join(tmpdir(), 'worker-project'), sourceRoot = join(tmpdir(), 'mounted-tests');
+  const path = join(sourceRoot, 'tests', 'test_example.py'), command = multiContainerUnittest(sourceRoot);
+  for (const options of ['ro', 'ro,Z', 'ro,z']) for (const user of ['--user 1001:1001', '--user=1001:1001', '--user 0:0']) {
+    const literal = command.replace('ro,Z', options).replace('--user 1001:1001', user);
+    for (const wrapped of [literal, "/bin/bash -lc '" + literal + "'", '/bin/bash -lc "' + literal + '"']) {
+      assert.equal(referencesApprovalSource(cwd, wrapped, path), true, wrapped);
+      assert.equal(referencesApprovalSource(cwd, wrapped, join(sourceRoot, 'tests', 'test_unrelated.py')), false);
+    }
+  }
+  const differentModules = command.replace('test_example.ExampleTests.test_second', 'test_other.OtherTests.test_result');
+  assert.equal(referencesApprovalSource(cwd, differentModules, path), true);
+  assert.equal(referencesApprovalSource(cwd, differentModules, join(sourceRoot, 'tests', 'test_other.py')), true);
+  for (const unrelated of [join(sourceRoot, 'test_other.py'), join(cwd, 'test_other.py'), join(tmpdir(), 'other-tests', 'tests', 'test_other.py')]) {
+    assert.equal(referencesApprovalSource(cwd, differentModules, unrelated), false, unrelated);
+  }
+  const directScript = command.replace('-m unittest test_example.ExampleTests.test_first test_example.ExampleTests.test_second', '/code/tests/test_example.py ExampleTests.test_first ExampleTests.test_second');
+  assert.equal(referencesApprovalSource(cwd, directScript, path), true, 'the existing direct-script form remains supported');
+});
+
+test('numeric-user, SELinux and multi-selector recognition retains literal identity and ambiguity guards', () => {
+  const cwd = join(tmpdir(), 'worker-project'), sourceRoot = join(tmpdir(), 'mounted-tests');
+  const path = join(sourceRoot, 'tests', 'test_example.py'), command = multiContainerUnittest(sourceRoot);
+  for (const user of ['root:root', '1001', '1001:', ':1001', '1001:group', '-1:1001', '1001:1001:1001', '1001:1001 --user 1002:1002', '1001:1001 --user=1001:1001']) {
+    assert.equal(referencesApprovalSource(cwd, command.replace('--user 1001:1001', '--user ' + user), path), false, user);
+  }
+  for (const options of ['rw', 'rw,Z', 'ro,rw', 'ro,Z,rw', 'ro,ro', 'ro,Z,Z', 'ro,z,Z', 'ro,Z,z', 'ro,', 'ro,U', 'ro,Z,nosuid']) {
+    assert.equal(referencesApprovalSource(cwd, command.replace('ro,Z', options), path), false, options);
+  }
+  for (const target of ['discover', 'Discover', '--failfast', '-k', '../test_other', 'test_other..OtherTests', '.test_other', 'test_other.OtherTests.test_result.extra']) {
+    assert.equal(referencesApprovalSource(cwd, command.replace('test_example.ExampleTests.test_second', target), path), false, target);
+  }
+  for (const rejected of [
+    command.replace('--user 1001:1001', '--unknown-user 1001:1001'),
+    command.replace('--workdir /code/tests', `--volume ${sourceRoot}:/elsewhere:ro --workdir /code/tests`),
+    command.replace('--workdir /code/tests', '--workdir /code/../code/tests'),
+    command.replace('--tmpfs /tmp:rw,mode=1777,size=128m', '--tmpfs /code:rw'),
+    command.replace('TEST_CACHE=/tmp/cache', 'PYTHONPATH=/other/tests'),
+    command.replace('test_example.ExampleTests.test_first', 'test_example_other.ExampleTests.test_first').replace('test_example.ExampleTests.test_second', 'test_other.OtherTests.test_second'),
+    command + '; echo another-command',
+    command.replace('--user 1001:1001', '--user $(id -u):$(id -g)'),
+  ]) assert.equal(referencesApprovalSource(cwd, rejected, path), false, rejected);
+});
+
+test('multi-selector container source inspection stays read-only, hashed, bounded and credential-protected', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ccng-multi-container-source-'));
+  try {
+    const cwd = join(root, 'worker-project'), sourceRoot = join(root, 'mounted-tests'), directory = join(sourceRoot, 'tests');
+    await mkdir(cwd); await mkdir(directory, { recursive: true });
+    const path = join(directory, 'test_example.py'), marker = join(root, 'must-not-exist');
+    const body = `from pathlib import Path\nPath(${JSON.stringify(marker)}).write_text("must not run")\n`;
+    await writeFile(path, body);
+    const command = "/bin/bash -lc '" + multiContainerUnittest(sourceRoot) + "'";
+    const source = await inspectApprovalSource(cwd, command, path);
+    assert.equal(source.text, body); assert.equal(source.path, path); assert.equal(source.workingDirectory, cwd);
+    assert.match(source.sha256, /^[a-f0-9]{64}$/); assert.match(source.commandSha256, /^[a-f0-9]{64}$/);
+    const changedCommand = await inspectApprovalSource(cwd, command.replace('test_second', 'test_third'), path);
+    assert.equal(changedCommand.sha256, source.sha256); assert.notEqual(changedCommand.commandSha256, source.commandSha256);
+    await assert.rejects(readFile(marker), { code: 'ENOENT' });
+    await writeFile(path, '# Changed synthetic source.\n');
+    assert.notEqual((await inspectApprovalSource(cwd, command, path)).sha256, source.sha256);
     await writeFile(path, 'password = "synthetic-credential-value"\n');
     await assert.rejects(inspectApprovalSource(cwd, command, path), /credential material/);
     await writeFile(path, 'x'.repeat(500001));

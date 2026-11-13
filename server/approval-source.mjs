@@ -103,10 +103,10 @@ function referencesPythonCommandSource(cwd, command, requested) {
   if (!/^[\w./:=,@+-]+(?:[ \t]+[\w./:=,@+-]+)*$/.test(text)) return false;
   let words = text.split(/[ \t]+/), directory = resolve(cwd), mountedScript = null;
   if (words[0] === 'podman' && words[1] === 'run') {
-    let volume, workdir, entrypoint, userNamespace, index = 2;
+    let volume, workdir, entrypoint, userNamespace, user, index = 2;
     const temporaryMounts = [];
     const switches = new Set(['--rm', '--read-only', '--pull=never', '--network=none']);
-    const valued = new Set(['-v', '--volume', '-w', '--workdir', '-e', '--env', '--tmpfs', '--entrypoint']);
+    const valued = new Set(['-v', '--volume', '-w', '--workdir', '-e', '--env', '--tmpfs', '--entrypoint', '--user']);
     for (; index < words.length && words[index].startsWith('-'); index++) {
       const word = words[index];
       if (word === '--userns=keep-id') { if (userNamespace) return false; userNamespace = word; continue; }
@@ -118,12 +118,15 @@ function referencesPythonCommandSource(cwd, command, requested) {
       if (['-v', '--volume'].includes(option)) { if (volume) return false; volume = value; }
       if (['-w', '--workdir'].includes(option)) { if (workdir) return false; workdir = value; }
       if (option === '--entrypoint') { if (entrypoint) return false; entrypoint = value; }
+      if (option === '--user') { if (user || !/^\d+:\d+$/.test(value)) return false; user = value; }
       if (option === '--tmpfs') temporaryMounts.push(value.split(':')[0]);
       if (['-e', '--env'].includes(option) && (!/^[A-Za-z_]\w*=/.test(value) || /^(?:PYTHONPATH|PYTHONHOME|PYTHONSAFEPATH)=/.test(value))) return false;
     }
     if (!volume || !workdir || !pythonExecutable.test(entrypoint || '') || !words[index]) return false;
     const parts = volume.split(':');
-    if (parts.length !== 3 || parts[2] !== 'ro') return false;
+    // Recognizing a literal SELinux label option binds source only. Inspection
+    // never runs Podman, relabels a path or authorizes the pending command.
+    if (parts.length !== 3 || !['ro', 'ro,Z', 'ro,z'].includes(parts[2])) return false;
     const [hostRoot, containerRoot] = parts;
     const ordinaryAbsolute = path => isAbsolute(path) && path !== '/' && path === resolve(path);
     if (![hostRoot, containerRoot, workdir].every(ordinaryAbsolute)) return false;
@@ -145,9 +148,12 @@ function referencesPythonCommandSource(cwd, command, requested) {
   if (mountedScript) return mountedScript === requested;
   if (words[index++] !== '-m' || words[index++] !== 'unittest') return false;
   const targets = words.slice(index).filter(word => !['-v', '-q'].includes(word));
-  if (targets.length !== 1 || targets[0].toLowerCase() === 'discover' || dirname(requested) !== directory) return false;
+  if (!targets.length || dirname(requested) !== directory
+    || targets.some(target => target.toLowerCase() === 'discover' || !/^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*){0,2}$/.test(target))) return false;
   const module = basename(requested, '.py');
-  return /^[A-Za-z_]\w*$/.test(module) && new RegExp(`^${escaped(module)}(?:\\.[A-Za-z_]\\w*){0,2}$`).test(targets[0]);
+  // Each module is bound only if one explicit selector names it. Other valid
+  // selectors do not authorize dependency discovery or unrelated source reads.
+  return /^[A-Za-z_]\w*$/.test(module) && targets.some(target => new RegExp(`^${escaped(module)}(?:\\.[A-Za-z_]\\w*){0,2}$`).test(target));
 }
 
 export function referencesApprovalSource(cwd, command, path) {

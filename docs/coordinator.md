@@ -403,6 +403,14 @@ and optional exact `--userns=keep-id`. Only the exact mapped host file is
 readable; another directory, mount or user-namespace mode is not inferred.
 Source recognition does not establish that the container can open or execute
 the file. Report a later execution permission error separately from inspection.
+Multiple explicit unittest selectors can refer to the same or different named
+test modules; only a module actually present in those selectors is reviewable.
+The supported literal Podman form also recognizes one numeric `--user UID:GID`
+and read-only `ro,Z`/`ro,z` volume options. These label options may relabel host
+metadata if the command is executed. Recognition reads no container state and
+does not authorize relabeling, user changes or any other command effects; those
+remain part of the Coordinator's actual scope and effect review. Discovery,
+unrelated modules and ambiguous or writable mounts remain excluded.
 The existing sensitive-path/content, symlink, size, source-hash and current-request
 checks still apply. A failed file-reference check is different from a credential
 content refusal; report the actual reader error rather than assuming its cause.

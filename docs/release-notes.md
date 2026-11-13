@@ -9,6 +9,20 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.22.0 — Review explicit multi-test container commands
+
+The first genuine engineering concern exposed another literal source-reference
+gap: a container command with a numeric user, read-only SELinux-label mount
+option and two explicit unittest selectors was not recognized. The reader now
+maps only actually named test modules for these supported forms while preserving
+its existing source, request, path, hash, symlink and credential protections.
+
+This changes source recognition only. It does not run tests or containers,
+relabel host files, grant permissions or answer the original manual approval.
+The actual effects of label/user options still require normal scope review.
+Natural automatic concern delivery and its originating request were verified;
+the resulting diagnosis and code repair are reported separately from test success.
+
 ## 1.21.0 — Send Coordinator concerns for proactive engineering review
 
 The optional `concern_review_worker` runtime setting designates an existing local
