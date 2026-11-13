@@ -3929,3 +3929,41 @@ ephemeral threads. Metadata is evidence of startup, not completed publication or
 latency improvement; these outcomes and actual browser acceptance remain unverified.
 No synthetic native model turn or approval was created. The separate source-reader
 false-positive investigation remains held; this release changes no reader filter.
+
+## 2026-11-13 — Keep large browser streams open and restore Send safely
+
+Implementation `3ef94b38fb34bed9a56051fe5131832281e06029` (1.17.0) corrects two related browser
+failures. A normal full history snapshot could exceed the 4 MiB queued-output
+cutoff, so a later update could close its still-valid event stream. Actual-source
+authenticated-handler tests reproduced closure of a synthetic 6.65 MiB frame
+and additional writes after write(false) against the prior 1.16.0 revision.
+The production browser also reported an incomplete chunked response and a full
+snapshot above that threshold while both native connection flags were true.
+The original individual close was not logged; intermediary involvement remains
+unproven rather than excluded.
+
+The existing SSE channel now honors write/drain, with one in-flight frame and a
+coalesced latest-update flag. Initial snapshots and heartbeats use the same flow
+control. Session validation still runs for blocked clients; other clients proceed
+independently and closed clients remove listeners/timers. Loaded history is not
+trimmed. No delta protocol, new timer, service, persistent store or dependency was
+added. Existing service logs receive only numeric/allow-listed native transport
+codes and the first backpressure byte count per browser connection.
+
+Browser transport loss had also overwritten a shared connected flag, displaying
+a native-disconnected banner and disabling Send. Normal reconnect signals now
+trigger the existing authenticated state GET. Only a current authoritative result
+or snapshot restores sending; later snapshots/disconnections/reads/login changes
+invalidate obsolete success and error results. Failed read-only recovery checks
+can retry on later existing transport signals. This does not resume Codex, answer
+requests or replay input. Browser recovery has separate wording while real native
+disconnection retains its existing control. Draft/request/ownership guards remain.
+
+Verification: five large-stream/session/cleanup cases, seventeen actual-effect
+state-order/recovery cases and eight native-versus-browser UI cases pass. Seven
+affected file suites passed together in 6.689s; TypeScript/production build,
+syntax/diff and independent source review passed. Review corrected a diagnostic
+code-payload mismatch and a test selector that matched the wrong conditional;
+behavior assertions were preserved. Backend full-suite, installation and live
+stream observation are pending at this source checkpoint. This is focused
+application verification, not formal Ansible/AAP acceptance.
