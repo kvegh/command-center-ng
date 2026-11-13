@@ -11,8 +11,9 @@ async function fixture(t, { existing = false, approve = true, failNpm = false, f
   const directory = await mkdtemp(join(tmpdir(), 'ccng-per-user-codex-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const source = join(directory, 'source'), home = join(directory, 'user home'), bin = join(directory, 'fixture-bin'), custom = join(directory, "custom CLI's prefix");
-  for (const path of [home, bin, join(source, 'installer'), join(source, 'server'), join(source, 'src'), join(source, 'docs')]) await mkdir(path, { recursive: true });
+  for (const path of [home, bin, join(source, 'installer'), join(source, 'server'), join(source, 'src'), join(source, 'docs'), join(source, 'etc')]) await mkdir(path, { recursive: true });
   await cp(new URL('../install.sh', import.meta.url), join(source, 'install.sh'));
+  await cp(new URL('../etc/approval-policy-template.yml', import.meta.url), join(source, 'etc', 'approval-policy-template.yml'));
   await cp(new URL('../installer/prerequisites.sh', import.meta.url), join(source, 'installer', 'prerequisites.sh'));
   await cp(new URL('../installer/shell-path.mjs', import.meta.url), join(source, 'installer', 'shell-path.mjs'));
   const prerequisites = await readFile(join(source, 'installer', 'prerequisites.sh'), 'utf8');

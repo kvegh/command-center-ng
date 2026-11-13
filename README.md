@@ -326,7 +326,7 @@ or clears a pending manual request. Hook and concern sanitizers stay strict.
 Run the affected automated checks from a normal development checkout:
 
 ```bash
-node --test tests/approval-policy.test.mjs tests/runtime-config.test.mjs tests/approval-source.test.mjs tests/coordinator.test.mjs tests/approval-reviewers.test.mjs tests/installer.test.mjs
+node --test tests/approval-policy.test.mjs tests/runtime-config.test.mjs tests/approval-source.test.mjs tests/coordinator.test.mjs tests/approval-reviewers.test.mjs tests/installer.test.mjs tests/coordinator-hook-reader.test.mjs tests/installer-config.test.mjs tests/per-user-codex.test.mjs
 ```
 
 The tests use synthetic temporary files, mocked provider transport and isolated

@@ -12,8 +12,9 @@ async function fixture(t, { featureFailure = false, nativePrerequisites = false,
   const directory = await mkdtemp(join(tmpdir(), 'ccng-installer-config-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const source = join(directory, 'source'); const home = join(directory, 'user-home'); const bin = join(directory, 'bin');
-  for (const path of [source, home, bin, join(source, 'installer'), join(source, 'src'), join(source, 'server'), join(source, 'docs')]) await mkdir(path);
+  for (const path of [source, home, bin, join(source, 'installer'), join(source, 'src'), join(source, 'server'), join(source, 'docs'), join(source, 'etc')]) await mkdir(path);
   await cp(new URL('../install.sh', import.meta.url), join(source, 'install.sh'));
+  await cp(new URL('../etc/approval-policy-template.yml', import.meta.url), join(source, 'etc', 'approval-policy-template.yml'));
   await cp(new URL('../installer/shell-path.mjs', import.meta.url), join(source, 'installer', 'shell-path.mjs'));
   await writeFile(join(source, 'installer', 'prerequisites.sh'), 'ccng_system_prerequisites() { :; }\nccng_agent_prerequisites() { :; }\n');
   if (nativePrerequisites) {
@@ -86,6 +87,8 @@ test('first default installation creates private HTTP settings and empty cert di
   assert.equal((await stat(join(f.prefix, 'etc'))).mode & 0o777, 0o700);
   assert.equal((await stat(join(f.prefix, 'etc', 'certs'))).mode & 0o777, 0o700);
   assert.equal((await stat(join(f.prefix, 'etc', 'config.conf'))).mode & 0o777, 0o600);
+  assert.equal(await readFile(join(f.prefix, 'etc', 'approval-policy-template.yml'), 'utf8'), await readFile(join(f.source, 'etc', 'approval-policy-template.yml'), 'utf8'));
+  await assert.rejects(stat(join(f.prefix, 'etc', 'approval-policy.yml')), { code: 'ENOENT' });
   assert.deepEqual(await readdir(join(f.prefix, 'etc', 'certs')), []);
   assert.equal(await readFile(join(f.prefix, 'dist', 'index.html'), 'utf8'), 'synthetic built frontend\n');
   assert.ok(result.stdout.includes('Connection settings: ' + join(f.prefix, 'etc', 'config.conf')));
@@ -103,10 +106,13 @@ test('custom prefix with spaces produces literal commented certificate paths', a
   await assert.rejects(stat(f.prefix), { code: 'ENOENT' });
 });
 
-test('repeat installation preserves edited config, certificates, other etc files and local tools', async t => {
+test('repeat installation preserves edited config, active approval policy, certificates, other etc files and local tools', async t => {
   const f = await fixture(t); await f.install();
   const config = 'connection_type: https\ntls_certificate: /operator/cert.pem\ntls_private_key: /operator/key.pem\n# operator note\n';
   await writeFile(join(f.prefix, 'etc', 'config.conf'), config);
+  const approvalPolicy = 'version: 1\nsource_reading: all\napproval_instructions: |\n  Synthetic operator policy.\n';
+  await writeFile(join(f.prefix, 'etc', 'approval-policy.yml'), approvalPolicy, { mode: 0o600 });
+  await writeFile(join(f.prefix, 'etc', 'approval-policy-template.yml'), '# Superseded template fixture.\n');
   const certificate = Buffer.from('synthetic certificate bytes\n'); const key = Buffer.from('synthetic key bytes\n');
   await writeFile(join(f.prefix, 'etc', 'certs', 'server.crt'), certificate);
   await writeFile(join(f.prefix, 'etc', 'certs', 'server.key'), key, { mode: 0o600 });
@@ -116,6 +122,9 @@ test('repeat installation preserves edited config, certificates, other etc files
   await writeFile(join(f.prefix, 'tools', 'bin', 'fixture-tool'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
   await f.install();
   assert.equal(await readFile(join(f.prefix, 'etc', 'config.conf'), 'utf8'), config);
+  assert.equal(await readFile(join(f.prefix, 'etc', 'approval-policy.yml'), 'utf8'), approvalPolicy);
+  assert.equal((await stat(join(f.prefix, 'etc', 'approval-policy.yml'))).mode & 0o777, 0o600);
+  assert.equal(await readFile(join(f.prefix, 'etc', 'approval-policy-template.yml'), 'utf8'), await readFile(join(f.source, 'etc', 'approval-policy-template.yml'), 'utf8'));
   assert.deepEqual(await readFile(join(f.prefix, 'etc', 'certs', 'server.crt')), certificate);
   assert.deepEqual(await readFile(join(f.prefix, 'etc', 'certs', 'server.key')), key);
   assert.equal(await readFile(join(f.prefix, 'etc', 'other', 'operator.conf'), 'utf8'), 'operator data\n');

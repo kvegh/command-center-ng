@@ -64,10 +64,10 @@ test('other conversations, arbitrary temporary files and invalid generated names
   await mkdir(other); t.after(() => rm(other, { recursive: true, force: true }));
   const foreign = join(other, randomUUID() + '.txt'), arbitrary = join(f.cwd, 'temporary.txt'), invalid = join(f.directory, 'not-a-generated-uuid.txt');
   for (const path of [foreign, arbitrary, invalid]) await writeFile(path, 'Must remain outside the exception.');
-  for (const path of [foreign, arbitrary, invalid]) await assert.rejects(f.read(path), /project source|helper referenced/);
+  for (const path of [foreign, arbitrary, invalid]) await assert.rejects(f.read(path), /project source|helper referenced|generated hook output/);
   await assert.rejects(f.read(f.path, 1, randomUUID()), /Only the active coordinator/);
   const previous = f.coordinator.id; f.coordinator.id = randomUUID();
-  await assert.rejects(f.coordinator.readFile(f.worker, f.path), /project source|helper referenced/); f.coordinator.id = previous;
+  await assert.rejects(f.coordinator.readFile(f.worker, f.path), /project source|helper referenced|generated hook output/); f.coordinator.id = previous;
   const source = join(f.cwd, 'example.py'); await writeFile(source, 'print("ordinary source")');
   assert.equal((await f.read(source)).text, 'print("ordinary source")', 'ordinary project-source access is unchanged');
   await assert.rejects(f.read(join(f.cwd, 'credentials.py')), /hidden and sensitive paths/);

@@ -53,7 +53,7 @@ remain available. The Coordinator state exposes mode/hash/error, never policy te
 From a checkout with locked dependencies and the existing Linux tools installed:
 
 ```bash
-node --test tests/approval-policy.test.mjs tests/runtime-config.test.mjs tests/approval-source.test.mjs tests/coordinator.test.mjs tests/approval-reviewers.test.mjs tests/installer.test.mjs
+node --test tests/approval-policy.test.mjs tests/runtime-config.test.mjs tests/approval-source.test.mjs tests/coordinator.test.mjs tests/approval-reviewers.test.mjs tests/installer.test.mjs tests/coordinator-hook-reader.test.mjs tests/installer-config.test.mjs tests/per-user-codex.test.mjs
 npm run build
 ```
 
