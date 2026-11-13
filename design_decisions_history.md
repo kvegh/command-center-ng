@@ -26,6 +26,21 @@ All five targeted stream cases passed in 2.312s. Versioned validation is updated
 before repeating installed acceptance; the authorized source-policy implementation
 remains `c7d371d44ceccd1e93c4579d4b888072bb1bb975`.
 
+Final 1.25.1 payload `7670d0e1625ceea46f018f0ee3b0fb2cd2e250d9` was SSH-published
+and independently confirmed at public main. The existing update succeeded in
+101.806s (14:10:14.750788–14:11:56.556349 UTC), after 1,142 checks passed with
+zero failures and one skip in 73.908s. Nine protected files, eight saved workers,
+native runtime and Coordinator/pause/report settings were preserved.
+
+Installed acceptance succeeded in 18.881s (14:14:32.564573–14:14:51.445318 UTC):
+113 source files matched, actual HTTPS/authentication/assets/listeners/tracker
+and canonical CLI checks passed, and all 525 checks across 32 suites imported
+installed modules and passed in 12.019s. The installed protected source checker
+also read all seven explicitly authorized project files completely, retaining
+credential protections and rejecting a filesystem-root project directory.
+No native approval context was created or answered and no original project
+action was executed. Final outcome documentation is newer than that payload.
+
 ## 2026-11-13 — Read current-request project source across local directories (1.25.0)
 
 Implementation commit: `c7d371d44ceccd1e93c4579d4b888072bb1bb975`.
@@ -56,8 +71,8 @@ test files passed in 2.411s and the production build in 445ms. Direct user-autho
 inspection through the protected checker read the actual runtime playbook and
 six survey files completely, without a credential refusal or execution. That
 read created no native approval context and does not establish the whole
-interactive action's safety or authority. Publication and installed verification
-follow below after their actual outcomes.
+interactive action's safety or authority. Final publication and installed
+acceptance are recorded in the 1.25.1 entry above.
 
 ## 2026-11-13 — Explain withheld engineering concerns without exposing matches (1.24.0)
 
