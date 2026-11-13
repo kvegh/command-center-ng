@@ -8,6 +8,24 @@ Initial source commit: `17d351d74ec172c2f451e59e48c534afbc25e2d2`. It introduces
 the eight documentation, contributor-guidance, and Git-policy files described
 below; it contains no application or installer implementation.
 
+## 2026-11-13 — Count backpressure writes relative to a legitimate baseline (1.25.1)
+
+Implementation commit: `4d2ea0ba4786bb8d3ea91b4143be987f9ececd7a`.
+
+Installed verification of 1.25.0 encountered an existing stream test expecting
+two total writes but observing three. A controlled copy with a legitimate
+unblocked snapshot before backpressure deterministically failed the old count
+as well. That proves the absolute-count assumption excludes a valid scenario;
+the exact timing of the original failure is not independently reconstructed.
+
+The test now explicitly includes an earlier unblocked snapshot, captures its
+baseline and still requires exactly one accepted write when blocked, no further
+blocked writes, one coalesced write after drain, and a normal heartbeat. Session
+and other-browser assertions remain. No production stream behavior changed.
+All five targeted stream cases passed in 2.312s. Versioned validation is updated
+before repeating installed acceptance; the authorized source-policy implementation
+remains `c7d371d44ceccd1e93c4579d4b888072bb1bb975`.
+
 ## 2026-11-13 — Read current-request project source across local directories (1.25.0)
 
 Implementation commit: `c7d371d44ceccd1e93c4579d4b888072bb1bb975`.
