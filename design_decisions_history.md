@@ -8,6 +8,32 @@ Initial source commit: `17d351d74ec172c2f451e59e48c534afbc25e2d2`. It introduces
 the eight documentation, contributor-guidance, and Git-policy files described
 below; it contains no application or installer implementation.
 
+## 2026-11-13 — Explain protected-content refusals without revealing matches (1.23.0)
+
+Implementation commit: `6a570110bd9fef4e12183756f5263a1461125619`.
+
+A second genuine engineering concern showed that command recognition now works,
+but the reader's single generic content error cannot explain which rule refused
+the test module. Bounded native metadata confirmed that error; the refused file
+was not retrieved. The evidence does not establish a real credential or a false
+positive in that file.
+
+Both existing source interfaces now append one of six fixed categories: binary
+data, Vault marker, private-key marker, provider-token marker, credential-named
+JSON field or credential-named literal assignment. Matching text, keys, values
+and excerpts stay private. Existing detection order, thresholds and allow/block
+decisions are preserved, including conservative rejection of synthetic fixtures.
+No reader, exception, automatic re-review, approval answer or command retry was
+added. The original manual request and the separate held Vault-helper issue
+remain unchanged.
+
+Twenty-four focused source cases, Coordinator integration across both reader
+interfaces, stale-token/pending-request protections, 552 old/new detector
+comparisons and the production build passed. Independent read-only review found
+no blocker. Publication and installed verification are recorded below only when
+actually verified; the exact original file trigger and Windows test outcome are
+still unknown.
+
 ## 2026-11-03 — Start an independent public-source project
 
 The user requested the repository name command-center-ng and explicitly allowed
