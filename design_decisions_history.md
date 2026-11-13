@@ -4008,3 +4008,18 @@ does not prove there were no closures. The original individual public connection
 was not traced, and long-term connection stability is not established by one
 successful message. The reproduced large-frame closure and stale browser-state
 mechanisms were corrected while retaining loaded history and existing controls.
+
+## 2026-11-13 — Keep structured questions and suppress their native notice by choice
+
+The user explicitly chose to retain native structured questions in Default mode
+and suppress the repetitive under-development warning, asking that both the
+reason and suppression be documented. The supported native configuration API
+saved `suppress_unstable_features_warning = true` in the selected user profile
+using its current version. A fresh configuration read confirmed the question
+feature stayed enabled and all other effective and user-layer values matched.
+No application implementation, approval answer, native turn or restart was
+needed. Documentation commit `2f940dda6da1df432495bdef3501264936c463dc` explains the
+feature's purpose, experimental status, profile-wide suppression scope and the
+fact that previously retained CCNG banner text is not cleared by saving a setting.
+The installer continues to preserve experimental warnings by default. Warning-free
+future native loading remains unverified without disturbing active work.
