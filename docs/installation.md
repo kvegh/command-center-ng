@@ -345,7 +345,8 @@ managed tools. The configuration and certificate directories are private
 
 The launcher reads this same config during foreground and systemd startup.
 Supported settings are `connection_type`, `tls_certificate`, `tls_private_key`,
-`host`, `port` and `public_origin`. Use one literal `key: value` per line, with
+`host`, `port`, `public_origin`, `first_password_setup` and optional
+`concern_review_worker`. Use one literal `key: value` per line, with
 `#` comments on their own lines. Spaces and `#` inside a value are literal;
 quotes, environment variables, `~` and shell expressions are not expanded.
 This is a small text settings format, not YAML, and adds no parser dependency.
@@ -358,6 +359,15 @@ file. Saved explicit service options still take precedence after an update.
 Restart CCNG deliberately after editing settings; it does not reload them while
 running. Password and saved conversation metadata use the separate private
 directory described below, rather than this connection file.
+
+To send new Coordinator concerns to an existing local Codex engineering chat,
+set `concern_review_worker: EXISTING_WORKER_ID`. The same optional setting is
+available as `--concern-review-worker ID` or `CCNG_CONCERN_REVIEW_WORKER` with
+the normal precedence. Omission or `disabled` turns routing off. Use the exact
+existing chat ID; CCNG never guesses a destination or creates a replacement chat.
+Keep actual IDs in private installation configuration, outside this repository.
+See [engineering concern review](coordinator.md#engineering-review-of-recurring-concerns)
+for delivery and approval limits.
 
 ## Password and saved workspace
 

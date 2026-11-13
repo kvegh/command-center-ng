@@ -35,6 +35,17 @@ test('HTTP is the user-facing default and HTTPS/TLS settings are explicit overri
   assert.equal(options.protocol, 'https'); assert.equal(options['tls-cert'], '/example/cert.pem'); assert.equal(options['tls-key'], '/example/key.pem');
 });
 
+test('concern worker options validate the effective CLI or environment value without inventing a destination', () => {
+  assert.equal(runtimeOptions([], {})['concern-review-worker'], undefined);
+  assert.equal(runtimeOptions([], { CCNG_CONCERN_REVIEW_WORKER: 'worker-env' })['concern-review-worker'], 'worker-env');
+  assert.equal(runtimeOptions(['--concern-review-worker', 'worker-cli'], { CCNG_CONCERN_REVIEW_WORKER: 'invalid/value' })['concern-review-worker'], 'worker-cli');
+  assert.equal(runtimeOptions(['--concern-review-worker', 'disabled'], { CCNG_CONCERN_REVIEW_WORKER: 'worker-env' })['concern-review-worker'], 'disabled');
+  for (const value of ['', 'invalid/value', 'constructor', 'prototype', 'coordinator', 'a'.repeat(129)]) {
+    assert.throws(() => runtimeOptions(['--concern-review-worker', value], {}), /concern_review_worker/);
+    assert.throws(() => runtimeOptions([], { CCNG_CONCERN_REVIEW_WORKER: value }), /concern_review_worker/);
+  }
+});
+
 test('startup stdout identifies the resolved interface, actual address and selection mode', () => {
   const automatic = listeningMessage({ host: '192.0.2.15', interfaceName: 'example0', automatic: true }, 4242);
   assert.match(automatic, /http:\/\/192\.0\.2\.15:4242/);
@@ -48,7 +59,7 @@ test('startup stdout identifies the resolved interface, actual address and selec
 
 test('usage documents automatic defaults, optional overrides, environment and systemd logging', () => {
   const help = runtimeHelp();
-  for (const pattern of [/\[--host ADDRESS\]/, /default-route IPv4 interface/, /127\.0\.0\.1 on the same port/, /one listening address/, /127\.0\.0\.1: local only/, /0\.0\.0\.0: all IPv4 interfaces/, /CCNG_HOST/, /CLI options take precedence/, /systemd records stdout/, /does not configure firewall/, /service help/]) assert.match(help, pattern);
+  for (const pattern of [/\[--host ADDRESS\]/, /default-route IPv4 interface/, /127\.0\.0\.1 on the same port/, /one listening address/, /127\.0\.0\.1: local only/, /0\.0\.0\.0: all IPv4 interfaces/, /CCNG_HOST/, /--concern-review-worker ID\|disabled/, /concern_review_worker/, /CCNG_CONCERN_REVIEW_WORKER/, /does not answer native approvals/, /CLI options take precedence/, /systemd records stdout/, /does not configure firewall/, /service help/]) assert.match(help, pattern);
 });
 
 test('real long and short help run without routing, authentication or workspace initialization', async () => {
@@ -68,6 +79,13 @@ test('invalid ports fail before route selection or password/runtime startup', as
   await assert.rejects(run(process.execPath, [main, '--port', '0'], { env: { ...process.env, PATH: '', CCNG_HOST: '' }, timeout: 10000 }), error => {
     assert.equal(error.code, 1); assert.match(error.stderr, /Choose a port from 1 to 65535/);
     assert.doesNotMatch(error.stderr, /password first|ip command|default route/i); return true;
+  });
+});
+
+test('invalid concern destinations fail before routing, authentication or native startup', async () => {
+  await assert.rejects(run(process.execPath, [main, '--concern-review-worker', 'invalid/value'], { env: { ...process.env, PATH: '', CCNG_HOST: '' }, timeout: 10000 }), error => {
+    assert.equal(error.code, 1); assert.match(error.stderr, /concern_review_worker.*worker ID/);
+    assert.doesNotMatch(error.stderr, /password first|ip command|default route|listening on/i); return true;
   });
 });
 

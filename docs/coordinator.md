@@ -199,6 +199,47 @@ converted to decline just to deliver the notice. The worker cannot read a queued
 notice before those delivery conditions are met. Existing pause, confirmation,
 duplicate-message and failure/no-automatic-retry behavior remains.
 
+## Engineering review of recurring concerns
+
+An operator may designate an existing local Codex engineering chat through the
+optional `concern_review_worker` runtime setting. New actual main-Coordinator
+`ask` decisions are collected and sent there after that exact Coordinator turn
+completes. Analyst recommendations, approved/declined actions and restored
+historical referrals do not trigger notices. Each batch contains up to six
+concerns with project/worker names, parent/child/request identifiers and bounded
+Request/Concern/Next details. It excludes automatic command/source copies,
+known credential-like content and live approval tokens. Unsafe details are
+explicitly withheld for permitted follow-up inspection.
+
+The engineering worker investigates recurring causes and proactively fixes
+routine CCNG defects within actual user-authorized scope. Other projects retain
+their owners and boundaries; a notice grants no extra authority over resources,
+credentials or refused source. Genuine user decisions still need the user. The
+original approval remains pending, and an engineering repair does not answer,
+replay or automatically reopen its review. A concern can remain useful after the
+user resolves its request, without treating the historical record as permission.
+
+Notices use the existing bounded worker-message queue and are delivered only at
+an authorized idle point, with native/async questions, pause, stop, ownership,
+handoff and connection checks repeated immediately before the native write.
+They never steer active work or restart stopped/failed work. Queue acceptance
+and native delivery are distinct from investigation and repair. Unconfirmed
+delivery stays failed for inspection rather than automatically resending.
+Unavailable/self destinations and full queues retain unsent concerns with a
+visible Coordinator error; no fallback target is selected. Clear messages or
+closing the destination cancels unsent notices, including cancellation during
+context loading. Collection and queues remain in process memory; restart does
+not restore/replay notices or scan old referrals. Existing manual asks and the
+private decision history remain unchanged.
+
+Run `node --test tests/coordinator-concern-notices.test.mjs tests/runtime-config.test.mjs tests/runtime-options.test.mjs`
+from the checkout with its existing dependencies. These repeatable synthetic
+tests preserve unrelated resources and fail with a nonzero exit status. To test
+the actual installed implementation, stage the same versioned tests in a private
+temporary directory and link `server` to the installation, as described in the
+README's installed source-reader procedure. No real approval or model turn is
+needed; natural message receipt and subsequent repair remain separate acceptance.
+
 ## Multiple pending requests
 
 Version 0.12.0 makes the complete delivered request list explicit in both

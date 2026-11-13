@@ -922,9 +922,27 @@ export class Workspace extends EventEmitter {
     this.changed();
     return thread.status?.type === 'active' && !!agent.turnId;
   }
-  async send(id, text, { report = false, reportSetting = false, coordinatorEvent = false, taskPing = false, preserveAsyncQuestions = false, messageQuestion, images: suppliedImages } = {}) {
+  async send(id, text, { report = false, reportSetting = false, coordinatorEvent = false, taskPing = false, concernReview = null, preserveAsyncQuestions = false, messageQuestion, images: suppliedImages } = {}) {
     const agent = this.agent(id);
-    const internalControl = report || reportSetting || coordinatorEvent || taskPing || preserveAsyncQuestions;
+    const internalControl = report || reportSetting || coordinatorEvent || taskPing || concernReview || preserveAsyncQuestions;
+    const assertConcernDelivery = () => {
+      if (!concernReview) return;
+      if (!this.coordinator?.deliveries.get(id)?.includes(concernReview.message)) {
+        throw Object.assign(new Error('The queued concern notice was cancelled before delivery.'), { status: 409, code: 'concern_review_cancelled' });
+      }
+      if (concernReview.target !== agent || this.agents.get(id) !== agent || concernReview.epoch !== this.requestEpoch
+        || this.coordinator?.concernReviewWorkerId !== id || !this.readyFor(agent)) {
+        throw inputNotSent('The engineering destination or native connection changed. The concern notice was not sent; inspect it before retrying.');
+      }
+      if (agent.provider === 'claude' || agent.role === 'coordinator' || agent.externalSession) throw inputNotSent('Concern notices require the configured local Codex worker; the message was not sent.');
+      if (this.coordinator.paused || this.coordinator.stopped || this.restoring || agent.requestStopIntent
+        || !agent.canSend || agent.handoff || this.handoffs.incoming(id) || this.summaryJobs.has(id) || this.returnJobs.has(id)
+        || agent.returnSummary?.delivered || agent.questions.length || statusOf(agent.thread) === 'attention'
+        || hasOpenAsyncQuestions(agent) || agent.thread.status?.type !== 'idle' || agent.turnId || agent.finishedTurn?.status !== 'completed') {
+        throw Object.assign(new Error('Concern delivery is waiting for the engineering chat to reach an authorized idle point.'), { status: 409, code: 'concern_review_wait' });
+      }
+    };
+    assertConcernDelivery();
     const priorStopIntent = agent.requestStopIntent;
     const manualAccepted = () => { if (!internalControl && !messageQuestion && agent.requestStopIntent === priorStopIntent) delete agent.requestStopIntent; };
     if (internalControl) assertAsyncQuestionsAllowControl(agent);
@@ -938,6 +956,7 @@ export class Workspace extends EventEmitter {
     if (statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Load the pending request before sending another message.'), { status: 409 });
     await this.activate(id);
     const context = await this.instructionContext(agent);
+    assertConcernDelivery();
     if (this.agents.get(id) !== agent) throw Object.assign(new Error('The worker was closed before message delivery.'), { status: 409 });
     if (!this.readyFor(agent)) throw Object.assign(new Error('Reconnect the native runtime before sending this message.'), { status: 503 });
     if (!agent.canSend) throw Object.assign(new Error(agent.managementNotice || 'The native agent does not allow direct input to this session.'), { status: 409 });
@@ -946,7 +965,7 @@ export class Workspace extends EventEmitter {
     if (agent.provider === 'claude') {
       await this.claude.send(agent, text.trim(), { images, report, reportSetting, instructions: Object.values(context).map(part => part.value).join('\n\n'), stillOpen: () => this.agents.get(id) === agent, ...(report || reportSetting ? { priority: 'next' } : {}) }); return;
     }
-    if (agent.freshBranch && !report && !reportSetting && !taskPing && !messageQuestion) {
+    if (agent.freshBranch && !report && !reportSetting && !taskPing && !concernReview && !messageQuestion) {
       const title = text.trim().split('\n')[0].slice(0, 120) || 'Image message';
       await this.rpc.call('thread/name/set', { threadId: id, name: title });
       agent.name = title; agent.goal = title; agent.freshBranch = false;
@@ -974,6 +993,9 @@ export class Workspace extends EventEmitter {
       currentAsyncQuestion(agent, messageQuestion.messageId, messageQuestion.questionIndex, messageQuestion);
       messageQuestion.attempted = true;
     }
+    // No await between this final concern-specific check and the native write.
+    // Context loading may have raced a stop, pause, handoff or ownership change.
+    assertConcernDelivery();
     if (agent.thread.status?.type === 'active' && agent.turnId) {
       const turnId = agent.turnId;
       const epoch = this.requestEpoch, stopIntent = agent.requestStopIntent;

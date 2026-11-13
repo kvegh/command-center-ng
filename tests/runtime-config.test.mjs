@@ -5,8 +5,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { parseRuntimeConfig, readRuntimeConfig, runtimeConfigFile } from '../server/runtime-config.mjs';
+import { EventEmitter } from 'node:events';
+import { randomBytes } from 'node:crypto';
+import { parseRuntimeConfig, readRuntimeConfig, runtimeConfigFile, normalizeConcernReviewWorker } from '../server/runtime-config.mjs';
 import { loadRuntimeOptions, createApp } from '../server/main.mjs';
+import { setPassword } from '../server/auth.mjs';
+import { Workspace } from '../server/workspace.mjs';
 
 async function fixture(t) {
   const appDir = await mkdtemp(join(tmpdir(), 'ccng-runtime-config-'));
@@ -70,6 +74,59 @@ test('browser-first setup is disabled by default and protected-proxy opt-in reta
   assert.equal((await loadRuntimeOptions(['--first-password-setup', 'htpasswd-proxy'], env, { appDir: f.appDir }))['first-password-setup'], 'htpasswd-proxy');
   await f.write('first_password_setup: disabled\n');
   assert.equal((await loadRuntimeOptions([], {}, { appDir: f.appDir }))['first-password-setup'], 'disabled');
+});
+
+test('concern review worker is optional and follows CLI, environment and installed-config precedence', async t => {
+  const f = await fixture(t);
+  assert.equal((await loadRuntimeOptions([], {}, { appDir: f.appDir }))['concern-review-worker'], undefined);
+  await f.write('concern_review_worker: worker-file\n');
+  assert.equal((await loadRuntimeOptions([], {}, { appDir: f.appDir }))['concern-review-worker'], 'worker-file');
+  const env = { CCNG_CONCERN_REVIEW_WORKER: 'worker-env' };
+  assert.equal((await loadRuntimeOptions([], env, { appDir: f.appDir }))['concern-review-worker'], 'worker-env');
+  assert.equal((await loadRuntimeOptions(['--concern-review-worker', 'worker-cli'], env, { appDir: f.appDir }))['concern-review-worker'], 'worker-cli');
+  assert.equal((await loadRuntimeOptions(['--concern-review-worker', 'disabled'], env, { appDir: f.appDir }))['concern-review-worker'], 'disabled');
+  assert.equal((await loadRuntimeOptions([], { CCNG_CONCERN_REVIEW_WORKER: 'disabled' }, { appDir: f.appDir }))['concern-review-worker'], 'disabled');
+  await f.write('concern_review_worker: disabled\n');
+  assert.equal(normalizeConcernReviewWorker((await loadRuntimeOptions([], {}, { appDir: f.appDir }))['concern-review-worker']), null);
+});
+
+test('concern worker identifiers are bounded literal IDs and invalid settings fail without echoing values', async t => {
+  const f = await fixture(t);
+  for (const value of [undefined, null, 'disabled']) assert.equal(normalizeConcernReviewWorker(value), null);
+  for (const value of ['worker', 'worker-01_name', '01a1d42b-0d52-7c33-86e3-1e189eaa7db5', 'A'.repeat(128)]) assert.equal(normalizeConcernReviewWorker(value), value);
+  for (const value of ['', ' ', '_worker', 'worker/name', 'worker.name', 'worker name', '$(private-value)', 'constructor', 'Constructor', 'prototype', 'coordinator', '__proto__', 'a'.repeat(129), 'éworker', 1, false, {}]) {
+    assert.throws(() => normalizeConcernReviewWorker(value), /worker ID|reserved/);
+  }
+  for (const value of ['worker/name', 'constructor', 'coordinator', '$(private-value)', 'a'.repeat(129)]) {
+    await f.write('concern_review_worker: ' + value + '\n');
+    await assert.rejects(loadRuntimeOptions([], {}, { appDir: f.appDir }), error => {
+      assert.match(error.message, /Runtime configuration line 1:.*concern_review_worker/);
+      assert.doesNotMatch(error.message, /private-value/); return true;
+    });
+  }
+  await f.write('concern_review_worker: worker-one\nconcern_review_worker: worker-two\n');
+  await assert.rejects(loadRuntimeOptions([], {}, { appDir: f.appDir }), /duplicate setting/);
+});
+
+test('app settings normalize concern routing and explicit values alone update a supplied Coordinator', async t => {
+  const f = await fixture(t), authFile = join(f.appDir, 'auth.json');
+  await setPassword(randomBytes(24).toString('base64url'), authFile);
+  const updates = [];
+  for (const config of [{}, { concernReviewWorkerId: 'worker-review' }, { concernReviewWorkerId: 'disabled' }, { concernReviewWorkerId: null }]) {
+    const rpc = new EventEmitter(); rpc.ready = false; rpc.close = () => {};
+    rpc.call = async () => assert.fail('Configuration must not run native work.');
+    rpc.respond = () => assert.fail('Configuration must not answer native requests.');
+    const workspace = new Workspace(rpc, { beads: null });
+    workspace.coordinator = { setConcernReviewWorker: id => updates.push(id), snapshot: () => null, shutdown: async () => {} };
+    const before = updates.length;
+    const app = await createApp({ rpc, workspace, authFile, workspaceFile: join(f.appDir, 'workspace.json'), config });
+    try {
+      assert.equal(app.settings.concernReviewWorkerId, config.concernReviewWorkerId === 'worker-review' ? 'worker-review' : null);
+      assert.equal(updates.length, before + (Object.hasOwn(config, 'concernReviewWorkerId') ? 1 : 0));
+    } finally { await app.close(); }
+  }
+  assert.deepEqual(updates, ['worker-review', null, null], 'omission preserves an existing Coordinator setting while explicit disable clears it');
+  await assert.rejects(createApp({ authFile: join(f.appDir, 'missing-auth.json'), config: { concernReviewWorkerId: 'worker/name' } }), /concern_review_worker/);
 });
 
 test('malformed unknown duplicate and invalid settings fail safely rather than being evaluated or ignored', async t => {

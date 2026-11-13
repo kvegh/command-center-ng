@@ -11,9 +11,19 @@ const options = {
   port: 'port',
   public_origin: 'public-origin',
   first_password_setup: 'first-password-setup',
+  concern_review_worker: 'concern-review-worker',
 };
 
 export const runtimeConfigFile = appDir => join(appDir, 'etc', 'config.conf');
+
+export function normalizeConcernReviewWorker(value) {
+  if (value === undefined || value === null || value === 'disabled') return null;
+  if (typeof value !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(value)
+    || /^(?:constructor|prototype|coordinator)$/i.test(value)) {
+    throw new Error('concern_review_worker / --concern-review-worker must be disabled or a worker ID of 1–128 letters, digits, underscores or hyphens, starting with a letter or digit; reserved names are not allowed.');
+  }
+  return value;
+}
 
 export function parseRuntimeConfig(text, directory) {
   if (Buffer.byteLength(text, 'utf8') > limit) throw new Error('Runtime configuration exceeds 16 KiB.');
@@ -29,6 +39,9 @@ export function parseRuntimeConfig(text, directory) {
     if (!value || /[\x00-\x1f\x7f]/.test(value)) throw invalid('a nonempty value without control characters is required.');
     if (key === 'connection_type' && !['http', 'https'].includes(value)) throw invalid('connection_type must be http or https.');
     if (key === 'first_password_setup' && !['disabled', 'htpasswd-proxy'].includes(value)) throw invalid('first_password_setup must be disabled or htpasswd-proxy.');
+    if (key === 'concern_review_worker') {
+      try { normalizeConcernReviewWorker(value); } catch (error) { throw invalid(error.message); }
+    }
     if (key === 'port' && (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 65535)) throw invalid('port must be from 1 to 65535.');
     seen.add(key);
     // This is a literal settings format, not YAML or shell input. Only a line

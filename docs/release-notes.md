@@ -9,6 +9,22 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.21.0 — Send Coordinator concerns for proactive engineering review
+
+The optional `concern_review_worker` runtime setting designates an existing local
+Codex chat for new actual Coordinator concerns. Bounded batches use the existing
+message queue and identify the originating project, worker and request while
+withholding raw commands/source, protected-looking details and approval tokens.
+The engineering worker can investigate recurring causes and repair routine CCNG
+defects within authorized scope; genuine decisions and original approvals stay
+with the user. An engineering notice does not approve or replay an action.
+
+Delivery waits for an authorized idle point and repeats stop, pause, ownership,
+handoff, native-question and cancellation checks after context loading and before
+the native write. No active steering, new scheduler/store, historical referral
+replay or uncertain-message retry is introduced. Queue and runtime errors remain
+visible; delivered notices do not establish investigation or successful repair.
+
 ## 1.20.0 — Recognize direct container test scripts
 
 Source review also recognizes a literal absolute Python script in the validated

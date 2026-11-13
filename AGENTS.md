@@ -980,3 +980,22 @@ or independent timer. Saved main tools remain for client compatibility.
 Native turn/item order governs chat history. Preserve older loaded pages, paging
 boundaries and newer live records across overlapping reads without timestamp
 sorting or silent record trimming. Existing explicit 20-turn pagination remains.
+
+## Approved engineering concern notices
+
+The user selected proactive engineering review of Coordinator concerns to find
+and fix recurring in-scope problems. Use the existing worker-message queue and
+an explicitly configured existing local Codex destination in private runtime
+settings. Collect only new actual main ask decisions, batch them at their exact
+turn completion, and keep original requests and real human decisions intact.
+Do not forward raw commands/source, credentials or live approval tokens; keep
+bounded useful concern/context and exact ordinary native references.
+
+Engineering may proactively fix routine CCNG defects within real user scope;
+other projects keep their owners and permissions. Notices are evidence, not
+new authority, approval answers or permission to bypass refused reads. Preserve
+idle, native/async question, stop, pause, handoff, identity and final-write guards.
+No active steering, uncertain-send retry, historical scan/replay, new store,
+service, timer or automatic re-review is authorized by this feature. Keep
+unavailable/full/failed delivery visible, honor cancellation before native write,
+and distinguish queued/delivered notices from actual investigation or repair.

@@ -14,7 +14,7 @@ import { authenticationUnavailable } from './session-store.mjs';
 import { VERSION } from './version.mjs';
 import { resolveListenAddress, listenAddresses } from './listen-address.mjs';
 import { loadTlsSettings, certificateInfo } from './tls-settings.mjs';
-import { readRuntimeConfig, runtimeConfigFile } from './runtime-config.mjs';
+import { readRuntimeConfig, runtimeConfigFile, normalizeConcernReviewWorker } from './runtime-config.mjs';
 import { ensureCodexQuestions } from './codex-setup.mjs';
 import { WorkspaceStore, WorkspacePersistence } from './workspace-store.mjs';
 import { DecisionStore } from './decision-store.mjs';
@@ -55,6 +55,7 @@ async function body(request, limit = 65_536) {
 
 export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), workspaceFile, config = {} } = {}) {
   const settings = { host: '127.0.0.1', port: 4242, protocol: 'http', cwd: process.cwd(), dev: false, ...config };
+  settings.concernReviewWorkerId = normalizeConcernReviewWorker(settings.concernReviewWorkerId);
   if (settings.protocol !== undefined && !['http', 'https'].includes(settings.protocol)) throw new Error('Choose --protocol http or https.');
   if (settings.publicOrigin) {
     const parsed = new URL(settings.publicOrigin);
@@ -84,7 +85,8 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
   const sessions = new Sessions(authFile); const clients = new Set();
   await sessions.initialize();
   rpc ||= new CodexRpc({ socketPath: settings.socketPath });
-  workspace ||= new Workspace(rpc, { coordinator: true, claude: true });
+  if (workspace && Object.hasOwn(config, 'concernReviewWorkerId')) workspace.coordinator?.setConcernReviewWorker(settings.concernReviewWorkerId);
+  workspace ||= new Workspace(rpc, { coordinator: { concernReviewWorkerId: settings.concernReviewWorkerId || null }, claude: true });
   await workspace.claude?.initialize();
   await workspace.beads?.checkAvailable(settings.cwd);
   // Load past decisions before restoration can publish a new startup dashboard.
@@ -392,7 +394,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
 }
 
 export function runtimeOptions(args = process.argv.slice(2), env = process.env, fileValues = {}) {
-  return parseArgs({ args, options: {
+  const values = parseArgs({ args, options: {
     host: { type: 'string', default: env.CCNG_HOST || fileValues.host || undefined },
     port: { type: 'string', default: env.CCNG_PORT || fileValues.port || '4242' },
     protocol: { type: 'string', default: env.CCNG_PROTOCOL || fileValues.protocol || 'http' },
@@ -400,10 +402,13 @@ export function runtimeOptions(args = process.argv.slice(2), env = process.env, 
     socket: { type: 'string' },
     'public-origin': { type: 'string', default: env.CCNG_PUBLIC_ORIGIN ?? fileValues['public-origin'] },
     'first-password-setup': { type: 'string', default: env.CCNG_FIRST_PASSWORD_SETUP || fileValues['first-password-setup'] || 'disabled' },
+    'concern-review-worker': { type: 'string', default: env.CCNG_CONCERN_REVIEW_WORKER ?? fileValues['concern-review-worker'] },
     'tls-cert': { type: 'string', default: env.CCNG_TLS_CERT || fileValues['tls-cert'] || undefined },
     'tls-key': { type: 'string', default: env.CCNG_TLS_KEY || fileValues['tls-key'] || undefined },
     dev: { type: 'boolean' }, help: { type: 'boolean', short: 'h' }, 'clear-logins': { type: 'boolean' }
   } }).values;
+  if (!values.help && !values['clear-logins']) normalizeConcernReviewWorker(values['concern-review-worker']);
+  return values;
 }
 
 export async function loadRuntimeOptions(args = process.argv.slice(2), env = process.env, { appDir = root } = {}) {
@@ -434,6 +439,9 @@ Usage: command-center-ng [--host ADDRESS] [--port PORT] [--protocol https|http] 
                         every route, with restricted direct backend access and
                         an explicit HTTPS --public-origin. No setup code is used.
   --socket PATH         Existing local Codex daemon socket.
+  --concern-review-worker ID|disabled
+                        Existing worker to receive Coordinator concern reviews.
+                        Disabled when omitted; does not answer native approvals.
   --tls-cert FILE       PEM certificate/full-chain file for direct HTTPS.
   --tls-key FILE        Matching PEM private key; both TLS files are required.
   --dev                 Enable the development frontend.
@@ -445,10 +453,11 @@ Usage: command-center-ng [--host ADDRESS] [--port PORT] [--protocol https|http] 
 Configuration: INSTALLDIR/etc/config.conf is read at foreground/systemd startup.
 Use simple key: value lines and full-line # comments; this is not YAML.
 Settings: connection_type, tls_certificate, tls_private_key, host, port, public_origin,
-          first_password_setup.
+          first_password_setup, concern_review_worker.
 Certificate paths can be absolute or relative to the config file directory.
 Environment: CCNG_HOST, CCNG_PORT, CCNG_PROTOCOL, CCNG_PUBLIC_ORIGIN,
-             CCNG_TLS_CERT, CCNG_TLS_KEY, CCNG_FIRST_PASSWORD_SETUP. CLI options take precedence over
+             CCNG_TLS_CERT, CCNG_TLS_KEY, CCNG_FIRST_PASSWORD_SETUP,
+             CCNG_CONCERN_REVIEW_WORKER. CLI options take precedence over
              environment, which takes precedence over the configuration file.
 HTTPS requires both TLS files; missing or unsuitable files never enable HTTP.
 Explicit --protocol http ignores TLS file settings and keeps plain HTTP available.
@@ -483,7 +492,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       const port = Number(values.port); if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Choose a port from 1 to 65535.');
       if (!['http', 'https'].includes(values.protocol)) throw new Error('Choose --protocol http or https.');
       const selection = await resolveListenAddress(values.host);
-      const app = await createApp({ config: { host: selection.host, port, protocol: values.protocol, cwd: resolve(values.cwd), socketPath: values.socket, publicOrigin: values['public-origin'], firstPasswordSetup: values['first-password-setup'], tlsCert: values['tls-cert'], tlsKey: values['tls-key'], dev: values.dev } });
+      const app = await createApp({ config: { host: selection.host, port, protocol: values.protocol, cwd: resolve(values.cwd), socketPath: values.socket, publicOrigin: values['public-origin'], firstPasswordSetup: values['first-password-setup'], concernReviewWorkerId: values['concern-review-worker'], tlsCert: values['tls-cert'], tlsKey: values['tls-key'], dev: values.dev } });
       // Startup observes the native setup without changing a shared Codex profile.
       const codexSetup = await ensureCodexQuestions({ enable: false });
       for (const warning of codexSetup.warnings) console.warn('Codex setup warning: ' + warning);
