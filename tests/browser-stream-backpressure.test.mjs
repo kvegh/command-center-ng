@@ -120,15 +120,20 @@ test('a large initial snapshot remains open and a slow browser receives only the
 test('backpressure on an update pauses only that browser and normal heartbeat delivery resumes after drain', async t => {
   const f = await fixture(t);
   const slow = await f.openStream(), fast = await f.openStream();
+  // Startup broadcasts may arrive before backpressure begins. Exercise that
+  // legitimate case and keep exact write-count assertions relative to it.
+  await f.publishTo(fast.response, 'Before backpressure');
+  assert.equal(slow.response.snapshots().at(-1).agents[0].name, 'Before backpressure');
+  const before = slow.response.chunks.length;
   slow.response.backpressured = true;
   await f.publishTo(fast.response, 'Accepted blocked update');
-  assert.equal(slow.response.chunks.length, 2);
+  assert.equal(slow.response.chunks.length, before + 1);
   await f.publishTo(fast.response, 'Newest update');
-  assert.equal(slow.response.chunks.length, 2, 'write(false) matters even below the former byte cutoff');
+  assert.equal(slow.response.chunks.length, before + 1, 'write(false) matters even below the former byte cutoff');
   await slow.heartbeat();
-  assert.equal(slow.response.chunks.length, 2);
+  assert.equal(slow.response.chunks.length, before + 1);
   slow.response.drain();
-  await waitFor(() => slow.response.chunks.length === 3);
+  await waitFor(() => slow.response.chunks.length === before + 2);
   assert.equal(slow.response.snapshots().at(-1).agents[0].name, 'Newest update');
   await slow.heartbeat();
   assert.match(slow.response.chunks.at(-1), /^event: heartbeat\ndata: /);

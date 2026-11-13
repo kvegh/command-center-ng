@@ -321,6 +321,9 @@ The tests use temporary synthetic files and isolated Coordinator requests, and
 exit nonzero on failure. They exercise both source-reading interfaces, supported
 formats, exact container-script mapping, secret/Vault rejection and request/directory/hash checks. No protected
 inputs, external service, live model turn or genuine approval answer is needed.
+Browser-stream regressions also include earlier unblocked snapshots and verify
+exact write increments while blocked and after drain, avoiding startup-timing
+assumptions without loosening backpressure checks.
 To exercise the actual installed server modules, use the same source release
 as the installation. Development tests are not shipped inside the installation;
 stage the existing tests temporarily and link their server imports to it:
