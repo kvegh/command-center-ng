@@ -1,5 +1,32 @@
 # Design decisions history
 
+## 1.27.2 — Allow Tasks boundary scrolling to reach its sidebar — 2026-11-13
+
+Implementation: `87cbcf0c521ad32fa557f0ebdf64f868752f29f1`.
+
+The user confirmed that native touchpad vertical scrolling fails in Tasks while
+chat works. Source inspection found two nested containment barriers: the measured
+Tasks list and its saved-height section body. The outer desktop overview already
+contains scrolling. According to the [CSS overscroll specification](https://www.w3.org/TR/css-overscroll-1/#scroll-chaining-and-boundary-default-actions), a scroll
+container without overflow is always at a boundary, and containment prevents
+ancestor handoff. This establishes a concrete CSS trap for short lists/list edges;
+the user's physical gesture was not reproduced and may have another cause.
+
+Allow vertical native handoff on those two Tasks elements only. Keep horizontal
+containment, outer overview bounds, chat scrolling, section heights, three-row
+measurement, focus and resize behavior unchanged. Mobile list edges may hand off
+to the existing naturally scrolling document. Add no custom wheel handlers,
+dependencies or browser installation. Private read-all policy/native requests
+and the withdrawn send-button change remain outside this correction.
+
+The new source-order shorthand/longhand cascade check failed on the original CSS
+as expected (9 other mobile-layout cases passed, 0.325s), then three affected test
+files passed in 2.226s. Production build passed in 441ms. Independent read-only
+review of the actual CSS/test diff found no change needed. These checks establish
+stylesheet policy, not browser/OS/touchpad behavior; no installed acceptance or
+physical gesture success is claimed before deployment verification and user trial.
+
+
 ## 1.27.1 — Complete policy packaging before deployment — 2026-11-13
 
 Implementation: `91da95d27c93298c2fa5e9499cb50fa4b27ba5ea`.
