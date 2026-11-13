@@ -4072,3 +4072,47 @@ control remains blocked; no actual test source, container command or approval wa
 executed. The served build includes recorded task context and Ask about blocker,
 and removes the obsolete empty-input placeholder. Actual user browser interaction
 with the revised popup remains unverified. The temporary harness was cleaned.
+
+## 2026-11-13 — Preserve current turn identity and make amber actionable
+
+Implementation `fd79ea9e49aa9131ca2b0376da347ec3cb378003` is version 1.19.0.
+The reported turn-ID mismatch was traced to the Visualization conversation: the
+expected turn was interrupted while a newer turn was active. The user clarified
+that typing and Send worked but delivery failed, then reported recovery before
+this fix was deployed. That recovery does not verify the implementation.
+Separate current native approval flags and absent card details did not establish
+that the user's Send button was disabled; the earlier explanation was corrected.
+
+Synthetic actual-Workspace events reproduced older completions and delayed start
+acknowledgements replacing newer state. The fix retains bounded private current
+and superseded identities on the existing agent, preserves newer question/wait
+state and still accounts for each native completion. A regression initially
+showed unseen stopped completions were ignored after restoration; conservative
+stop handling restored the unchanged test. Unknown success does not clear a known
+stop. This introduces no component, persistent store, service or timer.
+
+Only the exact native turn-ID precondition rejection can trigger a bounded current
+turn/status read and one active-turn retry with the original payload and identity.
+Ownership, native epoch, stop, pause, handoff and request gates are rechecked.
+Unknown errors never retry, recovery never starts a new turn, and question answers
+never move to a different turn. Known rejected answers become read-only rather
+than falsely unconfirmed. Newly discovered missing approvals use existing guarded
+reconnection. Coordinator delivery records distinguish not sent from unconfirmed,
+restore rejected task-check progress flags and keep failed queues without resend.
+
+The user separately selected amber frames only for actual concerns, decision
+questions and specific input. Existing code incorrectly treated temporary
+Coordinator unavailability as a human decision and reviewed confirmation as
+attention. Saved/startup configuration is now separate from momentary availability
+for presentation: configured review waits stay neutral; genuinely unconfigured
+manual approvals, human-only requests, explicit referrals/errors and current
+linked-task input remain amber. The actual native controls and Send guards are
+unchanged. No analyst recommendation becomes main Coordinator authority.
+
+Thirteen new synthetic delivery cases and adjacent regressions pass. Independent
+reviews checked lifecycle/uncertainty safeguards and actual tab/footer wiring with
+selected/unselected styling across all three themes. Root's combined five-file
+check and TypeScript/production build pass. Published source, installation and
+deployed checks are recorded separately when complete. The reasons for three
+unnamed current request cards remain pending their visible headings; no concern,
+approval answer or private source content was invented to explain them.
