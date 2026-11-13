@@ -457,6 +457,23 @@ running worker has adopted it. A selected profile may be shared with other Codex
 clients, so the native setting can affect those clients too. See the
 [deployment details](ansible-deployment.md#native-codex-questions).
 
+The flag makes structured clarification questions available in native Codex
+Default mode, so users can answer concrete choices through their original
+question controls while the worker continues independent work. It remains an
+experimental feature; enabling it does not guarantee request recovery or prevent
+native approval cards from expiring.
+
+An explicit user choice can suppress the repetitive experimental-feature notice
+with the top-level native setting `suppress_unstable_features_warning = true`.
+Use Codex's supported configuration interface for the selected user profile;
+leave `features.default_mode_request_user_input = true`. This suppresses native
+unstable-feature warnings for that profile, including future experimental flags;
+it does not make those features stable or change approval requirements. The
+installer still preserves warnings by default. Existing CCNG warning banners
+retain previously received text and may outlive the configuration change; saving
+the setting does not clear that text or restart a running conversation. See the
+[official configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference).
+
 ## Listening address and HTTPS
 
 `command-center-ng --help` (or `-h`) prints all runtime controls without reading
