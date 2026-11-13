@@ -8,6 +8,39 @@ Initial source commit: `17d351d74ec172c2f451e59e48c534afbc25e2d2`. It introduces
 the eight documentation, contributor-guidance, and Git-policy files described
 below; it contains no application or installer implementation.
 
+## 2026-11-13 — Read current-request project source across local directories (1.25.0)
+
+Implementation commit: `c7d371d44ceccd1e93c4579d4b888072bb1bb975`.
+
+A real review showed a chat whose native startup directory was the application
+checkout while its command used another local project. Seven existing ordinary
+files were refused because they were outside the startup project and not
+recognized as literal command references. The user explicitly authorized reading
+project source in other directories on the same host.
+
+Both existing readers now permit safe source inside an exact current command
+request's non-root native working directory, including filenames constructed by
+the command. Outside that directory and the worker project, the existing direct
+reference requirement remains. The default standalone source checker is still
+strict; the new option is internal and used only under current-request checks.
+No public flag, tool, native permission, working-directory change, remote access
+or automatic approval was added. Older Coordinator catalogs use their existing
+project-file reader and receive exact approval bindings.
+
+Source, command, cwd and token are checked again after reading; source and command
+hashes are checked again before any later approval. Different matching project
+directories remain ambiguous rather than selecting one. Credential/Vault/path,
+symlink, regular-file, size and paging protections remain. Original manual asks
+are not cleared, rewritten or automatically reviewed.
+
+Independent implementation and policy review found no blocker. Four affected
+test files passed in 2.411s and the production build in 445ms. Direct user-authorized
+inspection through the protected checker read the actual runtime playbook and
+six survey files completely, without a credential refusal or execution. That
+read created no native approval context and does not establish the whole
+interactive action's safety or authority. Publication and installed verification
+follow below after their actual outcomes.
+
 ## 2026-11-13 — Explain withheld engineering concerns without exposing matches (1.24.0)
 
 Implementation commit: `b2d678cbe9b33ce11271f3a3aba3c44fa8605cd7`.
