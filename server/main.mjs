@@ -93,6 +93,15 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
   const persistence = new WorkspacePersistence(workspace, new WorkspaceStore(workspaceFile || join(dirname(authFile), 'workspace.json')));
   await persistence.initialize();
   let appClosing = false;
+  // Existing service logs distinguish transport loss from a slow browser;
+  // never log request bodies, native messages or browser session details.
+  rpc.on('disconnected', (_message, details) => {
+    if (!appClosing) console.warn(`Codex transport closed; WebSocket code ${Number.isInteger(details?.code) ? details.code : 'unknown'}.`);
+  });
+  rpc.on('connectionError', (_message, details) => {
+    const knownCodes = ['ECONNREFUSED', 'ECONNRESET', 'EPIPE', 'ENOENT', 'EACCES', 'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH'];
+    if (!appClosing) console.warn(`Codex transport error; code ${knownCodes.includes(details?.code) ? details.code : 'unknown'}.`);
+  });
   const connectNativeRuntime = async () => {
     if (appClosing) return false;
     if (rpc.ready) return true;
@@ -130,13 +139,32 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
       try {
         const authenticated = await Promise.all([...clients].map(async client => {
           try {
-            if (client.response.writableLength <= 4 * 1024 * 1024 && await sessions.valid(client.request)) return client;
+            if (await sessions.valid(client.request)) {
+              // A single legitimate history snapshot can exceed 4 MiB. Keep
+              // one in-flight write and send the latest state after drain.
+              if (client.blocked) {
+                client.pending = true;
+                if (!client.reportedBackpressure) {
+                  client.reportedBackpressure = true;
+                  console.info(`CCNG browser stream backpressure: ${client.response.writableLength} pending bytes; deferring the latest snapshot until drain.`);
+                }
+                return null;
+              }
+              return client;
+            }
           } catch { console.warn('Authentication state unavailable; closing an event stream.'); }
           client.response.destroy(); clients.delete(client); return null;
         }));
         if (appClosing) return;
+        if (!authenticated.some(Boolean)) return;
         const message = `data: ${JSON.stringify(workspace.snapshot())}\n\n`;
-        for (const client of authenticated) if (client && clients.has(client) && !client.response.destroyed) client.response.write(message);
+        for (const client of authenticated) {
+          if (!client || !clients.has(client) || client.response.destroyed || client.response.writableEnded) continue;
+          // A heartbeat may have met backpressure while another client's
+          // authentication check was awaited above.
+          if (client.blocked) { client.pending = true; continue; }
+          client.blocked = !client.response.write(message);
+        }
       } finally {
         broadcasting = false;
         if (broadcastAgain) { broadcastAgain = false; publish(); }
@@ -206,15 +234,21 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
         if (path === '/api/state' && request.method === 'GET') return json(response, { ...workspace.snapshot(), defaultCwd: settings.cwd });
         if (path === '/api/events' && request.method === 'GET') {
           response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' });
-          response.write(`data: ${JSON.stringify(workspace.snapshot())}\n\n`);
-          const client = { request, response }; clients.add(client);
+          const client = { request, response, blocked: false, pending: false, reportedBackpressure: false }; clients.add(client);
+          const drained = () => {
+            if (appClosing || !clients.has(client) || response.destroyed || response.writableEnded) return;
+            client.blocked = false;
+            if (client.pending) { client.pending = false; publish(); }
+          };
+          response.on('drain', drained);
+          client.blocked = !response.write(`data: ${JSON.stringify(workspace.snapshot())}\n\n`);
           const heartbeat = setInterval(async () => {
             try {
               if (!await sessions.valid(request)) response.end();
-              else if (!response.destroyed && !response.writableEnded) response.write(`event: heartbeat\ndata: ${JSON.stringify({ at: new Date().toISOString() })}\n\n`);
+              else if (!client.blocked && !response.destroyed && !response.writableEnded) client.blocked = !response.write(`event: heartbeat\ndata: ${JSON.stringify({ at: new Date().toISOString() })}\n\n`);
             } catch { console.warn('Authentication state unavailable; closing an event stream.'); response.end(); }
           }, 15_000);
-          request.on('close', () => { clearInterval(heartbeat); clients.delete(client); }); return;
+          request.on('close', () => { clearInterval(heartbeat); response.removeListener('drain', drained); clients.delete(client); }); return;
         }
         if (path === '/api/connect' && request.method === 'POST') {
           await rpc.connect();

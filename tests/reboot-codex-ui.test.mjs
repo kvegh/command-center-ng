@@ -11,7 +11,14 @@ const dialog = ast.statements.find(node => ts.isFunctionDeclaration(node) && nod
 let readyExpression, reconnectExpression;
 function visit(node) {
   if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'runtimeReady') readyExpression = node.initializer.getText(ast);
-  if (ts.isJsxExpression(node) && node.expression?.getText(ast).startsWith("!runtimeReady(state, 'codex') &&")) reconnectExpression = node.expression.getText(ast);
+  if (ts.isJsxExpression(node) && node.expression && ts.isConditionalExpression(node.expression)
+    && node.expression.condition.getText(ast) === 'workspaceReconnecting'
+    && ts.isJsxElement(node.expression.whenTrue)
+    && node.expression.whenTrue.openingElement.attributes.properties.some(attribute =>
+      ts.isJsxAttribute(attribute) && attribute.name.getText(ast) === 'className'
+      && attribute.initializer && ts.isStringLiteral(attribute.initializer) && attribute.initializer.text === 'connection-banner')) {
+    reconnectExpression = node.expression.getText(ast);
+  }
   ts.forEachChild(node, visit);
 }
 visit(ast);
@@ -67,7 +74,7 @@ function fixture(state = connected()) {
 
 test('Codex reconnect remains visible with Claude available and uses the existing connection action', async () => {
   const actions = [];
-  const render = state => evaluate(`return (${reconnectExpression});`, { React, state, runtimeReady, Icon, act: async (...args) => actions.push(args) });
+  const render = state => evaluate(`return (${reconnectExpression});`, { React, state, workspaceReconnecting: false, runtimeReady, Icon, act: async (...args) => actions.push(args) });
   const banner = render({ ...connected(), codexConnected: false, claudeAvailable: true });
   assert.match(text(banner), /Codex is disconnected/);
   const button = elements(banner).find(node => node.type === 'button');
@@ -76,6 +83,22 @@ test('Codex reconnect remains visible with Claude available and uses the existin
   assert.deepEqual(actions, [['connect', {}]]);
   assert.equal(render(connected()), false);
   assert.match(text(render({ ...connected(), connected: false, codexConnected: false, error: 'Native daemon unavailable.' })), /Native daemon unavailable/);
+});
+
+test('a browser interruption shows transport recovery without offering native reconnect while state is refreshing', () => {
+  for (const codexConnected of [true, false]) {
+    const state = { ...connected(), connected: false, codexConnected, error: 'Last known native connection error.' };
+    const banner = evaluate(`return (${reconnectExpression});`, {
+      React, state, workspaceReconnecting: true, runtimeReady, Icon,
+      act: () => assert.fail('browser recovery must not reconnect native sessions'),
+    });
+    assert.match(text(banner), /Connection to CCNG interrupted/);
+    assert.match(text(banner), /Reconnecting automatically/);
+    assert.match(text(banner), /unsent text is kept/);
+    assert.doesNotMatch(text(banner), /Codex is disconnected|Last known native connection error/);
+    assert.equal(elements(banner).some(node => node.type === 'button'), false);
+    assert.equal(runtimeReady(state), false, 'transport opening cannot enable native input before authoritative refresh');
+  }
 });
 
 test('disconnected Codex picker neither queries history nor claims it is empty, and surfaces reconnect failures', async () => {

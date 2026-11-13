@@ -28,8 +28,8 @@ export class CodexRpc extends EventEmitter {
     const socket = new WebSocket(`ws+unix://${path}:/`, { handshakeTimeout: this.timeout, maxPayload: imageLimits.maxNativeMessageBytes });
     this.socket = socket;
     socket.on('message', data => { try { this.receive(JSON.parse(data.toString())); } catch (error) { this.emit('protocolError', error.message); } });
-    socket.on('close', () => this.disconnected('Codex connection closed. Reconnect to continue.'));
-    socket.on('error', error => this.emit('connectionError', error.message));
+    socket.on('close', code => this.disconnected('Codex connection closed. Reconnect to continue.', { code }));
+    socket.on('error', error => this.emit('connectionError', error.message, { code: error.code }));
     await new Promise((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
     try {
       await this.call('initialize', { clientInfo: { name: 'command-center-ng', title: 'Command Center NG', version: VERSION }, capabilities: { experimentalApi: true, requiredHumanApproval: true } });
@@ -60,10 +60,10 @@ export class CodexRpc extends EventEmitter {
   }
   respond(id, result) { this.send({ id, result }); }
   refuse(id, message) { this.send({ id, error: { code: -32601, message } }); }
-  disconnected(message) {
+  disconnected(message, details) {
     this.ready = false;
     for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error(message)); }
-    this.pending.clear(); this.emit('disconnected', message);
+    this.pending.clear(); this.emit('disconnected', message, details);
   }
   close() { this.socket?.close(); this.disconnected('Connection stopped.'); }
 }

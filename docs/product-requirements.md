@@ -954,3 +954,18 @@ instructions. Give it only bounded worker reads and sidebar publication, no
 approval, execution, messaging or task writes. Main final checks and concern
 responses remain authoritative; routine monitoring must not gate approvals.
 Preserve pauses, stops, unknown outcomes and genuine pending native decisions.
+
+### 1.17.0 — Browser stream recovery and large snapshots
+
+Distinguish browser transport loss from native runtime disconnection. Keep Send
+blocked until current authenticated workspace evidence is restored; invalidate
+read results/errors after newer snapshots, another disconnection, cleanup or
+authentication-generation change. Reuse existing state GET and transport signals;
+never replay input or invoke native reconnect as browser recovery.
+
+Honor output backpressure for initial snapshots, broadcasts and heartbeats. Keep
+one in-flight snapshot per browser and coalesce pending updates to the latest
+state after drain. Do not close a legitimate stream using a fixed queued-byte
+threshold smaller than a full history snapshot. Preserve authentication checks,
+client independence, cleanup and full loaded history. Reuse existing service
+logging for sanitized connection diagnostics only, without a new logging system.

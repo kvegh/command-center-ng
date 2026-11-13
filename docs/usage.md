@@ -679,3 +679,29 @@ uses the Coordinator's model/effort and shared instructions. It has bounded read
 and sidebar-publication tools only. The main Coordinator retains final approvals,
 concerns, user decisions and relevant relays; approvals do not await this helper.
 No extra worker tab, report schedule or task-writing authority is added.
+
+## Browser connection recovery
+
+A lost browser update stream is separate from the backend's native Codex
+connection. During browser recovery, CCNG says it is reconnecting and keeps Send
+disabled until it receives a fresh workspace snapshot or an authenticated
+read-only state response. Transport open/heartbeat signals may trigger that
+read, but do not prove the agent is connected. A failed recovery read can retry
+on the next existing transport signal; no new timer is used. Later snapshots,
+disconnections and login changes invalidate obsolete reads and errors.
+
+Recovery does not submit input, answer requests or resume native conversations.
+Unsent text and existing native request/ownership controls remain. Genuine native
+disconnection retains its separate Reconnect Codex action.
+
+Large history snapshots may exceed the stream buffer. CCNG now waits for output
+to drain and coalesces intervening updates into the latest complete snapshot. It
+does not discard loaded history or disconnect solely because a legitimate frame
+is large. Other browser clients continue independently; session checks still
+apply while a client is waiting and during heartbeats.
+
+For connection diagnosis, the existing backend service log records numeric native
+WebSocket close codes, allow-listed transport error codes and the first browser
+backpressure event per connection. It contains no chat text, request bodies or
+session tokens. An incomplete chunked response means an open HTTP stream ended
+incompletely; that error alone does not identify which component closed it.

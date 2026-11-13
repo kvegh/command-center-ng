@@ -9,6 +9,25 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.17.0 — Restore web sending and handle large update streams
+
+Browser-stream loss no longer appears as native Codex disconnection. Recovery
+reads current workspace state before restoring Send, with snapshot/disconnect/
+login guards and read-only retries on existing transport signals. No native
+conversation resume, approval response or input replay is performed.
+
+The former 4 MiB queued-output cutoff could terminate a stream while a larger
+legitimate history snapshot was being sent. Initial snapshots and updates now
+honor write/drain flow control, coalescing pending updates to the latest complete
+state. Slow browsers do not gate others; session validation and heartbeat checks
+remain active. Loaded history is retained. Existing service logs receive only
+sanitized transport codes and the first backpressure event per connection.
+
+Combined validation and installed verification are pending at this source
+checkpoint. Browser-recovery behavior is tested through actual source; reproducing
+the reported public-browser failure and observing its installed recovery remain
+distinct from synthetic tests.
+
 ## 1.16.0 — Preserve chat order and delegate progress monitoring
 
 Recent-history refreshes preserve loaded older pages and native turn/item order,
