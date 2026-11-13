@@ -1,5 +1,26 @@
 # Design decisions history
 
+## 1.27.1 — Complete policy packaging before deployment — 2026-11-13
+
+Implementation: `91da95d27c93298c2fa5e9499cb50fa4b27ba5ea`.
+
+The first backend full-suite check found 21 failures (including nested failures)
+and stopped before installation or restart. Exact failure evidence showed that
+two existing installer mock-source trees omitted the newly required template,
+and hook-reader assertions expected the older guidance/error wording. Add the
+actual template to both fixtures, preserve explicit own-hook reader instructions,
+and recognize the fixed hook refusal in tests. Do not make required product
+files optional or weaken native/source controls to hide these failures.
+
+Fresh/repeat installer configuration tests now verify no automatic active-policy
+creation, active policy bytes/mode preservation and template refresh. That suite
+passes locally in 17.354s; the hook suite and production build (483ms) pass too.
+Five existing per-user launcher assertions still hit local spawnSync EPERM for
+the synthetic Codex CLI. Leave them intact and use the existing authorized backend
+for full validation. Publication and successful installed activation are separate
+steps, not established by this patch or the failed first deployment attempt.
+
+
 ## 1.27.0 — Keep deployment approval policy private — 2026-11-13
 
 Implementation: `0a68f2ac89f3760beb283cde696c96316e22cee6`.
