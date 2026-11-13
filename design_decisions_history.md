@@ -20,6 +20,34 @@ the synthetic Codex CLI. Leave them intact and use the existing authorized backe
 for full validation. Publication and successful installed activation are separate
 steps, not established by this patch or the failed first deployment attempt.
 
+The repaired payload `a4e1b352554ac1d9f3ae9476505ebe781667c3a3` was independently
+verified at public main. Ad hoc job 3950 — Update existing CCNG and activate the
+private reader policy — succeeded 22:11:03.670346–22:12:42.984502 UTC (99.314s).
+All 1,170 backend checks passed, with zero failures and one existing skip, in
+66.297s. The mode-600 active policy is from private companion commit
+`3e3744f552b894250f3d6ae4d335caa96e03519c`; the conservative template was installed.
+Nine protected files, all eight workers, Coordinator/pause/report settings and
+native runtime version remained unchanged. Only the existing CCNG service restarted.
+
+Ad hoc job 3951 — Independently verify installed read-all policy — succeeded
+22:13:02.797324–22:13:22.701893 UTC (19.905s). It verified 116 exact source matches,
+actual HTTPS/authentication/assets/listeners/tracker/canonical CLI, and 552/552
+checks across 34 suites importing installed modules (12.704s). The selected
+policy loaded as all/enabled with no error; its bytes predated service startup.
+Both ordinary and exact installed readers successfully read the current AD test,
+Satellite launcher and separate facts script, returning hashes/metadata only.
+The default credential/Vault sanitizers still reject their synthetic controls.
+No inspected helper was executed/imported/decrypted, no original worker command or native
+message/approval was submitted, and manual asks remain manual. Actual model
+judgment and physical-browser behavior are not established by these checks.
+
+From the first failed full backend test start to completed independent verification
+was 7m17.406s. Main delays were omitted installer fixture inputs, failure diagnosis,
+fixture repair and the required full-suite/update run. Active effort versus waiting
+was not separately measured. Final outcome documentation is newer than the installed
+payload; no second software restart is needed for documentation-only records.
+
+
 
 ## 1.27.0 — Keep deployment approval policy private — 2026-11-13
 
