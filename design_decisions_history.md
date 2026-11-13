@@ -1,5 +1,35 @@
 # Design decisions history
 
+## 1.27.0 — Keep deployment approval policy private — 2026-11-13
+
+Implementation: `0a68f2ac89f3760beb283cde696c96316e22cee6`.
+
+Repeated helper/test refusals came from conservative credential/Vault and path
+filters. The user explicitly selected all local reading for our projects, kept
+that loose policy separate from product defaults, accepted readable YAML and
+prioritized deploying it. Add one private YAML policy with a conservative product
+-template; updates preserve the active file. The exact pinned yaml 2.9.1 parser
+reuses the existing Node runtime and adds no service or approval store.
+
+The selected policy reaches main/analyst instructions, ordinary/exact-token reads
+and final source-hash rechecks. Explicit all mode removes local text name/content/
+reference exclusions while retaining native permissions, no execution/decryption,
+bounded UTF-8/no-NUL regular files, symlink refusal, paging and current request/
+command/cwd/source checks. Reading is not action authority; manual asks remain
+manual. Hook and concern/name/message sanitation remain strict. Unknown/invalid
+selected policy disables automatic approval and exposes only a fixed error.
+
+Six affected test files, 106 direct Coordinator cases and the production build
+pass locally. Independent source review found no runtime blocker; the suggested
+exact ignore rule for active policy was added. Initial local registry DNS failure
+was resolved through the existing authorized backend, verifying official package
+SHA-512 and lock metadata. A synchronous FIFO-test setup denied by this runtime
+was replaced by the existing async standard-tool pattern; all focused checks
+then passed. Full backend suite, publication and installed/live verification are
+separate pending steps at this source checkpoint. No original worker helper,
+container action or genuine native approval was executed during these checks.
+
+
 This project starts with the requirements recorded here and in README.md.
 There is no earlier implementation history to reconstruct. These entries
 distinguish selected direction from implemented behavior.
