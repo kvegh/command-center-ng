@@ -27,10 +27,18 @@ The 1.17.0 pre-install full suite passed 1,084 checks with one failure and one
 skip. The failure was an obsolete assertion requiring the old session-guard
 spelling; actual-effect recovery/login tests already cover the stronger current
 guard. 1.17.1 removes that redundant source-text check, preserving behavior tests.
-Combined validation and installed verification are pending at this source
-checkpoint. Browser-recovery behavior is tested through actual source; reproducing
-the reported public-browser failure and observing its installed recovery remain
-distinct from synthetic tests.
+The corrected full backend suite passed 1,085 checks with no failures and one
+skip in 58.424s. Installed on 2026-11-13: the 85.138s validation/update preserved
+nine protected files/metadata, eight saved workers, Coordinator/report settings
+and the native runtime. Corrected installed verification matched 113 files,
+passed live HTTPS/authentication/assets/listeners/tracker checks and all 341
+checks across 21 suites in 6.683s against installed server/frontend source.
+The initial verifier was rejected before execution because of an apostrophe in
+a comment interpreted by the Ansible argument splitter; correcting the comment
+required no application change or second restart. The user then successfully
+submitted a real message from the affected web UI. This confirms restored web
+sending; long-term connection stability and the exact original per-connection
+closure remain distinct from that observation and the synthetic reproduction.
 
 ## 1.16.0 — Preserve chat order and delegate progress monitoring
 

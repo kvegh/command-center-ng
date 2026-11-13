@@ -3979,3 +3979,32 @@ and all other login assertions; independent review agreed. The first backend
 suite passed 1,084 checks with one such failure and one skip, so installation
 never started. Corrected login tests passed 12/12 and effect tests 17/17; the
 1.17.1 production build passed. Full-backend and installed verification follow.
+
+### 1.17.1 installed verification and real browser outcome
+
+Implementation `3ef94b38fb34bed9a56051fe5131832281e06029`, test/version patch
+`34089af2039f6e4cc374f2c2df776ee7e0891b90` and installed payload
+`5bae85d60bb74137b3c296024b37b17982cff268` were published over SSH with matching
+remote readback. The unchanged full backend suite passed 1,085 checks, none
+failed and one was skipped in 58.424s. Validation/update completed in 85.138s,
+preserving nine protected files/metadata, eight saved workers, Coordinator/pause/
+report settings and the existing native version. No native input, approval or
+runtime restart was submitted by the update procedure. Only the existing CCNG
+service restarted as part of the authorized application update.
+
+Corrected installed verification completed in 12.111s: 113 files matched the
+published payload; actual 1.17.1 HTTPS/authentication/assets/listeners/tracker
+checks passed, as did all 341 checks across 21 suites against installed server
+and frontend source in 6.683s. Existing versioned tests and source build
+dependencies were staged through private temporary links; the harness was cleaned.
+The first verifier was rejected before execution by Ansible argument splitting
+on an apostrophe in a Python comment. Changing that comment required no app
+change, reinstallation or second restart.
+
+The user subsequently sent a real message from the affected web UI, confirming
+restored web submission without an artificial test turn or automatic resend.
+No matching diagnostic event appeared in the bounded log sample; that absence
+does not prove there were no closures. The original individual public connection
+was not traced, and long-term connection stability is not established by one
+successful message. The reproduced large-frame closure and stale browser-state
+mechanisms were corrected while retaining loaded history and existing controls.
