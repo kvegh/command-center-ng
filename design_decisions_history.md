@@ -4290,3 +4290,21 @@ Generic multi-module and negative mapping/no-execution cases preserve the direct
 reference boundary. The captured actual command is now recognized, without
 reading its original source. Published source and installed checks follow below
 when verified; this repair does not establish Windows regression success.
+
+Published payload `0b646b04c507983634be54080a64940565c101f3` was independently
+confirmed at public main. The existing update succeeded in 89.043s
+(11:21:02.916082–11:22:31.958825 UTC) after 1,131 backend checks passed with
+zero failures and one skip in 60.988s. Nine protected files/metadata, the saved
+engineering destination, eight workers, native runtime and Coordinator/pause/
+report settings were preserved; only the existing CCNG service restarted.
+
+Independent installed verification succeeded in 17.632s
+(11:23:06.390140–11:23:24.022557 UTC): 113 source files matched, actual HTTPS/
+authentication/assets/listeners/tracker and canonical CLI checks passed, and
+514 checks across 32 suites imported installed modules and passed in 11.073s.
+The installed reader recognizes the exact historical two-test command while
+the synthetic credential control remains blocked. No original Windows source,
+container/test command, native approval or permission change was performed.
+The original manual approval remains separate; this verifies source recognition,
+not execution or successful Windows regression results. Final outcome docs are
+newer than the installed payload.
