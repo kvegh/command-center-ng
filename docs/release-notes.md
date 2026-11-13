@@ -9,7 +9,7 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
-## 1.17.0 — Restore web sending and handle large update streams
+## 1.17.1 — Restore web sending and handle large update streams
 
 Browser-stream loss no longer appears as native Codex disconnection. Recovery
 reads current workspace state before restoring Send, with snapshot/disconnect/
@@ -23,6 +23,10 @@ state. Slow browsers do not gate others; session validation and heartbeat checks
 remain active. Loaded history is retained. Existing service logs receive only
 sanitized transport codes and the first backpressure event per connection.
 
+The 1.17.0 pre-install full suite passed 1,084 checks with one failure and one
+skip. The failure was an obsolete assertion requiring the old session-guard
+spelling; actual-effect recovery/login tests already cover the stronger current
+guard. 1.17.1 removes that redundant source-text check, preserving behavior tests.
 Combined validation and installed verification are pending at this source
 checkpoint. Browser-recovery behavior is tested through actual source; reproducing
 the reported public-browser failure and observing its installed recovery remain

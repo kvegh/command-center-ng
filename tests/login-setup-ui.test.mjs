@@ -172,7 +172,8 @@ test('error and busy states remain accessible without writing passwords to brows
 test('main session integration retains setup flags on startup/reconnect and remounts the form when its mode changes', async () => {
   const main = await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8');
   assert.match(main, /checkSession\(applySession\)/);
-  assert.match(main, /if \(current && !data.authenticated\) applySession\(data\)/);
+  // Reconnect/login isolation is exercised by the actual effect in
+  // workspace-state-order.test.mjs, including authentication-generation races.
   assert.match(main, /setupRequired: session.setupRequired === true, setupAllowed: session.setupAllowed === true/);
   assert.match(main, /<Login key=\{loginMode\(loginSession\)\} mode=\{loginMode\(loginSession\)\}/);
   assert.match(main, /refreshSession=\{refreshLoginSession\}/);
