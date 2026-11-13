@@ -349,6 +349,16 @@ It resolves matching approval helpers before looking in the worker directory,
 so a stale worker cwd cannot cause ENOENT or select a same-named decoy. Matches
 from different approval directories are ambiguous: use the exact-token reader
 for each request. Ordinary project reads still use the worker's directory.
+
+Python unittest commands can name a module, class and method instead of a `.py`
+filename. For the supported literal Podman command form, the reader maps that
+explicit module through the command's read-only host volume and container working
+directory to its host file. It does not run the command, inspect a running
+container, expand shell expressions, infer arbitrary imports or allow unrelated
+files in the volume. Ambiguous or unsupported command forms remain refused.
+The existing sensitive-path/content, symlink, size, source-hash and current-request
+checks still apply. A failed file-reference check is different from a credential
+content refusal; report the actual reader error rather than assuming its cause.
 If available tools still reject a read, explain the concrete refusal rather than
 claiming arbitrary access or silently bypassing it.
 

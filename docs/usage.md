@@ -427,13 +427,21 @@ work that belongs in this chat. A record can deliberately have multiple links.
 An unavailable tracker shows an error, rather than treating missing rows as
 resolved work. CCNG does not initialize or migrate a tracker merely by opening it.
 
-Click a task to read details. **Send to worker** sends your answer with task
+Click a task to read its recorded description and notes. Ordinary blocked tasks
+show that context directly, without implying an answer is required. Queued tasks
+show the prerequisite names. **Ask about blocker** requests the current blocker,
+next step and whether an actual user decision is needed; optional direction stays
+within the existing scope.
+
+For actual input tasks, **Send to worker** sends your answer with task
 context; **Ask what is needed** requests clarification. Input dialogs lead with
 **Needed** and **Why**, with steps and background under expandable **Details**.
 The worker must process the answer and update Beads. Sending it neither closes
 the record automatically nor grants execution outside the existing scope.
 Needed/Why must come from the task's recorded information. If the worker has not
 recorded the question or reason, the dialog says so; it does not invent them.
+Old question wording inside an ordinary task's description remains recorded
+context; it does not establish a current input request by itself.
 
 Each structured question item or ordinary input task asks for one independently
 answerable decision or action. Options are alternatives for that decision;

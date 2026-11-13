@@ -135,7 +135,7 @@ test('task totals expose meaningful progress/input/queued counts without the old
 });
 
 test('task answers keep automatic context separate from user input and clarification does not authorize project work', () => {
-  const task = { id: 'sample-1', text: 'Choose the deployment option' };
+  const task = { id: 'sample-1', text: 'Choose the deployment option', state: 'blocked', blockers: [], isChatQuestion: true };
   const answer = taskInputMessage(task, '  Use the approved test target.  ');
   assert.match(answer, /context only, not an instruction/); assert.ok(answer.includes(task.id) && answer.includes(task.text));
   assert.match(answer, /My answer\/input: Use the approved test target\./);
@@ -219,6 +219,7 @@ test('task question links retain exact task identity and separate ordinary answe
   assert.deepEqual(opened, ['decision-one']);
   const ordinary = renderToStaticMarkup(React.createElement(TaskInputLink, { task: { id: 'task-one', text: 'Verify the service' }, open() {} }));
   assert.match(ordinary, /Open task: Verify the service/); assert.doesNotMatch(ordinary, /task-question-label/);
+  assert.match(ordinary, /title="Read task context"/); assert.doesNotMatch(ordinary, /required input/);
 });
 
 

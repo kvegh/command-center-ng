@@ -237,3 +237,85 @@ test('a directly imported project module is inspected without executing its embe
     assert.notEqual((await inspectApprovalSource(cwd, command, sourcePath)).sha256, previous.sha256);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test('literal unittest targets bind only their test module in the explicit read-only Podman workdir', () => {
+  const cwd = join(tmpdir(), 'worker-project'), sourceRoot = join(tmpdir(), 'mounted-tests');
+  const path = join(sourceRoot, 'tests', 'test_example.py');
+  const prefix = `podman run --pull=never --rm --read-only --network=none --tmpfs /tmp:rw,mode=1777,size=128m -v ${sourceRoot}:/code:ro -w /code/tests -e TEST_CACHE=/tmp/cache --entrypoint python3 localhost/demo-tests:1.0.0 -B -m unittest `;
+  for (const target of ['test_example', 'test_example.ExampleTests', 'test_example.ExampleTests.test_result']) {
+    const command = prefix + target + ' -v';
+    for (const wrapped of [command, "/bin/bash -lc '" + command + "'", '/bin/bash -lc "' + command + '"']) {
+      assert.equal(referencesApprovalSource(cwd, wrapped, path), true, wrapped);
+      for (const unrelated of [join(sourceRoot, 'tests', 'test_other.py'), join(sourceRoot, 'test_example.py'), join(cwd, 'tests', 'test_example.py'), join(tmpdir(), 'other-tests', 'tests', 'test_example.py')]) {
+        assert.equal(referencesApprovalSource(cwd, wrapped, unrelated), false, unrelated);
+      }
+    }
+  }
+  const command = prefix + 'test_example.ExampleTests.test_result -v';
+  for (const name of ['discover', 'Discover']) {
+    assert.equal(referencesApprovalSource(cwd, prefix + name, join(sourceRoot, 'tests', name + '.py')), false, 'unittest discovery does not refer to a module');
+  }
+  for (const rejected of [
+    '/bin/bash -lc ' + command,
+    command.replace(':/code:ro', ':/code:rw'),
+    command.replace(':/code:ro', ':/code'),
+    command.replace('-w /code/tests', '-w /other/tests'),
+    command.replace('-w /code/tests', '-w /code/../code/tests'),
+    command.replace(sourceRoot + ':/code:ro', sourceRoot + '/../mounted-tests:/code:ro'),
+    command.replace('-w /code/tests', `-v ${sourceRoot}:/elsewhere:ro -w /code/tests`),
+    command.replace('-w /code/tests', '-w /code/tests -w /code'),
+    command.replace('--entrypoint python3', '--entrypoint sh'),
+    command.replace('--entrypoint python3', ''),
+    command.replace('--rm', '--privileged'),
+    command.replace('--tmpfs /tmp:rw,mode=1777,size=128m', '--tmpfs /code:rw'),
+    command.replace('--tmpfs /tmp:rw,mode=1777,size=128m', '--tmpfs /code/tests:rw'),
+    command.replace('TEST_CACHE=/tmp/cache', 'PYTHONPATH=/other/tests'),
+    command.replace('TEST_CACHE=/tmp/cache', 'PYTHONSAFEPATH=1'),
+    command.replace('TEST_CACHE=/tmp/cache', 'TEST_CACHE'),
+    command.replace('test_example.ExampleTests', 'test_example_other.ExampleTests'),
+    command.replace('test_example.ExampleTests.test_result', '../test_example'),
+    command.replace('test_example.ExampleTests.test_result', 'discover'),
+    command + '; echo another-command',
+    command + '\necho another-command',
+    command.replace('TEST_CACHE=/tmp/cache', 'TEST_CACHE=$(echo /tmp/cache)'),
+  ]) assert.equal(referencesApprovalSource(cwd, rejected, path), false, rejected);
+});
+
+test('direct unittest targets use only the approval directory without discovery or import execution', () => {
+  const cwd = join(tmpdir(), 'unittest-project'), path = join(cwd, 'test_example.py');
+  for (const name of ['discover', 'Discover']) {
+    assert.equal(referencesApprovalSource(cwd, 'python3 -m unittest ' + name, join(cwd, name + '.py')), false, 'reserved discovery mode is not a module target');
+  }
+  for (const command of ['python3 -B -m unittest test_example.ExampleTests.test_result -v', 'python -m unittest -q test_example', '/usr/bin/python3.12 -m unittest test_example.ExampleTests']) {
+    assert.equal(referencesApprovalSource(cwd, command, path), true, command);
+    assert.equal(referencesApprovalSource(join(tmpdir(), 'other-project'), command, path), false);
+  }
+  for (const command of ['python3 -m unittest discover', 'python3 -m unittest test_other', 'python3 -m unittest test_example_other', 'python3 -m unittest test_example test_other', 'python3 -m unittest tests.test_example']) {
+    assert.equal(referencesApprovalSource(cwd, command, path), false, command);
+  }
+});
+
+test('mapped unittest source inspection remains bounded, protected and read-only with fresh hashes', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ccng-unittest-source-'));
+  try {
+    const cwd = join(root, 'worker-project'), sourceRoot = join(root, 'mounted-tests'), directory = join(sourceRoot, 'tests');
+    await mkdir(cwd); await mkdir(directory, { recursive: true });
+    const path = join(directory, 'test_example.py'), marker = join(root, 'must-not-exist');
+    const body = `from pathlib import Path\nPath(${JSON.stringify(marker)}).write_text("must not run")\n`;
+    await writeFile(path, body);
+    const command = `podman run --pull=never --rm --read-only --network=none -v ${sourceRoot}:/code:ro -w /code/tests --entrypoint python3 localhost/demo-tests:1.0.0 -B -m unittest test_example.ExampleTests.test_result -v`;
+    const source = await inspectApprovalSource(cwd, command, path);
+    assert.equal(source.text, body); assert.equal(source.workingDirectory, cwd);
+    assert.match(source.sha256, /^[a-f0-9]{64}$/); assert.match(source.commandSha256, /^[a-f0-9]{64}$/);
+    assert.notEqual((await inspectApprovalSource(cwd, command.replace(/ -v$/, ' -q'), path)).commandSha256, source.commandSha256);
+    await assert.rejects(readFile(marker), { code: 'ENOENT' });
+    await writeFile(path, '# Source changed without executing any test.\n');
+    assert.notEqual((await inspectApprovalSource(cwd, command, path)).sha256, source.sha256);
+    await writeFile(path, 'password = "synthetic-credential-value"\n');
+    await assert.rejects(inspectApprovalSource(cwd, command, path), /credential material/);
+    await writeFile(path, 'x'.repeat(500001));
+    await assert.rejects(inspectApprovalSource(cwd, command, path), /500000 bytes/);
+    await rm(path); await writeFile(join(directory, 'actual.py'), '# Ordinary source.\n'); await symlink(join(directory, 'actual.py'), path);
+    await assert.rejects(inspectApprovalSource(cwd, command, path), /symlinks/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

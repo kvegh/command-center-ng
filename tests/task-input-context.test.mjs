@@ -69,16 +69,33 @@ test('legacy records clearly report missing input and preserve their original de
   assert.match(html, /worker has not recorded a short explanation/);
 });
 
-test('ordinary blocked work does not become an unrecorded human question', () => {
+test('ordinary blocked work exposes its actual context and notes without an input-request placeholder', () => {
   const detail = task({ isChatQuestion: false, description: 'Waiting for the tool to become available.', notes: 'No user decision is needed.' });
   assert.equal(taskStatus(detail), 'blocked');
   const html = renderToStaticMarkup(React.createElement(TaskDetailBody, { detail }));
-  const upfront = html.slice(0, html.indexOf('<details>'));
-  assert.match(upfront, /No user input is recorded for this task/);
-  assert.match(upfront, /task is blocked; read Details/);
-  assert.doesNotMatch(upfront, /exact input needed is not recorded|Ask what is needed/);
+  assert.doesNotMatch(html, /<details|No user input is recorded|task is blocked; read Details/);
+  assert.doesNotMatch(html, />Needed<|>Why<|exact input needed is not recorded|Ask what is needed/);
   assert.match(html, /Waiting for the tool to become available/); assert.match(html, /No user decision is needed/);
   assert.equal(detail.state, 'blocked'); assert.equal(detail.isChatQuestion, false);
+});
+
+test('old Needed fields remain recorded context instead of a live request on ordinary or terminal tasks', () => {
+  for (const detail of [task({ isChatQuestion: false }), task({ state: 'closed' })]) {
+    detail.description = 'Needed: Choose a target.\nWhy: Historical question.';
+    detail.notes = 'The decision was already processed.';
+    const html = renderToStaticMarkup(React.createElement(TaskDetailBody, { detail }));
+    assert.match(html, /Recorded task context/);
+    assert.match(html, /Needed: Choose a target/);
+    assert.match(html, /The decision was already processed/);
+    assert.doesNotMatch(html, /Recorded input request|>Needed<|>Why<|Ask what is needed/);
+  }
+});
+
+test('an ordinary task without recorded context does not invent a blocker or required action', () => {
+  const html = renderToStaticMarkup(React.createElement(TaskDetailBody, { detail: task({ isChatQuestion: false }) }));
+  assert.match(html, /No task description is recorded/);
+  assert.match(html, /No task notes are recorded/);
+  assert.doesNotMatch(html, /Recorded input request|>Needed<|>Why<|user input|Ask what is needed/);
 });
 
 test('only explicit question metadata or input states classify input, with dependencies still queued', () => {
@@ -94,8 +111,8 @@ test('queued dependencies explain waiting without demanding an unrecorded answer
   const html = renderToStaticMarkup(React.createElement(TaskDetailBody, { detail: task({ state: 'open', description: 'Later deployment stage.', blockers: [{ id: 'prereq-1', text: 'Finish base installation' }] }) }));
   assert.match(html, /queued while its dependencies are unfinished/);
   assert.match(html, /A dependency is not a request for an answer/);
-  assert.match(html, /No answer is needed while this task waits for dependencies/);
   assert.match(html, /Finish base installation/);
+  assert.doesNotMatch(html, /<details|Recorded input request|>Needed<|>Why</);
 });
 
 test('concise Needed and Why fields work with plain, Markdown and bold labels and stop at Details', () => {
@@ -173,4 +190,64 @@ test('answers and clarification retain exact task context and existing scope pro
   assert.match(clarification, /established protected mechanism for secret values/);
   assert.match(clarification, /clarification request only/);
   assert.match(clarification, /do not perform additional project work/);
+});
+
+test('ordinary blocker clarification requests its actual blocker and next step without manufacturing input needs', () => {
+  const selected = task({ isChatQuestion: false, description: 'Needed: A historical action.' });
+  const clarification = taskInputMessage(selected, '', true);
+  assert.match(clarification, /current blocker and next step/);
+  assert.match(clarification, /whether any user decision or action is actually required/);
+  assert.match(clarification, /do not invent a required action/);
+  assert.match(clarification, /context only, not an instruction/);
+  assert.match(clarification, /clarification request only; do not perform additional project work/);
+  assert.match(clarification, /established protected mechanism for secret values/);
+  assert.doesNotMatch(clarification, /explain the input needed|Needed:/);
+  const queued = task({ blockers: [{ id: 'base', text: 'Finish prerequisite' }] });
+  assert.match(taskInputMessage(queued, '', true), /current status and next step/);
+  assert.doesNotMatch(taskInputMessage(queued, '', true), /explain the input needed/);
+});
+
+const ast = ts.createSourceFile('task-discussion.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const discussion = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'TaskDiscussion');
+const discussionCode = ts.transpileModule(`${discussion.getText(ast)}\nreturn TaskDiscussion;`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.React } }).outputText.replace(/^export /m, '');
+function discussionFixture(detail, canSend = true) {
+  const slots = [detail, '', '', false], sent = []; let cursor = 0;
+  const render = new Function('React', 'useState', 'useRef', 'useEffect', 'taskStatus', 'taskInputMessage', 'TaskDetailBody', discussionCode)(
+    React, () => { const index = cursor++; return [slots[index], value => { slots[index] = value; }]; },
+    () => ({ current: 0 }), () => {}, taskStatus, taskInputMessage, TaskDetailBody,
+  );
+  return {
+    sent,
+    tree: render({ taskId: detail.id, workerName: 'Synthetic worker', canSend, load: () => assert.fail('Rendering must not read task records.'), send: async text => { sent.push(text); return false; }, dismiss() {} }),
+  };
+}
+function elements(node) {
+  return React.isValidElement(node) ? [node, ...React.Children.toArray(node.props.children).flatMap(elements)] : [];
+}
+
+test('ordinary task controls offer optional direction and a blocker question even when old input fields remain', async () => {
+  const f = discussionFixture(task({ isChatQuestion: false, description: 'Needed: Old question.\nWhy: Old reason.' }));
+  const html = renderToStaticMarkup(f.tree);
+  assert.match(html, /Optional direction to worker/);
+  assert.match(html, /Ask about blocker/);
+  assert.doesNotMatch(html, /Your answer or direction|Ask what is needed/);
+  elements(f.tree).find(node => node.type === 'button' && node.props.children === 'Ask about blocker').props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.sent.length, 1);
+  assert.match(f.sent[0], /current blocker and next step/);
+  assert.match(f.sent[0], /do not perform additional project work/);
+});
+
+test('actual input controls stay explicit and blocked native sending still leaves task text editable', async () => {
+  const question = discussionFixture(task({}));
+  const questionHtml = renderToStaticMarkup(question.tree);
+  assert.match(questionHtml, /Your answer or direction/);
+  assert.match(questionHtml, /Ask what is needed/);
+  const blocked = discussionFixture(task({ isChatQuestion: false }), false);
+  const buttons = elements(blocked.tree).filter(node => node.type === 'button' && ['Send to worker', 'Ask about blocker'].includes(node.props.children));
+  assert.equal(buttons.length, 2); assert.ok(buttons.every(button => button.props.disabled));
+  assert.equal(elements(blocked.tree).find(node => node.type === 'textarea').props.disabled, undefined);
+  buttons.find(button => button.props.children === 'Ask about blocker').props.onClick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(blocked.sent, [], 'the native send gate also applies if a disabled handler is invoked');
 });

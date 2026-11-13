@@ -57,6 +57,8 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Attempt automatic reconnection of eligible active Codex waits with missing request details, without answering approvals. A delivered file approval missing its proposal can receive one guarded live snapshot after bounded history lookup.
 - Branch a Codex conversation, then hand tasks and a summary back to its parent.
 - See linked Beads tasks with input needs and blockers first, conditional On hold states and optional native browser task notifications.
+  Open ordinary tasks to read their recorded context and blocker notes directly;
+  actual questions retain their separate Needed/Why answer prompts.
 - Request task reports in a consistent colourful task/status table, with optional detailed action histories; choose a saved interval, or Never to disable automatic startup and recurring reports.
 - Match the active conversation tab background to its chat-input title tab while retaining status frame colours.
 - Fill available desktop tab space up to Coordinator and reveal full titles with their chat tint on hover; above six conversations use two rows with the selected row nearest the chat. Mobile keeps one horizontally scrollable row.
@@ -67,6 +69,8 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Keep loaded chat pages in native order across refreshes without the former silent 600-record trim; load earlier pages explicitly.
 - Review independent approval requests with up to two read-only analysts; the Coordinator remains the sole automated approver. See [review boundaries and timing](docs/usage.md#coordinator-approval-review).
 - Inspect safe playbooks, JSON, YAML, Markdown, Python and shell source through bounded read-only review tools, with secret protection and exact approval binding for outside-project files.
+  Explicit Python unittest references in supported read-only Podman mounts can
+  identify their host test file without running the test or the container.
 - Save the open-agent list when creating, opening, branching or closing tabs;
   restore the same conversations after restart and reconnect when Codex starts later.
 - Reload an unloaded Codex conversation when sending input, preserving its saved history and native permissions.

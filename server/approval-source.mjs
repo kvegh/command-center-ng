@@ -85,6 +85,61 @@ function referencesProjectPythonModule(cwd, command, requested) {
   });
 }
 
+function referencesUnittestSource(cwd, command, requested) {
+  if (extname(requested) !== '.py') return false;
+  // Recognize literal unittest arguments only; never evaluate a shell command,
+  // inspect a container or infer source from an arbitrary mounted directory.
+  let text = command.trim();
+  const shell = text.match(/^(?:\/(?:usr\/)?bin\/)?bash\s+-lc\s+(.+)$/);
+  if (shell) {
+    text = shell[1];
+    // A joined argv string cannot establish which words belong to bash -c.
+    // Refuse unquoted/ambiguous wrappers rather than infer their execution.
+    if (!((text.startsWith("'") && text.endsWith("'")) || (text.startsWith('"') && text.endsWith('"')))) return false;
+    text = text.slice(1, -1);
+  }
+  if (!/^[\w./:=,@+-]+(?:[ \t]+[\w./:=,@+-]+)*$/.test(text)) return false;
+  let words = text.split(/[ \t]+/), directory = resolve(cwd);
+  if (words[0] === 'podman' && words[1] === 'run') {
+    let volume, workdir, entrypoint, index = 2;
+    const temporaryMounts = [];
+    const switches = new Set(['--rm', '--read-only', '--pull=never', '--network=none']);
+    const valued = new Set(['-v', '--volume', '-w', '--workdir', '-e', '--env', '--tmpfs', '--entrypoint']);
+    for (; index < words.length && words[index].startsWith('-'); index++) {
+      const word = words[index];
+      if (switches.has(word)) continue;
+      const equals = word.indexOf('='), option = equals < 0 ? word : word.slice(0, equals);
+      if (!valued.has(option)) return false;
+      const value = equals < 0 ? words[++index] : word.slice(equals + 1);
+      if (!value || value.startsWith('-')) return false;
+      if (['-v', '--volume'].includes(option)) { if (volume) return false; volume = value; }
+      if (['-w', '--workdir'].includes(option)) { if (workdir) return false; workdir = value; }
+      if (option === '--entrypoint') { if (entrypoint) return false; entrypoint = value; }
+      if (option === '--tmpfs') temporaryMounts.push(value.split(':')[0]);
+      if (['-e', '--env'].includes(option) && (!/^[A-Za-z_]\w*=/.test(value) || /^(?:PYTHONPATH|PYTHONHOME|PYTHONSAFEPATH)=/.test(value))) return false;
+    }
+    if (!volume || !workdir || entrypoint !== 'python3' || !words[index]) return false;
+    const parts = volume.split(':');
+    if (parts.length !== 3 || parts[2] !== 'ro') return false;
+    const [hostRoot, containerRoot] = parts;
+    const ordinaryAbsolute = path => isAbsolute(path) && path !== '/' && path === resolve(path);
+    if (![hostRoot, containerRoot, workdir].every(ordinaryAbsolute)) return false;
+    const local = relative(containerRoot, workdir);
+    if (local === '..' || local.startsWith('../') || isAbsolute(local)) return false;
+    if (temporaryMounts.some(path => !ordinaryAbsolute(path) || path === workdir || workdir.startsWith(path + '/') || path.startsWith(workdir + '/'))) return false;
+    directory = resolve(hostRoot, local);
+    words = ['python3', ...words.slice(index + 1)];
+  }
+  if (!/^(?:\/(?:usr\/)?bin\/)?python(?:3(?:\.\d+)?)?$/.test(words[0])) return false;
+  let index = 1;
+  if (words[index] === '-B') index++;
+  if (words[index++] !== '-m' || words[index++] !== 'unittest') return false;
+  const targets = words.slice(index).filter(word => !['-v', '-q'].includes(word));
+  if (targets.length !== 1 || targets[0].toLowerCase() === 'discover' || dirname(requested) !== directory) return false;
+  const module = basename(requested, '.py');
+  return /^[A-Za-z_]\w*$/.test(module) && new RegExp(`^${escaped(module)}(?:\\.[A-Za-z_]\\w*){0,2}$`).test(targets[0]);
+}
+
 export function referencesApprovalSource(cwd, command, path) {
   const requested = resolve(cwd, path);
   if (!extensions.has(extname(requested))) return false;
@@ -93,7 +148,8 @@ export function referencesApprovalSource(cwd, command, path) {
   const pythonImport = extname(requested) === '.py' && /^[A-Za-z_]\w*$/.test(module) && new RegExp(`\\b(?:from\\s+${escaped(module)}\\s+import\\b|import\\s+${escaped(module)}\\b)`).test(command);
   const importDirectory = dirname(requested) === resolve(cwd) || (dirname(requested) !== '/' && mentions(command, dirname(requested)));
   return mentions(command, requested) || mentions(command, path) || mentions(command, relativePath) || mentions(command, './' + relativePath)
-    || (pythonImport && importDirectory) || (extname(requested) === '.py' && referencesProjectPythonModule(cwd, command, requested));
+    || (pythonImport && importDirectory) || (extname(requested) === '.py' && referencesProjectPythonModule(cwd, command, requested))
+    || referencesUnittestSource(cwd, command, requested);
 }
 
 export async function inspectApprovalSource(cwd, command, path, startLine = 1) {

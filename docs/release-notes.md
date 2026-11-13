@@ -9,6 +9,23 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.18.0 — Review container tests and show real blocked-task context
+
+Source review now recognizes the supported literal Python unittest command form,
+including an explicit read-only Podman volume and container working directory.
+Previously a command naming a test module instead of its host `.py` path could
+fail the source-reference check and fall back to an outside-project refusal.
+The reader maps only the named module; it runs no command/container and preserves
+the existing secret, path, size, symlink, current-request and hash checks.
+Unsupported or ambiguous command forms remain refused.
+
+Ordinary task popups show their original description and recorded notes directly;
+queued work shows prerequisite names. They no longer lead with empty Needed/Why
+placeholders or imply all blockers require an answer. Current input records keep
+their explicit question presentation; historical Needed text alone does not
+establish a current question. Blocker clarification asks for the actual blocker
+and next step while preserving scope, draft and native-send guards.
+
 ## 1.17.1 — Restore web sending and handle large update streams
 
 Browser-stream loss no longer appears as native Codex disconnection. Recovery

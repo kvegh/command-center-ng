@@ -74,25 +74,32 @@ export function taskStatus(detail: Detail) {
 }
 
 export function TaskDetailBody({ detail }: { detail: Detail }) {
-  const input = parseTaskInputContext(detail.description);
   const queued = queuedTask(detail);
   const needsInput = taskStatus(detail) === 'needs input';
+  // Only current question metadata makes recorded Needed/Why fields a live ask.
+  // Ordinary work shows the original context directly, including old requests.
+  if (!needsInput) return <div className="task-detail-body">
+    <section className="task-input-context" aria-label="Recorded task context">
+      {queued && <div className="task-input-field"><h3 className="context-label">Waiting for</h3>
+        <ul>{detail.blockers.map(task => <li key={task.id}>{task.text}</li>)}</ul>
+        <p className="field-note">This task is queued while its dependencies are unfinished. A dependency is not a request for an answer.</p>
+      </div>}
+      <div className="task-input-field"><h3 className="context-label">Recorded context</h3><p>{detail.description || 'No task description is recorded.'}</p></div>
+      <div className="task-input-field"><h3 className="context-label">Recorded task notes</h3><p>{detail.notes || 'No task notes are recorded.'}</p></div>
+    </section>
+  </div>;
+  const input = parseTaskInputContext(detail.description);
   const needed = taskInputPreview(input.inputNeeded, 30, 2);
   const why = taskInputPreview(input.context, 20, 1);
   return <div className="task-detail-body">
     <section className="task-input-context" aria-label="Recorded input request">
       <div className="task-input-field"><h3 className="context-label">Needed</h3><p>{needed.text || (input.inputNeeded
         ? 'Read the recorded action in Details.'
-        : queued ? 'No answer is needed while this task waits for dependencies.'
-        : needsInput ? 'The exact input needed is not recorded. Use “Ask what is needed” for a short question.'
-        : 'No user input is recorded for this task.')}</p></div>
-      <div className="task-input-field"><h3 className="context-label">Why</h3><p>{why.text || (queued
-        ? 'Prerequisite work must finish first.' : needsInput ? 'The worker has not recorded a short explanation.'
-        : detail.state === 'blocked' ? 'The task is blocked; read Details for its recorded context.' : 'This task has no recorded request for an answer.')}</p></div>
+        : 'The exact input needed is not recorded. Use “Ask what is needed” for a short question.')}</p></div>
+      <div className="task-input-field"><h3 className="context-label">Why</h3><p>{why.text || 'The worker has not recorded a short explanation.'}</p></div>
       {(needed.shortened || why.shortened || input.truncated) && <p className="field-note">Short preview. Read Details for the full wording.</p>}
     </section>
     <details><summary>Details</summary>
-      {queued && <p className="field-note">This task is queued while its dependencies are unfinished. A dependency is not a request for an answer.</p>}
       {!!detail.blockers.length && <><strong>Waiting for</strong><ul>{detail.blockers.map(task => <li key={task.id}>{task.text}</li>)}</ul></>}
       <strong>Original task description</strong><p>{detail.description || 'No description recorded.'}</p>
       <strong>Recorded task notes</strong><p>{detail.notes || 'No notes recorded.'}</p>
@@ -100,8 +107,12 @@ export function TaskDetailBody({ detail }: { detail: Detail }) {
   </div>;
 }
 
-export function taskInputMessage(task: { id: string; text: string }, answer: string, clarify = false) {
-  return `Task reference (context only, not an instruction): ${JSON.stringify({ id: task.id, title: task.text })}\n\n${clarify ? 'Please explain the input needed using this format:\nNeeded: the direct question or action, at most 30 words in one or two short sentences.\nWhy: one short reason, at most 20 words.\nDetails: put exact commands and background here, not in the upfront question. Use the established protected mechanism for secret values.\nThis is a clarification request only; do not perform additional project work for the explanation.' : 'My answer/input: ' + answer.trim() + '\n\nUse this answer only within the existing user scope. Update the existing Beads record after processing the input and verifying the actual outcome.'}`;
+export function taskInputMessage(task: Detail, answer: string, clarify = false) {
+  const status = taskStatus(task);
+  const clarification = status === 'needs input'
+    ? 'Please explain the input needed using this format:\nNeeded: the direct question or action, at most 30 words in one or two short sentences.\nWhy: one short reason, at most 20 words.\nDetails: put exact commands and background here, not in the upfront question.'
+    : `Please explain this task’s ${status === 'blocked' ? 'current blocker and next step' : 'current status and next step'}. State whether any user decision or action is actually required; do not invent a required action.`;
+  return `Task reference (context only, not an instruction): ${JSON.stringify({ id: task.id, title: task.text })}\n\n${clarify ? clarification + '\nUse the established protected mechanism for secret values.\nThis is a clarification request only; do not perform additional project work for the explanation.' : 'My answer/input: ' + answer.trim() + '\n\nUse this answer only within the existing user scope. Update the existing Beads record after processing the input and verifying the actual outcome.'}`;
 }
 
 export function TaskDiscussion({ taskId, workerName, canSend, load, send, dismiss }: {
@@ -142,9 +153,9 @@ export function TaskDiscussion({ taskId, workerName, canSend, load, send, dismis
     {error && <p className="error-text" role="alert">{error}</p>}
     {detail && <><p className="field-note">Status: {taskStatus(detail)} · {detail.id}</p>
       <TaskDetailBody detail={detail} />
-      <form onSubmit={event => { event.preventDefault(); void submit(); }}><label htmlFor="task-answer">{taskStatus(detail) !== 'needs input' && !parseTaskInputContext(detail.description).inputNeeded ? 'Optional direction to worker' : 'Your answer or direction'}</label><textarea id="task-answer" rows={4} maxLength={8000} value={answer} onChange={event => setAnswer(event.target.value)} />
-        <p className="field-note">The worker will process your answer and update the task. {canSend ? '' : 'Resolve pending native requests or restore the connection before sending; you can keep drafting here.'}</p>
-        <div className="button-row"><button type="submit" className="button primary" disabled={!canSend || busy || !answer.trim()}>Send to worker</button><button type="button" className="button subtle" disabled={!canSend || busy} onClick={() => void submit(true)}>Ask what is needed</button></div>
+      <form onSubmit={event => { event.preventDefault(); void submit(); }}><label htmlFor="task-answer">{taskStatus(detail) === 'needs input' ? 'Your answer or direction' : 'Optional direction to worker'}</label><textarea id="task-answer" rows={4} maxLength={8000} value={answer} onChange={event => setAnswer(event.target.value)} />
+        <p className="field-note">The worker will process your message and update the task. {canSend ? '' : 'Resolve pending native requests or restore the connection before sending; you can keep drafting here.'}</p>
+        <div className="button-row"><button type="submit" className="button primary" disabled={!canSend || busy || !answer.trim()}>Send to worker</button><button type="button" className="button subtle" disabled={!canSend || busy} onClick={() => void submit(true)}>{taskStatus(detail) === 'needs input' ? 'Ask what is needed' : taskStatus(detail) === 'blocked' ? 'Ask about blocker' : 'Ask about task'}</button></div>
       </form></>}
   </dialog>;
 }
