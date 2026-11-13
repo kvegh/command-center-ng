@@ -3,13 +3,21 @@
 Updated: 2026-11-13. This is a development handover snapshot. Beads remains the
 task source of truth; do not use this file as a second backlog.
 
-Current published and installed release is **1.22.0**. The older version and
-task statements below are historical checkpoints, superseded by current Beads
-records and the dated decision history. Working **1.23.0** adds fixed refusal
-categories to both existing source readers without exposing matches or changing
-which content is blocked. Its validation, publication and installation are
-pending; it does not establish the cause of any particular refused source file
-or resolve its original manual approval.
+Current published and installed release is **1.23.0**, implementation
+`6a570110bd9fef4e12183756f5263a1461125619`, installed payload
+`fcbffb8eda5160b8671a48d0edf2e2fc0356c027`. Both source readers explain content
+refusals with fixed categories while withholding matches and preserving all
+allow/block decisions. Full suite: 1,134 passed, zero failed, one skipped;
+installed modules: 517/517 checks across 32 suites passed. All 113 installed
+source files matched; actual HTTPS/authentication/assets/listeners/tracker and
+canonical CLI checks passed. Nine protected files and saved worker/native/
+Coordinator settings were preserved. Final outcome documentation is newer than
+the installed payload. The exact Windows source trigger remains unknown; its
+manual approval was not answered and its test was not executed here. Beads
+retains that investigation awaiting supported nonsecret diagnostic evidence.
+
+Older version and task statements below are historical checkpoints, superseded
+by current Beads records and the dated decision history.
 
 ## Versions and publication
 

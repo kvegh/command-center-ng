@@ -34,6 +34,23 @@ no blocker. Publication and installed verification are recorded below only when
 actually verified; the exact original file trigger and Windows test outcome are
 still unknown.
 
+Published payload `fcbffb8eda5160b8671a48d0edf2e2fc0356c027` was independently
+verified at public main. The existing update succeeded at
+11:37:44.487995–11:39:14.533014 UTC (90.045s), after 1,134 full-suite checks
+passed with zero failures and one skip in 61.130s. Nine protected files, saved
+workspace metadata, eight workers, native runtime and Coordinator settings were
+preserved. Only the existing CCNG application service restarted.
+
+Installed verification succeeded at 11:39:25.442174–11:39:44.866147 UTC
+(19.424s): 113 source files matched, actual HTTPS/authentication/assets/listeners,
+tracker and canonical CLI checks passed, and 517/517 checks across 32 installed
+suites passed in 12.265s. Both reader interfaces return safe categories in
+synthetic refusal tests; the original Windows source was not retrieved, its
+command was not executed and its approval was not answered. Diagnostic delivery
+is complete; exact original content-trigger
+investigation remains open awaiting permitted evidence. Final outcome docs are
+newer than the installed payload.
+
 ## 2026-11-03 — Start an independent public-source project
 
 The user requested the repository name command-center-ng and explicitly allowed
