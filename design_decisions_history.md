@@ -4178,3 +4178,18 @@ the old sidebar wording described a missing file and awaiting review inaccuratel
 The failure and resolved approval were reported from native history rather than
 assuming the file was absent, permission was granted or the test passed. Container
 runtime changes belong to the owning worker; this fix does not alter its access.
+
+Publication/deployment outcome: payload
+`52be8cf7871a6a725e4c70b6a5ce515017458907` was independently verified at public
+main before installation. The existing update succeeded in 88.414s
+(09:50:23.445975–09:51:51.859528 UTC), after 1,114 backend checks passed with
+zero failures and one skip in 60.777s. Nine protected files/metadata, eight
+workers, Coordinator/pause/reports and the native runtime were preserved.
+Independent installed verification succeeded in 16.893s
+(09:52:03.381174–09:52:20.274364 UTC): 113 source files matched, live
+HTTPS/authentication/assets/listeners/tracker checks passed and 491 checks across
+30 suites passed in 11.141s. Both historical command forms were recognized by
+the installed module while credential protection remained. No original test
+source, container command, native approval or model turn was executed. Actual
+browser interaction and the separate Windows test remain unverified here.
+Final outcome documentation is newer than the installed payload.
