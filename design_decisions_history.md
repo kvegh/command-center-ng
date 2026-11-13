@@ -8,6 +8,33 @@ Initial source commit: `17d351d74ec172c2f451e59e48c534afbc25e2d2`. It introduces
 the eight documentation, contributor-guidance, and Git-policy files described
 below; it contains no application or installer implementation.
 
+## 2026-11-13 — Give Coordinator evaluation and concerns a separate tab row (1.26.0)
+
+Implementation commit: `d3f2abb53b4a5c34ec2131a1ee2f0c46654aa5db`.
+
+The user chose a Coordinator tab twice the normal height, its name in the upper
+half and approval activity in the lower half. Green Evaluating… reflects an
+eligible current request while the main Coordinator runs or a matching analyst
+is current, active and has a confirmed running turn. Settled outcomes clear it;
+other active reviews can keep it visible. Unknown, queued or superseded analyst
+runs and pending/restoring/disconnected state are not evaluation evidence.
+
+A new main Coordinator ask needing the user shows amber Concerned. with three
+smooth three-second fades, then clears. A finite presentation timeout also clears
+the static reduced-motion alternative. Stable audit IDs and mount/reconnect/
+restoration baselines prevent old concerns or save-state changes replaying it.
+This reuses existing state: no model, service, persistent option, approval answer
+or workflow timer is added. Existing question cards and worker attention rules
+retain their behavior after the temporary notice disappears.
+
+Independent review caught light-theme color precedence and superseded analyst
+state; both were fixed with regression cases. Five affected UI test files passed
+in 5.059s and TypeScript/production build passed (Vite 356ms). The built assets
+contain both labels, finite fade and reduced-motion rules. README includes the
+repeatable installed-component check and its limits. Real-browser rendering,
+keyboard use and animation appearance remain unverified; no browser was installed.
+Publication and installed acceptance follow when their outcomes are known.
+
 ## 2026-11-13 — Count backpressure writes relative to a legitimate baseline (1.25.1)
 
 Implementation commit: `4d2ea0ba4786bb8d3ea91b4143be987f9ececd7a`.
