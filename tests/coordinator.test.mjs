@@ -1359,6 +1359,47 @@ test('scheduled reports remain deferred across handoff, pause and disconnection 
   } finally { await f.close(); }
 });
 
+test('definitely rejected report input stays not sent without an automatic resend', async () => {
+  const f = await fixture();
+  try {
+    let attempts = 0;
+    f.workspace.send = async () => {
+      attempts++;
+      throw Object.assign(new Error('The conversation changed. The message was not sent.'), { code: 'native_input_not_sent' });
+    };
+    f.coordinator.paused = false;
+    f.coordinator.requestUserReport('worker');
+    await waitFor(() => !!f.coordinator.deliveries.get('worker')?.[0].error && !f.workspace.agent('worker').coordinatorSending);
+    assert.equal(attempts, 1);
+    assert.match(f.coordinator.error, /Coordinator message was not sent/);
+    assert.equal(f.coordinator.audit.findLast(row => row.agentId === 'worker' && row.action === 'report').outcome, 'not-sent');
+    assert.match(f.workspace.agent('worker').reportError, /was not sent/);
+    await f.coordinator.flush('worker');
+    assert.equal(attempts, 1, 'the same rejected queued report still requires explicit review');
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('a definitely rejected task check does not remain marked in progress', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker');
+    let attempts = 0;
+    f.workspace.send = async () => {
+      attempts++;
+      throw Object.assign(new Error('The task check was not sent.'), { code: 'native_input_not_sent' });
+    };
+    f.coordinator.paused = false;
+    f.coordinator.queue(worker, 'Synthetic silent check.', 'task-ping');
+    await waitFor(() => !!f.coordinator.deliveries.get('worker')?.[0].error && !worker.coordinatorSending);
+    assert.equal(attempts, 1);
+    assert.equal(!!worker.taskPingInProgress, false);
+    assert.equal(f.coordinator.audit.findLast(row => row.action === 'task-ping').outcome, 'not-sent');
+    await f.coordinator.flush('worker');
+    assert.equal(attempts, 1);
+  } finally { await f.close(); }
+});
+
 test('due reports use native active input for Codex and owned Claude without taking over external sessions', async () => {
   const clock = fakeReportClock(); const f = await fixture({ reportClock: clock });
   try {

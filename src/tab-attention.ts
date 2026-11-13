@@ -9,6 +9,7 @@ type TabWorker = RequestContext & {
   role?: string; provider?: string; ownStatus?: string; canSend?: boolean;
   observeError?: string | null; workers?: RequestContext[];
   messages?: { nativeQuestions?: { answerState?: string }[] }[];
+  tasks?: { displayState?: string }[];
 };
 type CoordinatorSnapshot = {
   connected: boolean; codexConnected?: boolean;
@@ -35,25 +36,29 @@ export function coordinatorReviewAvailable(state: CoordinatorSnapshot) {
     && ['idle', 'running'].includes(agent.ownStatus ?? agent.status));
 }
 
-function requestAttention(context: RequestContext, question: Question, coordinatorAvailable: boolean) {
+function requestAttention(context: RequestContext, question: Question, coordinatorConfigured: boolean) {
   if (question.responding) return view('Waiting for native confirmation', false, false, true);
   if (isHumanCommandApproval(question)) return view('Needs your personal approval', true);
   if (question.error) return view('Request answer error', true);
   if (question.review?.decision === 'ask') return view('Needs your decision', true);
+  if (['approve', 'decline'].includes(question.review?.decision || '')) return view('Waiting for native confirmation', false, false, true);
   if (question.review && question.review.decision !== 'queued') return view('Approval answer not confirmed', true);
   if (!['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method)) return view('Needs your answer', true);
   if (!question.reviewToken || question.params?.threadId !== context.id) return view('Request details unavailable', true);
   const once = nativeApprovalChoices(question, { allowPersistent: false })
     .some(choice => choice.answer.decision === 'accept');
-  if (!once || !coordinatorAvailable) return view('Needs your decision', true);
+  if (!once || !coordinatorConfigured) return view('Needs your decision', true);
   return view('Awaiting Coordinator review', false, true);
 }
 
 // Presentation only: never change native status, approvals, ownership or send
 // gates. Backend-projected child questions already carry verified parentage.
-export function tabAttentionView(agent: TabWorker, coordinatorAvailable: boolean): TabAttention {
+export function tabAttentionView(agent: TabWorker, coordinatorAvailable: boolean, coordinatorConfigured = coordinatorAvailable): TabAttention {
   const states: TabAttention[] = [];
   const asyncStates = (agent.messages || []).flatMap(message => message.nativeQuestions || []);
+  // taskSummary projects current linked Beads inputs explicitly, after dependency
+  // and terminal-state checks. Ordinary blocked work is not a user question.
+  if (agent.tasks?.some(task => task.displayState === 'needs_input')) states.push(view('Needs your task input', true));
   const contexts = [{ ...agent, status: agent.ownStatus ?? agent.status }, ...(agent.workers || [])];
   for (const context of contexts) {
     const questions = context.questions || [];
@@ -61,7 +66,9 @@ export function tabAttentionView(agent: TabWorker, coordinatorAvailable: boolean
     if ((pending && (context.requestError || context.detailError)) || ('observeError' in context && context.observeError && questions.length)) {
       states.push(view('Request details unavailable', questions.length > 0));
     }
-    for (const question of questions) states.push(requestAttention(context, question, coordinatorAvailable && agent.role !== 'coordinator' && agent.provider !== 'claude'));
+    // Startup, pause or a temporary Coordinator connection loss cannot create a
+    // user decision. Only an actual referral/error changes an eligible wait.
+    for (const question of questions) states.push(requestAttention(context, question, coordinatorConfigured && agent.role !== 'coordinator' && agent.provider !== 'claude'));
     if (!questions.length && (context.status === 'attention' || context.needsInput)) states.push(view('Request details unavailable'));
   }
   for (const question of asyncStates) {

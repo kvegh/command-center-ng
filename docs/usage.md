@@ -41,6 +41,17 @@ own blocking request holds sending; a child-only wait does not. Enter inserts a
 newline while sending is unavailable.
 New text entered during an earlier send acknowledgement is preserved.
 
+If Codex explicitly rejects a message because its expected active turn has been
+replaced, CCNG reads the current turn and waiting state. Ordinary input can be
+tried once more with the same content and delivery identity when the current
+conversation is active and all existing request, stop and handoff checks allow
+it. A timeout, disconnect or other uncertain response never triggers that retry.
+This recovery does not start a replacement turn. If sending remains blocked,
+the error explains that the message was not sent and the draft stays available.
+Question answers stay with their original turn and are never moved to a newer one.
+If current native state reveals a missing approval card, CCNG uses its existing
+guarded request recovery; it does not answer the approval.
+
 The input header distinguishes **Sending**, native-acknowledged **Input received**,
 **Working**, actual **Needs your answer**, Coordinator-review/confirmation waits,
 and completed/interrupted outcomes. A native wait without a delivered request
@@ -386,9 +397,16 @@ chat-message time and rendering time are different events. Missing or invalid
 native time is shown as unavailable, without a substituted timestamp, estimate
 or new timer.
 
-Agent tabs stay neutral while a delivered command/file approval awaits an
-available Coordinator. Amber means your attention is needed: a referral, a
-manual-only question or permission, or an actual answer error. A native wait
+Agent tabs stay neutral while an eligible delivered command/file approval awaits
+a configured Coordinator, including startup, evaluation, pause or temporary
+unavailability. Waiting for native confirmation also stays neutral. These waits
+do not mean the Coordinator has a concern or needs you to decide.
+Amber means actual user action is needed: a Coordinator referral or concern,
+a decision question, explicit linked Beads input, a native manual-only approval
+or permission, or an actual answer error. If no Coordinator is configured, a
+native approval that needs manual review remains amber. Ordinary blocked or
+queued tasks do not become questions. An analyst recommendation alone does not
+create a Coordinator referral. A native wait
 without a delivered request stays neutral with **Request details unavailable**.
 When the selected conversation genuinely needs your attention, its top tab
 edge stays amber in all three themes while its saved chat-colour fill remains.

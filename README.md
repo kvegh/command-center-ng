@@ -52,8 +52,12 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Open existing Codex conversations or start new agents in explicit project directories.
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
 - Chat, steer active work, interrupt a turn and answer supported native questions or approvals, including eligible current assistant-question cards.
+  If native Codex explicitly rejects an outdated turn, refresh its current state
+  and retry ordinary input once when safe; uncertain deliveries are not repeated.
 - See received native requests and matching file-change details automatically, including verified Codex child requests in their parent chat. Distinguish requests needing your answer from native waits with unavailable details.
 - See native approval creation times and selected-tab attention highlights. See [request time and attention](docs/usage.md#request-time-and-attention).
+  Amber marks actual user action: a concern or referral, a decision question or
+  specific input. Configured Coordinator review and confirmation waits stay neutral.
 - Attempt automatic reconnection of eligible active Codex waits with missing request details, without answering approvals. A delivered file approval missing its proposal can receive one guarded live snapshot after bounded history lookup.
 - Branch a Codex conversation, then hand tasks and a summary back to its parent.
 - See linked Beads tasks with input needs and blockers first, conditional On hold states and optional native browser task notifications.

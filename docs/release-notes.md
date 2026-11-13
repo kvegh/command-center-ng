@@ -9,6 +9,30 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.19.0 — Preserve current turns and reserve amber for user action
+
+Amber tab frames now mean actual user action: a Coordinator referral/concern,
+decision question, specific linked-task input or native manual approval. An
+otherwise eligible request stays neutral while a configured Coordinator evaluates
+it, starts up or is temporarily unavailable; a pending native confirmation also
+stays neutral. Temporary availability no longer invents a user decision. Native
+manual-only requests and the genuinely unconfigured manual route remain explicit.
+Selected/unselected frames retain the policy across all three themes without
+changing native request controls or send gates.
+
+Late completion of an older turn and delayed turn-start acknowledgements no longer
+replace a newer known turn or retire its question state. Native completion
+accounting still receives the original turn's completion.
+
+An exact native expected-turn mismatch is a rejected input, distinct from an
+unknown delivery. CCNG reads the current turn/waiting state and may retry ordinary
+input once with its original payload and identity after current ownership,
+request, stop, pause and handoff checks. It never starts a new turn as recovery,
+retries an uncertain response or moves a question answer to a different turn.
+Newly discovered missing request cards use existing guarded recovery. Other
+failures keep the draft and give an explicit not-sent explanation when rejection
+is known. Existing native approval and permissions remain authoritative.
+
 ## 1.18.0 — Review container tests and show real blocked-task context
 
 Source review now recognizes the supported literal Python unittest command form,

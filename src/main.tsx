@@ -577,7 +577,7 @@ function App() {
   if (authenticated === null) return <div className="loading-page"><Brand />{sessionReadError ? <><p className="error-text" role="alert">{sessionReadError}</p><button type="button" className="button subtle" onClick={() => { setSessionReadError(''); void checkSession(applySession).catch(error => setSessionReadError(error.message)); }}>Retry sign-in check</button></> : <p>Opening your workspace…</p>}</div>;
   if (!authenticated) return <Login key={loginMode(loginSession)} mode={loginMode(loginSession)} brand={<Brand />} lockIcon={<Icon name="lock" />} submitIcon={<Icon name="chevron" />} version={VERSION} notice={loginNotice} request={api} refreshSession={refreshLoginSession} onLogin={() => { apiAuthentication.generation++; setLoginSession({}); setLoginNotice(''); setError(''); setAuthenticated(true); }} />;
   const canReview = coordinatorReviewAvailable(state);
-  const tabAttention = new Map(state.agents.map(agent => [agent.id, tabAttentionView(agent, canReview)]));
+  const tabAttention = new Map(state.agents.map(agent => [agent.id, tabAttentionView(agent, canReview, !!(state.coordinator?.id || state.coordinator?.starting))]));
   const attention = [...tabAttention.values()].filter(view => view.needsUser).length;
   const workerRows = state.agents.filter(agent => agent.role !== 'coordinator');
   const ids = [...tabOrder.filter(id => workerRows.some(agent => agent.id === id)), ...workerRows.map(agent => agent.id).filter(id => !tabOrder.includes(id))];

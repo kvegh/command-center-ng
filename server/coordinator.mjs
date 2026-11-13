@@ -912,8 +912,11 @@ export class Coordinator {
       message.error = error.message;
       if (['report', 'report-setting'].includes(message.kind)) agent.reportError = error.message;
       if (message.startupDashboard) this.settleStartupDashboard(id, 'failed', agent);
-      this.error = 'Coordinator message delivery was not confirmed; it will not retry automatically: ' + error.message;
-      this.record({ agentId: id, action: message.kind, outcome: 'unconfirmed', rationale: error.message });
+      const notSent = error.code === 'native_input_not_sent';
+      if (notSent) agent.taskPingInProgress = previousTaskPing;
+      this.error = (notSent ? 'Coordinator message was not sent; it will not retry automatically: '
+        : 'Coordinator message delivery was not confirmed; it will not retry automatically: ') + error.message;
+      this.record({ agentId: id, action: message.kind, outcome: notSent ? 'not-sent' : 'unconfirmed', rationale: error.message });
     }
     finally { agent.coordinatorSending = false; this.workspace.changed(); if (['report', 'report-setting', 'task-ping'].includes(this.deliveries.get(id)?.[0]?.kind) && !this.deliveries.get(id)[0].error) void this.flush(id); }
   }

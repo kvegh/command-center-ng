@@ -23,6 +23,20 @@ import { validateImages, codexImages, imageReferences, readInlineImage } from '.
 export const input = (text, images = []) => [...(text ? [{ type: 'text', text, text_elements: [] }] : []), ...images.map(image => ({ type: 'image', url: image.dataUrl }))];
 const requestKey = (threadId, requestId) => JSON.stringify([threadId, requestId]);
 const MAX_UNASSOCIATED_REQUESTS = 128;
+const nativeTurnHead = Symbol('latest native turn identity');
+function rememberNativeTurn(agent, id) {
+  const previous = agent[nativeTurnHead] || { id: agent.turnId || agent.finishedTurn?.id, superseded: [] };
+  const superseded = previous.superseded.filter(turn => turn !== id && turn !== previous.id);
+  if (previous.id && previous.id !== id) superseded.push(previous.id);
+  // Keep only bounded lifecycle evidence, privately on the existing agent.
+  // Unknown success must never clear a known newer stopped outcome.
+  Object.defineProperty(agent, nativeTurnHead, { value: { id, superseded: superseded.slice(-32) }, writable: true, configurable: true });
+}
+function rejectedTurnMismatch(error, attemptedTurn) {
+  const match = /^expected active turn id `([0-9a-f-]{36})` but found `([0-9a-f-]{36})`$/i.exec(error?.message || '');
+  return !!match && match[1] === attemptedTurn && match[2] !== attemptedTurn;
+}
+const inputNotSent = message => Object.assign(new Error(message), { status: 409, code: 'native_input_not_sent' });
 export function statusOf(thread, requests = []) {
   if (requests.length || thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag))) return 'attention';
   return ({ active: 'running', idle: 'idle', notLoaded: 'offline', systemError: 'error' })[thread.status?.type] || 'offline';
@@ -656,6 +670,7 @@ export class Workspace extends EventEmitter {
     if (cursor && !replace && (agent.historyPagingRevision || 0) !== before.pagingRevision) return;
     const sameTurn = agent.turnId === before.turnId && agent.finishedTurn === before.finishedTurn && agent.thread.status === before.status;
     const restoreTurn = (!cursor || replace) && sameTurn && (before.status?.type !== 'active' || !before.turnId);
+    if (restoreTurn && page.data[0]?.id) rememberNativeTurn(agent, page.data[0].id);
     if ((!cursor || replace) && sameTurn) {
       const latest = page.data[0];
       // Only current native history establishes whether an idle restored worker was stopped.
@@ -879,6 +894,34 @@ export class Workspace extends EventEmitter {
     const ownWaitingHandoff = this.returnJobs.has(id) && ['waiting', 'stopping'].includes(agent.handoff?.phase);
     return this.summaryJobs.has(id) || this.handoffs.incoming(id) || !!agent.returnSummary?.delivered || (this.returnJobs.has(id) && !ownWaitingHandoff);
   }
+  async refreshRejectedInputTurn(agent, epoch) {
+    const before = { turnId: agent.turnId, finishedTurn: agent.finishedTurn, status: agent.thread.status, revision: agent.historyRevision || 0 };
+    const current = () => this.agents.get(agent.id) === agent && this.rpc.ready && this.requestEpoch === epoch && (agent.historyRevision || 0) === before.revision;
+    if (!current()) return false;
+    // Read only one latest turn, then its current waiting/ownership status. A
+    // normal history refresh deliberately preserves active cached turn IDs.
+    const page = await this.rpc.call('thread/turns/list', { threadId: agent.id, limit: 1, itemsView: 'summary' });
+    if (!current()) return false;
+    const { thread } = await this.rpc.call('thread/read', { threadId: agent.id, includeTurns: false });
+    if (!current()) return false;
+    // Live events observed during either read are newer evidence. Do not replace
+    // them or retry using a snapshot whose ordering is now ambiguous.
+    if (agent.turnId !== before.turnId || agent.finishedTurn !== before.finishedTurn || agent.thread.status !== before.status) return false;
+    if (thread?.id !== agent.id || (thread.parentThreadId ?? null) !== (agent.thread.parentThreadId ?? null)
+      || (thread.cwd != null && thread.cwd !== agent.cwd) || !Array.isArray(page.data)) return false;
+    const latest = page.data[0];
+    const activeTurn = thread.status?.type === 'active' && latest?.status === 'inProgress' && typeof latest.id === 'string' ? latest.id : null;
+    if (activeTurn || (thread.status?.type === 'idle' && latest?.id)) rememberNativeTurn(agent, latest.id);
+    agent.thread = thread; agent.canSend = thread.canAcceptDirectInput !== false;
+    agent.turnId = activeTurn;
+    if (thread.status?.type === 'idle' && latest?.id && ['completed', 'failed', 'interrupted'].includes(latest.status)) agent.finishedTurn = { id: latest.id, status: latest.status };
+    this.requestWaitEpisode(agent);
+    // Use the existing guarded request recovery; it never answers a request and
+    // retains its own pause/stop/ownership and one-attempt waiting-episode gates.
+    if (agent.role !== 'coordinator' && statusOf(agent.thread) === 'attention' && !agent.questions.length) void this.reconnectWaitingRequests(agent, agent);
+    this.changed();
+    return thread.status?.type === 'active' && !!agent.turnId;
+  }
   async send(id, text, { report = false, reportSetting = false, coordinatorEvent = false, taskPing = false, preserveAsyncQuestions = false, messageQuestion, images: suppliedImages } = {}) {
     const agent = this.agent(id);
     const internalControl = report || reportSetting || coordinatorEvent || taskPing || preserveAsyncQuestions;
@@ -933,12 +976,49 @@ export class Workspace extends EventEmitter {
     }
     if (agent.thread.status?.type === 'active' && agent.turnId) {
       const turnId = agent.turnId;
-      const delivery = await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: turnId, input: messageInput, ...identity });
+      const epoch = this.requestEpoch, stopIntent = agent.requestStopIntent;
+      let delivery, deliveredTurn = turnId;
+      try { delivery = await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: turnId, input: messageInput, ...identity }); }
+      catch (error) {
+        // This exact native precondition rejects before accepting input. Other
+        // errors (including timeouts/disconnects) have uncertain delivery: never retry.
+        if (!rejectedTurnMismatch(error, turnId)) throw error;
+        if (messageQuestion) {
+          messageQuestion.attempted = false;
+          setAsyncQuestionDelivery(messageQuestion, 'read-only', 'The original native turn changed before this answer was sent. Check the current conversation.');
+          messageQuestion.binding.retired = true; messageQuestion.binding.retirement = 'turn-changed';
+          // Non-delivery is already certain; a failed read cannot turn this into
+          // an uncertain answer or authorize retargeting it to another turn.
+          await this.refreshRejectedInputTurn(agent, epoch).catch(() => false);
+          throw inputNotSent('The question’s original turn changed before your answer was sent. Check the current conversation; the answer was not sent.');
+        }
+        const notSent = () => inputNotSent('The conversation changed before this message was sent. Your message was not sent; check the current conversation and try again.');
+        let refreshed;
+        try { refreshed = await this.refreshRejectedInputTurn(agent, epoch); }
+        catch { throw notSent(); }
+        if (this.agents.get(id) === agent && this.rpc.ready && this.requestEpoch === epoch
+          && (agent.questions.length || statusOf(agent.thread) === 'attention')) throw inputNotSent('The conversation is waiting for a native approval or question. Your message was not sent. Answer it in Open questions; use Load pending request if its details are missing.');
+        if (!refreshed || this.agents.get(id) !== agent || !this.rpc.ready || this.requestEpoch !== epoch || agent.requestStopIntent !== stopIntent
+          || !agent.canSend || this.restoring || agent.questions.length || statusOf(agent.thread) === 'attention'
+          || agent.handoff || this.handoffs.incoming(id) || this.summaryJobs.has(id) || this.returnJobs.has(id) || agent.returnSummary?.delivered
+          || (internalControl && (this.coordinator?.paused || this.coordinator?.stopped || hasOpenAsyncQuestions(agent)))
+          || agent.thread.status?.type !== 'active' || !agent.turnId || agent.turnId === turnId) throw notSent();
+        // Keep the same payload/provenance identity and make at most one retry.
+        // Never fall back to starting a new turn after a rejected steer.
+        const currentTurn = agent.turnId;
+        deliveredTurn = currentTurn;
+        try { delivery = await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: currentTurn, input: messageInput, ...identity }); }
+        catch (retryError) { if (rejectedTurnMismatch(retryError, currentTurn)) throw notSent(); throw retryError; }
+      }
       manualAccepted();
-      return { turnId: delivery?.turnId || turnId };
+      return { turnId: delivery?.turnId || deliveredTurn };
     } else {
+      const beforeStart = { turnId: agent.turnId, finishedTurn: agent.finishedTurn, status: agent.thread.status, epoch: this.requestEpoch };
       const { turn } = await this.rpc.call('turn/start', { threadId: id, input: messageInput, ...identity, additionalContext: context });
-      if (agent.finishedTurn?.id !== turn.id) { agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed(); }
+      if (this.agents.get(id) === agent && this.requestEpoch === beforeStart.epoch && agent.turnId === beforeStart.turnId
+        && agent.finishedTurn === beforeStart.finishedTurn && agent.thread.status === beforeStart.status && agent.finishedTurn?.id !== turn.id) {
+        rememberNativeTurn(agent, turn.id); agent.turnId = turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; this.changed();
+      }
       manualAccepted();
       return { turnId: turn.id };
     }
@@ -1161,6 +1241,7 @@ export class Workspace extends EventEmitter {
       const revision = agent.historyRevision = (agent.historyRevision || 0) + 1;
       agent.messages = []; agent.tasks = []; agent.workers = []; agent.summary = null; agent.activity = null;
       agent.turnId = null; agent.finishedTurn = null; agent.lastCompletedTurnId = null; agent.olderCursor = null; agent.historyLoadedEarlier = false; agent.historyPagingRevision = 0; agent.returnSummary = null;
+      delete agent[nativeTurnHead];
       const current = () => this.requestContextCurrent(parent, agent) && agent.historyRevision === revision;
       void this.history(agent.id, undefined, { replace: true, ...(parent !== agent ? { parent } : {}) }).then(() => {
         if (current()) { agent.observeError = null; this.changed(); }
@@ -1187,15 +1268,21 @@ export class Workspace extends EventEmitter {
     if (method === 'thread/closed') agent.thread.status = { type: 'notLoaded' };
     if (method === 'thread/name/updated') agent.name = p.threadName || p.name || agent.name;
     if (method === 'thread/settings/updated') this.syncModel(agent, p.threadSettings?.model, p.threadSettings?.effort);
-    if (method === 'turn/started') { agent.turnId = p.turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; agent.tasks = []; agent.summary = null; if (!agent.returnSummary?.delivered) agent.returnSummary = null; }
+    if (method === 'turn/started') { rememberNativeTurn(agent, p.turn.id); agent.turnId = p.turn.id; agent.thread.status = { type: 'active', activeFlags: [] }; agent.tasks = []; agent.summary = null; if (!agent.returnSummary?.delivered) agent.returnSummary = null; }
     if (method === 'turn/completed') {
-      retireAsyncQuestions(agent, 'The originating native turn finished; this question is read-only.', 'terminal');
-      agent.turnId = null; agent.thread.status = { type: 'idle' };
-      agent.finishedTurn = { id: p.turn.id, status: p.turn.status };
-      if (p.turn.error) agent.activity = { text: p.turn.error.message, state: 'failed' };
+      const head = agent[nativeTurnHead];
+      const currentTurn = agent.turnId ? agent.turnId === p.turn.id : !head || head.id === p.turn.id
+        || (!head.superseded.includes(p.turn.id) && ['failed', 'interrupted'].includes(p.turn.status));
+      if (currentTurn) {
+        retireAsyncQuestions(agent, 'The originating native turn finished; this question is read-only.', 'terminal');
+        agent.turnId = null; agent.thread.status = { type: 'idle' };
+        agent.finishedTurn = { id: p.turn.id, status: p.turn.status };
+        rememberNativeTurn(agent, p.turn.id);
+        if (p.turn.error) agent.activity = { text: p.turn.error.message, state: 'failed' };
+      }
       if (p.turn.status === 'completed') {
         const replyIndex = agent.messages.findLastIndex(message => message.type === 'assistant' && message.turnId === p.turn.id);
-        if (replyIndex >= 0) { agent.messages[replyIndex] = { ...agent.messages[replyIndex], branchable: true, state: 'completed' }; agent.lastCompletedTurnId = p.turn.id; }
+        if (replyIndex >= 0) { agent.messages[replyIndex] = { ...agent.messages[replyIndex], branchable: true, state: 'completed' }; if (currentTurn) agent.lastCompletedTurnId = p.turn.id; }
       }
       void this.refreshTasks(id);
       if (this.agents.get(id) === agent) this.coordinator?.completed(id, p.turn.id);

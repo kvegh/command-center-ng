@@ -24,6 +24,22 @@ const coordinator = extra => ({ id: 'coordinator', role: 'coordinator', status: 
 const snapshot = extra => ({ connected: true, codexConnected: true, coordinator: { id: 'coordinator', paused: false, starting: false }, agents: [coordinator()], ...extra });
 const needsUser = result => assert.equal(result.needsUser, true);
 
+async function actualTabPresentation() {
+  const main = await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8');
+  const ast = ts.createSourceFile('main.tsx', main, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let tabStatus, footer, coordinatorConfigured;
+  const visit = node => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'tabStatus') tabStatus = node.initializer.getText(ast);
+    if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(ast) === 'WorkerStatus') footer = node;
+    if (ts.isCallExpression(node) && node.expression.getText(ast) === 'tabAttentionView') coordinatorConfigured = node.arguments[2]?.getText(ast);
+    ts.forEachChild(node, visit);
+  }; visit(ast);
+  assert.ok(tabStatus); assert.ok(footer); assert.ok(coordinatorConfigured);
+  return { ast, footer,
+    configured: new Function('state', ts.transpileModule(`return (${coordinatorConfigured});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText),
+    status: new Function('agent', 'view', ts.transpileModule(`return (${tabStatus});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText) };
+}
+
 test('eligible exact command and file approvals await review without amber or an invented idle/running-review label', () => {
   for (const question of [command(), command({ method: 'item/fileChange/requestApproval', nativeItem: { state: 'unavailable' } })]) {
     const agent = worker({ questions: [question] });
@@ -56,10 +72,15 @@ test('native once eligibility and exact current identity are required, without i
   assert.equal(tabAttentionView(worker(), true).awaitingCoordinator, true, 'nullable native turn/item fields remain legitimate');
 });
 
-test('referrals, request errors and reviewed-but-still-pending answers need the user', () => {
-  for (const extra of [{ review: { decision: 'ask', rationale: 'Choose the target.' } }, { error: 'Native answer failed.' }, ...['approve', 'decline'].map(decision => ({ review: { decision, rationale: 'Reviewed.' } }))]) {
+test('actual referrals and request errors need the user while reviewed answers await confirmation', () => {
+  for (const extra of [{ review: { decision: 'ask', rationale: 'Choose the target.' } }, { error: 'Native answer failed.' }]) {
     const result = tabAttentionView(worker({ questions: [command(extra)] }), true);
     needsUser(result); assert.equal(result.awaitingCoordinator, false);
+  }
+  for (const decision of ['approve', 'decline']) {
+    const result = tabAttentionView(worker({ questions: [command({ review: { decision, rationale: 'Reviewed.' } })] }), false, true);
+    assert.deepEqual(result, { needsUser: false, awaitingCoordinator: false, confirming: true, label: 'Waiting for native confirmation' });
+    needsUser(tabAttentionView(worker({ questions: [command({ review: { decision, rationale: 'Reviewed.' }, error: 'Native answer failed.' })] }), false, true));
   }
 });
 
@@ -194,12 +215,43 @@ test('live async questions retain human attention; submission waits do not inven
   needsUser(tabAttentionView(worker({ questions: [command()], messages: [{ nativeQuestions: [{ answerState: 'available' }] }] }), true));
 });
 
-test('only an available matching Coordinator suppresses reviewable waits; ordinary errors and restored observation alone are not disqualifiers', () => {
+test('Coordinator availability remains truthful without turning configured review waits into user decisions', () => {
   assert.equal(coordinatorReviewAvailable(snapshot()), true);
   assert.equal(coordinatorReviewAvailable(snapshot({ agents: [coordinator({ status: 'idle', observingOnly: true })], coordinator: { id: 'coordinator', paused: false, starting: false, error: 'An unrelated report was not delivered.' } })), true);
   for (const state of [snapshot({ connected: false }), snapshot({ codexConnected: false }), snapshot({ coordinator: null }), snapshot({ agents: [] }), snapshot({ coordinator: { id: 'coordinator', paused: true, starting: false } }), snapshot({ coordinator: { id: 'coordinator', paused: false, starting: true } }), ...[{ status: 'attention' }, { status: 'offline' }, { status: 'error' }, { canSend: false }, { questions: [command()] }, { role: 'worker' }, { provider: 'claude' }].map(extra => snapshot({ agents: [coordinator(extra)] }))]) {
     assert.equal(coordinatorReviewAvailable(state), false);
-    needsUser(tabAttentionView(worker(), coordinatorReviewAvailable(state)));
+    const result = tabAttentionView(worker(), coordinatorReviewAvailable(state), !!state.coordinator);
+    assert.equal(result.needsUser, !state.coordinator);
+    assert.equal(result.awaitingCoordinator, !!state.coordinator);
+  }
+});
+
+test('queued or running analysis and analyst recommendations cannot invent a main Coordinator referral', () => {
+  for (const status of ['queued', 'running', 'ready']) for (const decision of ['approve', 'decline', 'ask']) {
+    const question = command({ approvalAnalysis: { status, recommendation: { decision } } });
+    for (const available of [true, false]) {
+      const agent = worker({ questions: [question] }), before = structuredClone(agent);
+      assert.equal(tabAttentionView(agent, available, true).needsUser, false);
+      assert.equal(tabAttentionView(agent, available, true).label, 'Awaiting Coordinator review');
+      assert.deepEqual(agent, before);
+    }
+  }
+  needsUser(tabAttentionView(worker(), false, false), 'without a configured Coordinator the native request remains a specific manual decision');
+  for (const extra of [{ review: { decision: 'ask', rationale: 'Choose a target.' } }, { error: 'Answer failed.' }, { method: 'item/tool/requestUserInput' }]) {
+    needsUser(tabAttentionView(worker({ questions: [command(extra)] }), false, true));
+  }
+  const parent = worker({ ownStatus: 'idle', questions: [], workers: [{ id: 'child', status: 'attention', questions: [command({ review: { decision: 'queued' } }, 'child')] }] });
+  assert.equal(tabAttentionView(parent, false, true).needsUser, false);
+  assert.equal(tabAttentionView(parent, false, true).awaitingCoordinator, true);
+});
+
+test('only an explicit current linked Beads input joins the user attention indicator', () => {
+  const agent = worker({ status: 'running', ownStatus: 'running', questions: [], tasks: [{ displayState: 'needs_input' }] });
+  assert.deepEqual(tabAttentionView(agent, false, true), { needsUser: true, awaitingCoordinator: false, confirming: false, label: 'Needs your task input' });
+  for (const displayState of ['blocked', 'queued', 'closed', 'in_progress', 'deferred', undefined]) {
+    const result = tabAttentionView({ ...agent, tasks: [{ displayState, isChatQuestion: true }] }, false, true);
+    assert.equal(result.needsUser, false, `${displayState}: task history or ordinary work does not invent a current question`);
+    assert.equal(result.label, 'Running');
   }
 });
 
@@ -222,16 +274,7 @@ test('technical delivered-request errors remain explicit rather than becoming a 
 });
 
 test('actual tab class and footer wiring keep unknown waits neutral while genuine manual requests remain amber', async () => {
-  const main = await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8');
-  const ast = ts.createSourceFile('main.tsx', main, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  let tabStatus, footer;
-  const visit = node => {
-    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'tabStatus') tabStatus = node.initializer.getText(ast);
-    if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(ast) === 'WorkerStatus') footer = node;
-    ts.forEachChild(node, visit);
-  }; visit(ast);
-  assert.ok(tabStatus); assert.ok(footer);
-  const evaluateStatus = new Function('agent', 'view', ts.transpileModule(`return (${tabStatus});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText);
+  const { ast, footer, status: evaluateStatus } = await actualTabPresentation();
   for (const [agent, expected] of [
     [worker({ questions: [] }), 'waiting'],
     [worker({ ownStatus: 'idle', questions: [], workers: [{ id: 'child', status: 'attention', needsInput: true, questions: [] }] }), 'waiting'],
@@ -248,12 +291,41 @@ test('actual tab class and footer wiring keep unknown waits neutral while genuin
   assert.equal(presentation?.initializer?.expression?.getText(ast), 'tabAttention.get(active.id)');
 });
 
-test('a genuine user request keeps its amber top frame when its tab is selected in every theme', async () => {
+test('actual tabs stay neutral across configured Coordinator lifecycle and confirmation snapshots', async () => {
+  const { status, configured } = await actualTabPresentation();
+  for (const state of [
+    snapshot({ agents: [] }),
+    snapshot({ agents: [coordinator({ status: 'idle', canSend: false, observingOnly: true })] }),
+    snapshot({ coordinator: { id: 'coordinator', starting: true, paused: false } }),
+    snapshot({ coordinator: { id: null, starting: true, paused: false } }),
+    snapshot({ coordinator: { id: 'coordinator', starting: false, paused: true } }),
+    snapshot(),
+  ]) {
+    for (const question of [command(), command({ review: { decision: 'queued' } }), command({ approvalAnalysis: { status: 'running' } }), command({ review: { decision: 'approve' } }), command({ review: { decision: 'decline' } })]) {
+      const agent = worker({ questions: [question] }), before = structuredClone(agent);
+      assert.equal(configured(state), true, 'a saved Coordinator or current startup supplies review context');
+      const view = tabAttentionView(agent, coordinatorReviewAvailable(state), configured(state));
+      assert.equal(status(agent, view), 'waiting');
+      assert.equal(view.needsUser, false);
+      assert.deepEqual(agent, before);
+    }
+  }
+  const agent = worker();
+  for (const state of [snapshot({ coordinator: null }), snapshot({ coordinator: { id: null, starting: false, paused: false } })]) {
+    assert.equal(configured(state), false);
+    assert.equal(status(agent, tabAttentionView(agent, coordinatorReviewAvailable(state), configured(state))), 'attention', 'no configured Coordinator leaves the native request manual');
+  }
+  const taskInput = worker({ status: 'running', ownStatus: 'running', questions: [], tasks: [{ displayState: 'needs_input' }] });
+  assert.equal(status(taskInput, tabAttentionView(taskInput, false, true)), 'attention');
+});
+
+test('actual user-action tabs keep amber while evaluation and confirmation stay neutral in every theme and selection', async () => {
+  const { status } = await actualTabPresentation();
   const sheet = postcss.parse(await readFile(new URL('../src/style.css', import.meta.url), 'utf8'));
   // Resolve only the status/selection selectors and border shorthand involved
   // in this regression; this is a cascade check, not browser layout emulation.
-  const style = (theme, active, property) => {
-    const selectors = ['.tab-wrap', '.tab-wrap.attention', ...(active ? ['.tab-wrap.active', '.tab-wrap.active.attention'] : [])];
+  const style = (theme, active, tabStatus, property) => {
+    const selectors = ['.tab-wrap', `.tab-wrap.${tabStatus}`, ...(active ? ['.tab-wrap.active', `.tab-wrap.active.${tabStatus}`] : [])];
     const accepted = new Set(selectors.flatMap(selector => [selector, `:root[data-theme="${theme}"] ${selector}`]));
     let winner = { specificity: -1, value: undefined };
     sheet.nodes.filter(node => node.type === 'rule').forEach(rule => {
@@ -270,11 +342,21 @@ test('a genuine user request keeps its amber top frame when its tab is selected 
   for (const agent of [
     worker({ questions: [command({ review: { decision: 'ask', rationale: 'Choose a target.' } })] }),
     worker({ ownStatus: 'idle', questions: [], workers: [{ id: 'child', status: 'attention', questions: [command({ method: 'item/permissions/requestApproval' }, 'child')] }] }),
+    worker({ questions: [], tasks: [{ displayState: 'needs_input' }] }),
   ]) {
-    assert.equal(tabAttentionView(agent, true).needsUser, true, 'the current main or child request genuinely needs a user decision');
+    const view = tabAttentionView(agent, true, true), tabStatus = status(agent, view);
+    assert.equal(view.needsUser, true, 'the current main, child or Beads request genuinely needs a user decision');
     for (const theme of ['classic', 'contrastful', 'light']) for (const active of [false, true]) {
-      assert.equal(style(theme, active, 'border-top-color'), 'var(--amber)', `${theme}: selected=${active} must keep the actual attention frame`);
-      assert.equal(style(theme, active, 'background'), active ? 'var(--chat-tab-background)' : 'var(--surface)', 'status framing must preserve the selected chat tint and inactive fill');
+      assert.equal(style(theme, active, tabStatus, 'border-top-color'), 'var(--amber)', `${theme}: selected=${active} must keep the actual attention frame`);
+      assert.equal(style(theme, active, tabStatus, 'background'), active ? 'var(--chat-tab-background)' : 'var(--surface)', 'status framing must preserve the selected chat tint and inactive fill');
+    }
+  }
+  for (const agent of [worker(), worker({ questions: [command({ approvalAnalysis: { status: 'running' } })] }), worker({ questions: [command({ review: { decision: 'approve' } })] }), worker({ questions: [command({ responding: true })] })]) {
+    const view = tabAttentionView(agent, false, true), tabStatus = status(agent, view);
+    assert.equal(tabStatus, 'waiting');
+    for (const theme of ['classic', 'contrastful', 'light']) for (const active of [false, true]) {
+      assert.notEqual(style(theme, active, tabStatus, 'border-top-color'), 'var(--amber)', `${theme}: selected=${active} review/confirmation alone cannot show amber`);
+      assert.equal(style(theme, active, tabStatus, 'background'), active ? 'var(--chat-tab-background)' : 'var(--surface)');
     }
   }
 });
