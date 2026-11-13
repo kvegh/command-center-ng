@@ -457,6 +457,11 @@ followed by **Blocked** work, then the remaining tasks in their usual order.
 **Queued** means unfinished prerequisites and does not mean a user decision.
 A parent-task relationship alone does not make its child Queued.
 Three natural-height rows are visible by default; scroll for the rest.
+Vertical scrolling at a Tasks list edge, including a short list with no internal
+scroll range, can continue through the Tasks section to the surrounding sidebar.
+The desktop sidebar remains bounded; on mobile the gesture can continue to the
+normal page. Resizing Tasks does not add a second scroll barrier. This uses native
+browser scrolling; there is no custom touchpad or wheel-event handling.
 An ordinary **Blocked** task can await tools, resources or other work; it is not
 automatically relabelled Needs input or shown as a question. Explicit input
 states or worker-recorded Question tasks identify human input needs.

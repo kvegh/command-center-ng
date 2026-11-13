@@ -513,7 +513,9 @@ kbd { font-family: inherit; }
 .request-recovery .button { align-self: flex-start; }
 
 /* Worker reports and a bounded complete task list share the existing context pane. */
-.task-summary > .task-scroll { max-height: var(--task-viewport-height); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 5px; }
+/* Hand vertical list-edge gestures to the enclosing sidebar/page, including
+   when a short task list has no internal scroll range. Keep horizontal bounds. */
+.task-summary > .task-scroll { max-height: var(--task-viewport-height); overflow-y: auto; overscroll-behavior: contain; overscroll-behavior-y: auto; scrollbar-gutter: stable; padding-right: 5px; }
 .task-scroll > .task-row { flex: 0 0 auto; }
 .task-scroll:focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
 .task-totals { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--muted); font: 10px/1.6 var(--mono); }
@@ -620,6 +622,8 @@ kbd { font-family: inherit; }
   .overview-section-divider::after { content: ''; position: absolute; top: 6px; left: 0; right: 0; height: 1px; background: var(--line); }
   .overview-section-divider:hover::after, .overview-section-divider.resizing::after { height: 3px; top: 5px; background: var(--accent); }
   .overview-section-divider:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; border-radius: 3px; }
+  /* Do not trap a task-list gesture in a second, nonoverflowing scroll area. */
+  .overview-section[data-section="tasks"] > .overview-section-body.sized { overscroll-behavior-y: auto; }
   .overview-section[data-section="tasks"] .overview-section-body.sized > .task-summary { height: 100%; min-height: 0; }
   .overview-section[data-section="tasks"] .overview-section-body.sized .task-scroll { max-height: none; min-height: 0; flex: 1 1 auto; }
   .overview-section-body.sized .progress-recap p:first-of-type { display: block; -webkit-line-clamp: unset; }

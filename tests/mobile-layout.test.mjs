@@ -34,6 +34,37 @@ function properties(selector, names, media) {
   return Object.fromEntries(names.map(name => [name, values[name]]));
 }
 
+// Expand only the vertical overscroll declarations on the explicit nested
+// scrollers below, in source order. This checks CSS, not physical gestures.
+function verticalOverscroll(selectors, media = []) {
+  let value = 'auto';
+  const collect = rule => {
+    if (rule.type !== 'rule' || !rule.selectors.some(selector => selectors.includes(selector))) return;
+    for (const declaration of rule.nodes.filter(node => node.type === 'decl')) {
+      if (declaration.prop === 'overscroll-behavior') value = declaration.value.trim().split(/\s+/).at(-1);
+      if (declaration.prop === 'overscroll-behavior-y') value = declaration.value;
+    }
+  };
+  for (const node of sheet.nodes) {
+    if (node.type === 'atrule' && node.name === 'media' && media.includes(node.params)) node.nodes.forEach(collect);
+    else collect(node);
+  }
+  return value;
+}
+
+test('Tasks allows vertical boundary scrolling through its nested regions while the desktop sidebar contains it', () => {
+  const list = ['.task-summary > .task-scroll', '.overview-section[data-section="tasks"] .overview-section-body.sized .task-scroll'];
+  const taskBody = ['.overview-section-body.sized', '.overview-section[data-section="tasks"] > .overview-section-body.sized'];
+  assert.equal(verticalOverscroll(list, [desktopQuery]), 'auto', 'short lists and list edges must not trap native sidebar scrolling');
+  assert.equal(verticalOverscroll(taskBody, [desktopQuery]), 'auto', 'saved Tasks section height must not add another barrier');
+  assert.equal(verticalOverscroll(['.overview-scroll-sections'], [desktopQuery]), 'contain', 'desktop scrolling remains inside its overview');
+  assert.equal(verticalOverscroll(['.overview-section-body.sized'], [desktopQuery]), 'contain', 'other resized sections keep their own behavior');
+  assert.equal(verticalOverscroll(['.conversation'], [desktopQuery]), 'contain', 'desktop chat keeps its independent scrolling');
+  for (const media of [[compactQuery], [desktopQuery, compactQuery]]) {
+    assert.equal(verticalOverscroll(list, media), 'auto', 'mobile task boundaries may hand off to natural page scrolling');
+  }
+});
+
 test('mobile CSS and composer share the width/coarse-pointer query and responsive state', () => {
   assert.equal(compactQuery, '(max-width: 900px), (hover: none) and (pointer: coarse)');
   assert.equal(sheet.nodes.filter(node => node.type === 'atrule' && node.name === 'media' && node.params === compactQuery).length, 1);
