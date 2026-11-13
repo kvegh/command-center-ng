@@ -110,6 +110,57 @@ test('a delivered batch retains useful origin and scope while withholding native
   assert.equal(question.review.decision, 'ask'); assert.equal(f.source.questions.includes(question), true);
 });
 
+test('withheld concern fields identify only the first fixed matching category and preserve the original manual ask', async t => {
+  for (const [concern, expected] of [
+    ['example-tool --check password: "synthetic-private-value" import module', 'pending-command text'],
+    ['password: "synthetic-private-value" import module', 'protected source content (credential-named literal assignment)'],
+    ['The source contains a ghp_synthetic_marker_example_not_real marker.', 'protected source content (provider-token marker)'],
+    ['The source contains !vault content.', 'protected source content (Vault marker)'],
+    ['The identifier AKIAABCDEFGHIJKLMNOP needs inspection before import work.', 'credential-shaped data'],
+    ['The ordinary import process could not map this helper.', 'code-like text'],
+  ]) {
+    const f = fixture(t), question = f.question();
+    const reason = 'Request: Diagnose the existing reader.\nConcern: ' + concern + '\nNext: Inspect the original record within existing scope.';
+    await f.ask(question, reason);
+    const text = f.coordinator.pendingConcerns.get(question).text;
+    assert.ok(text.includes('Concern: Details withheld: ' + expected + '. Inspect the original record through permitted tools.'));
+    assert.equal(text.includes(concern), false, 'the entire original field stays withheld, even for ordinary import prose');
+    for (const sensitive of ['synthetic-private-value', 'ghp_synthetic_marker_example_not_real', 'AKIAABCDEFGHIJKLMNOP', 'password:', '!vault']) {
+      assert.equal(text.includes(sensitive), false, 'a category must not expose the matching command, code or data');
+    }
+    assert.equal(question.review.rationale, reason, 'the original user-facing ask remains intact');
+    assert.equal(question.review.decision, 'ask'); assert.ok(f.source.questions.includes(question));
+    assert.equal(f.calls.length, 0, 'diagnostic collection neither delivers a message nor answers a native request');
+  }
+});
+
+test('ordinary concern prose and the existing 900-character scan boundary remain unchanged', async t => {
+  for (const [concern, expected] of [
+    ['The source-reader grammar could not recognize the explicit helper reference.', 'The source-reader grammar could not recognize the explicit helper reference.'],
+    ['A'.repeat(900) + ' import module', 'A'.repeat(900)],
+  ]) {
+    const f = fixture(t), question = f.question();
+    await f.ask(question, 'Request: Diagnose the existing reader.\nConcern: ' + concern + '\nNext: Review the permitted original record.');
+    const text = f.coordinator.pendingConcerns.get(question).text;
+    assert.ok(text.includes('Concern: ' + expected + '\nNext:'));
+    assert.doesNotMatch(text, /Details withheld:/);
+    assert.equal(f.calls.length, 0); assert.equal(question.review.decision, 'ask');
+  }
+});
+
+test('whole-notice live approval token stripping survives both visible fields and diagnostic withholding', async t => {
+  const f = fixture(t), question = f.question();
+  f.source.name = 'Worker ' + question.reviewToken;
+  await f.ask(question, `Request: Check receipt ${question.reviewToken}.\nConcern: The ordinary import process mentions ${question.reviewToken}.\nNext: Refer to receipt ${question.reviewToken}.`);
+  const text = f.coordinator.pendingConcerns.get(question).text;
+  assert.equal(text.includes(question.reviewToken), false);
+  assert.equal(text.match(/\[approval token omitted\]/g)?.length, 3, 'the worker name and visible request/next fields are stripped');
+  assert.match(text, /Concern: Details withheld: code-like text\./);
+  assert.equal(text.includes('The ordinary import process'), false);
+  assert.equal(question.review.decision, 'ask'); assert.ok(f.source.questions.includes(question));
+  assert.equal(f.calls.length, 0);
+});
+
 test('child referrals retain the verified parent and child identities without answering the native request', async t => {
   const f = fixture(t); f.target.turnId = 'busy'; f.target.thread.status = { type: 'active' };
   const child = { ...f.source, id: 'child-worker', name: 'Child worker', questions: [], workers: [],

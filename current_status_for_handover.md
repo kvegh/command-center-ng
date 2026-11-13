@@ -16,6 +16,11 @@ the installed payload. The exact Windows source trigger remains unknown; its
 manual approval was not answered and its test was not executed here. Beads
 retains that investigation awaiting supported nonsecret diagnostic evidence.
 
+Working **1.24.0** adds fixed withholding categories to engineering concern
+notices while preserving the exact redaction rules. Publication and installed
+verification are pending. The original inline-Python source-binding limit and
+manual approvals remain unchanged.
+
 Older version and task statements below are historical checkpoints, superseded
 by current Beads records and the dated decision history.
 

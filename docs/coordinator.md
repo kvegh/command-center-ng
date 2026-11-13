@@ -208,8 +208,16 @@ completes. Analyst recommendations, approved/declined actions and restored
 historical referrals do not trigger notices. Each batch contains up to six
 concerns with project/worker names, parent/child/request identifiers and bounded
 Request/Concern/Next details. It excludes automatic command/source copies,
-known credential-like content and live approval tokens. Unsafe details are
-explicitly withheld for permitted follow-up inspection.
+known credential-like content and live approval tokens. Withheld details name
+the first matching fixed category: pending-command text, protected source
+content, credential-shaped data or code-like text. Protected source content
+also names the source detector's fixed refusal category. The whole original
+field stays withheld, with no matched text, values, keys or code excerpts.
+These conservative categories describe a filter match; code-like wording can
+be ordinary prose and does not establish executable code or real credentials.
+The underlying concern must still be checked through permitted original records.
+This adds diagnostic detail without changing redaction decisions, source access,
+native approval choices, delivery guards or automatic re-review behavior.
 
 The engineering worker investigates recurring causes and proactively fixes
 routine CCNG defects within actual user-authorized scope. Other projects retain

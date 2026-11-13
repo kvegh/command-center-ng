@@ -128,10 +128,14 @@ export class Coordinator {
       const match = /^(Request|Concern|Next):[ \t]*(.+)$/i.exec(line.trim()); if (!match) continue;
       let value = match[2].slice(0, 900);
       const command = approvalCommand(question);
-      if ((command && value.includes(command)) || sourceContainsCredentials(value, '.md') || hookCredentials.test(value)
-        || /```|\$\(|\b(?:podman run|sudo |curl |python3? -|node -|import |from \w+ import|def \w+\(|const \w+\s*=)/.test(value)) {
-        value = 'Details withheld because they resemble executable code or protected data. Inspect the original record through permitted tools.';
+      let reason = command && value.includes(command) ? 'pending-command text' : null;
+      if (!reason) {
+        const sourceReason = sourceCredentialReason(value, '.md');
+        if (sourceReason) reason = 'protected source content (' + sourceReason + ')';
       }
+      if (!reason && hookCredentials.test(value)) reason = 'credential-shaped data';
+      if (!reason && /```|\$\(|\b(?:podman run|sudo |curl |python3? -|node -|import |from \w+ import|def \w+\(|const \w+\s*=)/.test(value)) reason = 'code-like text';
+      if (reason) value = 'Details withheld: ' + reason + '. Inspect the original record through permitted tools.';
       fields[match[1].toLowerCase()] = value;
     }
     const describe = value => sourceContainsCredentials(value || '', '.md') || hookCredentials.test(value || '') ? 'Name withheld' : String(value || 'Worker').slice(0, 180);
