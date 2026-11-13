@@ -13,8 +13,20 @@ const isSourceReference = value => typeof value === 'string' && (
   || /^\$(?:\{[A-Za-z_]\w*\}|[A-Za-z_]\w*)$/.test(value.trim())
 );
 
-export function sourceContainsCredentials(content, extension) {
-  if (content.includes('\0') || credentialMarkers.test(content)) return true;
+function credentialMarkerReason(content) {
+  const match = credentialMarkers.exec(content);
+  if (!match) return null;
+  if (match[0].startsWith('-----BEGIN ')) return 'private-key marker';
+  if (match[0] === '!vault' || match[0].startsWith('$ANSIBLE_VAULT;')) return 'Vault marker';
+  return 'provider-token marker';
+}
+
+// Return fixed rule names only: never expose matching text, keys or values.
+// Keep the existing detector order and thresholds, including synthetic literals.
+export function sourceCredentialReason(content, extension) {
+  if (content.includes('\0')) return 'binary data';
+  const marker = credentialMarkerReason(content);
+  if (marker) return marker;
   if (extension === '.json') {
     let parsed;
     try { parsed = JSON.parse(content); } catch { /* Malformed files still receive text inspection below. */ }
@@ -24,14 +36,17 @@ export function sourceContainsCredentials(content, extension) {
       const pending = [parsed];
       while (pending.length) {
         const current = pending.pop();
-        if (typeof current === 'string' && credentialMarkers.test(current)) return true;
+        if (typeof current === 'string') {
+          const marker = credentialMarkerReason(current);
+          if (marker) return marker;
+        }
         if (!current || typeof current !== 'object') continue;
         for (const [key, value] of Object.entries(current)) {
-          if (credentialName.test(key) && value !== null && value !== '' && typeof value !== 'boolean' && !isSourceReference(value)) return true;
+          if (credentialName.test(key) && value !== null && value !== '' && typeof value !== 'boolean' && !isSourceReference(value)) return 'credential-named JSON field';
           pending.push(value);
         }
       }
-      return false;
+      return null;
     }
   }
   // JSON/YAML/Markdown literals need colon checks; code annotations and ordinary
@@ -44,13 +59,16 @@ export function sourceContainsCredentials(content, extension) {
     const value = (quoted ? raw.slice(1, -1) : raw.replace(/\s+#.*$/, '')).trim();
     if (isSourceReference(value)) continue;
     if (separator === ':' && !document && !quoted) continue;
-    if (document && /^[|>][+-]?\d?$/.test(value)) return true;
+    if (document && /^[|>][+-]?\d?$/.test(value)) return 'credential-named literal assignment';
     // Preserve readable helper expressions such as os.environ[...].
     if (separator === '=' && !quoted) continue;
     if (!value || (!quoted && /^(?:null|none|true|false|~)$/i.test(value))) continue;
-    if (document || value.length >= 8) return true;
+    if (document || value.length >= 8) return 'credential-named literal assignment';
   }
-  return false;
+  return null;
+}
+export function sourceContainsCredentials(content, extension) {
+  return sourceCredentialReason(content, extension) !== null;
 }
 export function isSensitiveSourcePath(path) {
   return path.split(/[\\/]/).some(part => {
@@ -184,7 +202,8 @@ export async function inspectApprovalSource(cwd, command, path, startLine = 1) {
     while (length < buffer.length) { const { bytesRead } = await handle.read(buffer, length, buffer.length - length, null); if (!bytesRead) break; length += bytesRead; }
     if (length > 500000) throw fail('This helper source grew beyond the review limit.');
     const bytes = buffer.subarray(0, length); const content = bytes.toString('utf8');
-    if (sourceContainsCredentials(content, extname(file))) throw fail('This source appears to contain credential material, Vault content or binary data. Review it privately.');
+    const credentialReason = sourceCredentialReason(content, extname(file));
+    if (credentialReason) throw fail('This source appears to contain credential material, Vault content or binary data. Review it privately. Reason: ' + credentialReason + '.');
     const lines = content.split('\n'); const page = []; let size = 0;
     for (const line of lines.slice(startLine - 1, startLine + 159)) {
       if (line.length > 16000) throw fail('This helper has a line too large for bounded inspection. Review it privately.');

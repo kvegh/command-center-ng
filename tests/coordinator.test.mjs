@@ -1884,6 +1884,27 @@ test('helper inspection refuses unrelated, symlinked, sensitive, non-source and 
   } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
 });
 
+test('project and approval readers return the same safe refusal category without exposing source or answering requests', async () => {
+  const f = await fixture(); const outside = await mkdtemp(join(tmpdir(), 'ccng-reason-helper-'));
+  try {
+    const body = 'ACCESS_TOKEN = "synthetic-private-canary-value"\nprint("source-line-canary")\n';
+    const assertPrivateRefusal = error => {
+      assert.equal(error.message, 'This source appears to contain credential material, Vault content or binary data. Review it privately. Reason: credential-named literal assignment.');
+      for (const withheld of ['ACCESS_TOKEN', 'synthetic-private-canary-value', 'source-line-canary']) assert.ok(!error.message.includes(withheld));
+      return true;
+    };
+    await writeFile(join(f.cwd, 'logic.py'), body);
+    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: 'logic.py' }), assertPrivateRefusal);
+    const path = join(outside, 'helper.py'); await writeFile(path, body);
+    f.rpc.ask('protected-helper-action', 'worker'); const question = f.workspace.agent('worker').questions[0];
+    question.params.command = 'python3 ' + JSON.stringify(path);
+    await assert.rejects(f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path }), assertPrivateRefusal);
+    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path }), assertPrivateRefusal);
+    await assert.rejects(f.call('ccng_read_approval_source', { agentId: 'worker', reviewToken: 'stale-token', path }), /exact current command/);
+    assert.equal(f.rpc.replies.length, 0); assert.equal(f.workspace.agent('worker').questions.length, 1);
+  } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
+});
+
 test('both helper readers resolve subprocess source against the approval directory before the worker directory', async () => {
   const f = await fixture(); const approvalCwd = await mkdtemp(join(tmpdir(), 'ccng-approval-project-'));
   try {

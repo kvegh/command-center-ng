@@ -302,6 +302,14 @@ No license has been selected; public visibility alone does not grant a license.
 
 ### Verify source-reader behavior
 
+When helper inspection refuses content, the error names a fixed detection
+category (binary data, a key/token/Vault marker, a credential-named JSON field,
+or a credential-named literal assignment). It does not return matching text,
+field names, values or source excerpts. A category explains the refusal; it
+does not establish whether a test fixture is a real secret. The same content
+remains blocked, including synthetic fixtures. Existing manual approvals stay
+pending; diagnostic detail does not approve, execute or retry their commands.
+
 With the existing Node runtime and application dependencies, run from the
 source checkout:
 

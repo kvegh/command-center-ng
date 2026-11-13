@@ -8,7 +8,7 @@ import { taskSummary } from './task-summary.mjs';
 import { progressWordCount, RECAP_WORD_LIMIT, RECAP_WORD_TARGET } from './progress-recap.mjs';
 import { WORKER_REPORT_REQUEST, WORKER_DETAILED_REPORT_REQUEST, WORKER_TASK_PING_REQUEST, REPORT_INTERVALS } from './worker-instructions.mjs';
 import { taskReportFormatError } from './task-report-format.mjs';
-import { approvalCommand, approvalWorkingDirectory, inspectApprovalSource, referencesApprovalSource, isSensitiveSourcePath, sourceContainsCredentials } from './approval-source.mjs';
+import { approvalCommand, approvalWorkingDirectory, inspectApprovalSource, referencesApprovalSource, isSensitiveSourcePath, sourceContainsCredentials, sourceCredentialReason } from './approval-source.mjs';
 import { nativeMessageQuestions } from './native-requests.mjs';
 import { hasOpenAsyncQuestions, nativeQuestionAnswerTexts } from './async-question-replies.mjs';
 import { isHumanCommandApproval, isSupportedCommandApprovalKind } from './approval-choices.mjs';
@@ -810,7 +810,8 @@ export class Coordinator {
     if (isSensitiveSourcePath(file)) throw fail('Read only ordinary project source files; hidden and sensitive paths need user review.', 400);
     if (!['.py', '.js', '.mjs', '.cjs', '.ts', '.tsx', '.sh', '.yml', '.yaml', '.json', '.md', '.toml'].includes(extname(file))) throw fail('The file must be supported project source inside this worker directory.', 400);
     const content = await readFile(file, 'utf8'); if (content.length > 500000) throw fail('This source file is too large to review through the coordinator.', 400);
-    if (sourceContainsCredentials(content, extname(file))) throw fail('This source appears to contain credential material, Vault content or binary data. Review it privately.', 400);
+    const refusalReason = sourceCredentialReason(content, extname(file));
+    if (refusalReason) throw fail('This source appears to contain credential material, Vault content or binary data. Review it privately. Reason: ' + refusalReason + '.', 400);
     const lines = content.split('\n'); return { path, startLine, text: lines.slice(startLine - 1, startLine + 159).join('\n').slice(0, 16000), totalLines: lines.length };
   }
   async readHookOutput(path, directory, startLine) {

@@ -1,7 +1,15 @@
 # Current status for handover
 
-Updated: 2026-11-10. This is a development handover snapshot. Beads remains the
+Updated: 2026-11-13. This is a development handover snapshot. Beads remains the
 task source of truth; do not use this file as a second backlog.
+
+Current published and installed release is **1.22.0**. The older version and
+task statements below are historical checkpoints, superseded by current Beads
+records and the dated decision history. Working **1.23.0** adds fixed refusal
+categories to both existing source readers without exposing matches or changing
+which content is blocked. Its validation, publication and installation are
+pending; it does not establish the cause of any particular refused source file
+or resolve its original manual approval.
 
 ## Versions and publication
 

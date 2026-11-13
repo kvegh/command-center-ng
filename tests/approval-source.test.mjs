@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { approvalWorkingDirectory, inspectApprovalSource, referencesApprovalSource, isSensitiveSourcePath } from '../server/approval-source.mjs';
+import { approvalWorkingDirectory, inspectApprovalSource, referencesApprovalSource, isSensitiveSourcePath, sourceContainsCredentials, sourceCredentialReason } from '../server/approval-source.mjs';
 
 const subprocessCommand = 'python3 - <<\'PY\'\nimport subprocess\nsubprocess.run(["python3", "src/bump-version.py"], check=True)\nsubprocess.run([\'python3\', \'scripts/sync_todo.py\', \'--check\'], check=True)\nPY';
 
@@ -151,6 +151,68 @@ test('reviewable document formats retain credential, Vault and binary-content pr
     }
     await writeFile(join(cwd, 'settings.json'), '{"value":"binary\0content"}');
     await assert.rejects(inspectApprovalSource(cwd, 'cat settings.json', 'settings.json'), /credential|binary|private/i);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('credential refusal reasons name fixed rules without changing accepted references or literal thresholds', () => {
+  for (const [extension, content] of [
+    ['.py', 'password = os.environ["EXAMPLE_PASSWORD"]\ntoken: str\n'],
+    ['.py', '# password = "synthetic-value"\npassword = "1234567"\n'],
+    ['.js', 'const data = { password: process.env.EXAMPLE_PASSWORD };\n'],
+    ['.yaml', 'password: "{{ supplied_password }}"\n'],
+    ['.json', '{"nest":[{"pass\\u0077ord":"${EXAMPLE_PASSWORD}","token":false,"secret":null,"api_key":""}]}'],
+    ['.json', '{"value":"ordinary text","nest":[true,{},123]}'],
+    ['.json', '{"value":"\\u0000"}'],
+  ]) {
+    assert.equal(sourceCredentialReason(content, extension), null, content);
+    assert.equal(sourceContainsCredentials(content, extension), false, content);
+  }
+  for (const [extension, content, reason] of [
+    ['.py', 'value = "synthetic-binary-body"\0', 'binary data'],
+    ['.yaml', '$ANSIBLE_VAULT;1.1;AES256\nsynthetic-body\n', 'Vault marker'],
+    ['.yaml', 'value: !vault |\n  synthetic-body\n', 'Vault marker'],
+    ['.py', 'value = "-----BEGIN SYNTHETIC PRIVATE KEY-----"\n', 'private-key marker'],
+    ['.py', 'value = "ghp_synthetic_marker_example_not_real"\n', 'provider-token marker'],
+    ['.py', 'value = "github_pat_synthetic_marker_example_not_real"\n', 'provider-token marker'],
+    ['.py', 'value = "sk-synthetic_marker_example_not_real"\n', 'provider-token marker'],
+    ['.json', '{"nest":[{"pass\\u0077ord":"synthetic-field-value"}]}', 'credential-named JSON field'],
+    ['.json', '{"nest":[{"secret":123}]}', 'credential-named JSON field'],
+    ['.json', '{"nest":[{"token":[]}]}', 'credential-named JSON field'],
+    ['.json', '{"nest":[{"value":"\\u0067hp_synthetic_marker_example_not_real"}]}', 'provider-token marker'],
+    ['.json', '{"value":"\\u0024ANSIBLE_VAULT;synthetic-body"}', 'Vault marker'],
+    ['.py', 'password = "12345678"\n', 'credential-named literal assignment'],
+    ['.yaml', 'api_key: short\n', 'credential-named literal assignment'],
+    ['.yaml', 'password: |\n  synthetic-block-value\n', 'credential-named literal assignment'],
+    ['.json', '{"secret":"synthetic-value",malformed}', 'credential-named literal assignment'],
+  ]) {
+    assert.equal(sourceCredentialReason(content, extension), reason, content);
+    assert.equal(sourceContainsCredentials(content, extension), true, content);
+  }
+  assert.equal(sourceCredentialReason('ghp_synthetic_marker_example_not_real\n-----BEGIN SYNTHETIC PRIVATE KEY-----', '.py'), 'provider-token marker', 'the original combined marker regex still selects its first text match');
+  assert.equal(sourceCredentialReason('ghp_synthetic_marker_example_not_real\0', '.py'), 'binary data', 'the original binary guard stays first');
+});
+
+test('source inspection reports only a fixed refusal category without matching fields, values or source excerpts', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ccng-reader-reasons-'));
+  try {
+    for (const [extension, content, reason, sensitive] of [
+      ['.py', 'ordinary = "synthetic-binary-value"\0', 'binary data', ['ordinary', 'synthetic-binary-value', '\0']],
+      ['.yaml', 'ordinary: !vault |\n  synthetic-vault-body\n', 'Vault marker', ['ordinary', '!vault', 'synthetic-vault-body']],
+      ['.py', 'ordinary = "-----BEGIN SYNTHETIC PRIVATE KEY-----"\n', 'private-key marker', ['ordinary', '-----BEGIN SYNTHETIC PRIVATE KEY-----']],
+      ['.py', 'ordinary = "ghp_synthetic_marker_example_not_real"\n', 'provider-token marker', ['ordinary', 'ghp_synthetic_marker_example_not_real']],
+      ['.json', '{"nest":[{"private_pass\\u0077ord_field":"synthetic-json-value"}]}', 'credential-named JSON field', ['nest', 'private_password_field', 'private_pass\\u0077ord_field', 'synthetic-json-value']],
+      ['.py', 'private_password_field = "synthetic-literal-value"\n', 'credential-named literal assignment', ['private_password_field', 'synthetic-literal-value']],
+    ]) {
+      const name = 'example' + extension;
+      await writeFile(join(cwd, name), content);
+      await assert.rejects(inspectApprovalSource(cwd, 'cat ' + name, name), error => {
+        assert.equal(error.status, 400);
+        assert.equal(error.message, 'This source appears to contain credential material, Vault content or binary data. Review it privately. Reason: ' + reason + '.');
+        for (const text of sensitive) assert.equal(error.message.includes(text), false, 'the refusal must not disclose matched content');
+        assert.equal(error.message.includes(content), false);
+        return true;
+      });
+    }
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
 
