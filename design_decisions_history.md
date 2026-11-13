@@ -8,6 +8,31 @@ Initial source commit: `17d351d74ec172c2f451e59e48c534afbc25e2d2`. It introduces
 the eight documentation, contributor-guidance, and Git-policy files described
 below; it contains no application or installer implementation.
 
+## 2026-11-13 — Explain withheld engineering concerns without exposing matches (1.24.0)
+
+Implementation commit: `b2d678cbe9b33ce11271f3a3aba3c44fa8605cd7`.
+
+A genuine forwarded concern lost its useful reason because ordinary wording
+matched the existing code-like-text guard. Filtered original-record metadata
+confirmed that the credential guards did not match. The underlying source reads
+were refused because an external helper reference could not be established for
+an inline Python invocation; that is separate from missing files or credential
+content. No refused source was retrieved, original command executed or approval
+answered.
+
+Engineering notices now explain which fixed category withheld a field: pending
+command text, protected source content with its fixed detector category,
+credential-shaped data or code-like text. All prior predicates, priority and
+the 900-character pre-scan boundary stay identical. The whole original field is
+withheld, and whole-notice live-token removal remains. A code-like match can be
+ordinary prose and is not evidence of actual executable code or real secrets.
+Source-reference support, original manual questions and delivery/approval guards
+are unchanged; old notices and rationale are not rewritten or replayed.
+
+Focused source/notice/Coordinator tests passed in 1.484s, the production build
+passed in 413ms, and independent review found no blocker. Publication and
+installed verification are recorded below only after their actual outcomes.
+
 ## 2026-11-13 — Explain protected-content refusals without revealing matches (1.23.0)
 
 Implementation commit: `6a570110bd9fef4e12183756f5263a1461125619`.
