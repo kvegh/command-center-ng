@@ -1,5 +1,32 @@
 # Design decisions history
 
+## 1.28.1 — Distinguish literal quoting from shell evaluation — 2026-11-14
+
+Decision recorded 07:32 UTC. Implementation:
+`605136a314f961c5615b49a7f717c75bd8ea97d2`.
+
+An exact approval concern incorrectly treated documentation backticks as shell
+execution. Static inspection established matching request/native command bytes,
+single-quoted outer arguments, a quoted Python stdin heredoc delimiter and all
+four backticks inside that literal body. Bash syntax checking returned no
+diagnostics, Python AST parsing passed without execution, and the originating
+native command had already completed. Syntax validity alone was not used as
+authorization or as proof of the command's complete effects.
+
+Clarify the existing shared review guidance to trace each actual evaluation
+layer, distinguish literal quoting from active expansion and retain uncertainty
+when context is unavailable. Existing main/analyst/event guidance and policy
+context hashing carry the correction. A new parser, execution capability or
+automatic approval exception is unnecessary. Source protections, actual-user
+authority, exact request/token/command/directory/hash checks and manual decisions
+remain unchanged; no originating request is replayed. This is a routine guidance
+correction within the existing engineering scope, not a new approval policy.
+
+Three existing review-context/Coordinator test files passed in 1.766s;
+typecheck/build passed (Vite 502ms). The full preinstall suite and installed
+verification remain pending at this record. Prompt delivery is testable;
+the next genuine model judgment has not been exercised or promised.
+
 ## 1.28.0 — Refresh the website after backend updates — 2026-11-14
 
 Implementation: `aa01da7e587fef2dc2a57d5b7e1e45c84192f0d7`.
