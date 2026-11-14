@@ -719,6 +719,29 @@ test('read-all still refuses invalid UTF-8, NUL data, oversized files, long line
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
 
+test('source paging advances at the exact character limit without losing lines', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'ccng-source-page-boundary-'));
+  try {
+    const path = join(cwd, 'example.py');
+    for (const sourceReading of ['restricted', 'all']) {
+      for (const length of [15999, 16000]) {
+        const lines = ['first', 'x'.repeat(length), 'last'];
+        await writeFile(path, lines.join('\n'));
+        const pages = []; let startLine = 1;
+        while (startLine !== null) {
+          const page = await readSourceText(path, startLine, { sourceReading });
+          assert.ok(page.text.length <= 16000);
+          assert.ok(page.nextStartLine === null || page.nextStartLine > startLine, 'paging must advance');
+          pages.push(page.text); startLine = page.nextStartLine;
+        }
+        assert.equal(pages.join('\n'), lines.join('\n'));
+      }
+      await writeFile(path, 'x'.repeat(16001));
+      await assert.rejects(readSourceText(path, 1, { sourceReading }), /line too large/);
+    }
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
 test('read-all retains bounded paging and hashes of the original local bytes', async () => {
   const cwd = await mkdtemp(join(tmpdir(), 'ccng-policy-source-pages-'));
   try {

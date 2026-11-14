@@ -224,8 +224,10 @@ export async function readSourceText(path, startLine = 1, options = {}) {
     const lines = content.split('\n'); const page = []; let size = 0;
     for (const line of lines.slice(startLine - 1, startLine + 159)) {
       if (line.length > 16000) throw fail('This helper has a line too large for bounded inspection. Review it privately.');
-      if (size + line.length + 1 > 16000) break;
-      page.push(line); size += line.length + 1;
+      // Count only separators actually returned, so a full-size first line advances.
+      const addedSize = line.length + (page.length ? 1 : 0);
+      if (size + addedSize > 16000) break;
+      page.push(line); size += addedSize;
     }
     const next = startLine - 1 + page.length;
     return { path: file, sha256: digest(bytes), startLine, totalLines: lines.length, nextStartLine: next < lines.length ? next + 1 : null, text: page.join('\n') };

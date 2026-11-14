@@ -322,6 +322,9 @@ text, including credential/Vault-named files and helpers outside project paths.
 Both modes retain bounded UTF-8 text, no symlinks or execution, and exact current
 approval/command/directory/source-hash checks. Reading never authorizes an action
 or clears a pending manual request. Hook and concern sanitizers stay strict.
+Source pages contain at most 160 lines and 16,000 characters. A line exactly
+16,000 characters long is readable on its own page; longer single lines still
+require private review or an inspectable input prepared by the owning worker.
 
 Run the affected automated checks from a normal development checkout:
 
