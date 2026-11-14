@@ -25,7 +25,23 @@ no blocker. Six affected client/auth/storage/request/UI/state test files passed
 in 5.861s; typecheck/build passed (Vite 402ms). The backend identity integration
 test cannot bind its synthetic Unix socket locally (EPERM); its separate
 socket-free lifecycle check passed. The normal backend full-suite gate and
-installed functional verification remain pending at this record.
+installed functional verification have now succeeded. Published payload
+`03daabe1bc210ab28837edaf02d4df01ac47375a` was independently SSH-verified.
+Ad hoc job 3982 — Update existing CCNG automatic refresh — succeeded
+04:35:37.012094–04:37:11.092711 UTC (94.081s), with 1,183 full-suite passes,
+zero failures and one existing skip (66.636s). This also ran the identity
+integration test that could not bind its local fixture socket.
+
+Ad hoc job 3983 — Verify installed automatic website refresh — succeeded
+04:37:32.780303–04:37:44.887608 UTC (12.107s): 116 installed source files match,
+actual HTTPS/authentication/assets/listeners pass, and 142 checks across seven
+installed client/request/storage/state and HTTP/native-fixture integration suites
+pass (7.128s). Ten protected files, all eight workers, workspace, Coordinator
+pause/report settings and native version are preserved. The private read-all and
+Podman policy remains loaded without error. No actual browser automation was
+available, so a physical page reload is not claimed as observed. Original
+requests, native input and approvals were not submitted or replayed. Outcome
+documentation postdates the installed payload without executable changes.
 
 ## 1.27.3 — Make source paging advance at its exact limit — 2026-11-14
 
