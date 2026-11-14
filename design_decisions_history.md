@@ -1,6 +1,32 @@
 # Design decisions history
 
 
+## Engineering intake: request-bound source inspection capacity — 2026-11-14
+
+A source-reader concern described a worker as having sixteen helpers under
+review. Inspection confirmed that the existing bound is sixteen distinct source
+paths per exact pending approval token. New questions receive unique tokens,
+resolved-token evidence is pruned on reads, and paging the same path uses no new
+slot. Independent review found no stale-request accumulation or capacity race.
+
+Under the configured all-reading mode, broad legacy source reads are bound to
+pending approvals; even ordinary project/document context can occupy evidence
+slots. Analysts remain token-scoped. Every retained source hash, command hash and
+working directory is rechecked before approval, so discarding evidence would
+change protection semantics. The actual sixteen path identities were unavailable
+in the bounded captured history. Analysis had begun before the main reader's
+refusal; later captured state showed the existing manual-review decision.
+
+Decision: retain the evidence and capacity protections. No CCNG executable or
+policy change is justified by the available evidence. Report the scope of the
+limit and a minimal self-contained inspection proposal to the owning project,
+using the same targets and established protected inputs. The owner-task report
+was stored and independently read back at 21:16 UTC. No refused helper content
+was obtained through another route, original request answered or replayed, or
+host/controller operation executed. Owner correction and original approval
+outcome remain separate from this diagnosis.
+
+
 ## Engineering intake: malformed verifier submission — 2026-11-14
 
 A reported verifier command contained repeated program blocks inside guest-check
