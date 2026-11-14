@@ -9,6 +9,14 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.28.3 — Keep Report now available when the message queue is full
+
+Reserve one bounded admission for an explicit Report now when four ordinary
+Coordinator messages are queued. Retain those messages, existing report
+coalescing and priority, and every pause, native-request, failed-send and
+in-flight delivery guard. Scheduled and Coordinator-generated requests keep
+the ordinary queue limit. No queue clearing or approval answer is introduced.
+
 ## 1.28.2 — Read one helper across requests in different directories
 
 Fix the older Coordinator project-file reader rejecting a source read merely

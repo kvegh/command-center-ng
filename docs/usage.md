@@ -572,7 +572,10 @@ Check its status before making a later explicit request.
 
 Internal report triggers are hidden in CCNG history; actual reports remain
 visible. Native provider history is not deleted. At most one report is
-outstanding per worker; Report now coalesces with a queued due report. Native
+outstanding per worker; Report now coalesces with a queued due report. An explicit
+Report now can still queue when ordinary coordinator messages fill their four-
+message limit. It retains every existing message and permits only one additional
+manual report; scheduled and Coordinator-generated requests keep the normal cap. Native
 questions, pause, ownership, branch handoff and failed sends still gate delivery.
 Reports request the next safe checkpoint; they do not interrupt unsafe tools.
 

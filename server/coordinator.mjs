@@ -559,7 +559,7 @@ export class Coordinator {
       return { alreadyPending: true, state: this.reportState(id), detailed: actualDetail, ...(detailed && !actualDetail ? { upgradeUnavailable: true } : {}) };
     }
     this.reportPending.add(id);
-    try { return { ...this.queue(agent, userReportText(detailed), 'report', { detailed }), detailed }; }
+    try { return { ...this.queue(agent, userReportText(detailed), 'report', { detailed, userRequestedReport: true }), detailed }; }
     catch (error) { this.reportPending.delete(id); throw error; }
   }
   worker(id) { const agent = this.workspace.agent(id); if (agent.role === 'coordinator') throw fail('Choose an open worker conversation.', 400); return agent; }
@@ -889,8 +889,12 @@ export class Coordinator {
     files.set(source.path, { sha256: source.sha256, commandSha256: source.commandSha256, workingDirectory: cwd }); this.approvalSources.set(question.reviewToken, files);
     return source;
   }
-  queue(agent, text, kind, { scheduledReport = false, startupDashboard = false, detailed = false, concernTarget, concernEpoch } = {}) {
-    const rows = this.deliveries.get(agent.id) || []; if (rows.length >= 4) throw fail('This worker already has four queued coordinator messages.');
+  queue(agent, text, kind, { scheduledReport = false, startupDashboard = false, detailed = false, userRequestedReport = false, concernTarget, concernEpoch } = {}) {
+    const rows = this.deliveries.get(agent.id) || [];
+    // An explicit Report now keeps one bounded slot when ordinary messages fill
+    // the queue. requestUserReport coalesces repeats; delivery guards still apply.
+    const reservedReportSlot = userRequestedReport && kind === 'report' && rows.length === 4 && !rows.some(row => row.kind === 'report');
+    if (rows.length >= 4 && !reservedReportSlot) throw fail("This worker's coordinator message queue is full.");
     const message = { text, kind, id: randomUUID(), ...(scheduledReport ? { scheduledReport: true } : {}), ...(startupDashboard ? { startupDashboard: true } : {}), ...(detailed ? { detailed: true } : {}), ...(kind === 'concerns' ? { concernTarget, concernEpoch } : {}) };
     if (['report', 'report-setting', 'task-ping'].includes(kind)) {
       let index = Math.max(agent.coordinatorSending ? 1 : 0, rows.findLastIndex(row => row.error) + 1);

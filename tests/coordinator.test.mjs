@@ -939,6 +939,77 @@ test('Report now takes queue priority and steers active Codex work once with nat
   } finally { await f.close(); }
 });
 
+test('Report now reserves one priority slot when four ordinary messages are queued', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'busy-original'; worker.thread.status = { type: 'active' };
+    f.coordinator.paused = true;
+    for (let i = 1; i <= 4; i++) f.coordinator.queue(worker, `Queued summary ${i}.`, 'summary');
+    const summaries = [...f.coordinator.deliveries.get('worker')];
+    assert.throws(() => f.coordinator.queue(worker, 'Scheduled report.', 'report', { scheduledReport: true }), /queue is full/);
+    assert.equal(f.coordinator.requestUserReport('worker').queued, true);
+    assert.equal(f.coordinator.requestUserReport('worker', { detailed: true }).alreadyPending, true);
+    const rows = f.coordinator.deliveries.get('worker');
+    assert.equal(rows.length, 5); assert.equal(rows[0].kind, 'report'); assert.equal(rows[0].detailed, true);
+    assert.deepEqual(rows.slice(1), summaries, 'manual report admission preserves every queued message');
+    assert.throws(() => f.coordinator.queue(worker, 'Extra summary.', 'summary'), /queue is full/);
+    assert.throws(() => f.coordinator.queue(worker, 'Extra report.', 'report', { scheduledReport: true }), /queue is full/);
+    await f.coordinator.flush('worker');
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/steer'), false, 'the pause still holds the report');
+    f.rpc.ask('pending-approval', 'worker'); f.coordinator.paused = false;
+    await f.coordinator.flush('worker');
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/steer'), false, 'the pending native approval still holds the report');
+    f.workspace.removeQuestion('worker', 'pending-approval');
+    await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer') && !worker.coordinatorSending);
+    assert.deepEqual(f.coordinator.deliveries.get('worker'), summaries);
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/steer').length, 1);
+    assert.equal(worker.turnId, 'busy-original'); assert.equal(worker.reportIntervalMinutes, 0);
+    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/interrupt'].includes(call.method)), false);
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('Report now preserves a failed row when four ordinary messages are queued', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); f.coordinator.paused = true;
+    for (let i = 1; i <= 4; i++) f.coordinator.queue(worker, `Queued summary ${i}.`, 'summary');
+    const summaries = [...f.coordinator.deliveries.get('worker')];
+    summaries[0].error = 'Synthetic unconfirmed send.';
+    assert.equal(f.coordinator.requestUserReport('worker').queued, true);
+    const rows = f.coordinator.deliveries.get('worker');
+    assert.equal(rows.length, 5); assert.equal(rows[0], summaries[0]); assert.equal(rows[1].kind, 'report');
+    assert.deepEqual(rows.slice(2), summaries.slice(1));
+    f.coordinator.paused = false; await f.coordinator.flush('worker');
+    assert.equal(f.coordinator.reportState('worker'), 'queued');
+    assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer', 'turn/interrupt'].includes(call.method)), false);
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('Report now preserves an in-flight row when four ordinary messages are queued', async () => {
+  const f = await fixture(); let release;
+  try {
+    const worker = f.workspace.agent('worker'); const originalSend = f.workspace.send.bind(f.workspace);
+    const gate = new Promise(resolve => { release = resolve; });
+    f.workspace.send = async (...args) => { const result = await originalSend(...args); if (args[1] === 'In-flight summary.') await gate; return result; };
+    f.coordinator.queue(worker, 'In-flight summary.', 'summary');
+    await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/start'));
+    for (let i = 1; i <= 3; i++) f.coordinator.queue(worker, `Later summary ${i}.`, 'summary');
+    const summaries = [...f.coordinator.deliveries.get('worker')];
+    assert.equal(f.coordinator.requestUserReport('worker').queued, true);
+    assert.equal(f.coordinator.requestUserReport('worker').alreadyPending, true);
+    const rows = f.coordinator.deliveries.get('worker');
+    assert.equal(rows.length, 5); assert.equal(rows[0], summaries[0]); assert.equal(rows[1].kind, 'report');
+    assert.deepEqual(rows.slice(2), summaries.slice(1));
+    release(); await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer') && !worker.coordinatorSending);
+    assert.deepEqual(f.coordinator.deliveries.get('worker'), summaries.slice(1));
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/start').length, 1);
+    assert.equal(f.rpc.calls.filter(call => call.method === 'turn/steer').length, 1);
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false); assert.equal(f.rpc.replies.length, 0);
+  } finally { release?.(); await f.close(); }
+});
+
 test('priority reports preserve pause and missing-native-request gates without guessing or answering', async () => {
   const f = await fixture();
   try {
@@ -1058,7 +1129,7 @@ test('priority reports cannot bypass a failed queued message or the queue bound'
     f.coordinator.paused = false; await f.coordinator.flush('worker');
     assert.equal(f.rpc.calls.some(call => ['turn/start', 'turn/steer'].includes(call.method)), false);
     f.coordinator.queue(worker, 'Fourth message.', 'summary');
-    assert.throws(() => f.coordinator.queue(worker, 'Fifth message.', 'summary'), /four queued/);
+    assert.throws(() => f.coordinator.queue(worker, 'Fifth message.', 'summary'), /queue is full/);
     assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
 });

@@ -183,7 +183,7 @@ test('task pings stay behind priority reports and uncertain rows within the exis
   assert.deepEqual(f.coordinator.deliveries.get('one').map(row => row.kind), ['summary', 'report', 'task-ping', 'summary']);
   agent.questions = []; await f.coordinator.flush('one');
   assert.deepEqual(f.sent, []); assert.equal(f.coordinator.deliveries.get('one').length, 4);
-  assert.throws(() => f.coordinator.queue(agent, 'Fifth', 'summary'), /four queued/);
+  assert.throws(() => f.coordinator.queue(agent, 'Fifth', 'summary'), /queue is full/);
   f.coordinator.stop();
 });
 

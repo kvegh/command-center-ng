@@ -49,13 +49,16 @@ call for every unchanged five-second task poll. Summarize now requests a refresh
 
 The coordinator can ask a worker for a short report and send a relevant summary
 into its actual conversation. Messages are explicitly attributed to Command
-Center coordinator. Delivery waits until the worker is idle, has no unanswered
-question and is outside a branch handoff. It starts a normal native turn; the
-message says to stay within the user's existing scope. A report requests a status
-reply only. Busy workers are not steered or interrupted by these messages.
+Center coordinator. Ordinary summaries wait until the worker is idle, has no
+unanswered question and is outside a branch handoff. Reports can use safe native
+steering for active Codex work or next-priority delivery for managed Claude work.
+A report requests a status reply only and stays within the user's existing scope;
+pending questions and unsafe work are not interrupted to deliver it.
 
 One message/report per worker per coordinator turn and at most four queued
-messages per worker bound automatic traffic. A completed report wakes the
+messages per worker bound automatic traffic. An explicit Report now has one
+reserved admission at that limit; repeated requests still coalesce into one
+outstanding report, retaining every existing message. A completed report wakes the
 coordinator to read it. Repeat reports require a new user instruction or a change
 in stored tasks; summary acknowledgements do not produce summary-of-summary loops.
 Unconfirmed delivery is retained with an error and is not retried automatically.

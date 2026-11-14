@@ -1,5 +1,30 @@
 # Design decisions history
 
+## 1.28.3 — Reserve one explicit report admission at queue capacity — 2026-11-14
+
+The user reported Report now failing because four Coordinator messages were
+already queued. A regression reproduced that exact failure before the correction.
+The common queue capacity check ran before report priority handling, so a user's
+manual request could not enter a queue occupied by ordinary messages.
+
+Give only the existing explicit Report now path one reserved admission when the
+queue contains exactly four messages and no report. Keep one outstanding report
+per worker through existing coalescing. Preserve all queued rows and the existing
+priority insertion, including failed and in-flight barriers. Other queue callers
+keep their ordinary limit. This is a focused correction within the existing
+bounded queue, rather than raising every limit, discarding messages or adding a
+queue store. No permission, report cadence, native answer or retry rule changes.
+
+The full review policy was consulted and relevant simplicity, readable code,
+preservation and verification criteria applied; this is not a formal project
+audit. Three new regressions cover full-queue coalescing, pending approval/pause,
+ordinary and scheduled limits, and failed/in-flight row preservation. The
+Coordinator suite passes 110 checks, zero failures and zero skips. Runtime
+publication and deployment outcomes will be recorded separately. Existing
+in-memory queued work must not be silently discarded to activate the patch.
+
+Implementation commit reference is recorded after committing the correction.
+
 ## 1.28.2 — Keep legacy source reads bound across different directories — 2026-11-14
 
 Implementation: `bc959d801b54ef32f2b241276b55849776063218`.
