@@ -2,6 +2,8 @@
 
 ## 1.28.2 — Keep legacy source reads bound across different directories — 2026-11-14
 
+Implementation: `bc959d801b54ef32f2b241276b55849776063218`.
+
 A real legacy-reader defect blocked safe source inspection when pending requests
 used different working directories, especially under an operator-selected all-
 reading policy. The reader collected the requests and required their directories
@@ -19,9 +21,12 @@ weaker source policy, permission grant or original-action replay is introduced.
 The user requested this routine repair after reporting the repeated refusal.
 Exact decision time was not captured. The new regression reproduced the original
 failure, then passed alongside ambiguity and command/directory-change guards.
-Four focused existing suites pass 163 checks; independent parent diff review,
-production build, full deployment checks and actual outcomes are recorded below
-as they complete. Implementation commit and runtime verification remain pending.
+Four focused existing suites pass 163 checks. Independent parent diff review
+and the production typecheck/build pass (Vite 467ms); whitespace checks pass.
+Full deployment checks and actual outcomes are recorded below as they complete.
+Runtime verification remains pending. The diagnostic wrapper initially failed
+before useful metadata lookup; a corrected bounded read-only lookup succeeded.
+Neither executed the original test or answered its approval.
 
 ## 1.28.1 — Distinguish literal quoting from shell evaluation — 2026-11-14
 
