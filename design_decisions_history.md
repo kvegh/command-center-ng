@@ -23,9 +23,23 @@ remain unchanged; no originating request is replayed. This is a routine guidance
 correction within the existing engineering scope, not a new approval policy.
 
 Three existing review-context/Coordinator test files passed in 1.766s;
-typecheck/build passed (Vite 502ms). The full preinstall suite and installed
-verification remain pending at this record. Prompt delivery is testable;
-the next genuine model judgment has not been exercised or promised.
+typecheck/build passed (Vite 502ms). Published payload
+`d406f7a5ff44ab635f0ffabf868a5d5eba903279` was independently SSH-verified.
+Ad hoc job 4004 — Update existing CCNG literal-quoting review guidance — succeeded
+07:34:24.313897–07:36:00.865890 UTC (96.552s), after 1,183 full-suite passes,
+zero failures and one existing skip (69.121s). Ten protected files, all nine
+workers, workspace, Coordinator pause/report settings and native version were
+preserved; only the existing CCNG service restarted.
+
+Independent Ad hoc job 4007 — Verify installed literal-quoting review guidance —
+succeeded 07:37:03.725560–07:37:12.080535 UTC (8.355s): 116 installed source
+files match, actual HTTPS/authentication/assets/listeners pass, and 159 checks
+across five installed review-context/Coordinator/reviewer/site-update suites
+pass (2.498s). Private read-all/Podman policy remains loaded without error and
+the earlier Tasks CSS remains verified. Prompt delivery is testable; the next
+genuine model judgment has not been exercised or promised. No original approval
+or visualization command was replayed. Outcome docs postdate the installed
+payload without changing executable content.
 
 ## 1.28.0 — Refresh the website after backend updates — 2026-11-14
 
