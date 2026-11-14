@@ -326,6 +326,9 @@ or clears a pending manual request. Hook and concern sanitizers stay strict.
 Source pages contain at most 160 lines and 16,000 characters. A line exactly
 16,000 characters long is readable on its own page; longer single lines still
 require private review or an inspectable input prepared by the owning worker.
+Shell review distinguishes literal text in quoted arguments/heredocs from actual
+shell expansion. Backticks alone do not establish execution; valid quoting alone
+does not establish authorization or safe effects.
 
 Run the affected automated checks from a normal development checkout:
 

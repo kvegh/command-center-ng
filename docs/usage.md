@@ -235,6 +235,12 @@ auth-specific names, hidden/credential/Vault paths and sensitive content remain
 protected. These source-reader corrections do not approve the command or
 resolve an existing manual ask.
 
+Shell review follows the actual evaluation layers of nested commands. Backticks
+inside a properly quoted argument or fully quoted heredoc can be literal
+documentation text. Their presence alone is not evidence of execution. Genuine
+unquoted expansion or malformed quoting still requires review; a syntax-only
+pass does not establish the action's targets, effects or user authorization.
+
 The **source reader** is a restricted read-only tool the Coordinator uses to
 inspect a file before deciding whether an action is authorized. It can review
 safe playbooks and `.yml`, `.yaml`, `.json`, `.md`, `.py` and `.sh` files alongside
