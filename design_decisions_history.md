@@ -1,5 +1,28 @@
 # Design decisions history
 
+
+## Engineering intake: malformed verifier submission — 2026-11-14
+
+A reported verifier command contained repeated program blocks inside guest-check
+strings. Read-only inspection found the same construction in the originating
+native tool input: JavaScript string replacement treated dollar-apostrophe tokens
+inside serialized guest text as instructions to insert the original suffix.
+JSON serialization does not remove replacement-string semantics. CCNG's request
+projection retains decoded command text; source review found no transformation
+that repeats those blocks. Exact pending-card/native wire hashes were not compared.
+
+A restricted static comparison of only the appended verification body reproduced
+a Python string-literal syntax failure; literal callback insertion parsed. The
+stored preamble and complete command were not validated, and neither program was
+executed. At 19:58 UTC, the finding and focused correction were recorded on the
+owning project's existing task and independently read back. The original approval
+was not answered, rejected, replayed or changed.
+
+Decision: make no speculative CCNG parser or approval-policy change. The owner
+must correct its command construction and syntax-check the complete generated
+command within its existing verification scope. No VM acceptance, cleanup or
+owner repair success is claimed by this engineering handoff.
+
 ## 1.28.4 — Retry explicitly rejected request attachments — 2026-11-14
 
 The user repeatedly observed unavailable request details with the native
