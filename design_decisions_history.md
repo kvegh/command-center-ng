@@ -41,6 +41,29 @@ production build. It used an isolated worktree and existing dependencies. The
 installed version remained 1.28.2, service PID and native configuration were
 unchanged, and no install, restart, worker message or approval answer occurred.
 
+
+The user subsequently approved deployment, service restart and loss of the queued
+Coordinator messages. Ad hoc job 4131 — Deploy tested release — failed during
+staging because the backend filesystem was full, before swapping or restarting
+the running installation. The installer cleaned its failed stage. Removing only
+the source checkout's unused, ignored development dependencies recovered about
+155 MB; installed runtime dependencies remained intact.
+
+Ad hoc job 4142 — Deploy tested release and restart — succeeded on 2026-11-14
+18:02:38.048712–18:03:08.228475 UTC (30.180s). The installed version is 1.28.3.
+Ten protected files, nine saved workers, pause/report intervals, native CLI and
+the selected native Auto-review settings were preserved. Only CCNG restarted;
+no native worker interrupt, approval answer or underlying command replay occurred.
+
+Ad hoc job 4144 — Verify installed report-queue correction — succeeded
+18:03:42.359917–18:03:56.248150 UTC (13.888s). All 116 checked source files
+matched the tested payload. Trusted HTTPS, authentication boundaries, both
+listeners and served asset hashes passed. All 135 focused checks imported the
+installed modules and passed in 2.742s. The private approval policy and canonical
+shared instructions loaded unchanged. A real worker Report now response and
+physical browser interaction were not exercised; tests establish the queue
+behavior without sending a synthetic worker message.
+
 ## 1.28.2 — Keep legacy source reads bound across different directories — 2026-11-14
 
 Implementation: `bc959d801b54ef32f2b241276b55849776063218`.
