@@ -39,6 +39,25 @@ found no blocking defect. Production typecheck/build passes (Vite 693ms), and
 whitespace checks pass. These checks do not establish actual native callback
 recovery or remove the cause of native overload.
 
+A final focused regression also verifies that an independently delivered file
+callback retains its snapshot allowance after the explicit rejection. The
+18-case suite passes with no failures or skips (148.155ms); full isolated
+backend checks retain the earlier exact candidate pin.
+
+
+Ad hoc job 4157 — Validate isolated overload-recovery candidate — succeeded
+2026-11-14 18:27:44.873424–18:29:09.953932 UTC (85.081s), against
+`30a6244d2be739cbb8a6183e9ef81643298ec3c5`: 1,193 tests passed, zero failed
+and one existing skip out of 1,194 (66.686s), followed by a passing production
+build. Candidate dependencies/worktree were isolated and removed; installed
+1.28.3, its process and native configuration remained unchanged. The later added
+concurrent-file regression passed in the 18-case focused suite; executable
+content is unchanged from the full-suite candidate.
+
+Bounded native-log and pressure inspection did not establish the cause of the
+shared transport queue overload. No native daemon restart, upgrade, queue limit
+change or worker interruption is part of this correction.
+
 ## 1.28.3 — Reserve one explicit report admission at queue capacity — 2026-11-14
 
 The user reported Report now failing because four Coordinator messages were

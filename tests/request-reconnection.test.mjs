@@ -154,6 +154,33 @@ test('an overloaded final status read never repeats a successfully acknowledged 
   assert.deepEqual(f.worker.questions, []); f.assertNoExecution();
 });
 
+test('an overload rejection does not consume a concurrently delivered file callback snapshot', async () => {
+  const f = fixture(), call = f.rpc.call, historyStarted = deferred(), historyGate = deferred(); f.outcome = 'empty';
+  const original = { id: 'concurrent-file-request', method: 'item/fileChange/requestApproval', params: { threadId: 'worker', turnId: 'worker-turn', itemId: 'file-change' } };
+  let rejected = false;
+  f.rpc.call = async (method, params) => {
+    if (method === 'thread/resume' && !rejected) {
+      f.calls.push({ method, params }); rejected = true;
+      f.rpc.emit('request', original);
+      throw overload();
+    }
+    if (method === 'thread/turns/list') { historyStarted.resolve(); await historyGate.promise; }
+    return call(method, params);
+  };
+  try {
+    await f.workspace.reconnectWaitingRequests(f.worker, f.worker);
+    await historyStarted.promise;
+    const question = f.worker.questions[0];
+    assert.equal(question.id, original.id); assert.equal(question.params, original.params);
+    assert.equal(question.fileSnapshotAttempted, undefined, 'a rejected attachment returned no live file snapshot');
+    const details = f.workspace.requestJobs.get('worker');
+    historyGate.resolve(); await details;
+    assert.equal(f.resumes().length, 2, 'the original file callback retains its one permitted live snapshot attempt');
+    assert.equal(question.fileSnapshotAttempted, true); assert.equal(f.worker.questions[0], question);
+    f.assertNoExecution();
+  } finally { historyGate.resolve(); await f.workspace.requestJobs.get('worker'); }
+});
+
 test('overload cooldown retries retain pause, stop, handoff and delivered-question gates', async t => {
   t.mock.timers.enable({ apis: ['Date'], now: 100000 });
   const setups = [
