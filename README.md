@@ -252,8 +252,10 @@ The installed launcher supports `service install`, `enable`, `start`, `stop`,
 - Eligible live Codex assistant-question cards accept independent option/free-text
   answers. Restored, terminal or unbound questions remain read-only. Missing native
   request details cannot be answered or reconstructed from a waiting status.
-  Eligible active Codex contexts may be reconnected once; recovery depends on
-  native callback replay and is not guaranteed after a cold restart.
+  Eligible active Codex contexts may be reconnected once. An explicit native
+  overload rejection permits at most two additional attempts, at least five
+  seconds apart. Recovery depends on native callback replay and is not guaranteed
+  after a cold restart.
 - Automated tests/builds do not establish phone rendering or every installed-runtime
   workflow. See [release notes](docs/release-notes.md) for recorded checks and gaps.
 

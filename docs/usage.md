@@ -377,8 +377,14 @@ whose paths/diff remain unavailable after bounded history lookup may also receiv
 one guarded snapshot reconnect. An actionable card with available details keeps
 its native controls without another reconnect. The existing
 five-second backend poll coalesces the attempt once per context, connection and
-wait episode. Missing details or an error do not start a repeated retry loop;
-the diagnostic and existing manual controls remain available.
+wait episode. Since 1.28.4, an explicit native transport overload rejection
+(`-32001`, `Server overloaded; retry later.`) permits at most two additional
+attachment attempts, at least five seconds apart, while the same wait,
+connection, history revision, ownership and delivery guards remain current.
+Codex rejects that exact request before dispatch; no command or answer is retried.
+A successful attachment, missing callback, timeout, disconnect or other failure
+retains the existing one-attempt limit. The diagnostic and existing manual
+controls remain available after the budget is exhausted. No new timer is added.
 
 The delivered-file attempt remains tied to the original request, working
 directory, connection and history revision. Failed history or snapshot reads

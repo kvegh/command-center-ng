@@ -9,6 +9,15 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.28.4 — Recover request details after explicit native overload
+
+Retry a missing-request attachment only when Codex explicitly rejects that
+`thread/resume` before dispatch with its exact overload code and message. Use
+the existing poll for at most two additional attempts, five seconds apart.
+Preserve current request identities, pause/stop/handoff and lineage guards.
+Timeouts, disconnects, successful attachments and other errors do not gain
+retries. A rejected attachment does not count as a delivered file snapshot.
+
 ## 1.28.3 — Keep Report now available when the message queue is full
 
 Reserve one bounded admission for an explicit Report now when four ordinary

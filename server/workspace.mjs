@@ -403,7 +403,7 @@ export class Workspace extends EventEmitter {
       Object.defineProperty(agent, 'requestReconnectEpisode', { configurable: true, value: { epoch: this.requestEpoch, waiting: !!waiting, attempted: false } });
     }
     const episode = agent.requestReconnectEpisode;
-    if (!waiting) episode.attempted = false;
+    if (!waiting) { episode.attempted = false; episode.overloadRetries = 0; episode.retryAfter = 0; }
     episode.waiting = !!waiting;
     return episode;
   }
@@ -421,8 +421,11 @@ export class Workspace extends EventEmitter {
       if (manual) throw Object.assign(new Error('Request reconnection is unavailable while this worker is paused, stopped, transferring or no longer owned here. No answer was sent.'), { status: 409 });
       return { requests: agent.questions.length };
     }
-    if (agent.questions.length || (!manual && (!episode.waiting || episode.attempted))) return { requests: agent.questions.length };
+    if (agent.questions.length || (!manual && (!episode.waiting || episode.attempted || Date.now() < (episode.retryAfter || 0)))) return { requests: agent.questions.length };
     const epoch = this.requestEpoch, revision = agent.historyRevision || 0, nativeParentId = agent.thread.parentThreadId;
+    if (!manual && episode.retryAfter && (episode.retryRevision !== revision || episode.retryParentThreadId !== nativeParentId)) {
+      episode.attempted = true; return { requests: agent.questions.length };
+    }
     const current = () => epoch === this.requestEpoch && revision === (agent.historyRevision || 0) && agent.thread.parentThreadId === nativeParentId && this.requestReconnectAllowed(parent, agent, manual);
     const waiting = thread => thread.status?.type === 'active' && thread.status.activeFlags?.some(flag => flag === 'waitingOnApproval' || (manual && flag === 'waitingOnUserInput'));
     const stale = () => Object.assign(new Error('The worker changed or recovery was paused before request reconnection. No answer was sent.'), { status: 409 });
@@ -446,15 +449,27 @@ export class Workspace extends EventEmitter {
       if (!manual && episode.attempted) return { requests: 0 };
       // No await between the final ownership/stop checks and native attachment.
       if (!current()) throw stale();
-      episode.attempted = true; agent.requestError = null;
+      episode.attempted = true; episode.retryAfter = 0; agent.requestError = null;
       const resumedBefore = { status: agent.thread.status, turnId: agent.turnId, finishedTurn: agent.finishedTurn };
       const beforeItems = new Map(agent.messages.map(message => [JSON.stringify([message.turnId, message.id]), message]));
       // Paginated durable history can omit an unapproved patch. The same native
       // attachment can return its live item without another resume or answer.
-      let resumed;
+      let resumed, overloadRejected = false;
       try { resumed = await this.rpc.call('thread/resume', { threadId: agent.id, excludeTurns: true, initialTurnsPage: { limit: 1, sortDirection: 'desc', itemsView: 'full' } }); }
+      catch (error) {
+        // Codex rejects this exact transport overload before dispatch. Only that
+        // definite rejection may retry on the existing poll; lost acknowledgements
+        // and errors after a successful attachment retain the one-attempt guard.
+        overloadRejected = error.code === -32001 && error.message === 'Server overloaded; retry later.';
+        if (overloadRejected && current() && waiting(agent.thread) && !agent.questions.length && (episode.overloadRetries || 0) < 2) {
+          episode.overloadRetries = (episode.overloadRetries || 0) + 1;
+          episode.retryAfter = Date.now() + 5000; episode.retryRevision = revision; episode.retryParentThreadId = nativeParentId;
+          episode.attempted = false;
+        }
+        throw error;
+      }
       finally {
-        if (epoch === this.requestEpoch && revision === (agent.historyRevision || 0) && this.requestContextCurrent(parent, agent)) for (const question of agent.questions) {
+        if (!overloadRejected && epoch === this.requestEpoch && revision === (agent.historyRevision || 0) && this.requestContextCurrent(parent, agent)) for (const question of agent.questions) {
           if (this.fileRequestCurrent(parent, agent, question)) Object.defineProperty(question, 'fileSnapshotAttempted', { configurable: true, value: true });
         }
       }

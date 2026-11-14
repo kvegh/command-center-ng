@@ -1,5 +1,34 @@
 # Design decisions history
 
+## 1.28.4 — Retry explicitly rejected request attachments — 2026-11-14
+
+The user repeatedly observed unavailable request details with the native
+`Server overloaded; retry later.` error, disappearing and returning in one
+worker. A diagnostic found its parent active without an input flag and one
+verified child waiting on approval. The exact original failed RPC stage was
+not captured; disappearance was a temporary symptom resolution, not a repair.
+
+A regression confirmed an independent recovery defect: the attachment allowance
+was consumed before `thread/resume`, including an explicit transport rejection.
+Tagged Codex 0.169.0 transport code and its test establish that the exact numeric
+`-32001` error and message reject the request before dispatch. A timeout or
+connection loss does not provide that guarantee and must remain nonretryable.
+See the [native transport implementation](https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/app-server-transport/src/transport/mod.rs#L214).
+
+Permit at most two additional attempts for only that explicit resume rejection,
+at least five seconds apart through the existing observation poll. Preserve
+current connection/history revision/native lineage, ownership, pause, stop,
+handoff and original callback checks. Successful attachments consume their
+allowance even if a subsequent read fails. Do not mark a snapshot attempted
+when the transport explicitly refused it. No generic RPC retry, new timer,
+permission change, approval answer or command replay is introduced.
+
+This is a routine recovery correction within the existing approved reconnection
+path. The full review policy's applicable simplicity, failure handling,
+preservation and verification criteria were applied; this is not a formal audit.
+The new regression reproduced the failure before the fix, then passed. Remaining
+regression, publication and activation results are recorded when verified.
+
 ## 1.28.3 — Reserve one explicit report admission at queue capacity — 2026-11-14
 
 The user reported Report now failing because four Coordinator messages were
