@@ -169,7 +169,7 @@ function NativeRequestFields({ question, agentId, requestThreadId, workerName, r
       return confirmed;
     } catch (problem) { setError((problem as Error).message); return false; } finally { setSending(false); }
   };
-  return <section id={questionTarget(nativeThreadId, question.id)} className="question-card native-request" tabIndex={-1} aria-label={`${kind} for ${workerName}`}>
+  return <section id={questionTarget(nativeThreadId, question.id)} className="question-card native-request" tabIndex={-1} aria-busy={busy} aria-label={`${kind} for ${workerName}`}>
     <div className="eyebrow">{kind} · {workerName}{question.params.serverName ? ` · ${question.params.serverName}` : ''}</div>
     {hasRequestTime && <p className="field-note approval-request-time">{requestedAt
       ? <>Requested at <time dateTime={requestedAt.iso} title={requestedAt.title}>{requestedAt.label}</time></>

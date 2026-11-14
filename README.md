@@ -87,6 +87,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
   restore the same conversations after restart and reconnect when Codex starts later.
 - Reload an unloaded Codex conversation when sending input, preserving its saved history and native permissions.
 - Recover browser updates with a fresh workspace read before restoring Send, distinguish browser reconnection from native disconnection, and stream large histories with output backpressure. See [browser connection recovery](docs/usage.md#browser-connection-recovery).
+- Refresh the website automatically after a backend update/restart, saving text drafts first and waiting for unsent images or open forms.
 - Read Markdown, copy messages/code, and paste or attach images to a draft.
 - Keep desktop settings at the bottom of a full-height overview, with scrollable tasks and questions; task-list edges hand vertical scrolling to the sidebar.
 - Use desktop resizing, natural mobile page scrolling with independent sticky Jump to top / Jump to bottom buttons, and three colour themes.

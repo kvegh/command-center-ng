@@ -90,6 +90,26 @@ test('native initialization subscribes to fresh-human requests without claiming 
   } finally { await f.close(); }
 });
 
+test('workspace snapshots identify backend replacement without changing identity on native reconnect', async () => {
+  const f = await fixture();
+  try {
+    const first = f.workspace.snapshot();
+    assert.match(first.serverInstanceId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    assert.equal(f.workspace.snapshot().serverInstanceId, first.serverInstanceId);
+    f.rpc.socket.terminate();
+    await waitFor(() => !f.rpc.ready);
+    assert.equal(f.workspace.snapshot().serverInstanceId, first.serverInstanceId);
+    await f.rpc.connect();
+    assert.equal(f.workspace.snapshot().connected, true);
+    assert.equal(f.workspace.snapshot().serverInstanceId, first.serverInstanceId);
+    const replacement = new Workspace(f.rpc, { beads: null });
+    assert.equal(replacement.snapshot().version, first.version);
+    assert.notEqual(replacement.snapshot().serverInstanceId, first.serverInstanceId);
+    assert.deepEqual(f.calls.map(call => call.method), ['initialize', 'initialize']);
+    assert.equal(f.replies.length, 0);
+  } finally { await f.close(); }
+});
+
 test('native message question HTTP answers bind live source and ordinary native input without approval responses', async () => {
   const f = await fixture(); const authFile = join(f.dir, 'auth.json'); const password = randomBytes(24).toString('base64url');
   await setPassword(password, authFile);

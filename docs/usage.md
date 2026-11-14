@@ -735,6 +735,15 @@ No extra worker tab, report schedule or task-writing authority is added.
 
 ## Browser connection recovery
 
+After a backend update or restart, the website refreshes once it receives the new
+backend's workspace snapshot. This includes same-version configuration restarts.
+Ordinary network or native Codex reconnects to the same backend do not refresh
+the page. Existing browser storage saves text drafts, selected chat, tab order
+and reading position first. Unsent images, retained question answers, open forms,
+current actions or unavailable browser storage delay the refresh. No message or
+approval is submitted by this operation. One manual refresh is needed to load
+this feature into a tab opened before version 1.28.0.
+
 A lost browser update stream is separate from the backend's native Codex
 connection. During browser recovery, CCNG says it is reconnecting and keeps Send
 disabled until it receives a fresh workspace snapshot or an authenticated

@@ -32,7 +32,7 @@ export function ClaudeRequestCard({ question, agentId, workerName, readOnlyCoord
   const answerFor = (key: string) => Object.hasOwn(answers, key) ? answers[key] : '';
   const selectedFor = (key: string) => Object.hasOwn(selections, key) ? selections[key] : [];
   const complete = !!fields?.every(field => answerFor(field.question).trim() && answerFor(field.question).length <= 8000);
-  return <section id={questionTarget(agentId, question.id)} className="question-card native-request" tabIndex={-1} aria-label={`Claude ${asking ? 'question' : 'tool approval'} for ${workerName}`}>
+  return <section id={questionTarget(agentId, question.id)} className="question-card native-request" tabIndex={-1} aria-busy={busy} aria-label={`Claude ${asking ? 'question' : 'tool approval'} for ${workerName}`}>
     <div className="eyebrow">Claude {asking ? 'question' : 'tool approval'} · {workerName}</div>
     {question.params.reason && <p>{question.params.reason}</p>}
     {question.responding && <p role="status">Answer submitted. Waiting for Claude to continue or finish the turn…</p>}

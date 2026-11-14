@@ -57,7 +57,7 @@ type Task = { isChatQuestion?: boolean; displayState?: string; blockedBy?: strin
 type Tracker = { status: 'ready' | 'unavailable'; label: string; tasks: Task[]; checkedAt: string; error: string | null };
 type Agent = { ownStatus?: Status; workers?: NativeWorker[]; handoff?: BranchHandoffState; lastNativeEventAt?: string; finishedTurn?: { id: string; status: string }; nativeWarning?: string | null; modelSettingsAvailable?: boolean; provider?: Provider; canBranch?: boolean; managementNotice?: string | null; reasoningEffort?: string | null; modelChange?: { model: string; effort: string | null; status: string }; reportState?: 'queued' | 'generating' | null; reportIntervalMinutes?: number; reportSettingPending?: boolean; reportError?: string | null; taskCounts?: TaskCounts; recoveringRequests?: boolean; requestError?: string | null; id: string; role?: 'worker' | 'coordinator'; observingOnly?: boolean; observeError?: string | null; progress?: { summary: string; nextStep: string; blocker: string; updatedAt: string }; name: string; goal: string; cwd: string; model: string | null; status: Status; parentId: string | null; freshBranch?: boolean; summarizing?: boolean; returning?: boolean; returnSummary?: { text: string; turnId: string; delivered: boolean }; lastCompletedTurnId: string | null; canSend: boolean; messages: Message[]; tasks: Task[]; taskCount: number; tracker?: Tracker; questions: Question[]; turnId: string | null; olderCursor: string | null };
 type CoordinatorState = { decisionLogError?: string | null; nextTaskPingAt?: string | null; id: string | null; starting: boolean; paused: boolean; error: string | null; queuedMessages: number; audit: CoordinatorAuditEntry[] };
-type Snapshot = { handoffCompletions?: HandoffCompletion[]; nativeWarning?: string | null; backgroundQuestions?: number; backgroundWorkers?: BackgroundWorker[]; connected: boolean; codexConnected?: boolean; claudeAvailable?: boolean; claudeError?: string | null; error: string | null; version: string; agents: Agent[]; defaultCwd?: string; restoration?: { status: string; error: string | null; warnings: { id: string; message: string }[] } | null; coordinator?: CoordinatorState | null };
+type Snapshot = { serverInstanceId?: string; handoffCompletions?: HandoffCompletion[]; nativeWarning?: string | null; backgroundQuestions?: number; backgroundWorkers?: BackgroundWorker[]; connected: boolean; codexConnected?: boolean; claudeAvailable?: boolean; claudeError?: string | null; error: string | null; version: string; agents: Agent[]; defaultCwd?: string; restoration?: { status: string; error: string | null; warnings: { id: string; message: string }[] } | null; coordinator?: CoordinatorState | null };
 type Available = { provider?: Provider; id: string; name: string; cwd: string; status: Status; parentId: string | null; forkedFromId: string | null };
 const runtimeReady = (state: Snapshot, provider: Provider = 'codex') => state.connected && (provider === 'claude' ? !!state.claudeAvailable : state.codexConnected ?? state.connected);
 const labels: Record<NativeWorkerStatus, string> = { running: 'Running', attention: 'Needs you', idle: 'Idle', offline: 'Offline', error: 'Error', completed: 'Completed', failed: 'Failed', interrupted: 'Interrupted' };
@@ -341,7 +341,8 @@ function App() {
   const interrupting = useRef(new Set<string>());
   const [tabOrder, setTabOrder] = useState<string[]>(savedBrowser.state.order);
   const browserSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const browserSave = useRef<() => void>(() => {});
+  const browserSave = useRef<() => boolean>(() => false);
+  const siteUpdate = useRef({ instanceId: '', pending: false, reloading: false });
   const [tabDrag, setTabDrag] = useState<TabDragState>(null);
   const orderedIds = useRef<string[]>([]); const tabStrip = useRef<HTMLDivElement>(null);
   const desktopTabRows = useRef(false);
@@ -412,9 +413,10 @@ function App() {
   }));
   const readyToSend = !!(active && activeConnected && active.canSend && hasReadyDraft(draftText, draftImages) && !busy && !draftLocked && !active.questions.length && activeOwnStatus !== 'attention');
   browserSave.current = () => {
-    if (!authenticated || ['pending', 'restoring'].includes(state.restoration?.status || '')) return;
+    if (!authenticated || ['pending', 'restoring'].includes(state.restoration?.status || '')) return false;
     const problem = saveBrowserWorkspace({ version: 1, selected: active?.id || selected, order: tabOrder, overviewWidth, overviewHeights, composerHeight, theme, taskWatches, chatColours, drafts, positions: positions.current, bottom: bottom.current });
     setBrowserError(problem);
+    return problem === null;
   };
   const scheduleBrowserSave = () => { if (browserSaveTimer.current) clearTimeout(browserSaveTimer.current); browserSaveTimer.current = setTimeout(() => browserSave.current(), 250); };
   useEffect(() => { if (authenticated) scheduleBrowserSave(); }, [authenticated, active?.id, drafts, tabOrder, overviewWidth, overviewHeights, composerHeight, theme, taskWatches, chatColours, state.restoration?.status]);
@@ -424,6 +426,25 @@ function App() {
     window.addEventListener('pagehide', flush); document.addEventListener('visibilitychange', hidden);
     return () => { window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', hidden); if (browserSaveTimer.current) clearTimeout(browserSaveTimer.current); };
   }, []);
+  useEffect(() => {
+    if (!authenticated || !state.serverInstanceId || ['pending', 'restoring'].includes(state.restoration?.status || '')) return;
+    const update = siteUpdate.current;
+    if ((update.instanceId && update.instanceId !== state.serverInstanceId) || state.version !== VERSION) update.pending = true;
+    update.instanceId = state.serverInstanceId;
+    // Refresh once after the backend restarts, including same-version updates.
+    // Keep in-memory attachments/answers and open forms until the user finishes.
+    if (!update.pending || update.reloading || busy || dialog || taskAgent || taskQuestion || returnReviews.length
+      || state.agents.some(agent => agent.questions.some(question => question.responding)
+        || agent.workers?.some(worker => worker.questions?.some(question => question.responding)))
+      || document.querySelector('.native-request form, .native-request[aria-busy="true"]')
+      || Object.values(imageDrafts).some(images => images.length)
+      || Object.values(messageQuestionInputs).some(input => input.delivery !== 'submitted' && !!input.draft.trim())
+      || [...document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input:not([type=checkbox]):not([type=radio]), textarea')]
+        .some(field => field !== composerInput.current && !!field.value)) return;
+    if (!browserSave.current()) return;
+    update.reloading = true;
+    window.location.reload();
+  }, [authenticated, state, busy, dialog, taskAgent, taskQuestion, returnReviews, imageDrafts, messageQuestionInputs]);
   useEffect(() => { checkSession(applySession).catch(error => { setSessionReadError(error.message); }); }, []);
   useEffect(() => {
     if (!authenticated) return;

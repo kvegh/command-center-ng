@@ -32,6 +32,14 @@ const controls = (question, extra = {}) => {
 };
 const html = (question, extra) => renderToStaticMarkup(controls(question, extra));
 const card = (question, extra = {}) => renderToStaticMarkup(React.createElement(NativeRequestCard, { question, agentId: 'worker-one', workerName: 'Example project', act: async () => true, ...extra }));
+
+test('native and Claude approval cards expose pending submission state to site refresh', () => {
+  for (const question of [command({ command: 'synthetic-check' }), { id: 4, method: 'claude/tool/requestApproval', params: { toolName: 'Bash', input: { command: 'synthetic-check' } } }]) {
+    assert.match(card(question), /class="question-card native-request"[^>]*aria-busy="false"/);
+    assert.match(card({ ...question, responding: true }), /class="question-card native-request"[^>]*aria-busy="true"/);
+  }
+});
+
 function elements(node) {
   if (Array.isArray(node)) return node.flatMap(elements);
   if (!React.isValidElement(node)) return [];
