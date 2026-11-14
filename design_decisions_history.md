@@ -1,5 +1,24 @@
 # Design decisions history
 
+## 1.27.3 — Make source paging advance at its exact limit — 2026-11-14
+
+Implementation: `4d1c7785ee18e62dd8ce7bf3f1cdd4952487bee8`.
+
+Investigation of a separate oversized-input concern found an exact-boundary
+defect: a 16,000-character line passed the line check, then failed page fitting
+because an unreturned newline was counted. The reader returned an empty page
+with the same next-line position. Independent synthetic reproduction and a new
+regression confirmed nonprogress; this was not established as the cause of the
+original approval concern.
+
+Count only newline separators returned between page lines. Preserve the existing
+16,000-character/160-line page bounds, file limits, hashes, private reading
+policy and approval controls. Both policies now have regression coverage for
+15,999/16,000-character lines, progressing lossless reconstruction, and continued
+refusal at 16,001. Independent actual-diff review found no blocker. Three affected
+test files passed in 1.211s; typecheck and production build passed (Vite 502ms).
+Deployment and installed functional verification remain pending at this record.
+
 ## 1.27.2 — Allow Tasks boundary scrolling to reach its sidebar — 2026-11-13
 
 Implementation: `87cbcf0c521ad32fa557f0ebdf64f868752f29f1`.
