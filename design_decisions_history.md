@@ -17,7 +17,21 @@ policy and approval controls. Both policies now have regression coverage for
 15,999/16,000-character lines, progressing lossless reconstruction, and continued
 refusal at 16,001. Independent actual-diff review found no blocker. Three affected
 test files passed in 1.211s; typecheck and production build passed (Vite 502ms).
-Deployment and installed functional verification remain pending at this record.
+Published payload `07d4022c8702c066659fe23b37ce6315f31eecf0` was independently
+SSH-verified. Ad hoc job 3976 — Update existing CCNG source reader — succeeded
+04:17:27.750433–04:19:11.468843 UTC (103.718s), after 1,172 full-suite checks
+passed with zero failures and one existing skip (72.330s). Ten protected files,
+including the active private policy, all eight workers, workspace, Coordinator
+pause/report settings and native version were preserved.
+
+Ad hoc job 3977 — Verify installed source-reader boundary correction — succeeded
+04:19:46.834829–04:19:54.708113 UTC (7.873s): 116 source files matched, actual
+HTTPS/authentication/assets/listeners passed, and 152 installed-module checks
+across four reader/Coordinator suites passed (2.499s). Existing Tasks CSS and
+private read-all policy remained verified. Physical gestures, original oversized
+inputs and original worker execution/approval outcomes remain unverified; no
+original request was answered or replayed. These outcome docs postdate the
+installed payload without changing executable content.
 
 ## 1.27.2 — Allow Tasks boundary scrolling to reach its sidebar — 2026-11-13
 
