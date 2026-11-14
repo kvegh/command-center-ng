@@ -24,9 +24,28 @@ failure, then passed alongside ambiguity and command/directory-change guards.
 Four focused existing suites pass 163 checks. Independent parent diff review
 and the production typecheck/build pass (Vite 467ms); whitespace checks pass.
 Full deployment checks and actual outcomes are recorded below as they complete.
-Runtime verification remains pending. The diagnostic wrapper initially failed
+Runtime verification completed below. The diagnostic wrapper initially failed
 before useful metadata lookup; a corrected bounded read-only lookup succeeded.
 Neither executed the original test or answered its approval.
+
+Public payload `0999fd940b13e91394159c45d5d5c875fa0ba3b6` was SSH-published
+and independently read back. Ad hoc job 4039 — Update existing CCNG cross-directory
+reader and standing policy — succeeded 2026-11-14
+14:19:54.368471–14:21:51.507616 UTC (117.139s). The full preinstall suite
+passed 1,184 checks with zero failures and one existing skip out of 1,185
+(75.677s). CCNG 1.28.2 is installed and active. Nine protected files, nine
+saved workers, workspace/Coordinator pause/report settings and native runtime
+version are preserved. The separately published operator policy was activated
+through its existing mechanism; the product template is unchanged.
+
+Independent Ad hoc job 4043 — Verify installed cross-directory reader and policy —
+succeeded 14:23:20.033800–14:23:29.416861 UTC (9.383s): 116 source files
+match, actual trusted HTTPS/authentication/assets/listeners pass, and all 183
+installed checks across seven relevant suites pass (3.150s), including the new
+legacy-reader regression. The existing shared-instruction reader also loads the
+updated rule. No native approval, original test/helper or owner-message retry
+was performed. Original request execution and future model decisions are separate
+from the verified reader behavior; physical browser behavior remains unobserved.
 
 ## 1.28.1 — Distinguish literal quoting from shell evaluation — 2026-11-14
 
