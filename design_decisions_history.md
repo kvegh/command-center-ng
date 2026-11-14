@@ -29,6 +29,16 @@ preservation and verification criteria were applied; this is not a formal audit.
 The new regression reproduced the failure before the fix, then passed. Remaining
 regression, publication and activation results are recorded when verified.
 
+
+Implementation: `c303fdc`.
+
+The 17-case request-reconnection suite passes with zero failures and skips
+(137.790ms), including the six new cooldown, retry-cap, exact-error, post-success
+failure, current-request and stale-context regressions. Independent source review
+found no blocking defect. Production typecheck/build passes (Vite 693ms), and
+whitespace checks pass. These checks do not establish actual native callback
+recovery or remove the cause of native overload.
+
 ## 1.28.3 — Reserve one explicit report admission at queue capacity — 2026-11-14
 
 The user reported Report now failing because four Coordinator messages were
