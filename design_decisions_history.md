@@ -58,6 +58,23 @@ Bounded native-log and pressure inspection did not establish the cause of the
 shared transport queue overload. No native daemon restart, upgrade, queue limit
 change or worker interruption is part of this correction.
 
+
+Ad hoc job 4159 — Deploy overload recovery and restart — succeeded
+2026-11-14 18:30:44.430012–18:31:07.928293 UTC (23.498s), installing
+`843c191b60c068fd1a66fe93fe03a1de5509b3f5` as 1.28.4 under the user's existing
+same-backend update/restart authorization. Ten protected files, all eight current
+saved workers, report/pause settings, native CLI and selected Auto-review settings
+were preserved. No native worker interruption or approval answer occurred.
+
+Ad hoc job 4160 — Verify installed overload recovery — succeeded
+18:31:40.953063–18:31:47.416331 UTC (6.463s): all 116 checked source files
+matched; actual trusted HTTPS, authentication boundaries, listeners and served
+asset hashes passed. All 48 recovery, child-request and delivered-file checks
+imported installed modules and passed (630.836ms). Existing private policy and
+canonical shared instructions loaded unchanged. Actual callback recovery during
+a naturally occurring native overload and the cause of recurring native load
+remain unverified; no synthetic approval or forced overload was introduced.
+
 ## 1.28.3 — Reserve one explicit report admission at queue capacity — 2026-11-14
 
 The user reported Report now failing because four Coordinator messages were
