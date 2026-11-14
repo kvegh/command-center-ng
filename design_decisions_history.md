@@ -1,5 +1,28 @@
 # Design decisions history
 
+## 1.28.2 — Keep legacy source reads bound across different directories — 2026-11-14
+
+A real legacy-reader defect blocked safe source inspection when pending requests
+used different working directories, especially under an operator-selected all-
+reading policy. The reader collected the requests and required their directories
+to be identical even when an absolute path named the same file. An older
+Coordinator without the dedicated request-bound tool could not use the suggested
+alternative. This was an implemented refusal, not merely a model concern.
+
+Resolve the requested path against each request's captured directory. Read it
+only when those paths identify the same file, then retain each exact request's
+own working directory, command, token and inspected hash through the existing
+reader and final-review checks. Ambiguous relative paths still refuse before
+recording evidence, with an absolute-path next step. No new API, tool, dependency,
+weaker source policy, permission grant or original-action replay is introduced.
+
+The user requested this routine repair after reporting the repeated refusal.
+Exact decision time was not captured. The new regression reproduced the original
+failure, then passed alongside ambiguity and command/directory-change guards.
+Four focused existing suites pass 163 checks; independent parent diff review,
+production build, full deployment checks and actual outcomes are recorded below
+as they complete. Implementation commit and runtime verification remain pending.
+
 ## 1.28.1 — Distinguish literal quoting from shell evaluation — 2026-11-14
 
 Decision recorded 07:32 UTC. Implementation:

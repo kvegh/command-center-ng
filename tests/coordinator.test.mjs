@@ -2131,6 +2131,42 @@ test('relative helper reads refuse different approval directories with identical
   } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
 });
 
+test('all-reading legacy reader binds one absolute source across request directories and rejects changed request evidence', async () => {
+  const f = await fixture({ approvalPolicy: allReadingPolicy }); const outside = await mkdtemp(join(tmpdir(), 'ccng-multi-cwd-source-'));
+  try {
+    const directories = [join(outside, 'first'), join(outside, 'second')];
+    const body = 'print("synthetic metadata only")\n';
+    for (const directory of directories) { await mkdir(directory); await writeFile(join(directory, 'check_metadata.py'), body); }
+    f.rpc.ask('first-source-action', 'worker'); f.rpc.ask('second-source-action', 'worker');
+    const questions = f.workspace.agent('worker').questions;
+    questions.forEach((question, index) => { question.params.cwd = directories[index]; question.params.command = 'python3 check_metadata.py'; });
+    await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path: 'check_metadata.py' }), /director|ambiguous|different/i);
+    assert.equal(f.coordinator.approvalSources.size, 0, 'ambiguous relative paths do not record unseen source evidence');
+
+    const path = join(directories[0], 'check_metadata.py');
+    const source = await f.call('ccng_read_project_file', { agentId: 'worker', path });
+    assert.equal(source.path, path); assert.equal(source.text, body);
+    assert.deepEqual(source.approvalBindings, questions.map(question => ({ requestId: question.id, reviewToken: question.reviewToken })));
+    for (const [index, question] of questions.entries()) {
+      const saved = f.coordinator.approvalSources.get(question.reviewToken).get(path);
+      assert.equal(saved.workingDirectory, directories[index]); assert.equal(saved.sha256, source.sha256);
+    }
+
+    const readApprovalSource = f.coordinator.readApprovalSource.bind(f.coordinator);
+    for (const changed of ['command', 'cwd']) {
+      questions[1].params.command = 'python3 check_metadata.py'; questions[1].params.cwd = directories[1];
+      f.coordinator.readApprovalSource = async (agent, args) => {
+        const result = await readApprovalSource(agent, args);
+        if (args.reviewToken === questions[1].reviewToken) questions[1].params[changed] = changed === 'cwd' ? directories[0] : 'python3 changed.py';
+        return result;
+      };
+      await assert.rejects(f.call('ccng_read_project_file', { agentId: 'worker', path }), /changed during inspection/, changed);
+    }
+    assert.equal(f.rpc.replies.length, 0); assert.equal(questions.length, 2);
+    assert.ok(questions.every(question => question.review === undefined));
+  } finally { await f.close(); await rm(outside, { recursive: true, force: true }); }
+});
+
 test('Report now queues immediately with Never, coalesces pending reports and leaves native requests unanswered', async () => {
   const f = await fixture();
   try {

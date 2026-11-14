@@ -250,6 +250,12 @@ current command approval; Ansible `@file.yml` and `@file.json` arguments are
 recognized. Older Coordinators can use their existing project-file tool for
 these same bound reads when the dedicated approval-source tool is unavailable.
 
+Pending requests in different working directories do not block the older
+project-file reader when the requested path resolves to the same file for each
+request. Use an absolute path when a relative name identifies different files.
+Every returned approval binding keeps its own current working directory, command,
+token and source hash; changes during the read invalidate the result.
+
 The reader returns text; it does not execute Python, shell or playbooks, resolve
 template/environment values, follow imported dependencies or grant approval.
 The [private deployment policy](approval-policy.md) selects restricted or all
@@ -259,7 +265,8 @@ Native permissions, bounded UTF-8/no-NUL files, symlink refusal, paging and exac
 current-request/hash checks remain. Hook/concern/name sanitizers stay strict.
 Detection is conservative, not proof that arbitrary text is secret-free:
 credential-like metadata or unusual YAML tags/aliases may require private
-review. Files outside the project remain unavailable after their approval ends.
+review. In restricted mode, outside-project helper access ends with its approval;
+explicit all-reading mode retains its separately authorized local text access.
 
 The rationale starts with `Request:` to describe the action. When approval is
 not possible, `Concern:` and `Next:` explain the concrete obstacle and next user

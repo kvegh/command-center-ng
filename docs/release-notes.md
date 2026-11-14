@@ -9,6 +9,15 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.28.2 — Read one helper across requests in different directories
+
+Fix the older Coordinator project-file reader rejecting a source read merely
+because pending requests use different working directories. Resolve each path
+against its own request and allow the read when all identify the same file.
+Keep each request's command, directory, token and file-hash checks. Ambiguous
+relative paths still refuse with guidance to use an absolute path. No new tool,
+approval answer, permission grant or automatic retry is introduced.
+
 ## 1.28.1 — Distinguish literal shell text during approval review
 
 Clarify shared Coordinator/analyst guidance after an exact command was incorrectly
