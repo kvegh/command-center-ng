@@ -1,5 +1,32 @@
 # Design decisions history
 
+## 1.28.0 — Refresh the website after backend updates — 2026-11-14
+
+Implementation: `aa01da7e587fef2dc2a57d5b7e1e45c84192f0d7`.
+
+The user reports an HTML-as-JSON error after updates, cleared by a manual browser
+refresh, and explicitly selected only an automatic website refresh. The response
+source was not independently captured; no generic API retry/error rewrite was
+added. Expose one opaque identifier for the existing Workspace lifetime in its
+existing snapshots. A replacement backend changes that identifier, including
+same-version policy restarts; ordinary browser/native reconnects retain it.
+
+Refresh once after an authoritative replacement snapshot or frontend-version
+mismatch. Flush existing text draft/preferences storage first. Defer while images,
+answer drafts, native forms, current submissions (including background/child
+requests), other open forms or storage errors would lose browser work. This
+neither resubmits native input nor answers approvals. Add no endpoint, polling,
+storage scheme, dependency or service. Older tabs require one manual refresh to
+load the feature; physical browser execution is not established by component tests.
+
+Independent review found two prepublication submission/form gaps, now covered by
+regressions and fixed without changing delivery APIs. Final focused review found
+no blocker. Six affected client/auth/storage/request/UI/state test files passed
+in 5.861s; typecheck/build passed (Vite 402ms). The backend identity integration
+test cannot bind its synthetic Unix socket locally (EPERM); its separate
+socket-free lifecycle check passed. The normal backend full-suite gate and
+installed functional verification remain pending at this record.
+
 ## 1.27.3 — Make source paging advance at its exact limit — 2026-11-14
 
 Implementation: `4d1c7785ee18e62dd8ce7bf3f1cdd4952487bee8`.
