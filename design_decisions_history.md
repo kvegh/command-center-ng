@@ -33,6 +33,14 @@ would discard queued work. Deployment therefore requires a verified drained
 queue or explicit user approval of that loss; source publication alone does
 not establish that the live Report now button has changed.
 
+Ad hoc job 4127 — Validate isolated Report now queue candidate — succeeded
+2026-11-14 17:32:46.314539–17:34:09.160718 UTC (82.846s) against exact source
+`1a4b1ead75503ac95d7816f6ab579739d3fdd9c9`: 1,187 tests passed, zero failed
+and one existing test skipped out of 1,188 (69.195s), followed by a passing
+production build. It used an isolated worktree and existing dependencies. The
+installed version remained 1.28.2, service PID and native configuration were
+unchanged, and no install, restart, worker message or approval answer occurred.
+
 ## 1.28.2 — Keep legacy source reads bound across different directories — 2026-11-14
 
 Implementation: `bc959d801b54ef32f2b241276b55849776063218`.
