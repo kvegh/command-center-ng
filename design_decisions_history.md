@@ -23,7 +23,15 @@ Coordinator suite passes 110 checks, zero failures and zero skips. Runtime
 publication and deployment outcomes will be recorded separately. Existing
 in-memory queued work must not be silently discarded to activate the patch.
 
-Implementation commit reference is recorded after committing the correction.
+Implementation: `3f16df4ff14f3932cdc6c053f65a517c46057847`.
+
+The production typecheck/build passes (Vite 454ms). Existing task-ping and concern
+delivery suites add 25 passing checks. The affected live worker was observed
+with four queued messages in bounded Coordinator snapshots; its queue contents
+are in memory and are not restored from the workspace file. A service restart
+would discard queued work. Deployment therefore requires a verified drained
+queue or explicit user approval of that loss; source publication alone does
+not establish that the live Report now button has changed.
 
 ## 1.28.2 — Keep legacy source reads bound across different directories — 2026-11-14
 
