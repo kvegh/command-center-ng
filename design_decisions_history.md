@@ -27,6 +27,13 @@ No authenticated live queue session is available to this worker; saved history
 cannot establish a drain. The previous release's loss permission does not cover
 this update. No deployment or restart for 1.29.0 has begun.
 
+Implementation `171e667e5d77016cea06c349a7855c3693ce00dd` is published on main,
+verified by independent SSH remote readback at 13:57 UTC. Deployment remains
+blocked on the release-specific queued-notice-loss decision above. The prepared
+route uses the established AAP update and normal installer, restarts only the
+existing application service and verifies installed source/HTTPS/auth boundaries,
+report delivery/recognition regressions and protected configuration afterward.
+
 ## 1.28.6 — Keep hovered tab controls aligned — 2026-11-15
 
 The user supplied a desktop screenshot showing the close button beside a short
