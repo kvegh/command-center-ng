@@ -71,7 +71,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
   actual questions retain their separate Needed/Why answer prompts.
 - Request task reports in a consistent colourful task/status table, with optional detailed action histories; choose a saved interval, or Never to disable automatic startup and recurring reports. Report now remains available when ordinary coordinator messages fill the queue, retaining those messages and coalescing repeated report requests.
 - Match the active conversation tab background to its chat-input title tab while retaining status frame colours.
-- Fill available desktop tab space up to Coordinator and reveal full titles with their chat tint on hover; above six conversations use two rows with the selected row nearest the chat. Mobile keeps one horizontally scrollable row.
+- Fill available desktop tab space up to Coordinator and reveal full titles with their chat tint on hover, keeping close controls at the right edge; above six conversations use two rows with the selected row nearest the chat. Mobile keeps one horizontally scrollable row.
 - Recheck overlooked tasks and stalled delegated work silently every 10 minutes, including safe recovery of stalled child waits, with the next check shown in the coordinator.
   Internal checks omit routine acknowledgements and tool introductions; useful findings and questions remain visible.
 - Keep coordinator decision summaries across restarts in a private local file.

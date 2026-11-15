@@ -65,7 +65,7 @@ a { color: var(--accent); }
    stays stable as intrinsic hover width pushes neighbours aside. */
 @media (min-width: 901px) and (hover: hover) and (pointer: fine) {
   .tabs:not(.reordering) > .tab-wrap:hover { width: max-content; min-width: var(--tab-width); background: var(--chat-tab-background); }
-  .tabs:not(.reordering) > .tab-wrap:hover .agent-tab { flex: none; }
+  .tabs:not(.reordering) > .tab-wrap:hover .agent-tab { flex: 1 0 auto; }
   .tabs:not(.reordering) > .tab-wrap:hover .tab-text { flex: none; }
   .tabs:not(.reordering) > .tab-wrap:hover .tab-text strong { overflow: visible; }
 }

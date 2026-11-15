@@ -1,5 +1,25 @@
 # Design decisions history
 
+## 1.28.6 — Keep hovered tab controls aligned — 2026-11-15
+
+The user supplied a desktop screenshot showing the close button beside a short
+title in the middle of its allocated tab during hover. The hover rule disabled
+title-area flex growth while the tab retained its normal minimum width. That
+left unused space after the close control.
+
+Decision: allow the hovered title area to grow from its intrinsic width without
+shrinking. This one-line CSS correction keeps spare width before the controls,
+preserves full long-title reveal and leaves the existing mobile media rules,
+tab order, native state and selected-tab arrows unchanged. Independent source
+review confirmed the cause and proposed correction without a blocking finding.
+
+All 20 existing tab-layout/reorder checks pass (1.589s); TypeScript and the
+production build pass (Vite 735ms). No usable local browser binary or Playwright
+installation was found; the browser-service home is unreadable under current
+permissions, so its tooling is unknown. No dependency installation or browser
+geometry verification is claimed. Source publication and deployment are pending
+at this entry; record their actual outcomes and implementation commit below.
+
 ## 1.28.5 — Use the command working directory in approval explanations — 2026-11-15
 
 An engineering intake concern claimed that relative output paths were unbound,

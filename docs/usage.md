@@ -665,6 +665,9 @@ tabs, counting Coordinator, use two stable rows. Selecting a worker places its
 row nearest the chat without changing the saved tab order. The worker strip
 scrolls horizontally beside Coordinator, so overflow remains reachable.
 
+The close button stays at the right edge of a hovered tab, including tabs with
+short titles. Selected-tab reorder arrows remain immediately before it.
+
 Mobile keeps one horizontally scrollable tab row, without hover expansion or
 row switching. It uses one naturally scrolling full-width page with compact
 overview and the chat history in the page flow, followed by a six-line input.

@@ -9,6 +9,18 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.28.6 — Keep hovered tab close buttons at the right edge
+
+Let the desktop tab title area fill spare space during hover. Short titles keep
+their close button and selected-tab reorder controls at the right edge; long
+titles retain their full-width reveal. Mobile hover rules remain unchanged.
+
+## 1.28.5 — Distinguish command and startup working directories in reviews
+
+Clarify shared Coordinator/analyst guidance: an approval's supplied cwd binds
+relative command paths even when its chat started elsewhere. Preserve the
+existing source, authority and native approval checks.
+
 ## 1.28.4 — Recover request details after explicit native overload
 
 Retry a missing-request attachment only when Codex explicitly rejects that
