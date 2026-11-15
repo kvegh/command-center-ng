@@ -31,6 +31,29 @@ work, pending controls and the previous working-directory review hold remain
 untouched. The earlier mixed-project answer was the agent's context mistake;
 no application message-routing defect was established.
 
+Deployment outcome — 2026-11-15, 12:30 UTC: the user explicitly resumed after
+maintenance and answered the existing update-restart/possible queued-notice-loss
+question with “go on”. Fresh preflight verified adequate disk headroom. Ad hoc
+job 4232 — Deploy CCNG 1.28.6 and restart its service — succeeded at
+12:29:03.058334–12:29:22.422190 UTC, installing exact published payload
+`bfa63abeaec041615cc9048dd003c82753d120ac`. Ten protected files/metadata,
+all three currently saved workers, workspace/pause/report settings, native CLI
+version and profile configuration were preserved. Only the application service
+restarted; original native decisions and worker execution were not submitted or
+interrupted by the update. This supersedes the earlier deployment hold without
+granting permission for future queued-message loss.
+
+Ad hoc job 4233 — Verify installed CCNG 1.28.6 — succeeded at
+12:30:07.618194–12:30:15.163920 UTC. All 116 installed source checksums match;
+trusted live HTTPS, authentication boundaries, two served assets and listeners
+pass. The actual served CSS contains the hover fix. All 65 existing affected
+tab/reviewer checks passed against installed source in 2.100s, with no failures
+or skips and no dependency installation. Private policy/shared instructions
+load unchanged. This also deploys the 1.28.5 working-directory guidance below;
+it does not retroactively answer its originating approval or establish a later
+model judgment. Bounded browser discovery found an existing Playwright library
+but no browser engine, so rendered hover geometry remains unverified.
+
 ## 1.28.5 — Use the command working directory in approval explanations — 2026-11-15
 
 An engineering intake concern claimed that relative output paths were unbound,
