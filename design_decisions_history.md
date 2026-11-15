@@ -34,6 +34,16 @@ route uses the established AAP update and normal installer, restarts only the
 existing application service and verifies installed source/HTTPS/auth boundaries,
 report delivery/recognition regressions and protected configuration afterward.
 
+User supersession — 2026-11-15, 14:03 UTC: "drop that rule. Deploy." explicitly
+withdraws the separate queue-drain/queued-notice-loss approval requirement and
+directs this release's deployment. Already-authorized application updates and
+their service restart proceed without re-asking that question, accepting
+possible loss of queued Coordinator notices. Preserve historical decisions and
+all native approvals, permissions, pauses/stops, protected configuration and
+unrelated host/service boundaries. No queue persistence or message replay is
+introduced. This supersedes the pending gate above; deployment outcome is not
+yet established.
+
 ## 1.28.6 — Keep hovered tab controls aligned — 2026-11-15
 
 The user supplied a desktop screenshot showing the close button beside a short

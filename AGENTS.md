@@ -187,6 +187,13 @@ This is a maintainer release workflow, not application self-updating. Native
 permission gates remain in force; this instruction does not authorize unrelated
 infrastructure, credential or security changes.
 
+The user withdrew the separate drained-queue/queued-notice-loss approval gate
+on 2026-11-15 and directed deployment. Already-authorized CCNG release updates
+and their application-service restart proceed without that extra question,
+accepting possible loss of memory-only queued Coordinator notices. Preserve
+native approvals, permissions, pauses/stops, protected configuration and all
+unrelated restart boundaries. This does not authorize replaying lost messages.
+
 ## Interface
 
 Keep workspace branding at the right of the full-width navigation bar, with
