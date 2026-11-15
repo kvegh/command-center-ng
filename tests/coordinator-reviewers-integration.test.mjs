@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Workspace } from '../server/workspace.mjs';
@@ -99,6 +99,33 @@ async function fixture() {
   return { cwd, rpc, workspace, coordinator, main, ask, run, tool, call, review, complete,
     async close() { coordinator.stop(); await coordinator.reviewerRefresh; await rm(cwd, { recursive: true, force: true }); } };
 }
+
+test('reviewers distinguish command cwd from their startup directory for relative paths', async () => {
+  const f = await fixture();
+  try {
+    const checkout = join(f.cwd, 'checkout'); await mkdir(checkout);
+    await writeFile(join(checkout, 'check.py'), 'print("checkout evidence")\n');
+    await writeFile(join(f.cwd, 'check.py'), 'print("startup decoy")\n');
+    const question = f.ask({ cwd: checkout, command: 'python3 check.py' });
+    const reviewer = await f.run(question);
+    const start = f.rpc.calls.find(call => call.method === 'thread/start' && call.params.threadSource === APPROVAL_REVIEWER_SOURCE);
+    const turn = f.rpc.calls.find(call => call.method === 'turn/start' && call.params.threadId === reviewer.threadId);
+    const input = JSON.parse(turn.params.input[0].text);
+    assert.equal(start.params.cwd, f.cwd, 'analyst startup and configuration scope stay unchanged');
+    assert.equal(input.request.params.cwd, checkout, 'the exact command directory reaches the analyst');
+    for (const prompt of [COORDINATOR_PROMPT, start.params.developerInstructions]) {
+      assert.match(prompt, /request\.params\.cwd/);
+      assert.match(prompt, /startup director(?:y|ies)/);
+      assert.match(prompt, /does not authorize/i);
+    }
+    const source = await f.tool(reviewer, 'ccng_read_approval_source', { agentId: 'worker', reviewToken: question.reviewToken, path: 'check.py' });
+    assert.equal(source.success, true);
+    assert.equal(source.value.workingDirectory, checkout);
+    assert.match(source.value.text, /checkout evidence/);
+    assert.doesNotMatch(source.value.text, /startup decoy/);
+    assert.ok(!f.rpc.replies.some(reply => reply.id === question.id), 'directory evidence never answers the approval');
+  } finally { await f.close(); }
+});
 
 test('analyst reads are bound to one worker/request and never grant main tools or approval authority', async () => {
   const f = await fixture();

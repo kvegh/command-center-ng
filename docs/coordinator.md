@@ -100,6 +100,16 @@ command/file approvals are reviewed automatically while the coordinator is
 running. Ask coordinator to review also requests a review of a particular pending
 approval. Manual approval buttons remain available.
 
+For command approvals, the supplied request `params.cwd` binds relative file
+paths, including output files. The worker or analyst's startup directory does
+not replace it; reviewers also trace directory changes inside the command.
+An omitted or null cwd uses the owning request context's valid directory. If
+neither directory is available, or a supplied cwd is invalid, inspect the current
+request instead of guessing.
+A valid directory binding does not establish permission for the action. This
+shared guidance reaches the main Coordinator and both optional analysts; it
+does not clear existing manual decisions or change native permissions.
+
 The reviewer considers the exact action and actual user instructions. Authorized
 work can include creating, replacing or deleting resources, Python calls to AAP,
 recreating disposable test VMs or reclaiming explicitly delegated test resources.

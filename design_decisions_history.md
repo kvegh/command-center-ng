@@ -1,5 +1,34 @@
 # Design decisions history
 
+## 1.28.5 — Use the command working directory in approval explanations — 2026-11-15
+
+An engineering intake concern claimed that relative output paths were unbound,
+although the exact submitted command and captured Coordinator request already
+specified the project checkout as the working directory. Independent source
+review confirmed that this directory reaches the analyst and is used by existing
+source inspection and final approval checks. The concern contradicted available
+evidence; no transport overwrite was found.
+
+Decision at 07:22 UTC: clarify the shared main/analyst guidance to use request
+`params.cwd`, trace any directory changes within the command, and distinguish it
+from worker/analyst startup directories. Preserve native configuration scope,
+source protections and actual user authorization. This routine correction is
+within the existing CCNG engineering mandate; it grants no authority over the
+unrelated project or its original approval. Its explicit task-tracking opt-out
+is preserved. No project code or original request is changed by this work.
+
+The regression covers different startup/request directories, exact analyst
+input, source resolution from the request directory and an unanswered approval.
+The missing prompt instruction failed first and passes after the clarification.
+All 45 checks across the three affected reviewer/context suites pass in 0.967s
+using the available same-process Node test runner. TypeScript and the production
+build pass; an independent diff review found no blocker and clarified nullish
+fallback wording to match the existing implementation. The ordinary child-test
+runner did not produce a diagnostic in this sandbox, so full isolated-runner
+verification is not claimed. Source publication and deployment are pending at
+this entry; an actual subsequent model decision remains unverified. Record the
+implementation commit and final verification in a follow-up documentation entry.
+
 
 ## Engineering intake: request-bound source inspection capacity — 2026-11-14
 
