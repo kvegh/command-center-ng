@@ -24,6 +24,17 @@ this introduces no new user question, permission grant or delivery workaround.
 Diagnostic reads and independent review completed; no tests or deployment were
 needed for this no-code disposition. The running release remains 1.29.0.
 
+Related overview concern — 17:09 UTC: a recorded exact review for the companion
+repository's task helper asks for shared-write confirmation. Its normal mode
+writes only that checkout's generated task overview; its check mode compares
+without writing. It performs no Vault, remote or native operation. Source and
+independent review agree that existing guidance already requires applicable
+instructions and real-user authority; an external path alone is not prohibited.
+Current resolution of this second request remains unknown: a historical ask and
+a general native waiting flag do not establish the exact callback's present
+state. Preserve it and the existing owner-handoff hold. No helper was executed,
+other-project file changed or speculative CCNG prompt fix introduced.
+
 ## 1.29.0 — Explain current work and input needs — 2026-11-15, 13:55 UTC
 
 The user requested that Report Now explain what the worker is doing, what comes
