@@ -20,6 +20,17 @@ permissions, so its tooling is unknown. No dependency installation or browser
 geometry verification is claimed. Source publication and deployment are pending
 at this entry; record their actual outcomes and implementation commit below.
 
+Implementation `f649b534d42da138d15573da6cd504ef89531250` is published and
+independently verified through SSH remote readback. Live deployment remains
+pending the existing queue-preservation gate. A fresh supported native-history
+read failed because its local MCP transport was unavailable; it did not establish
+that queued Coordinator notices were drained. Request explicit permission for
+possible notice loss during the update restart, retaining the earlier
+update-specific approval's scope. No install or restart has begun. Native agent
+work, pending controls and the previous working-directory review hold remain
+untouched. The earlier mixed-project answer was the agent's context mistake;
+no application message-routing defect was established.
+
 ## 1.28.5 — Use the command working directory in approval explanations — 2026-11-15
 
 An engineering intake concern claimed that relative output paths were unbound,
