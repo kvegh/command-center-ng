@@ -29,6 +29,18 @@ verification is not claimed. Source publication and deployment are pending at
 this entry; an actual subsequent model decision remains unverified. Record the
 implementation commit and final verification in a follow-up documentation entry.
 
+Implementation `982679dc755f1330ee68bc4094bde78fff52ca0c` is now published;
+independent SSH remote readback matches. Deployment preflight found low disk
+headroom. One confirmed unused CCNG npm download cache was removed under the
+existing explicit cleanup authority; native history, installed dependencies and
+other project files remain intact. The live application was still 1.28.4 at
+preflight. No installation/restart or original approval answer was performed.
+Current queued-message state remains unknown; preserve the existing requirement
+for a verified drained queue or explicit loss approval before an update restart.
+The finding was accepted by the owning conversation's supported message tool,
+without altering its opted-out task tracking. Receipt does not establish owner
+acknowledgement or a corrected native execution outcome.
+
 
 ## Engineering intake: request-bound source inspection capacity — 2026-11-14
 
