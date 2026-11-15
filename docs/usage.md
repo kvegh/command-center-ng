@@ -557,9 +557,23 @@ CCNG validates the shape and exact status labels; it cannot establish factual
 truth or force the model to comply. A nonconforming final reply remains visible
 and produces a format error, without an automatic resend.
 
+**Report now** adds three concise lines after the release evidence:
+
+- **Doing now:** the worker's current activity.
+- **Next:** the next authorized step, or the condition it is waiting for.
+- **Need from you:** the existing decision, answer or action needed and why;
+  **None** when no input is needed.
+
+Unknown information must be stated as unknown. These lines summarize existing
+needs and do not answer or replace native questions or approvals. Scheduled and
+Coordinator-requested reports keep their existing concise overview. If Report
+now coalesces with a report already dispatched or with an unconfirmed failed
+send, its captured prompt stays unchanged; the new overview applies to the next
+explicit report after that request is resolved. CCNG does not resend it.
+
 Select **Detailed report** beside **Report now** for a one-off expanded report.
-It starts with the normal overview, then each linked Beads task actually marked
-in progress, with its title/ID and up to ten recent attributable actions indented
+It starts with the normal overview and the three Report now lines, then each
+linked Beads task actually marked in progress, with its title/ID and up to ten recent attributable actions indented
 beneath it. Actions use available timestamps and evidenced outcomes; fewer or
 missing entries and unknown times must be stated. This option does not change
 scheduled reports or save a new reporting interval.

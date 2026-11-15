@@ -1,5 +1,32 @@
 # Design decisions history
 
+## 1.29.0 — Explain current work and input needs — 2026-11-15, 13:55 UTC
+
+The user requested that Report Now explain what the worker is doing, what comes
+next and where it needs the user. Extend only user-selected report prompts with
+Doing now, Next and Need from you lines after the existing table and Release
+line, before optional detailed history. State None when no input is needed and
+unknown where evidence is unavailable. Summaries do not replace native controls
+or create authority for new work. Reuse current prompt composition and report
+recognition; no parser, store, timer or dependency is added. Independent source
+review found no blocking issue and confirmed the existing validator accepts
+these trailing lines. Preserve captured in-flight/uncertain prompts without
+rewriting or resending; an unsent scheduled report can gain the manual overview
+through existing coalescing. Scheduled and Coordinator requests keep their
+normal report shape. Verification, publication and deployment outcomes will be
+recorded from actual results; implementation commit is not yet known.
+
+Validation — 2026-11-15, 13:55 UTC: all 120 affected Coordinator, report-format
+and worker-lifecycle checks passed in 1.936 seconds, with zero failures/skips.
+TypeScript and the production build passed (Vite 402ms). Independent read-only
+review of the actual patch found no blocking findings; it did not rerun tests.
+These checks exercise delivery and recognition with synthetic native fixtures;
+actual live model responses remain unverified. The existing restart protection
+requires a verified drained memory-only queue or applicable user loss approval.
+No authenticated live queue session is available to this worker; saved history
+cannot establish a drain. The previous release's loss permission does not cover
+this update. No deployment or restart for 1.29.0 has begun.
+
 ## 1.28.6 — Keep hovered tab controls aligned — 2026-11-15
 
 The user supplied a desktop screenshot showing the close button beside a short

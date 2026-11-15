@@ -6,7 +6,7 @@ import { COORDINATOR_PROMPT, COORDINATOR_RECAP_GUIDANCE, COORDINATOR_REVIEW_GUID
 import { isBranchControlMessage } from './branch-summary.mjs';
 import { taskSummary } from './task-summary.mjs';
 import { progressWordCount, RECAP_WORD_LIMIT, RECAP_WORD_TARGET } from './progress-recap.mjs';
-import { WORKER_REPORT_REQUEST, WORKER_DETAILED_REPORT_REQUEST, WORKER_TASK_PING_REQUEST, REPORT_INTERVALS } from './worker-instructions.mjs';
+import { WORKER_REPORT_REQUEST, WORKER_REPORT_NOW_OVERVIEW, WORKER_DETAILED_REPORT_REQUEST, WORKER_TASK_PING_REQUEST, REPORT_INTERVALS } from './worker-instructions.mjs';
 import { taskReportFormatError } from './task-report-format.mjs';
 import { approvalCommand, approvalWorkingDirectory, inspectApprovalSource, readSourceText, referencesApprovalSource, isSensitiveSourcePath, sourceContainsCredentials, sourceCredentialReason } from './approval-source.mjs';
 import { DEFAULT_APPROVAL_POLICY } from './approval-policy.mjs';
@@ -32,7 +32,7 @@ export function validateHookOutputStat(info, directory = false, owned = true) {
     throw fail('Read only an owned regular generated hook output through unlinked directories protected from other writers.', 400);
   }
 }
-const userReportText = detailed => '[Command Center coordinator]\nThe user selected Report now. ' + WORKER_REPORT_REQUEST + (detailed ? '\n\n' + WORKER_DETAILED_REPORT_REQUEST : '');
+const userReportText = detailed => '[Command Center coordinator]\nThe user selected Report now. ' + WORKER_REPORT_REQUEST + '\n\n' + WORKER_REPORT_NOW_OVERVIEW + (detailed ? '\n\n' + WORKER_DETAILED_REPORT_REQUEST : '');
 const textInput = text => [{ type: 'text', text, text_elements: [] }];
 const object = (properties, required = Object.keys(properties)) => ({ type: 'object', properties, required, additionalProperties: false });
 const str = { type: 'string' }; const target = { agentId: str };

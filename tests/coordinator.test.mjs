@@ -908,6 +908,7 @@ test('a requested report wakes the coordinator once, without repeated report loo
     const worker = f.workspace.agent('worker'); worker.turnId = 'original'; worker.thread.status = { type: 'active' };
     await f.call('ccng_request_report', { agentId: 'worker' });
     await waitFor(() => f.rpc.calls.some(call => call.method === 'turn/steer') && !worker.coordinatorSending);
+    assert.doesNotMatch(f.rpc.calls.find(call => call.method === 'turn/steer').params.input[0].text, /\*\*Doing now:\*\*/);
     assert.equal(f.coordinator.reportPending.has('worker'), true, 'steered report stays outstanding until a report is observed');
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
     f.coordinator.dirty.clear();
@@ -1178,6 +1179,7 @@ test('startup reads saved intervals and queues one initial report without replay
     assert.deepEqual(f.rpc.calls.filter(call => call.method === 'turn/start').map(call => call.params.threadId).sort(), ['second', 'worker']);
     const request = f.rpc.calls.find(call => call.method === 'turn/start' && call.params.threadId === 'worker');
     assert.match(request.params.input[0].text, /Scheduled task report/);
+    assert.doesNotMatch(request.params.input[0].text, /\*\*Doing now:\*\*/);
     assert.match(request.params.clientUserMessageId, /^ccng-report-/);
     assert.equal(worker.reportIntervalMinutes, 15);
     assert.equal(f.coordinator.list().find(row => row.id === 'worker').nextReportAt, new Date(15 * 60_000).toISOString());
@@ -2255,6 +2257,9 @@ test('Report now queues immediately with Never, coalesces pending reports and le
     const report = f.rpc.calls.find(call => call.method === 'turn/start');
     assert.match(report.params.input[0].text, /user selected Report now/);
     assert.match(report.params.input[0].text, /Standard Task Report/);
+    for (const label of ['**Doing now:**', '**Next:**', '**Need from you:**']) assert.ok(report.params.input[0].text.includes(label));
+    assert.match(report.params.input[0].text, /None if no user input is needed/);
+    assert.match(report.params.input[0].text, /never invent activity, decisions or questions/);
     assert.match(report.params.additionalContext['command-center-worker-instructions'].value, /latest release version/);
     f.rpc.complete('worker'); assert.equal(worker.reportIntervalMinutes, 0); assert.equal('nextReportAt' in worker, false);
     assert.equal(f.coordinator.reportPending.has('worker'), false);
@@ -2276,12 +2281,14 @@ test('detailed reports validate their option and retain one queued request witho
     const deadline = f.coordinator.reportSchedules.get('worker').nextAt;
     const queued = f.coordinator.deliveries.get('worker')[0];
     assert.equal(queued.scheduledReport, true);
+    assert.doesNotMatch(queued.text, /\*\*Doing now:\*\*/);
     const upgraded = f.coordinator.requestUserReport('worker', { detailed: true });
     assert.equal(upgraded.alreadyPending, true); assert.equal(upgraded.detailed, true);
     assert.equal(queued.scheduledReport, false);
     assert.equal(f.coordinator.requestUserReport('worker').detailed, true, 'a normal request never downgrades queued detail');
     assert.equal(f.coordinator.deliveries.get('worker').length, 1);
     assert.match(queued.text, /Detailed task report/);
+    for (const label of ['**Doing now:**', '**Next:**', '**Need from you:**']) assert.ok(queued.text.includes(label), 'unsent scheduled reports gain the manual overview');
     assert.equal(f.coordinator.reportSchedules.get('worker').nextAt, deadline);
     await f.workspace.open('second');
     assert.equal(f.coordinator.requestUserReport('second').detailed, false, 'detail is scoped to one worker request');
@@ -2315,7 +2322,7 @@ test('detailed report delivery keeps native request gates, hidden input and evid
     assert.ok(worker.messages.some(message => message.internalReport && message.text === text));
     assert.equal(f.rpc.replies.length, 0); assert.equal(worker.reportIntervalMinutes, 0);
     const turnId = worker.turnId;
-    f.rpc.emit('notification', { method: 'item/completed', params: { threadId: 'worker', turnId, item: { id: 'detail-result', type: 'agentMessage', text: standardReport + '\n\n- **Build the UI (example-1):**\n  - 2026-01-01T12:00:00Z — Started build; outcome not yet known.\n  - Time unknown — Reviewed implementation; only two attributable actions available.' } } });
+    f.rpc.emit('notification', { method: 'item/completed', params: { threadId: 'worker', turnId, item: { id: 'detail-result', type: 'agentMessage', text: standardReport + '\n\n**Doing now:** Validating the UI.\n\n**Next:** Inspect the build result.\n\n**Need from you:** None.\n\n- **Build the UI (example-1):**\n  - 2026-01-01T12:00:00Z — Started build; outcome not yet known.\n  - Time unknown — Reviewed implementation; only two attributable actions available.' } } });
     assert.equal(f.coordinator.reportPending.has('worker'), false, 'the normal report with nested detail uses existing recognition');
     assert.equal(f.coordinator.reportResponses.has('worker'), false);
   } finally { await f.close(); }

@@ -665,6 +665,11 @@ MCP/permission controls manually, preserving exact native access and confirmatio
 Unsupported/legacy/unknown human requests stay visible with a precise next step;
 internal protocol exchanges stay internal. Coordinator restrictions are retained.
 Report now beside Never queues one report without changing saved cadence.
+User-selected Report now requests also include concise Doing now, Next and Need
+from you lines after the normal task table and release evidence. State None
+when no user input is needed and unknown where evidence is missing. Put optional
+detailed action history afterward; preserve scheduled/Coordinator reports,
+native question controls, scope and delivery safeguards.
 The user also requests model/effort selection and a resizable overview/sidebar,
 coordinator alignment with the chat column, uncapped useful chat text width and
 moving the version label into the composer footer. These remain unfinished.

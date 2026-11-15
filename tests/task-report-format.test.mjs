@@ -11,6 +11,7 @@ test('task reports use all canonical coloured statuses without inferring task tr
   for (const status of REPORT_STATUSES) assert.equal(taskReportFormatError(report.replace('🟨 In progress', status)), null);
   assert.equal(taskReportFormatError('## Standard Task Report\n\n' + report), null);
   assert.equal(taskReportFormatError(report.replaceAll('\n', '\r\n')), null);
+  assert.equal(taskReportFormatError(report + '\n\n**Doing now:** Validating the change.\n\n**Next:** Inspect the result.\n\n**Need from you:** None.'), null, 'manual overview follows the existing release evidence');
   assert.equal(taskReportFormatError(report + '\n\n### Build application (example-1)\n  - Time unknown — Started validation; outcome unknown.'), null, 'detailed history follows the normal overview');
 });
 

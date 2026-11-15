@@ -178,6 +178,22 @@ Keep table cells short and high level. Omit raw commands, code dumps, routine id
 state, repeated historical detail and closed-record bookkeeping. Do not invent progress,
 completion or authority. Reporting alone must not execute extra project work.
 
+### User-selected Report now
+
+When the user selects Report now, follow the normal table and Release line with
+three concise labelled lines, before any detailed action history:
+
+- **Doing now:** what you are currently doing, based on available evidence.
+- **Next:** the next authorized step, or the condition that must be met first.
+- **Need from you:** the specific existing decision, answer or action needed
+  from the user and why. Say None if no user input is needed.
+
+State unknown where evidence is unavailable; never invent activity, decisions or
+questions. Preserve scope, pauses, stops and pending native requests. Summarizing
+an existing need does not answer or replace its question/approval control. Keep
+the complete report within 32,000 characters. Scheduled and Coordinator-requested
+reports retain their normal concise overview without these additional lines.
+
 ### Explicit detailed report
 
 Only when a detailed report is explicitly requested, give the normal summary
