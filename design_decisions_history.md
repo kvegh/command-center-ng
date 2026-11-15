@@ -1,5 +1,29 @@
 # Design decisions history
 
+## Shared recovery-export concern — 2026-11-15, 17:04 UTC
+
+Read-only investigation of a concern about an external encrypted task snapshot
+found that the isolated directory was an AutoDeploy checkout, despite its
+feature-specific name. Its project instructions explicitly describe refreshing
+the local task overview together with a protected recovery export in the
+existing companion repository. The helper writes those explicit destinations
+and validates the encrypted export's format/scope. The original native command
+had already completed with exit code zero; its generic success text does not
+prove content correctness or the original user's write authorization.
+
+Independent source review confirmed that automatic instruction context uses the
+worker's saved directory/known instruction sources. Request-project guidance
+can therefore be absent from that context, but the exact-token source reader
+can still retrieve it. No lost working-directory binding, source refusal or
+application transport defect was established. Decision: preserve the completed
+request, report repository/workflow facts to its owner for scope reconciliation,
+and make no speculative CCNG change or other-project rerun/rollback. Direct
+owner delivery remains unconfirmed because no connected worker-message tool is
+available. The recorded resume condition is supported owner handoff/receipt;
+this introduces no new user question, permission grant or delivery workaround.
+Diagnostic reads and independent review completed; no tests or deployment were
+needed for this no-code disposition. The running release remains 1.29.0.
+
 ## 1.29.0 — Explain current work and input needs — 2026-11-15, 13:55 UTC
 
 The user requested that Report Now explain what the worker is doing, what comes
