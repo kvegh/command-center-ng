@@ -44,6 +44,25 @@ unrelated host/service boundaries. No queue persistence or message replay is
 introduced. This supersedes the pending gate above; deployment outcome is not
 yet established.
 
+Rule supersession is published in
+`47a431143efaf21b5fd23e28d3f6cb0bb3040419`, independently verified through SSH
+remote readback. Ad hoc job 4264 — Deploy CCNG 1.29.0 and restart its service —
+succeeded at 14:04:47.251481–14:05:08.387711 UTC (21.136s), installing that exact
+payload through the normal installer and restarting only the existing app
+service. Ten protected files/metadata, all six currently saved worker IDs,
+workspace/pause/report settings, native CLI version and profile configuration
+were preserved. No native worker interruption or approval answer was sent.
+
+Ad hoc job 4265 — Verify installed CCNG 1.29.0 — succeeded at
+14:05:26.364125–14:05:34.239360 UTC (7.875s). All 116 installed source files
+match; actual trusted HTTPS, authentication boundaries, two served assets and
+both listeners pass. The installed manual overview is present and all 120
+affected Coordinator/report-format/lifecycle regressions pass against installed
+source (1.679s), with zero failures/skips. Existing private policy and shared
+instructions load correctly. These fixture regressions verify delivery and
+recognition paths; actual live model responses and browser rendering remain
+unverified. No new browser tooling or native test turn was introduced.
+
 ## 1.28.6 — Keep hovered tab controls aligned — 2026-11-15
 
 The user supplied a desktop screenshot showing the close button beside a short
