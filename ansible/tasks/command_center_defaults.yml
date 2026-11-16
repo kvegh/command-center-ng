@@ -17,6 +17,7 @@
     command_center_connection_type: "{{ command_center_connection_type | default(ccng_default_connection_type) }}"
     command_center_tls_days: "{{ command_center_tls_days | default(ccng_default_tls_days) }}"
     command_center_codex_package: "{{ command_center_codex_package | default(ccng_default_codex_package) }}"
+    command_center_claude_environment: "{{ command_center_claude_environment | default(ccng_default_claude_environment) }}"
     command_center_beads_config: "{{ command_center_beads_config | default(ccng_default_beads_config) }}"
     command_center_beads_boot_start: "{{ command_center_beads_boot_start | default(ccng_default_beads_boot_start) }}"
 
@@ -43,3 +44,20 @@
 
 - name: Validate native Beads settings before managed writes
   ansible.builtin.import_tasks: command_center_beads_validation.yml
+
+- name: Require an explicit Claude provider environment mapping
+  ansible.builtin.assert:
+    that:
+      - command_center_claude_environment is mapping
+    quiet: true
+    fail_msg: Claude provider settings require the documented environment mapping.
+
+- name: Validate the supported Claude provider selectors before managed writes
+  ansible.builtin.assert:
+    that:
+      - item.key in ['CLAUDE_CODE_USE_VERTEX', 'CLOUD_ML_REGION', 'ANTHROPIC_VERTEX_PROJECT_ID']
+      - item.value is string
+      - item.value is not search('[\x00-\x1f\x7f-\x9f]')
+    quiet: true
+    fail_msg: Claude provider settings accept only the three documented keys with control-free string values.
+  loop: "{{ command_center_claude_environment | dict2items }}"

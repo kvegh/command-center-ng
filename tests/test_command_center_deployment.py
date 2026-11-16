@@ -161,10 +161,63 @@ class CommandCenterDeploymentTests(unittest.TestCase):
                 "command_center_project_dir == ccng_user_home ~ '/ccng-wd'",
                 "command_center_install_dir != command_center_project_dir",
                 "command_center_first_password_setup == 'disabled'",
+                "command_center_claude_environment == {}",
                 "command_center_beads_config == {}",
                 "command_center_beads_boot_start is sameas false",
             ]}},
         ], {"ccng_user_home": str(self.work)})
+
+    def test_claude_provider_environment_preserves_values_and_renders_idempotently(self):
+        selected = {"CLAUDE_CODE_USE_VERTEX": "1", "CLOUD_ML_REGION": "global",
+                    "ANTHROPIC_VERTEX_PROJECT_ID": 'fixture-project $literal "quoted" \\ path café'}
+        rendered = self.work / "service.env"
+        tasks = [
+            {"name": "Load maintained defaults", "ansible.builtin.include_vars":
+             str(ANSIBLE / "vars/command_center_defaults.yml")},
+            self.include("command_center_defaults.yml"),
+            {"name": "Retain the explicit provider environment", "ansible.builtin.assert": {
+                "that": ["command_center_claude_environment == selected_environment"]}},
+            {"name": "Render the existing private service environment", "ansible.builtin.template": {
+                "src": str(ANSIBLE / "templates/command-center-ng.env.j2"),
+                "dest": str(rendered), "mode": "0600"}, "register": "first_environment"},
+            {"name": "Render the same environment again", "ansible.builtin.template": {
+                "src": str(ANSIBLE / "templates/command-center-ng.env.j2"),
+                "dest": str(rendered), "mode": "0600"}, "register": "second_environment"},
+            {"name": "Require an unchanged repeat", "ansible.builtin.assert": {
+                "that": ["first_environment is changed", "second_environment is not changed"]}},
+        ]
+        self.run_tasks(tasks, {"ccng_user_home": str(self.work), "ccng_codex_home": str(self.work / "codex"),
+                               "ccng_config_dir": str(self.work / "config"),
+                               "command_center_claude_environment": selected,
+                               "selected_environment": selected})
+        environment = {name: json.loads(value) for line in rendered.read_text().splitlines()
+                       if line and not line.startswith("#") for name, value in [line.split("=", 1)]}
+        self.assertEqual({key: environment[key] for key in selected}, selected)
+        self.assertEqual(set(environment), {"PATH", "CODEX_HOME", "CCNG_CONFIG_DIR", *selected})
+        self.assertEqual(rendered.stat().st_mode & 0o777, 0o600)
+
+    def test_claude_provider_environment_rejects_unsupported_inputs_before_writes(self):
+        invalid = [[], "CLAUDE_CODE_USE_VERTEX=1",
+                   {"ANTHROPIC_API_KEY": "synthetic-forbidden-canary"},
+                   {"GOOGLE_APPLICATION_CREDENTIALS": "/fixture/credentials.json"},
+                   {"CLAUDE_CODE_USE_VERTEX": True}, {"CLOUD_ML_REGION": 1},
+                   {"CLOUD_ML_REGION": None}, {"CLOUD_ML_REGION": ["global"]},
+                   {"CLOUD_ML_REGION": {"value": "global"}}]
+        invalid.extend({"CLOUD_ML_REGION": "global" + character + "injected"}
+                       for character in ["\n", "\r", "\t", "\0", "\x7f", "\x85"])
+        for index, selected in enumerate(invalid):
+            with self.subTest(index=index):
+                sentinel = self.work / f"after-invalid-environment-{index}"
+                result = self.run_tasks([
+                    {"name": "Load maintained defaults", "ansible.builtin.include_vars":
+                     str(ANSIBLE / "vars/command_center_defaults.yml")},
+                    self.include("command_center_defaults.yml"),
+                    {"name": "Write only after provider validation", "ansible.builtin.copy": {
+                        "dest": str(sentinel), "content": "accepted", "mode": "0600"}},
+                ], {"ccng_user_home": str(self.work), "command_center_claude_environment": selected},
+                   success=False)
+                self.assertFalse(sentinel.exists())
+                self.assertNotIn("synthetic-forbidden-canary", result.stdout + result.stderr)
 
     def test_source_repository_accepts_existing_ssh_or_credential_free_https(self):
         play = yaml.safe_load((ANSIBLE / "deploy_command_center.yml").read_text())[0]
@@ -750,6 +803,9 @@ WantedBy=default.target
             "selected-fixture": {"command_center_user": "fixture_operator",
                                  "command_center_first_password_setup": "htpasswd-proxy",
                                  "command_center_port": 8181,
+                                 "command_center_claude_environment": {"CLAUDE_CODE_USE_VERTEX": "1",
+                                                                      "CLOUD_ML_REGION": "global",
+                                                                      "ANTHROPIC_VERTEX_PROJECT_ID": "fixture-project"},
                                  "command_center_beads_config": {"auto_compact_enabled": "false", "compaction_enabled": "false"},
                                  "command_center_beads_boot_start": True,
                                  "command_center_password": "synthetic-runtime-canary"},
@@ -762,6 +818,7 @@ WantedBy=default.target
                     "command_center_user == 'fixture_operator'", "command_center_port | int == 8181",
                     "command_center_password == 'synthetic-runtime-canary'",
                     "command_center_first_password_setup == 'htpasswd-proxy'",
+                    "command_center_claude_environment == {'CLAUDE_CODE_USE_VERTEX': '1', 'CLOUD_ML_REGION': 'global', 'ANTHROPIC_VERTEX_PROJECT_ID': 'fixture-project'}",
                     "command_center_beads_config == {'auto_compact_enabled': 'false', 'compaction_enabled': 'false'}",
                     "command_center_beads_boot_start is sameas true",
                 ]}},
@@ -858,6 +915,9 @@ WantedBy=default.target
         self.assertNotIn("ExecStartPre", text)
         self.assertNotIn("codex app-server", text)
         self.assertNotIn(canary, (config / "service.env").read_text())
+        self.assertNotIn("CLAUDE_CODE_USE_VERTEX=", (config / "service.env").read_text())
+        self.assertNotIn("CLOUD_ML_REGION=", (config / "service.env").read_text())
+        self.assertNotIn("ANTHROPIC_VERTEX_PROJECT_ID=", (config / "service.env").read_text())
         service_env = {
             name: json.loads(value)
             for line in (config / "service.env").read_text().splitlines()

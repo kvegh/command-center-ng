@@ -15,6 +15,7 @@ ccng_default_first_password_setup: disabled
 ccng_default_connection_type: http
 ccng_default_tls_days: 365
 ccng_default_codex_package: "@openai/codex@0.167.0"
+ccng_default_claude_environment: {}
 ccng_default_beads_config: {}
 ccng_default_beads_boot_start: false
 ccng_default_path: >-

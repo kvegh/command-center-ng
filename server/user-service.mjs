@@ -32,7 +32,7 @@ function runtimeOptions(args) {
 export function serviceUnit(appDir, args, env = process.env) {
   const values = runtimeOptions(args);
   const runtime = Object.entries(values).flatMap(([name, value]) => ['--' + name, value]);
-  const variables = ['PATH', 'CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'CCNG_CONFIG_DIR', 'XDG_CONFIG_HOME', 'CCNG_HOST', 'CCNG_PORT', 'CCNG_PROTOCOL', 'CCNG_PUBLIC_ORIGIN', 'CCNG_TLS_CERT', 'CCNG_TLS_KEY', 'BEADS_DIR', 'BEADS_DOLT_SHARED_SERVER'];
+  const variables = ['PATH', 'CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_USE_VERTEX', 'CLOUD_ML_REGION', 'ANTHROPIC_VERTEX_PROJECT_ID', 'CCNG_CONFIG_DIR', 'XDG_CONFIG_HOME', 'CCNG_HOST', 'CCNG_PORT', 'CCNG_PROTOCOL', 'CCNG_PUBLIC_ORIGIN', 'CCNG_TLS_CERT', 'CCNG_TLS_KEY', 'BEADS_DIR', 'BEADS_DOLT_SHARED_SERVER'];
   return [marker, installation(appDir), '# Runtime defaults are read from INSTALLDIR/etc/config.conf by the launcher.', '[Unit]', 'Description=Command Center NG', '', '[Service]', 'Type=simple',
     'WorkingDirectory=' + clean(values.cwd || appDir).replaceAll('%', '%%'),
     'ExecStart=' + [quote(join(appDir, 'command-center-ng')), ...runtime.map(value => quote(value, true))].join(' '),

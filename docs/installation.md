@@ -652,6 +652,43 @@ Existing units need this explicit registration step; application update plus
 restart alone leaves their old saved environment intact.
 Unrelated, linked or differently owned units are refused.
 
+### Claude provider settings
+
+Systemd does not source an interactive shell's startup files. If Claude works in
+a terminal through an existing Vertex AI configuration, register the CCNG user
+service from that configured environment with its existing explicit runtime
+options. Registration preserves `CLAUDE_CODE_USE_VERTEX`, `CLOUD_ML_REGION` and
+`ANTHROPIC_VERTEX_PROJECT_ID` only when supplied. It does not select a provider
+by default, copy credential variables or source shell files at startup. Keep
+real project values out of public examples and repositories.
+
+No-option registration preserves an existing owned unit, including its saved
+environment. Updating app code alone does not add these variables to an old
+unit. Deliberately register with the existing explicit options, inspect the
+private unit, then restart CCNG when authorized. That restart stops SDK-owned
+Claude processes; saved conversation history remains available. Native Codex
+processes run separately. Existing Google/Claude credentials remain unchanged.
+
+Compare `claude auth status --json` in the configured terminal with the same
+command under the service's actual environment and project directory. Check
+only login state and provider when reporting results; omit account and token
+values. A successful status check establishes configuration, while a real
+Claude/Vertex response is separate functional evidence.
+
+An explicit live check is available in the published source:
+
+```sh
+node tests/verify-deployed-claude.mjs INSTALL_DIR PROJECT_DIR CLAUDE_EXECUTABLE
+```
+
+Run it as the backend account with the service's actual provider environment and
+existing credentials; replace all three arguments with the selected deployment.
+It loads the SDK from that installation, verifies Vertex authentication status
+and makes one short model request with tools disabled and session persistence
+off. It prints a JSON pass result and exits nonzero on failure. This uses the
+existing provider account and may incur one normal request charge. It neither
+sends into an existing conversation nor establishes full browser-chat acceptance.
+
 After current managed Claude work has finished, stop the foreground CCNG copy
 once with Ctrl+C, then use:
 

@@ -76,6 +76,45 @@ test('user service preserves explicit Beads routing without copying credentials 
   } finally { await f.close(); }
 });
 
+test('user service preserves explicitly supplied Vertex settings without capturing credentials or changing saved settings', async () => {
+  const f = await fixture();
+  try {
+    Object.assign(f.env, {
+      CLAUDE_CODE_USE_VERTEX: '1', CLOUD_ML_REGION: 'us-central1', ANTHROPIC_VERTEX_PROJECT_ID: 'example-vertex-project',
+      CLAUDE_CODE_OAUTH_TOKEN: 'synthetic-oauth-secret', ANTHROPIC_AUTH_TOKEN: 'synthetic-bearer-secret',
+      GOOGLE_APPLICATION_CREDENTIALS: '/example/private-credentials.json', GOOGLE_OAUTH_ACCESS_TOKEN: 'synthetic-cloud-secret',
+      CLAUDE_CODE_USE_BEDROCK: '1'
+    });
+    await userService(['install', '--', '--cwd', f.root], f.options);
+    const unit = await readFile(f.path, 'utf8');
+    assert.ok(unit.includes('Environment="CLAUDE_CODE_USE_VERTEX=1"'));
+    assert.ok(unit.includes('Environment="CLOUD_ML_REGION=us-central1"'));
+    assert.ok(unit.includes('Environment="ANTHROPIC_VERTEX_PROJECT_ID=example-vertex-project"'));
+    assert.ok(unit.includes('Environment="CLAUDE_CONFIG_DIR=' + f.env.CLAUDE_CONFIG_DIR + '"'));
+    assert.doesNotMatch(unit, /ANTHROPIC_API_KEY|ANTHROPIC_AUTH_TOKEN|CLAUDE_CODE_OAUTH_TOKEN|GOOGLE_APPLICATION_CREDENTIALS|GOOGLE_OAUTH_ACCESS_TOKEN|CLAUDE_CODE_USE_BEDROCK|synthetic-.*secret|synthetic-test-only/);
+    assert.equal((await stat(f.path)).mode & 0o777, 0o600);
+    assert.deepEqual(f.calls, [{ command: 'systemctl', args: ['--user', 'daemon-reload'] }]);
+    Object.assign(f.env, { CLAUDE_CODE_USE_VERTEX: '0', CLOUD_ML_REGION: 'europe-west1', ANTHROPIC_VERTEX_PROJECT_ID: 'another-example-project' });
+    await userService(['install'], f.options);
+    assert.equal(await readFile(f.path, 'utf8'), unit, 'no-option reinstall preserves saved provider settings despite a different caller environment');
+    await userService(['install', '--', '--cwd', f.root], f.options);
+    const updated = await readFile(f.path, 'utf8');
+    assert.ok(updated.includes('Environment="CLAUDE_CODE_USE_VERTEX=0"'));
+    assert.ok(updated.includes('Environment="CLOUD_ML_REGION=europe-west1"'));
+    assert.ok(updated.includes('Environment="ANTHROPIC_VERTEX_PROJECT_ID=another-example-project"'));
+    assert.ok(f.calls.every(call => call.command === 'systemctl' && call.args.join(' ') === '--user daemon-reload'), 'installation must not start or restart a service');
+  } finally { await f.close(); }
+});
+
+test('Vertex service environment is opt-in and uses existing unit escaping and control-character checks', () => {
+  const keys = ['CLAUDE_CODE_USE_VERTEX', 'CLOUD_ML_REGION', 'ANTHROPIC_VERTEX_PROJECT_ID'];
+  assert.doesNotMatch(serviceUnit('/example/app', [], {}), /CLAUDE_CODE_USE_VERTEX|CLOUD_ML_REGION|ANTHROPIC_VERTEX_PROJECT_ID/);
+  const unit = serviceUnit('/example/app', [], { ANTHROPIC_VERTEX_PROJECT_ID: 'example % "quoted" $project' });
+  assert.ok(unit.includes('Environment="ANTHROPIC_VERTEX_PROJECT_ID=example %% \\"quoted\\" $project"'));
+  assert.doesNotMatch(unit, /CLAUDE_CODE_USE_VERTEX|CLOUD_ML_REGION/);
+  for (const key of keys) assert.throws(() => serviceUnit('/example/app', [], { [key]: 'value\n[Service]' }), /control characters/);
+});
+
 test('service management refuses unrelated or linked units and unsafe/unsupported options', async () => {
   const f = await fixture();
   try {

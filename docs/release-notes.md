@@ -9,6 +9,17 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.29.2 — Preserve explicit Claude Vertex service settings
+
+Explicit user-service registration retains the existing Vertex provider,
+region and project selectors. Ansible deployments can supply the same three
+keys through an optional validated environment mapping in protected runtime
+settings. No provider is enabled by default, credential variables are not
+copied, and startup does not source shell files. Existing user units remain
+preserved until deliberately reconfigured; application updates alone do not
+rewrite their environment. Authentication status and actual model responses
+remain separate verification steps.
+
 ## 1.29.1 — Recover stale Coordinator turn state
 
 Use the existing observation poll to verify a Coordinator that still appears

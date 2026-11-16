@@ -90,6 +90,7 @@ variables.
 | `command_center_tls_server_name` | Required in HTTPS mode; the selected DNS/IP certificate identity |
 | `command_center_tls_days` | New self-signed certificate lifetime; default `365` days, from 1 to 3650 |
 | `command_center_codex_package` | Default `@openai/codex@0.167.0`; used only for a missing local CLI |
+| `command_center_claude_environment` | Default `{}`; optional explicit Claude Vertex provider selectors written to the existing private `service.env`, as described below |
 | `command_center_manage_packages` | Default `true`; set `false` when system and CLI prerequisites are managed separately |
 | `command_center_password` | Protected 12–4096-character initial password only when no auth file exists and browser-first setup is disabled |
 | `command_center_force_install` | Default `false`; rebuild the selected revision explicitly |
@@ -109,6 +110,32 @@ app option plus the exact HTTPS public origin into `INSTALLDIR/etc/config.conf`.
 The user chooses the application password on first browser opening; no initial
 password or setup code is requested by Ansible. Existing auth files are still
 validated and preserved. Service environment files contain no password.
+
+### Optional Claude Vertex provider selection
+
+`command_center_claude_environment` accepts only `CLAUDE_CODE_USE_VERTEX`,
+`CLOUD_ML_REGION` and `ANTHROPIC_VERTEX_PROJECT_ID`. Values must be strings without
+control characters. The empty default writes no provider selectors and does not
+choose a Claude provider. Supply an approved selection through the existing
+whole-file encrypted instance settings, for example with synthetic values:
+
+```yaml
+command_center_claude_environment:
+  CLAUDE_CODE_USE_VERTEX: "1"
+  CLOUD_ML_REGION: "global"
+  ANTHROPIC_VERTEX_PROJECT_ID: "example-project"
+```
+
+Existing `ansible.builtin.assert` and `ansible.builtin.template` capabilities
+cover validation and idempotent rendering; no additional collection, script or
+helper is required. The playbook JSON-quotes these values into its existing
+owner-private `service.env`, which the existing systemd unit reads. It does not
+source an interactive shell or copy terminal authentication, tokens, Google
+credential files or arbitrary environment variables. `ANTHROPIC_API_KEY` and
+`GOOGLE_APPLICATION_CREDENTIALS` are not accepted by this mapping. Any required
+Vertex authentication must already be available to the approved service account
+through its existing setup. Changing the managed environment uses the normal
+application-service restart handler; it never restarts native Codex.
 
 ## Behavior and boundaries
 
@@ -397,6 +424,13 @@ packages, alter accounts, start services, connect to a VM or call a model.
 Use already available Python/Ansible/lint/systemd tools; ask before installing
 missing dependencies. Whole-playbook `--check` is explicitly refused because the
 stateful installer requires real output files.
+
+Claude provider fixtures exercise the actual defaults, runtime allowlist and
+environment template: empty-default omission, preservation of the three allowed
+values, protected-file mode, unchanged repeat rendering and rejection of unknown
+keys, non-string values and control characters before writes. These checks do
+not call Vertex or establish that the deployed account can authenticate; actual
+Claude session startup and model response remain deployment acceptance checks.
 
 Beads fixtures exercise the nine-setting map, repeat runs and refused reads
 without changing unrelated tasks or routing. Boot fixtures use isolated native

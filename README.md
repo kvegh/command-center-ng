@@ -241,6 +241,12 @@ with `--clear-logins`; see [login management](docs/installation.md#login-managem
 For background operation, follow the [user-level systemd instructions](docs/installation.md#user-level-systemd-service).
 The installed launcher supports `service install`, `enable`, `start`, `stop`,
 `restart`, `status` and `logs`. Installing a unit does not start or enable it.
+For an existing Claude Vertex AI setup, explicit service registration preserves
+the provider, region and project selectors from the calling environment. Ansible
+can supply the same three selectors through its protected runtime settings.
+See [service authentication settings](docs/installation.md#claude-provider-settings)
+and [Ansible deployment](docs/ansible-deployment.md). Existing credentials stay
+with the native Claude/Google configuration; no new login is created.
 
 ## Current scope and limits
 

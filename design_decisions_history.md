@@ -1,5 +1,26 @@
 # Design decisions history
 
+## 2026-11-16, UTC — Preserve existing Claude Vertex settings in services
+
+The user reported that an interactive Claude session authenticated while its
+Command Center chat did not. Same-user, same-directory and same-executable
+checks showed the terminal selected Vertex AI through three exported shell
+settings while the service lacked them and selected direct first-party login.
+Adding only those three existing selectors to a temporary service environment
+made the supported authentication-status command report Vertex authentication.
+No credential was changed or copied.
+
+The user explicitly approved applying that existing Vertex setup to all Claude
+chats managed by this application and restarting the existing application.
+The 1.29.2 correction preserves explicitly supplied provider, region and project
+selectors during user-service registration and supports the same optional
+validated mapping in protected Ansible runtime settings. No provider default,
+shell startup sourcing, additional service, credential export or native daemon
+restart was selected. Existing units stay unchanged until explicit configuration.
+
+Source verification and deployment outcomes are recorded separately below when
+known; configuration readback alone does not prove a successful model response.
+
 ## Shared recovery-export concern — 2026-11-15, 17:04 UTC
 
 Read-only investigation of a concern about an external encrypted task snapshot
