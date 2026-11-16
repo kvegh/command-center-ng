@@ -21,6 +21,36 @@ restart was selected. Existing units stay unchanged until explicit configuration
 Source verification and deployment outcomes are recorded separately below when
 known; configuration readback alone does not prove a successful model response.
 
+Implementation `6bd3329618a6893fd0918034b3199aa086285307` is the published
+1.29.2 payload. Source/native verification passed 53 focused checks in 2.574s;
+the eight user-service cases and six affected real-Ansible fixtures passed,
+including 15 invalid environment-input cases. Production-profile strict lint
+passed all 30 Ansible files with no failures or warnings; syntax, TypeScript and
+production build checks passed. These checks use the existing native
+environment/template mechanisms, without copying authentication material.
+
+The normal existing application update succeeded on 2026-11-16 from
+16:12:07.723344 to 16:12:31.872218 UTC. The existing user service received exactly
+the three approved provider-selector lines. Preservation checks validated 12
+protected-file states, the four saved workers, pause/report settings, unit mode
+and unchanged native Codex daemon. Only the application service restarted.
+
+Independent installed verification succeeded from 16:14:33.426399 to
+16:14:47.028707 UTC: all 116 source files matched, HTTPS/authentication/assets/
+listener checks passed, and 53 installed-module checks passed in 2.796s. Shared
+instructions and private approval policy remained unchanged. A real request
+through the deployed official Claude SDK and selected Vertex configuration
+succeeded with no tools and session persistence disabled. This establishes an
+actual model response, while complete browser-managed Claude chat acceptance
+remains unperformed.
+
+Two earlier verification harness attempts failed before a model request: one
+used an unsupported symlinked CLI identity and the next lacked copied package
+metadata. Correcting the isolated installed-source verification copy produced
+the passing 53-check result without another service restart or application fix.
+These failures are retained as harness limitations, not model/authentication
+failures. This delivery did not change Claude permission or Auto mode.
+
 ## Shared recovery-export concern — 2026-11-15, 17:04 UTC
 
 Read-only investigation of a concern about an external encrypted task snapshot
