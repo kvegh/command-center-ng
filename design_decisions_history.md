@@ -5173,3 +5173,26 @@ container/test command, native approval or permission change was performed.
 The original manual approval remains separate; this verifies source recognition,
 not execution or successful Windows regression results. Final outcome docs are
 newer than the installed payload.
+## 2026-11-16, UTC — Recover obsolete Coordinator turn bindings
+
+An interrupted native Coordinator was observed unloaded while worker approvals
+waited. Independent source fixtures confirmed that an activated Coordinator
+was excluded from observation and could retain a stale active-turn binding
+after a lost terminal notification. Its scheduler then refused further work.
+The exact production cache is not exposed by the supported read-only interface,
+so this mechanism is a confirmed reproducible defect, not a complete causal
+proof of the reported incident.
+
+The user explicitly requested enabling native Auto-review for one additional
+existing worker and then resuming the Coordinator, superseding an earlier wait.
+Native reviewer configuration is separate from CCNG's approval checks. Existing
+captured requests and child-session ownership remain unchanged.
+
+The focused 1.29.1 correction reuses the current observation poll and existing
+completion wake path. Only fresh inactive native state with a recognized latest
+terminal head can clear the stale binding; current questions, active work,
+pauses and newer events remain authoritative. Restoration uses the latest native
+head rather than resurrecting an older unfinished turn. No additional timer,
+service, transport, storage, automatic approval or permission path was added.
+The implementation commit and actual validation/publication/deployment outcomes
+will be recorded separately once verified.

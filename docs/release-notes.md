@@ -9,6 +9,16 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.29.1 — Recover stale Coordinator turn state
+
+Use the existing observation poll to verify a Coordinator that still appears
+to have an active turn. Fresh inactive native state and its latest terminal
+history can clear an obsolete turn binding and wake already pending reviews.
+Newer live events, unknown state, genuine questions, pauses and active work keep
+their existing gates. History restoration also avoids reviving an older
+unfinished turn after a newer terminal turn. Observation does not start a model
+turn, answer an approval or change permissions.
+
 ## 1.29.0 — Explain current work and input needs in Report now
 
 User-selected reports request three concise lines after the task table and

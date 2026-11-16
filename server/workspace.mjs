@@ -593,7 +593,7 @@ export class Workspace extends EventEmitter {
   async refreshObserved(id) {
     const agent = this.agents.get(id);
     if (agent?.provider === 'claude') { if (!this.claude?.available || this.restoring || this.observedReads.has(id)) return; const job = this.claude.refresh(agent); this.observedReads.set(id, job); try { await job; } catch (error) { agent.observeError = error.message; this.changed(); } finally { this.observedReads.delete(id); } return; }
-    if (!agent || !this.rpc.ready || this.restoring || (agent.role === 'coordinator' && !agent.observingOnly)) return;
+    if (!agent || !this.rpc.ready || this.restoring || (agent.role === 'coordinator' && !agent.observingOnly && !agent.turnId)) return;
     if (this.observedReads.has(id)) return this.observedReads.get(id);
     const revision = agent.historyRevision || 0;
     const epoch = this.requestEpoch;
@@ -605,9 +605,22 @@ export class Workspace extends EventEmitter {
         if (thread?.id !== id) throw new Error('Saved conversation is unavailable.');
         const signature = value => JSON.stringify([value.status, value.updatedAt, value.preview, value.model, value.reasoningEffort]);
         const changed = signature(thread) !== signature(agent.thread); this.syncModel(agent, thread.model, thread.reasoningEffort); const recovered = !!agent.observeError;
-        agent.thread = agent.thread.status !== before.status || agent.turnId !== before.turnId || agent.finishedTurn !== before.finishedTurn ? { ...thread, status: agent.thread.status } : thread;
+        const sameTurn = agent.thread.status === before.status && agent.turnId === before.turnId && agent.finishedTurn === before.finishedTurn;
+        agent.thread = sameTurn ? thread : { ...thread, status: agent.thread.status };
         agent.observeError = null; this.requestWaitEpisode(agent);
-        if (agent.observingOnly && (changed || thread.status?.type === 'active')) { await this.history(id); this.changed(); void this.coordinator?.flush(id); }
+        // A missed completion before disconnect/unload can leave the main
+        // Coordinator blocked on an obsolete turn. Reconcile through the existing
+        // read-only poll; native terminal history, not elapsed time, releases it.
+        if (agent.role === 'coordinator' && before.turnId && sameTurn && ['idle', 'notLoaded'].includes(thread.status?.type)) {
+          const observedStatus = agent.thread.status;
+          const page = await this.history(id), latest = page?.data[0];
+          if (this.rpc.ready && epoch === this.requestEpoch && this.agents.get(id) === agent && (agent.historyRevision || 0) === revision
+            && agent.thread.status === observedStatus && !agent.turnId && latest?.id === agent.finishedTurn?.id
+            && ['completed', 'interrupted', 'failed'].includes(latest?.status) && agent.finishedTurn.status === latest.status
+            && !agent.questions.length && !agent.requestStopIntent && !this.coordinator?.paused && !this.coordinator?.stopped) {
+            this.coordinator?.completed(id, latest.id);
+          }
+        } else if (agent.observingOnly && (changed || thread.status?.type === 'active')) { await this.history(id); this.changed(); void this.coordinator?.flush(id); }
         else if (changed || recovered) this.changed();
         if (changed && agent.role !== 'coordinator') this.coordinator?.mark(id, 'Watched worker changed');
         if (agent.role !== 'coordinator') {
@@ -686,7 +699,9 @@ export class Workspace extends EventEmitter {
     if (!(parent ? this.requestContextCurrent(parent, agent) : this.agents.get(id) === agent) || (agent.historyRevision || 0) !== before.revision) return;
     if (cursor && !replace && (agent.historyPagingRevision || 0) !== before.pagingRevision) return;
     const sameTurn = agent.turnId === before.turnId && agent.finishedTurn === before.finishedTurn && agent.thread.status === before.status;
-    const restoreTurn = (!cursor || replace) && sameTurn && (before.status?.type !== 'active' || !before.turnId);
+    const latestTurn = page.data[0];
+    const restoreTurn = (!cursor || replace) && sameTurn && (before.status?.type !== 'active' || !before.turnId)
+      && latestTurn?.id && ['inProgress', 'completed', 'interrupted', 'failed'].includes(latestTurn.status);
     if (restoreTurn && page.data[0]?.id) rememberNativeTurn(agent, page.data[0].id);
     if ((!cursor || replace) && sameTurn) {
       const latest = page.data[0];
@@ -696,10 +711,12 @@ export class Workspace extends EventEmitter {
       }
     }
     const current = { tasks: agent.tasks, workers: [...agent.workers], summary: agent.summary, activity: agent.activity };
-    const live = agent.messages, oldestCursor = agent.olderCursor; const previous = new Map(live.map(message => [JSON.stringify([message.turnId, message.id]), message])); agent.messages = []; if (restoreTurn) agent.turnId = null;
+    const live = agent.messages, oldestCursor = agent.olderCursor; const previous = new Map(live.map(message => [JSON.stringify([message.turnId, message.id]), message])); agent.messages = [];
+    // Only the latest native head can restore an active turn. An older orphaned
+    // inProgress record must not override a newer completed/interrupted turn.
+    if (restoreTurn) agent.turnId = latestTurn.status === 'inProgress' ? latestTurn.id : null;
     for (const turn of [...page.data].reverse()) {
       agent.tasks = []; agent.summary = null;
-      if (restoreTurn && turn.status === 'inProgress') agent.turnId = turn.id;
       const lastReply = turn.status === 'completed' ? turn.items?.findLast(item => item.type === 'agentMessage') : null;
       if (lastReply && (!cursor || replace) && sameTurn) agent.lastCompletedTurnId = turn.id;
       for (const item of turn.items || []) {

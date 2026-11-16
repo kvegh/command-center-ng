@@ -28,6 +28,211 @@ function pagedFixture() {
   return { ...f, setLatest: page => { latest = page; } };
 }
 
+test('restored terminal history does not resurrect an older unfinished Coordinator or worker turn', async () => {
+  for (const role of ['coordinator', 'worker']) for (const type of ['notLoaded', 'idle']) {
+    for (const status of ['interrupted', 'completed', 'failed']) {
+      const f = fixture();
+      f.agent.role = role; f.agent.thread.status = { type };
+      f.agent.turnId = 'orphan-old-turn';
+      f.rpc.call = async (method, params) => {
+        f.calls.push({ method, params }); assert.equal(method, 'thread/turns/list');
+        return { data: [
+          { ...historyTurn('latest-turn'), status },
+          historyTurn('newer-completed-turn'),
+          { ...historyTurn('orphan-old-turn'), status: 'inProgress' },
+        ], nextCursor: null };
+      };
+      await f.workspace.history(f.agent.id);
+      assert.equal(f.agent.turnId, null, `${role}/${type}/${status} must remain free of an obsolete active-turn binding`);
+      assert.deepEqual(f.agent.finishedTurn, { id: 'latest-turn', status });
+      assert.deepEqual(f.agent.messages.map(message => message.turnId), ['old-turn', 'orphan-old-turn', 'newer-completed-turn', 'latest-turn']);
+      assert.deepEqual(f.calls.map(call => call.method), ['thread/turns/list'], 'history recovery must not resume, interrupt or answer native work');
+    }
+  }
+});
+
+test('restoration still binds the latest unfinished native turn rather than an older unfinished turn', async () => {
+  for (const type of ['notLoaded', 'idle', 'active']) {
+    const f = fixture(); f.agent.thread.status = { type };
+    f.rpc.call = async (method, params) => {
+      f.calls.push({ method, params }); assert.equal(method, 'thread/turns/list');
+      return { data: [
+        { ...historyTurn('latest-active-turn'), status: 'inProgress' },
+        historyTurn('previous-completed-turn'),
+        { ...historyTurn('orphan-old-turn'), status: 'inProgress' },
+      ], nextCursor: null };
+    };
+    await f.workspace.history(f.agent.id);
+    assert.equal(f.agent.turnId, 'latest-active-turn');
+    assert.deepEqual(f.calls.map(call => call.method), ['thread/turns/list']);
+  }
+});
+
+test('historical unfinished turns cannot replace newer native lifecycle events received during restoration', async () => {
+  for (const outcome of ['started', 'completed']) {
+    const f = fixture(); f.agent.thread.status = { type: 'notLoaded' };
+    let finish;
+    f.rpc.call = async (method, params) => {
+      f.calls.push({ method, params }); assert.equal(method, 'thread/turns/list');
+      return new Promise(resolve => { finish = resolve; });
+    };
+    const read = f.workspace.history(f.agent.id);
+    f.workspace.notification({ method: 'turn/started', params: { threadId: f.agent.id, turn: { id: 'new-live-turn' } } });
+    if (outcome === 'completed') f.workspace.notification({ method: 'turn/completed', params: { threadId: f.agent.id, turn: { id: 'new-live-turn', status: 'interrupted' } } });
+    finish({ data: [
+      historyTurn('previous-completed-turn'),
+      { ...historyTurn('orphan-old-turn'), status: 'inProgress' },
+    ], nextCursor: null });
+    await read;
+    assert.equal(f.agent.turnId, outcome === 'started' ? 'new-live-turn' : null);
+    assert.equal(f.agent.thread.status.type, outcome === 'started' ? 'active' : 'idle');
+    if (outcome === 'completed') assert.deepEqual(f.agent.finishedTurn, { id: 'new-live-turn', status: 'interrupted' });
+    assert.deepEqual(f.calls.map(call => call.method), ['thread/turns/list']);
+  }
+});
+
+function observedCoordinatorFixture({ nativeType = 'notLoaded', terminalStatus = 'interrupted' } = {}) {
+  const f = fixture(), completions = [];
+  f.agent.role = 'coordinator'; f.agent.observingOnly = false;
+  f.agent.thread = { id: f.agent.id, status: { type: 'active' } };
+  f.agent.turnId = 'cached-old-turn';
+  const nativeThread = { id: f.agent.id, status: { type: nativeType } };
+  f.workspace.coordinator = {
+    id: f.agent.id, paused: false,
+    completed: (id, turnId) => { completions.push({ id, turnId }); },
+    flush: async () => {},
+    mark: () => {},
+  };
+  f.rpc.call = async (method, params) => {
+    f.calls.push({ method, params });
+    if (method === 'thread/read') return { thread: structuredClone(nativeThread) };
+    assert.equal(method, 'thread/turns/list');
+    return { data: [
+      { ...historyTurn('latest-native-turn'), status: terminalStatus },
+      { ...historyTurn('older-orphan-turn'), status: 'inProgress' },
+    ], nextCursor: null };
+  };
+  return { ...f, completions };
+}
+
+test('observation reconciles a cached Coordinator turn against fresh native terminal history without sending input', async () => {
+  for (const nativeType of ['notLoaded', 'idle']) for (const terminalStatus of ['interrupted', 'completed', 'failed']) {
+    const f = observedCoordinatorFixture({ nativeType, terminalStatus });
+    await f.workspace.refreshObserved(f.agent.id);
+    assert.equal(f.agent.thread.status.type, nativeType);
+    assert.equal(f.agent.turnId, null, 'a stale Coordinator turn must not keep eligible approvals waiting');
+    assert.deepEqual(f.agent.finishedTurn, { id: 'latest-native-turn', status: terminalStatus });
+    assert.deepEqual(f.completions, [{ id: f.agent.id, turnId: 'latest-native-turn' }], 'wake existing completion handling only after terminal evidence');
+    assert.deepEqual(f.calls.map(call => call.method), ['thread/read', 'thread/turns/list'], 'reconciliation must not resume, restart, steer or answer native work');
+  }
+});
+
+test('Coordinator lifecycle reconciliation preserves pending native requests, pauses and explicit stop intent', async () => {
+  const f = observedCoordinatorFixture();
+  const question = { id: 41, method: 'item/commandExecution/requestApproval', params: { threadId: f.agent.id, turnId: 'cached-old-turn', kind: 'humanCommand' } };
+  const stopIntent = {};
+  f.agent.questions = [question]; f.agent.requestStopIntent = stopIntent;
+  f.workspace.pending.set(JSON.stringify([f.agent.id, question.id]), question);
+  f.workspace.coordinator.paused = true;
+  await f.workspace.refreshObserved(f.agent.id);
+  assert.deepEqual(f.agent.questions, [question]);
+  assert.equal(f.workspace.pending.get(JSON.stringify([f.agent.id, question.id])), question);
+  assert.equal(f.agent.requestStopIntent, stopIntent);
+  assert.equal(f.workspace.coordinator.paused, true);
+  assert.deepEqual(f.completions, [], 'inspection must not rearm work while a user control or stop is pending');
+  assert.ok(f.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)), 'inspection must preserve the native decision control');
+});
+
+test('fresh native active Coordinator status preserves its current turn and pending question', async () => {
+  const f = observedCoordinatorFixture({ nativeType: 'active' });
+  const question = { id: 42, method: 'item/tool/requestUserInput', params: { threadId: f.agent.id } };
+  f.agent.questions = [question];
+  await f.workspace.refreshObserved(f.agent.id);
+  assert.equal(f.agent.turnId, 'cached-old-turn');
+  assert.equal(f.agent.thread.status.type, 'active');
+  assert.deepEqual(f.agent.questions, [question]);
+  assert.deepEqual(f.completions, []);
+  assert.deepEqual(f.calls.map(call => call.method), ['thread/read'], 'an active native turn needs no terminal-history recovery');
+});
+
+test('a newer Coordinator turn arriving during its status read prevents stale terminal reconciliation', async () => {
+  const f = observedCoordinatorFixture();
+  let finish;
+  f.rpc.call = async (method, params) => {
+    f.calls.push({ method, params }); assert.equal(method, 'thread/read');
+    return new Promise(resolve => { finish = resolve; });
+  };
+  const read = f.workspace.refreshObserved(f.agent.id);
+  f.workspace.notification({ method: 'turn/started', params: { threadId: f.agent.id, turn: { id: 'new-live-turn' } } });
+  finish({ thread: { id: f.agent.id, status: { type: 'notLoaded' } } });
+  await read;
+  assert.equal(f.agent.turnId, 'new-live-turn');
+  assert.equal(f.agent.thread.status.type, 'active');
+  assert.deepEqual(f.completions, []);
+  assert.deepEqual(f.calls.map(call => call.method), ['thread/read']);
+});
+
+test('a newer Coordinator turn arriving during terminal-history recovery remains current', async () => {
+  const f = observedCoordinatorFixture();
+  let finish;
+  f.rpc.call = async (method, params) => {
+    f.calls.push({ method, params });
+    if (method === 'thread/read') return { thread: { id: f.agent.id, status: { type: 'notLoaded' } } };
+    assert.equal(method, 'thread/turns/list');
+    return new Promise(resolve => { finish = resolve; });
+  };
+  const read = f.workspace.refreshObserved(f.agent.id);
+  await tick();
+  assert.equal(typeof finish, 'function', 'terminal history is inspected before releasing the old binding');
+  f.workspace.notification({ method: 'turn/started', params: { threadId: f.agent.id, turn: { id: 'new-live-turn' } } });
+  finish({ data: [{ ...historyTurn('cached-old-turn'), status: 'interrupted' }], nextCursor: null });
+  await read;
+  assert.equal(f.agent.turnId, 'new-live-turn');
+  assert.equal(f.agent.thread.status.type, 'active');
+  assert.deepEqual(f.completions, [], 'a stale read must not synthesize completion of newer native work');
+  assert.deepEqual(f.calls.map(call => call.method), ['thread/read', 'thread/turns/list']);
+});
+
+test('missing or unfinished native head evidence cannot release a cached Coordinator turn', async () => {
+  for (const head of [null, { ...historyTurn('latest-native-turn'), status: 'unknown' }, { ...historyTurn('cached-old-turn'), status: 'inProgress' }]) {
+    const f = observedCoordinatorFixture();
+    f.rpc.call = async (method, params) => {
+      f.calls.push({ method, params });
+      if (method === 'thread/read') return { thread: { id: f.agent.id, status: { type: 'notLoaded' } } };
+      assert.equal(method, 'thread/turns/list');
+      return { data: head ? [head] : [], nextCursor: null };
+    };
+    await f.workspace.refreshObserved(f.agent.id);
+    assert.equal(f.agent.turnId, 'cached-old-turn');
+    assert.deepEqual(f.completions, [], 'an unloaded thread alone does not establish terminal completion');
+    assert.deepEqual(f.calls.map(call => call.method), ['thread/read', 'thread/turns/list']);
+  }
+});
+
+test('failed native observation retains the cached Coordinator turn and exposes the read error', async () => {
+  for (const failure of ['thread/read', 'thread/turns/list']) {
+    const f = observedCoordinatorFixture();
+    f.rpc.call = async (method, params) => {
+      f.calls.push({ method, params });
+      if (method === failure) throw new Error('Synthetic native read unavailable.');
+      assert.equal(method, 'thread/read');
+      return { thread: { id: f.agent.id, status: { type: 'notLoaded' } } };
+    };
+    await f.workspace.refreshObserved(f.agent.id);
+    assert.equal(f.agent.turnId, 'cached-old-turn');
+    assert.equal(f.agent.observeError, 'Synthetic native read unavailable.');
+    assert.deepEqual(f.completions, []);
+    assert.ok(f.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)));
+  }
+});
+
+test('an activated Coordinator without a cached turn adds no native observation work', async () => {
+  const f = observedCoordinatorFixture(); f.agent.turnId = null;
+  await f.workspace.refreshObserved(f.agent.id);
+  assert.deepEqual(f.calls, []);
+  assert.deepEqual(f.completions, []);
+});
+
 test('refreshing recent history keeps already loaded older pages before it', async () => {
   const f = pagedFixture();
   await f.workspace.history('worker');

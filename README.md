@@ -65,6 +65,9 @@ states are historical. EXIF metadata was removed without changing image pixels.
   Amber marks actual user action: a concern or referral, a decision question or
   specific input. Configured Coordinator review and confirmation waits stay neutral.
 - Attempt automatic reconnection of eligible active Codex waits with missing request details, without answering approvals. A delivered file approval missing its proposal can receive one guarded live snapshot after bounded history lookup.
+  Reconcile an interrupted Coordinator with current native history so a stale
+  active-turn indicator cannot indefinitely block reviews. Pending questions,
+  actual active turns and pause controls remain authoritative.
 - Branch a Codex conversation, then hand tasks and a summary back to its parent.
 - See linked Beads tasks with input needs and blockers first, conditional On hold states and optional native browser task notifications.
   Open ordinary tasks to read their recorded context and blocker notes directly;
