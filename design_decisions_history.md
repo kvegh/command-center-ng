@@ -27,6 +27,34 @@ not activation in the requested worker or a classifier tool decision. Initial
 application deployment still requires a safe restart; the worker was last
 reported busy. Activation and publication outcomes are recorded when verified.
 
+## 2026-11-16, 16:47 UTC — Activate the exact Claude Auto selection
+
+The user confirmed that the requested Claude worker was paused and authorized
+the initial application restart. The normal update installed public 1.30.0
+implementation `ee2827c6067d1d48d7f2c8cf1b28671eb1477292`, using companion
+0.4.11 implementation `9ade22c614bfbbb38c85030fa8c0ae4b38118a26`. Only the
+selected session line was added to the existing private runtime configuration.
+The application update succeeded at 16:46:05.552522–16:46:30.200843 UTC.
+Twelve protected-file states, four saved worker identities, workspace settings,
+file permissions, existing provider authentication and native Codex daemon
+were preserved. The existing application service restarted once. No project
+prompt was sent and the user's worker pause was preserved.
+
+Independent verification succeeded at 16:46:46.288621–16:47:02.406827 UTC.
+All 117 installed source files matched; trusted HTTPS, authentication denial,
+served assets and both listeners passed. All 83 focused checks against copied
+installed modules passed without failures or skips in 4.559 seconds. Shared
+instructions and the private approval policy were unchanged. A real isolated
+request through the deployed official SDK and Vertex provider reported Auto
+and returned the expected response, with tools disabled and persistence off.
+
+The exact requested worker is configured for Auto on its next managed run.
+No native mode event from that paused worker was manufactured or observed;
+the isolated provider check is not a classifier tool-decision test or complete
+browser acceptance. These outcomes supersede the earlier activation-pending
+entry. Future selector changes can use the existing owner-triggered reload
+without a browser or application restart.
+
 ## 2026-11-16, UTC — Preserve existing Claude Vertex settings in services
 
 The user reported that an interactive Claude session authenticated while its
