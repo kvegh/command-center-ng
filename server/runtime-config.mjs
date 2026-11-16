@@ -13,9 +13,19 @@ const options = {
   first_password_setup: 'first-password-setup',
   concern_review_worker: 'concern-review-worker',
   approval_policy: 'approvalPolicyFile',
+  claude_auto_review_sessions: 'claudeAutoReviewSessions',
 };
 
 export const runtimeConfigFile = appDir => join(appDir, 'etc', 'config.conf');
+
+export function normalizeClaudeAutoReviewSessions(value) {
+  if (value === undefined || value === null || value === 'disabled') return [];
+  const ids = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',').map(id => id.trim()) : null;
+  if (!ids || ids.length > 16 || ids.some(id => typeof id !== 'string' || !/^claude-[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id))) {
+    throw new Error('claude_auto_review_sessions must be disabled or at most sixteen full Claude worker IDs separated by commas.');
+  }
+  return [...new Set(ids.map(id => id.toLowerCase()))];
+}
 
 export function normalizeConcernReviewWorker(value) {
   if (value === undefined || value === null || value === 'disabled') return null;
@@ -42,6 +52,10 @@ export function parseRuntimeConfig(text, directory) {
     if (key === 'first_password_setup' && !['disabled', 'htpasswd-proxy'].includes(value)) throw invalid('first_password_setup must be disabled or htpasswd-proxy.');
     if (key === 'concern_review_worker') {
       try { normalizeConcernReviewWorker(value); } catch (error) { throw invalid(error.message); }
+    }
+    if (key === 'claude_auto_review_sessions') {
+      try { values.claudeAutoReviewSessions = normalizeClaudeAutoReviewSessions(value); } catch (error) { throw invalid(error.message); }
+      seen.add(key); continue;
     }
     if (key === 'port' && (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 65535)) throw invalid('port must be from 1 to 65535.');
     seen.add(key);

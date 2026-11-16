@@ -36,6 +36,7 @@ async function fixture({ active = [], history = [] } = {}) {
       query.supportedModels = async () => [{ value: 'native-model', displayName: 'Native model', description: '', supportedEffortLevels: ['medium', 'high'] }];
       query.setModel = async value => { controls.push(['model', value]); };
       query.applyFlagSettings = async value => { controls.push(['settings', value]); };
+      query.setPermissionMode = async value => { controls.push(['permissionMode', value]); };
       return query;
     }
   };
@@ -313,6 +314,171 @@ test('Claude model controls use SDK catalog/control acknowledgments without addi
     addClaudeMessage(agent, { type: 'assistant', uuid: 'current-turn', message: { model: 'previous-turn-model', content: [{ type: 'text', text: 'Current work continues.' }] } }, turn);
     assert.equal(agent.model, 'native-model', 'current-turn output cannot overwrite the acknowledged subsequent-turn setting');
     assert.equal(agent.currentTurnModel, 'previous-turn-model');
+  } finally { await f.close(); }
+});
+
+test('Claude permission settings never start or take over a process and reject wider permission payloads', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId);
+    assert.deepEqual(f.runtime.permissionSettings(agent), { available: false, mode: null, change: null, configuredAuto: false });
+    await assert.rejects(f.runtime.updatePermissionMode(agent, { mode: 'auto' }), /currently managed/);
+    for (const choice of [null, [], {}, { mode: 'bypassPermissions' }, { mode: 'acceptEdits' }, { mode: 'auto', allowedTools: ['Bash'] }, { permissionMode: 'auto' }]) await assert.rejects(f.runtime.updatePermissionMode(agent, choice), /only a Claude permission mode/);
+    assert.equal(f.queries.length, 0);
+    await f.runtime.send(agent, 'Review this project.');
+    delete f.queries[0].setPermissionMode;
+    assert.equal(f.runtime.permissionSettings(agent).available, false);
+    await assert.rejects(f.runtime.updatePermissionMode(agent, { mode: 'auto' }), /currently managed/);
+    assert.deepEqual(f.controls, []);
+  } finally { await f.close(); }
+});
+
+test('Claude permission changes are session-only and preserve pending callbacks, model and other workers', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId), other = f.runtime.create('/example/other-project', 'Other work');
+    await f.runtime.send(agent, 'Review this project.'); await f.runtime.send(other, 'Review the other project.');
+    const [query, otherQuery] = f.queries;
+    query.supportedModels = () => assert.fail('Mode changes do not require a model catalog request.');
+    query.push({ type: 'system', subtype: 'init', session_id: nativeId, model: 'native-model', permissionMode: 'default' });
+    otherQuery.push({ type: 'system', subtype: 'init', session_id: other.nativeSessionId, model: 'other-model', permissionMode: 'default' });
+    await until(() => agent.model === 'native-model' && other.model === 'other-model');
+    const pending = query.params.options.canUseTool('Bash', { command: 'read-project-metadata' }, { requestId: 'mode-request', toolUseID: 'mode-tool', signal: new AbortController().signal });
+    const question = agent.questions[0], turn = agent.turnId;
+    const result = await f.runtime.updatePermissionMode(agent, { mode: 'auto' });
+    assert.deepEqual(result, { available: true, mode: 'default', change: { mode: 'auto', status: 'acknowledged' }, configuredAuto: false }, 'native acknowledgement must not invent observed mode');
+    assert.deepEqual(f.controls, [['permissionMode', 'auto']]);
+    assert.equal(agent.questions[0], question); assert.equal(!!question.responding, false);
+    assert.equal(agent.turnId, turn); assert.equal(agent.model, 'native-model');
+    assert.deepEqual(f.runtime.permissionSettings(other), { available: true, mode: 'default', change: null, configuredAuto: false });
+    assert.equal(f.queries.length, 2, 'no additional query is started');
+    query.push({ type: 'system', subtype: 'status', session_id: nativeId, permissionMode: 'auto' });
+    await until(() => f.runtime.permissionSettings(agent).mode === 'auto');
+    f.runtime.answer(agent, question.id, { decision: 'decline' }); assert.equal((await pending).behavior, 'deny');
+  } finally { await f.close(); }
+});
+
+test('Claude permission control serializes writes and reports a native refusal without retry or provider changes', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId); await f.runtime.send(agent, 'Review.');
+    let rejectMode; const query = f.queries[0]; let calls = 0;
+    query.setPermissionMode = () => { calls++; return new Promise((resolve, reject) => { rejectMode = reject; }); };
+    const changing = f.runtime.updatePermissionMode(agent, { mode: 'auto' });
+    assert.equal(f.runtime.permissionSettings(agent).change.status, 'pending');
+    await assert.rejects(f.runtime.updatePermissionMode(agent, { mode: 'default' }), /already pending/);
+    rejectMode(new Error('Cannot set permission mode to auto: auto mode unavailable for this model'));
+    await assert.rejects(changing, /unavailable for this model/);
+    assert.equal(calls, 1); assert.equal(f.queries.length, 1); assert.deepEqual(f.controls, []);
+    const state = f.runtime.permissionSettings(agent);
+    assert.equal(state.mode, null); assert.equal(state.change.status, 'unconfirmed'); assert.match(state.change.error, /unavailable for this model/);
+  } finally { await f.close(); }
+});
+
+test('new native fallback wins over a delayed permission acknowledgement and malformed mode events are ignored', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId); await f.runtime.send(agent, 'Review.');
+    const query = f.queries[0]; let acknowledge;
+    query.setPermissionMode = () => new Promise(resolve => { acknowledge = resolve; });
+    const changing = f.runtime.updatePermissionMode(agent, { mode: 'auto' });
+    query.push({ type: 'system', subtype: 'status', session_id: nativeId, permissionMode: 'auto' });
+    await until(() => agent.permissionMode === 'auto');
+    query.push({ type: 'system', subtype: 'status', session_id: nativeId, permissionMode: 'default' });
+    query.push({ type: 'system', subtype: 'status', session_id: nativeId, permissionMode: 'invented-mode' });
+    await until(() => agent.permissionMode === 'default');
+    acknowledge(); const state = await changing;
+    assert.equal(state.mode, 'default'); assert.equal(state.change.status, 'acknowledged');
+    query.close(); await until(() => !f.runtime.runs.has(agent.id));
+    assert.equal(agent.permissionSettingsAvailable, false); assert.equal(agent.permissionMode, null);
+    assert.equal(f.runtime.permissionSettings(agent).available, false);
+    assert.equal(f.runtime.permissionSettings(agent).change.status, 'unconfirmed');
+  } finally { await f.close(); }
+});
+
+test('permission acknowledgements from an ended or replaced query cannot update the new process', async () => {
+  for (const replacement of [false, true]) {
+    const f = await fixture();
+    try {
+      const agent = await f.runtime.open(workerId); await f.runtime.send(agent, 'Review.');
+      const oldQuery = f.queries[0]; let acknowledge;
+      oldQuery.setPermissionMode = () => new Promise(resolve => { acknowledge = resolve; });
+      const changing = f.runtime.updatePermissionMode(agent, { mode: 'auto' });
+      oldQuery.close(); await until(() => !f.runtime.runs.has(agent.id));
+      if (replacement) {
+        await f.runtime.send(agent, 'Continue in the replacement process.');
+        f.queries[1].push({ type: 'system', subtype: 'init', session_id: nativeId, permissionMode: 'default' });
+        await until(() => agent.permissionMode === 'default');
+      }
+      acknowledge(); await assert.rejects(changing, /changed before confirmation/);
+      const state = f.runtime.permissionSettings(agent);
+      assert.equal(state.available, replacement); assert.equal(state.mode, replacement ? 'default' : null);
+      assert.equal(state.change?.status ?? null, replacement ? null : 'unconfirmed');
+    } finally { await f.close(); }
+  }
+});
+
+test('Claude Auto-review selection validates before mutation and configures unloaded sessions without starting work', async () => {
+  const f = await fixture();
+  try {
+    for (const ids of [null, {}, ['invalid'], [nativeId], Array(17).fill(workerId)]) await assert.rejects(f.runtime.configureAutoReviewSessions(ids), /at most sixteen valid/);
+    assert.equal(f.runtime.autoReviewSessions.size, 0); assert.equal(f.queries.length, 0);
+    assert.deepEqual(await f.runtime.configureAutoReviewSessions([workerId, workerId]), [{ id: workerId, status: 'configured', mode: 'auto', observedMode: null }]);
+    assert.equal(f.queries.length, 0);
+    const agent = await f.runtime.open(workerId);
+    assert.equal(agent.autoReviewConfigured, true);
+    assert.deepEqual(f.runtime.permissionSettings(agent), { available: false, mode: null, change: null, configuredAuto: true });
+    assert.deepEqual(await f.runtime.configureAutoReviewSessions([workerId]), []);
+    assert.equal(f.queries.length, 0); assert.deepEqual(f.controls, []);
+    await f.runtime.configureAutoReviewSessions([]);
+    assert.equal(agent.autoReviewConfigured, false); assert.equal(f.runtime.permissionSettings(agent).configuredAuto, false);
+  } finally { await f.close(); }
+});
+
+test('only explicitly selected Claude sessions pass auto mode to a new native query', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId), other = f.runtime.create('/example/other-project', 'Other work');
+    await f.runtime.configureAutoReviewSessions([workerId]);
+    await f.runtime.send(agent, 'Review selected work.'); await f.runtime.send(other, 'Review other work.');
+    assert.equal(f.queries[0].params.options.permissionMode, 'auto');
+    assert.equal(Object.hasOwn(f.queries[1].params.options, 'permissionMode'), false, 'unselected sessions retain native defaults');
+    assert.equal(f.runtime.permissionSettings(agent).mode, null, 'configured startup option is not a native observed mode');
+    assert.deepEqual(f.controls, []);
+  } finally { await f.close(); }
+});
+
+test('Claude selection deltas update only affected managed queries and preserve existing pending callbacks', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId), other = f.runtime.create('/example/other-project', 'Other work');
+    await f.runtime.send(agent, 'Review selected work.'); await f.runtime.send(other, 'Review other work.');
+    const query = f.queries[0], pending = query.params.options.canUseTool('Bash', { command: 'read-project-metadata' }, { requestId: 'configured-request', toolUseID: 'configured-tool', signal: new AbortController().signal });
+    const question = agent.questions[0];
+    assert.deepEqual(await f.runtime.configureAutoReviewSessions([workerId]), [{ id: workerId, status: 'acknowledged', mode: 'auto', observedMode: null }]);
+    assert.equal(agent.autoReviewConfigured, true); assert.equal(other.autoReviewConfigured, false);
+    assert.equal(agent.questions[0], question); assert.equal(!!question.responding, false);
+    assert.deepEqual(await f.runtime.configureAutoReviewSessions([workerId]), []);
+    assert.deepEqual(await f.runtime.configureAutoReviewSessions([]), [{ id: workerId, status: 'acknowledged', mode: 'default', observedMode: null }]);
+    assert.deepEqual(f.controls, [['permissionMode', 'auto'], ['permissionMode', 'default']], 'only the previously selected query is reset');
+    assert.equal(f.queries.length, 2); assert.equal(other.permissionChange, null);
+    f.runtime.answer(agent, question.id, { decision: 'decline' }); assert.equal((await pending).behavior, 'deny');
+  } finally { await f.close(); }
+});
+
+test('failed live Auto-review selection stays configured for future starts without retrying an unchanged selection', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId); await f.runtime.send(agent, 'Review.');
+    let calls = 0; f.queries[0].setPermissionMode = async () => { calls++; throw new Error('Native mode unavailable.'); };
+    const [result] = await f.runtime.configureAutoReviewSessions([workerId]);
+    assert.equal(result.status, 'unconfirmed'); assert.match(result.error, /Native mode unavailable/);
+    assert.equal(f.runtime.permissionSettings(agent).configuredAuto, true); assert.equal(agent.autoReviewConfigured, true);
+    assert.equal(f.runtime.permissionSettings(agent).mode, null);
+    assert.deepEqual(await f.runtime.configureAutoReviewSessions([workerId]), []); assert.equal(calls, 1);
+    f.queries[0].close(); await until(() => !f.runtime.runs.has(agent.id));
+    await f.runtime.send(agent, 'Explicitly continue.');
+    assert.equal(f.queries[1].params.options.permissionMode, 'auto', 'selection applies only when work explicitly starts a new owned query');
   } finally { await f.close(); }
 });
 

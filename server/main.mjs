@@ -14,7 +14,7 @@ import { authenticationUnavailable } from './session-store.mjs';
 import { VERSION } from './version.mjs';
 import { resolveListenAddress, listenAddresses } from './listen-address.mjs';
 import { loadTlsSettings, certificateInfo } from './tls-settings.mjs';
-import { readRuntimeConfig, runtimeConfigFile, normalizeConcernReviewWorker } from './runtime-config.mjs';
+import { readRuntimeConfig, runtimeConfigFile, normalizeConcernReviewWorker, normalizeClaudeAutoReviewSessions } from './runtime-config.mjs';
 import { approvalPolicyFile, readApprovalPolicy } from './approval-policy.mjs';
 import { ensureCodexQuestions } from './codex-setup.mjs';
 import { WorkspaceStore, WorkspacePersistence } from './workspace-store.mjs';
@@ -57,6 +57,8 @@ async function body(request, limit = 65_536) {
 export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), workspaceFile, config = {} } = {}) {
   const settings = { host: '127.0.0.1', port: 4242, protocol: 'http', cwd: process.cwd(), dev: false, ...config };
   settings.concernReviewWorkerId = normalizeConcernReviewWorker(settings.concernReviewWorkerId);
+  settings.claudeAutoReviewSessions = normalizeClaudeAutoReviewSessions(settings.claudeAutoReviewSessions);
+  settings.runtimeConfigFile ||= runtimeConfigFile(root);
   if (settings.protocol !== undefined && !['http', 'https'].includes(settings.protocol)) throw new Error('Choose --protocol http or https.');
   if (settings.publicOrigin) {
     const parsed = new URL(settings.publicOrigin);
@@ -95,6 +97,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
     workspace = new Workspace(rpc, { coordinator: { concernReviewWorkerId: settings.concernReviewWorkerId || null, approvalPolicy: policy }, claude: true });
   }
   await workspace.claude?.initialize();
+  await workspace.claude?.configureAutoReviewSessions?.(settings.claudeAutoReviewSessions);
   await workspace.beads?.checkAvailable(settings.cwd);
   // Load past decisions before restoration can publish a new startup dashboard.
   // These explanatory records never restore approvals or queued actions.
@@ -102,6 +105,22 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
   const persistence = new WorkspacePersistence(workspace, new WorkspaceStore(workspaceFile || join(dirname(authFile), 'workspace.json')));
   await persistence.initialize();
   let appClosing = false;
+  let permissionReload = null;
+  const reloadClaudePermissions = async () => {
+    if (appClosing) throw failure('Command Center is shutting down; permission configuration was not reloaded.', 409);
+    if (permissionReload) throw failure('A Claude permission reload is already pending; wait for its outcome.', 409);
+    const reload = async () => {
+      const next = await readRuntimeConfig(settings.runtimeConfigFile);
+      const selected = normalizeClaudeAutoReviewSessions(next.claudeAutoReviewSessions);
+      if (appClosing) throw failure('Command Center is shutting down; permission configuration was not applied.', 409);
+      if (!workspace.claude?.configureAutoReviewSessions) throw failure('Local Claude permission configuration is unavailable.', 503);
+      const result = await workspace.claude.configureAutoReviewSessions(selected);
+      settings.claudeAutoReviewSessions = selected;
+      return result;
+    };
+    permissionReload = reload();
+    try { return await permissionReload; } finally { permissionReload = null; }
+  };
   // Existing service logs distinguish transport loss from a slow browser;
   // never log request bodies, native messages or browser session details.
   rpc.on('disconnected', (_message, details) => {
@@ -285,6 +304,9 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
         }
         const detailRoute = path.match(/^\/api\/agents\/([^/]+)\/tasks\/([^/]+)$/);
         if (detailRoute && request.method === 'GET') return json(response, await workspace.taskDetail(decodeURIComponent(detailRoute[1]), decodeURIComponent(detailRoute[2])));
+        const permissionRoute = path.match(/^\/api\/agents\/([^/]+)\/permission-settings$/);
+        if (permissionRoute && request.method === 'GET') return json(response, await workspace.permissionSettings(decodeURIComponent(permissionRoute[1])));
+        if (permissionRoute && request.method === 'POST') return json(response, await workspace.updatePermissionMode(decodeURIComponent(permissionRoute[1]), await body(request)));
         const modelRoute = path.match(/^\/api\/agents\/([^/]+)\/model-settings$/);
         if (modelRoute && request.method === 'GET') return json(response, await workspace.modelSettings(decodeURIComponent(modelRoute[1])));
         if (modelRoute && request.method === 'POST') return json(response, await workspace.updateModel(decodeURIComponent(modelRoute[1]), await body(request)));
@@ -397,7 +419,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
       throw error;
     }
   };
-  return { server, listen, workspace, rpc, close, settings, persistence, connectNativeRuntime };
+  return { server, listen, workspace, rpc, close, settings, persistence, connectNativeRuntime, reloadClaudePermissions };
 }
 
 export function runtimeOptions(args = process.argv.slice(2), env = process.env, fileValues = {}) {
@@ -424,6 +446,8 @@ export async function loadRuntimeOptions(args = process.argv.slice(2), env = pro
   const fileValues = await readRuntimeConfig(runtimeConfigFile(appDir));
   return { ...runtimeOptions(args, env, fileValues),
     approvalPolicyFile: fileValues.approvalPolicyFile || approvalPolicyFile(appDir),
+    claudeAutoReviewSessions: normalizeClaudeAutoReviewSessions(fileValues.claudeAutoReviewSessions),
+    runtimeConfigFile: runtimeConfigFile(appDir),
     approvalPolicyConfigured: Object.hasOwn(fileValues, 'approvalPolicyFile') };
 }
 
@@ -504,7 +528,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       const port = Number(values.port); if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Choose a port from 1 to 65535.');
       if (!['http', 'https'].includes(values.protocol)) throw new Error('Choose --protocol http or https.');
       const selection = await resolveListenAddress(values.host);
-      const app = await createApp({ config: { host: selection.host, port, protocol: values.protocol, cwd: resolve(values.cwd), socketPath: values.socket, publicOrigin: values['public-origin'], firstPasswordSetup: values['first-password-setup'], concernReviewWorkerId: values['concern-review-worker'], approvalPolicyFile: values.approvalPolicyFile, approvalPolicyConfigured: values.approvalPolicyConfigured, tlsCert: values['tls-cert'], tlsKey: values['tls-key'], dev: values.dev } });
+      const app = await createApp({ config: { host: selection.host, port, protocol: values.protocol, cwd: resolve(values.cwd), socketPath: values.socket, publicOrigin: values['public-origin'], firstPasswordSetup: values['first-password-setup'], concernReviewWorkerId: values['concern-review-worker'], approvalPolicyFile: values.approvalPolicyFile, approvalPolicyConfigured: values.approvalPolicyConfigured, claudeAutoReviewSessions: values.claudeAutoReviewSessions, runtimeConfigFile: values.runtimeConfigFile, tlsCert: values['tls-cert'], tlsKey: values['tls-key'], dev: values.dev } });
       // Startup observes the native setup without changing a shared Codex profile.
       const codexSetup = await ensureCodexQuestions({ enable: false });
       for (const warning of codexSetup.warnings) console.warn('Codex setup warning: ' + warning);
@@ -515,6 +539,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       }
       if (app.settings.certificate) console.log('TLS certificate: ' + JSON.stringify(app.settings.certificate));
       void app.connectNativeRuntime();
+      process.on('SIGHUP', () => {
+        void app.reloadClaudePermissions().then(result => console.log('Claude permission configuration reloaded: ' + JSON.stringify(result)))
+          .catch(error => console.warn('Claude permission configuration reload failed: ' + error.message));
+      });
       for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { app.close().then(() => process.exit(0)); });
     }
   } catch (error) { console.error(`Cannot start: ${error.code === 'ENOENT' ? 'Set the application password first: npm run password' : error.message}`); process.exitCode = 1; }

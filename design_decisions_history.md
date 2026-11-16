@@ -1,5 +1,32 @@
 # Design decisions history
 
+## 2026-11-16, UTC — Native Claude Auto mode for exact sessions
+
+The user requested Auto mode for one existing Claude worker, then clarified that
+the backend must be able to apply it without an authenticated browser action.
+Use the installed SDK's native `setPermissionMode` and retain the existing
+provider/model. The existing private runtime file now accepts a bounded exact
+session list. Owner-triggered SIGHUP reloads only that selection; it introduces
+no new service, timer, state file, permission bypass or global provider default.
+Selected future processes receive Auto explicitly, while changed selections on
+already managed processes use the live SDK control without restarting them.
+Removing a selection requests Manual only for that previously selected session.
+
+Optional authenticated per-chat controls use the same native operation. Native
+observed mode, request acknowledgement, unconfirmed outcome and configured
+future selection remain distinct. Existing callbacks, pending approvals, other
+workers and Codex permissions remain unchanged. Invalid payloads, replaced
+queries, native refusals and model-driven fallback do not create false success
+or automatic retries. Restoration/configuration starts no model work.
+
+Five focused source suites passed 65 checks without failures or skips in
+4.398 seconds; TypeScript and production build passed. An isolated real native
+Vertex request reported Auto mode and returned its expected response, with
+tools disabled and session persistence off. That proves native availability,
+not activation in the requested worker or a classifier tool decision. Initial
+application deployment still requires a safe restart; the worker was last
+reported busy. Activation and publication outcomes are recorded when verified.
+
 ## 2026-11-16, UTC — Preserve existing Claude Vertex settings in services
 
 The user reported that an interactive Claude session authenticated while its

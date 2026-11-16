@@ -14,6 +14,7 @@ const run = promisify(execFile);
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const fail = (message, status = 409) => Object.assign(new Error(message), { status });
 const bounded = value => String(value ?? '').slice(0, 32_000);
+const permissionModes = new Set(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk', 'auto']);
 export const CLAUDE_APPROVAL = 'claude/tool/requestApproval';
 export const CLAUDE_QUESTION = 'claude/tool/requestUserInput';
 export const CLAUDE_ELICITATION = 'claude/mcp/elicitation/request';
@@ -87,6 +88,7 @@ export class ClaudeSessions extends EventEmitter {
   constructor({ loadSdk = () => import('@anthropic-ai/claude-agent-sdk'), executable = nativeExecutable, activeSessions = readActiveClaudeSessions } = {}) {
     super(); this.loadSdk = loadSdk; this.findExecutable = executable; this.readActive = activeSessions;
     this.records = new Map(); this.runs = new Map(); this.starts = new Map(); this.requests = new Map(); this.available = false; this.error = null; this.activeCache = null; this.stopped = false;
+    this.autoReviewSessions = new Set();
   }
   async initialize() {
     try {
@@ -105,7 +107,7 @@ export class ClaudeSessions extends EventEmitter {
   }
   make(info, goal) {
     const id = 'claude-' + info.sessionId;
-    return { id, nativeSessionId: info.sessionId, provider: 'claude', role: 'worker', name: info.customTitle || info.summary || goal || 'Claude agent', goal: goal || info.firstPrompt || info.summary || 'No goal recorded', cwd: info.cwd, model: null, reasoningEffort: null, modelSettingsAvailable: false, thread: { id, cwd: info.cwd, status: { type: 'idle' } }, parentId: null, canSend: true, canBranch: false, messages: [], tasks: [], workers: [], questions: [], turnId: null, lastCompletedTurnId: null, olderCursor: null, activity: null, summary: null, reportIntervalMinutes: 0, reportError: null, observingOnly: true };
+    return { id, nativeSessionId: info.sessionId, provider: 'claude', role: 'worker', name: info.customTitle || info.summary || goal || 'Claude agent', goal: goal || info.firstPrompt || info.summary || 'No goal recorded', cwd: info.cwd, model: null, reasoningEffort: null, modelSettingsAvailable: false, permissionSettingsAvailable: false, permissionMode: null, permissionChange: null, autoReviewConfigured: this.autoReviewSessions.has(id), thread: { id, cwd: info.cwd, status: { type: 'idle' } }, parentId: null, canSend: true, canBranch: false, messages: [], tasks: [], workers: [], questions: [], turnId: null, lastCompletedTurnId: null, olderCursor: null, activity: null, summary: null, reportIntervalMinutes: 0, reportError: null, observingOnly: true };
   }
   async list(cursor) {
     this.ready(); const offset = cursor ? Number(cursor) : 0;
@@ -155,15 +157,18 @@ export class ClaudeSessions extends EventEmitter {
       const inputs = new Inputs(), abortController = new AbortController();
       const job = { inputs, abortController, turnId: null, result: null, nativeStateSeen: false, streamId: null, streamText: '' };
       this.runs.set(agent.id, job); agent.externalSession = false; agent.canSend = true; agent.observingOnly = false; agent.managementNotice = null;
+      agent.permissionMode = null; agent.permissionChange = null; agent.permissionSettingsAvailable = false;
       try {
         job.query = this.sdk.query({ prompt: inputs, options: {
           cwd: agent.cwd, pathToClaudeCodeExecutable: this.executable, settingSources: ['user', 'project', 'local'],
+          ...(this.autoReviewSessions.has(agent.id) ? { permissionMode: 'auto' } : {}),
           ...(agent.newSession ? { sessionId: agent.nativeSessionId, title: agent.name } : { resume: agent.nativeSessionId }),
           systemPrompt: { type: 'preset', preset: 'claude_code', append: instructions }, includePartialMessages: true, abortController,
           canUseTool: (name, input, options) => this.permission(agent, name, input, options),
           onElicitation: (request, options) => this.elicitation(agent, request, options)
         } });
         agent.modelSettingsAvailable = ['supportedModels', 'setModel', 'applyFlagSettings'].every(name => typeof job.query[name] === 'function');
+        agent.permissionSettingsAvailable = typeof job.query.setPermissionMode === 'function';
         job.done = this.consume(agent, job); job.done.catch(() => {});
       } catch (error) { this.runs.delete(agent.id); throw error; }
       return job;
@@ -187,7 +192,9 @@ export class ClaudeSessions extends EventEmitter {
   }
   async consume(agent, job) {
     try { for await (const message of job.query) {
+      if (this.runs.get(agent.id) !== job) break;
       if (message.session_id && message.session_id !== agent.nativeSessionId) throw new Error('Claude returned a different session identity; this run was stopped.');
+      if (message.type === 'system' && ['init', 'status'].includes(message.subtype) && permissionModes.has(message.permissionMode)) agent.permissionMode = message.permissionMode;
       if (message.type === 'system' && message.subtype === 'init') { if (!agent.sdkModelOverride) agent.model = message.model || agent.model; agent.newSession = false; }
       if (message.type === 'stream_event') {
         const event = message.event;
@@ -221,11 +228,16 @@ export class ClaudeSessions extends EventEmitter {
       this.changed(agent);
     } } catch (error) { agent.runError = 'Claude session stopped: ' + error.message; agent.thread.status = { type: 'systemError' }; try { job.query.close?.(); } finally { job.abortController.abort(); } }
     finally {
-      if (this.runs.get(agent.id) === job) this.runs.delete(agent.id);
-      job.inputs.close(); agent.turnId = null; agent.modelSettingsAvailable = false; agent.modelChange = null; agent.reasoningEffort = null; delete agent.sdkModelOverride;
-      for (const question of [...agent.questions]) this.cancel(agent, question.id, 'The native Claude process ended.');
-      if (agent.thread.status.type !== 'systemError') agent.thread.status = { type: 'idle' };
-      this.changed(agent);
+      job.inputs.close();
+      if (this.runs.get(agent.id) === job) {
+        this.runs.delete(agent.id);
+        agent.turnId = null; agent.modelSettingsAvailable = false; agent.modelChange = null; agent.reasoningEffort = null; delete agent.sdkModelOverride;
+        agent.permissionSettingsAvailable = false; agent.permissionMode = null;
+        if (agent.permissionChange) agent.permissionChange = { ...agent.permissionChange, status: 'unconfirmed', error: 'The managed Claude process ended; its current permission mode is unavailable.' };
+        for (const question of [...agent.questions]) this.cancel(agent, question.id, 'The native Claude process ended.');
+        if (agent.thread.status.type !== 'systemError') agent.thread.status = { type: 'idle' };
+        this.changed(agent);
+      }
     }
   }
   finishTurn(agent, job) {
@@ -296,6 +308,56 @@ export class ClaudeSessions extends EventEmitter {
     this.confirm(agent, undefined, id);
   }
   async interrupt(agent) { const job = this.runs.get(agent.id); if (!job || !agent.turnId) throw fail('Only a Claude turn managed by this Command Center can be interrupted here.'); await job.query.interrupt(); }
+  permissionSettings(agent) {
+    const job = this.records.get(agent.id) === agent && this.runs.get(agent.id);
+    const available = !!(this.available && !this.stopped && job?.query && typeof job.query.setPermissionMode === 'function');
+    return { available, mode: available ? agent.permissionMode : null, change: agent.permissionChange || null, configuredAuto: this.autoReviewSessions.has(agent.id) };
+  }
+  async configureAutoReviewSessions(ids) {
+    if (!Array.isArray(ids) || ids.length > 16 || ids.some(id => !isClaudeId(id))) throw fail('Choose at most sixteen valid local Claude session IDs for Auto-review.', 400);
+    const selected = new Set(ids), previous = this.autoReviewSessions;
+    const changes = [...new Set([...previous, ...selected])].filter(id => previous.has(id) !== selected.has(id))
+      .map(id => ({ id, mode: selected.has(id) ? 'auto' : 'default', agent: this.records.get(id), job: this.runs.get(id) }));
+    this.autoReviewSessions = selected;
+    const results = [];
+    for (const { id, mode, agent, job } of changes) {
+      if (agent) { agent.autoReviewConfigured = selected.has(id); this.changed(agent); }
+      // Only an existing owned process is updated. Unloaded sessions retain
+      // this selection for their next explicit start without being resumed.
+      if (!agent || !job || this.records.get(id) !== agent || this.runs.get(id) !== job) {
+        results.push({ id, status: 'configured', mode, observedMode: null }); continue;
+      }
+      try {
+        const state = await this.updatePermissionMode(agent, { mode });
+        results.push({ id, status: state.change.status, mode, observedMode: state.mode });
+      } catch (error) {
+        results.push({ id, status: 'unconfirmed', mode, observedMode: this.permissionSettings(agent).mode, error: bounded(error.message) });
+      }
+    }
+    return results;
+  }
+  async updatePermissionMode(agent, choice) {
+    if (!choice || typeof choice !== 'object' || Array.isArray(choice) || Object.keys(choice).length !== 1 || !Object.hasOwn(choice, 'mode') || !['auto', 'default'].includes(choice.mode)) throw fail('Choose only a Claude permission mode: auto or default.', 400);
+    this.ready();
+    const job = this.runs.get(agent.id);
+    if (!this.permissionSettings(agent).available) throw fail('Permission mode can change only in this currently managed Claude process. No session was started or resumed.');
+    const query = job.query;
+    const current = () => this.runs.get(agent.id) === job && job.query === query && this.records.get(agent.id) === agent && !this.stopped;
+    if (agent.permissionChange?.status === 'pending') throw fail('A permission-mode change is already pending; wait for its native response.');
+    const change = { mode: choice.mode, status: 'pending' };
+    agent.permissionChange = change; this.changed(agent);
+    try {
+      if (!current()) throw fail('The managed Claude process changed before applying the permission mode.');
+      await query.setPermissionMode(choice.mode);
+      if (!current()) throw fail('The managed Claude process changed before confirmation; the outcome is unconfirmed.');
+      // A control acknowledgement is separate from the latest native status,
+      // which may already report a model-driven fallback to another mode.
+      change.status = 'acknowledged'; this.changed(agent); return this.permissionSettings(agent);
+    } catch (error) {
+      if (this.records.get(agent.id) === agent && agent.permissionChange === change) { agent.permissionChange = { ...change, status: 'unconfirmed', error: bounded(error.message) }; this.changed(agent); }
+      throw error;
+    }
+  }
   async modelSettings(agent) {
     const query = this.runs.get(agent.id)?.query;
     if (!query) throw fail('Claude model choices are available after you start or resume this session here. Refresh choices after sending your first message. Reading settings does not start a model run.');

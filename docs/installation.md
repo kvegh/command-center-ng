@@ -688,6 +688,9 @@ and makes one short model request with tools disabled and session persistence
 off. It prints a JSON pass result and exits nonzero on failure. This uses the
 existing provider account and may incur one normal request charge. It neither
 sends into an existing conversation nor establishes full browser-chat acceptance.
+Append `--auto` to require native Auto mode in that isolated check as well. It
+still enables no tools and changes no existing conversation; it proves native
+mode acceptance and a model response, rather than a classifier tool decision.
 
 After current managed Claude work has finished, stop the foreground CCNG copy
 once with Ctrl+C, then use:

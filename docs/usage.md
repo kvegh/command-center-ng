@@ -611,6 +611,62 @@ supported choices. Changes apply to subsequent turns without interrupting the
 current turn or changing global permissions. Use follow-up messages to correct
 earlier instructions, or the existing branch action for a separate conversation.
 
+### Claude Auto and Manual permissions
+
+Operators can enable Auto for exact sessions directly in the existing private
+`INSTALL_DIR/etc/config.conf`; no browser is required. Use a comma-separated list
+of full Claude worker IDs (at most sixteen), or `disabled`:
+
+```text
+claude_auto_review_sessions: claude-11111111-2222-4333-8444-555555555555
+```
+
+The example ID is synthetic. Keep real IDs and deployment settings in the
+protected environment configuration. New managed processes for selected sessions
+receive native Auto mode; no session starts or resumes merely from this setting.
+Removing a previously selected ID requests Manual only for that affected managed
+session. Other sessions and all Codex permissions remain unchanged.
+
+After installing a version that supports this key, the service owner can reload
+only these selections live, using the appropriate existing service manager:
+
+```sh
+systemctl --user kill --kill-whom=main --signal=HUP command-center-ng.service
+```
+
+For a system-managed deployment, use its existing system service instead.
+Reloading does not restart the app or interrupt a worker. Check the existing
+service journal for `Claude permission configuration reloaded` and its per-session
+outcomes. A configured future mode, a native acknowledgement and a native reported
+mode are distinct evidence; an unconfirmed result is never retried automatically.
+An unchanged reload makes no duplicate setter call. To retry deliberately after
+investigating an unconfirmed outcome, use the explicit per-chat control or change
+the selection deliberately. Invalid settings leave the last selection intact.
+This reload does not apply unrelated listener, authentication or provider settings.
+
+### Optional browser controls
+
+For a connected Claude session currently managed by Command Center, its worker
+settings offer **Enable Auto** and **Use Manual**. These explicitly request
+Claude's native `auto` or `default` permission mode for that session. Native
+Claude determines whether Auto mode is available; an unsupported or rejected
+request stays visible as an error. No global default, Codex permission setting
+or other chat is changed.
+
+The **Claude reports … mode** line uses native initialization/status evidence.
+A request acknowledgement is displayed separately and does not claim that
+Claude has reported the requested mode. Native fallback to Manual remains
+visible even after an earlier Auto request was acknowledged. Pending and
+unconfirmed changes are shown explicitly; **Refresh permissions** reads current
+settings without starting work or automatically retrying a setter.
+
+The controls are unavailable for externally owned sessions or after the managed
+SDK process ends. This is an in-session setting, not a persisted mode preference
+for future processes. Changing modes never answers, dismisses or replays an
+already pending permission request; use that request's existing native controls.
+Configuration and native acknowledgement alone do not establish a completed
+tool action or full browser Claude-chat acceptance.
+
 ### Readable AAP references
 
 AAP procedures, results, reports and input requests pair object IDs with verified

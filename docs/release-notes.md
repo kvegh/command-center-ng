@@ -9,6 +9,18 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.30.0 — Select native Claude Auto mode per session
+
+Select exact Claude worker IDs through `claude_auto_review_sessions` in the
+existing private runtime configuration. Startup applies Auto only to selected
+future managed processes. An owner-triggered SIGHUP reload applies changed
+selections through the native live SDK control, preserving current work,
+pending requests and other chats without starting sessions. A repeated unchanged
+selection does not retry an uncertain native action. Optional authenticated
+per-chat Auto/Manual controls expose native acknowledgement and observed mode
+separately. Native availability/refusals and model fallback remain authoritative;
+no bypass-permissions mode or global default is introduced.
+
 ## 1.29.2 — Preserve explicit Claude Vertex service settings
 
 Explicit user-service registration retains the existing Vertex provider,

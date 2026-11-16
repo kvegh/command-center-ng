@@ -822,6 +822,16 @@ export class Workspace extends EventEmitter {
     if (effort === null || typeof effort === 'string') agent.reasoningEffort = effort;
     if (['pending', 'unconfirmed'].includes(agent.modelChange?.status) && agent.model === agent.modelChange.model && (agent.modelChange.effort === null || agent.reasoningEffort === agent.modelChange.effort)) { agent.modelChange.status = 'saved'; delete agent.modelChange.error; }
   }
+  async permissionSettings(id) {
+    const agent = this.agent(id);
+    if (agent.provider !== 'claude' || agent.role === 'coordinator') throw Object.assign(new Error('Choose a local Claude worker to manage its permission mode.'), { status: 400 });
+    return this.claude.permissionSettings(agent);
+  }
+  async updatePermissionMode(id, choice) {
+    const agent = this.agent(id);
+    if (agent.provider !== 'claude' || agent.role === 'coordinator') throw Object.assign(new Error('Choose a local Claude worker to manage its permission mode.'), { status: 400 });
+    return this.claude.updatePermissionMode(agent, choice);
+  }
   async modelSettings(id) {
     const agent = this.agent(id);
     if (agent.provider === 'claude') return this.claude.modelSettings(agent);

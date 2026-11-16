@@ -6,8 +6,9 @@ import { createRequire } from 'node:module';
 import { resolve, join } from 'node:path';
 import { promisify } from 'node:util';
 
-const [installation, cwd, executable] = process.argv.slice(2);
+const [installation, cwd, executable, modeFlag] = process.argv.slice(2);
 assert.ok(installation && cwd && executable, 'Usage: node tests/verify-deployed-claude.mjs INSTALL_DIR PROJECT_DIR CLAUDE_EXECUTABLE');
+assert.ok(modeFlag === undefined || modeFlag === '--auto', 'The only optional verification flag is --auto.');
 const require = createRequire(join(resolve(installation), 'package.json'));
 const sdk = await import(require.resolve('@anthropic-ai/claude-agent-sdk'));
 const run = promisify(execFile);
@@ -18,16 +19,21 @@ assert.equal(auth.apiProvider, 'vertex', 'This check expects the explicitly conf
 
 const abortController = new AbortController();
 const timeout = setTimeout(() => abortController.abort(), 60_000);
-let result;
+let result, observedMode;
 const query = sdk.query({ prompt: 'Authentication verification only. Reply with exactly OK. Do not use tools.', options: {
   cwd, pathToClaudeCodeExecutable: executable, settingSources: ['user', 'project', 'local'],
-  tools: [], maxTurns: 1, persistSession: false, abortController
+  tools: [], maxTurns: 1, persistSession: false, abortController,
+  ...(modeFlag === '--auto' ? { permissionMode: 'auto' } : {})
 } });
 try {
-  for await (const message of query) if (message.type === 'result') result = message;
+  for await (const message of query) {
+    if (message.type === 'result') result = message;
+    if (message.type === 'system' && ['init', 'status'].includes(message.subtype) && message.permissionMode) observedMode = message.permissionMode;
+  }
   assert.ok(result && !result.is_error && result.subtype === 'success', 'The deployed SDK did not complete its Vertex request successfully.');
   assert.match(result.result || '', /\bOK\b/, 'The verification response did not contain the expected acknowledgement.');
-  console.log(JSON.stringify({ authenticationStatus: 'pass', apiProvider: auth.apiProvider, deployedSdkModelResponse: 'pass', toolsEnabled: false, sessionPersisted: false }));
+  if (modeFlag === '--auto') assert.equal(observedMode, 'auto', 'The native Claude process did not report Auto mode.');
+  console.log(JSON.stringify({ authenticationStatus: 'pass', apiProvider: auth.apiProvider, deployedSdkModelResponse: 'pass', observedPermissionMode: observedMode || null, toolsEnabled: false, sessionPersisted: false }));
 } finally {
   clearTimeout(timeout);
   query.close();
