@@ -84,7 +84,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
   reload those selections live without a browser or worker interruption.
   Optional per-chat Auto/Manual controls use the same native SDK operation.
   See [Claude permissions](docs/usage.md#claude-auto-and-manual-permissions).
-- Review independent approval requests with up to two read-only analysts; the Coordinator remains the sole automated approver. See [review boundaries and timing](docs/usage.md#coordinator-approval-review).
+- Review independent Codex approval requests with up to two read-only analysts; the Coordinator remains the sole automated approver. See [review boundaries and timing](docs/usage.md#coordinator-approval-review).
 - Show Coordinator concerns on the exact Claude approval card while retaining
   its manual decision. Claude concern feedback does not answer the tool request.
 - Resolve relative command paths from the exact request's working directory, even when the chat or analyst started elsewhere; directory evidence still requires user authority for the action.

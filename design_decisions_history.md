@@ -29,6 +29,43 @@ negative test initially expected the generic unsupported-provider error; it was
 updated to require the explicit ask-only rejection, and the combined checks
 then passed. This was an assertion update, not a relaxed approval guard.
 
+## 2026-11-16, 16:59 UTC — Deploy exact-request Claude concern feedback
+
+Public 1.30.1 implementation `f298d02558b45f079b406c93a5896841b1d8d99d`
+is published with independent SSH remote readback. The user-reported missing
+Concern was confirmed through bounded native history: the Coordinator supplied
+its explanation only in chat because the review tool rejected Claude requests.
+The Claude card also omitted bound review metadata in a rendering reproduction.
+
+The correction reuses the existing review operation for ask-only feedback on
+the exact current managed Claude callback. It displays Request/Concern/Next on
+the originating card while leaving the request pending. Automated Claude
+approval/decline, native permissions, analyst eligibility and historical replay
+remain unchanged. No new service, store, tool or architecture was added.
+
+The normal application update succeeded at 16:57:58.964756–16:58:23.599150 UTC,
+after verifying the target Claude process idle before installation and again
+immediately before restart. The user had resumed conversation since the earlier
+pause; that pause was not assumed current. Thirteen protected-file states,
+the exact Auto selection, four saved workers, workspace settings, provider
+authentication and native Codex daemon were preserved. No project input or
+original approval answer was sent.
+
+Independent verification succeeded at 16:58:42.476715–16:58:52.695926 UTC:
+117 installed files matched, HTTPS/authentication/assets/listeners passed,
+and 202 checks against copied installed modules passed without failures or
+skips in 4.619 seconds. The same source checks passed in 4.643 seconds;
+TypeScript and production build passed in 401 ms. The build reported a
+nonblocking 500 kB chunk-size advisory; no bundling architecture change was
+made for this small patch. Independent focused source/mock/render review
+found no blocking issue. Shared instructions and private policy were retained.
+
+Installed regression fixtures demonstrate callback preservation, ask-only
+binding and escaped card rendering. A fresh real Coordinator-to-Claude
+approval/card interaction remains unverified until a genuine request occurs;
+no request was manufactured or replayed. The separate isolated real SDK Auto
+check from 1.30.0 remains the provider evidence, not a live Concern-card test.
+
 ## 2026-11-16, UTC — Native Claude Auto mode for exact sessions
 
 The user requested Auto mode for one existing Claude worker, then clarified that
