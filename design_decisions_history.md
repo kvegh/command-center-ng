@@ -5194,5 +5194,22 @@ terminal head can clear the stale binding; current questions, active work,
 pauses and newer events remain authoritative. Restoration uses the latest native
 head rather than resurrecting an older unfinished turn. No additional timer,
 service, transport, storage, automatic approval or permission path was added.
-The implementation commit and actual validation/publication/deployment outcomes
-will be recorded separately once verified.
+Implementation: `4cc2ad545e419329637a8eb728032cf5b104b721`, published and
+independently SSH remote-readback verified. Source checks passed 185 tests across
+five suites with zero failures/skips; TypeScript and production build passed.
+
+The normal existing installation update completed on 2026-11-16 at
+04:16:20–04:16:45 UTC. All ten protected configuration files and four saved
+worker identities, pause/report settings, native CLI version and native profile
+configuration were preserved. Only the existing application service restarted.
+Independent installed verification at 04:17:31–04:17:42 UTC matched all 116
+source files, passed HTTPS/authentication/assets/listener checks and passed the
+same 185 checks against installed modules in 3.181 seconds.
+
+Actual native observation at 04:18:03 UTC showed the existing Coordinator active
+and a newly completed worker-list tool call. Its durable log recorded a new
+native-confirmed approval at 04:17:44 UTC for a worker's bounded validation
+request. Recovery is therefore live verified. Engineering did not answer or
+replay original approvals, interrupt workers or alter native permissions. This
+does not prove the exact earlier production cache or the first automatic review
+under the additional worker's separate native reviewer setting.

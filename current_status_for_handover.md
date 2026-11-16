@@ -1,9 +1,34 @@
 # Current status for handover
 
-Updated: 2026-11-13. This is a development handover snapshot. Beads remains the
+Updated: 2026-11-16, 04:18 UTC. This is a development handover snapshot. Beads remains the
 task source of truth; do not use this file as a second backlog.
 
-Current published and installed release is **1.24.0**, implementation
+Current published and installed release is **1.29.1**, implementation and
+installed payload `4cc2ad545e419329637a8eb728032cf5b104b721`.
+The existing observation poll now reconciles an obsolete Coordinator turn only
+against fresh inactive native state and latest terminal history, preserving
+questions, pause/stop intent, live work and newer events. Historical unfinished
+turns cannot replace a newer terminal native head.
+
+Source and installed regression runs each passed 185 checks across five suites;
+the TypeScript/production build passed. All 116 installed source files matched,
+and HTTPS, authentication boundaries, served assets and both listeners passed.
+Ten protected configuration files, four saved worker identities, native profiles
+and saved Coordinator/report settings were preserved across the existing app
+service restart. The restored Coordinator completed a real worker-list read
+and a new native-confirmed approval at 04:17:44 UTC. This establishes actual
+post-deployment work, not merely an active-process acknowledgement.
+
+The user separately enabled native Auto-review for one additional selected
+parent conversation; future and current-turn settings were verified, with its
+approval policy, sandbox and permission profile unchanged. Existing requests
+and active child-session reviewer inheritance remain separate; no blanket child
+coverage or first actual native Auto-review decision is claimed by that setting
+readback. Final outcome documentation is newer than the installed payload.
+
+### Previous 1.24.0 checkpoint
+
+Previously published and installed release was **1.24.0**, implementation
 `b2d678cbe9b33ce11271f3a3aba3c44fa8605cd7`, installed payload
 `72796593dd766dd4deb6216bf1e907b88c900dc9`. Engineering notices explain the
 first matching fixed withholding category while preserving every prior field
