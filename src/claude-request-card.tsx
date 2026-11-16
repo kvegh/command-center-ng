@@ -37,6 +37,9 @@ export function ClaudeRequestCard({ question, agentId, workerName, readOnlyCoord
     {question.params.reason && <p>{question.params.reason}</p>}
     {question.responding && <p role="status">Answer submitted. Waiting for Claude to continue or finish the turn…</p>}
     {(error || question.error) && <p className="error-text" role="alert">{error || question.error}</p>}
+    {question.review && <p className="field-note coordinator-review">Coordinator · {question.review.historicalAt
+      ? <>Earlier review (<time dateTime={question.review.historicalAt}>{new Date(question.review.historicalAt).toLocaleString()}</time>) · Needs your decision</>
+      : question.review.decision === 'ask' ? 'Needs your decision' : question.review.decision}:{'\n'}{question.review.rationale}</p>}
     {asking ? <form onSubmit={event => { event.preventDefault(); void submit({ answers }); }}>
       {(fields || []).map((field: any) => <fieldset key={field.question} disabled={busy}><legend>{field.question}</legend>
         <div className="choices">{(field.options || []).map((option: any) => {

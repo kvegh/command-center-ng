@@ -2479,7 +2479,7 @@ test('coordinator counts nested Codex and Claude questions separately from manua
     const row = (await f.call('ccng_list_workers'))[0];
     assert.equal(row.requestSummary.totalRequests, 3); assert.equal(row.requestSummary.clarificationRequests, 2);
     assert.equal(row.requestSummary.clarificationQuestions, 3); assert.equal(row.requestSummary.otherRequests, 1);
-    await assert.rejects(f.call('ccng_review_approval', { agentId: 'worker', reviewToken: 'tool-three', decision: 'approve', rationale: 'Visible tool call.' }), /cannot answer user preferences or broad permission/);
+    await assert.rejects(f.call('ccng_review_approval', { agentId: 'worker', reviewToken: 'tool-three', decision: 'approve', rationale: 'Visible tool call.' }), /only record an ask concern.*cannot approve or decline/);
     assert.equal(f.rpc.replies.length, 0); assert.equal(f.workspace.agent('worker').questions.length, 3);
   } finally { await f.close(); }
 });

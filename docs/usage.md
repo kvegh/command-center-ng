@@ -196,6 +196,21 @@ refresh, restoration or reconnection. This temporary notice does not dismiss an
 approval card or change the worker's attention state. Existing cards retain the
 actual decision, reason and answer controls.
 
+For a managed Claude tool approval, the Coordinator can attach a
+**Needs your decision** explanation to the original card using its exact current
+request token. This concern-only feedback does not answer the native request;
+use the card's existing manual actions. Automated Coordinator approve/decline
+is unavailable for Claude. Native Claude Auto mode remains a separate setting.
+The explanation includes Request, Concern and Next; an ordinary Coordinator chat
+reply is not a bound review. Stopped, replaced, externally owned or resolved
+requests cannot receive this feedback, and it is not replayed after restart.
+
+Run `node --test tests/claude-request-review.test.mjs tests/claude-coordinator-concerns.test.mjs`
+for the focused card/feedback regressions. They use isolated request fixtures,
+leave genuine approvals untouched and fail nonzero when a guard or display
+regresses. Installed-module checks and actual native/browser observations are
+reported separately in the decision history.
+
 Regression checks: `node --test tests/coordinator-tab-status.test.mjs` exercises
 current review detection, restored audit baselines, rendered indicator markup,
 all-theme color precedence, layout rules and reduced-motion cleanup. It uses

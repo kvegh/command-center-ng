@@ -9,6 +9,16 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.30.1 — Show Coordinator concerns on Claude approval cards
+
+The existing review tool can attach an ask rationale to one exact current,
+managed Claude tool approval. The original request remains pending for its
+manual decision; automated Claude approval and decline remain unavailable.
+Claude cards display the bound rationale, including Request/Concern/Next.
+Stale callbacks, replaced runs, external sessions and unrelated questions are
+rejected. Feedback stays separate from native Auto mode and cannot replay an
+old request after restart.
+
 ## 1.30.0 — Select native Claude Auto mode per session
 
 Select exact Claude worker IDs through `claude_auto_review_sessions` in the

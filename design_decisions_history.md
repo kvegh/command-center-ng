@@ -1,5 +1,34 @@
 # Design decisions history
 
+## 2026-11-16, 16:52 UTC — Attach Claude approval concerns without answering requests
+
+The user reported that a Coordinator concern was absent from the originating
+Claude approval card. Bounded native history confirmed repeated current tool
+requests with no attached review while the Coordinator explained in chat that
+its review tool did not support that provider. Independent source reviews and
+real component rendering reproduced a second gap: Claude cards ignored bound
+review metadata even though the workspace preserved it. This establishes a
+feedback gap, rather than evidence that a recorded review was lost in transit.
+
+Reuse the existing exact-request review operation for ask-only Claude feedback
+and render its bound rationale on the original card. Require the current
+managed query, callback and request identities; retain existing manual controls.
+Automated Claude approve/decline, analyst eligibility, source-reading authority,
+historical request matching and native Auto permissions remain unchanged. No
+new tool, store, service or model stage is selected. Chat prose is not converted
+into a review, and old concerns cannot be replayed onto new requests.
+
+Implementation, publication and deployed verification are recorded below when
+their outcomes are known. Historical incident requests remain untouched.
+
+Source verification passed 202 checks across nine suites with zero failures or
+skips in 4.643 seconds; TypeScript and production build passed (401 ms).
+Independent review found no blocking issue in the exact callback guards,
+unchanged native answer path and escaped bound-rationale rendering. One older
+negative test initially expected the generic unsupported-provider error; it was
+updated to require the explicit ask-only rejection, and the combined checks
+then passed. This was an assertion update, not a relaxed approval guard.
+
 ## 2026-11-16, UTC — Native Claude Auto mode for exact sessions
 
 The user requested Auto mode for one existing Claude worker, then clarified that
