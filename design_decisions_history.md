@@ -1,5 +1,37 @@
 # Design decisions history
 
+## 2026-11-17, 08:17 UTC — Verify installed Claude branching and parent restoration
+
+Implementation `c929b2972632087ca8d16fffc8fcdaad19f311d1` is public 1.31.0,
+published through SSH with independent remote readback. The user explicitly
+approved saving ID-only Claude branch-parent links in the existing private
+workspace metadata. Native fork copies use the installed official SDK; parent
+navigation survives tab closure and cold backend restoration. Broader deferred
+Claude features and Codex-only automatic handback remain separate.
+
+The existing application update succeeded at 08:16:24.499016–08:16:47.980076 UTC.
+Native target idle was checked before installation and immediately before the
+application-service restart; other owned Claude processes were also guarded.
+Thirteen protected-file states, five saved workers, workspace/report settings,
+provider authentication, exact Auto selection and native Codex daemon identity
+were preserved. No real session fork, project prompt, approval answer, native
+permission change or unrelated restart was performed by engineering.
+
+Independent installed verification succeeded at 08:17:42.784267–08:17:50.384020
+UTC: all 117 source files matched the payload; trusted HTTPS, authentication
+boundaries, assets and both existing listeners passed. All 105 affected checks
+passed against installed modules and the installed SDK, zero failures/skips,
+in 3.021 seconds. This includes a separate real loopback HTTP application with
+disposable histories/authentication, exact cutoffs, legacy workspace loading,
+closed/reopened branches and cold parent navigation. Test fixtures were removed.
+
+The broader source regression passed 1,270 tests and skipped only an unavailable
+supplementary-group fixture; the final cutoff correction passed 105 affected
+source checks. TypeScript/production build passed. Actual user-browser interaction
+and model continuation of a real branch remain unverified; no model turn was
+manufactured for acceptance. This outcome documentation is newer than the
+installed functional payload.
+
 ## 2026-11-17, UTC — Add native Claude branches in the existing workspace
 
 The user explicitly requested implementation after learning that Claude branch

@@ -1,9 +1,33 @@
 # Current status for handover
 
-Updated: 2026-11-16, 04:18 UTC. This is a development handover snapshot. Beads remains the
-task source of truth; do not use this file as a second backlog.
+Verified checkpoint: 2026-11-17, 08:17 UTC. This is a development handover snapshot.
+Beads remains the task source of truth; do not use this file as a second backlog.
 
-Current published and installed release is **1.29.1**, implementation and
+Current published and installed release is **1.31.0**, functional payload
+`c929b2972632087ca8d16fffc8fcdaad19f311d1`. Local Claude Branch chat and
+completed-reply Branch here use the installed official SDK without starting a
+model turn. The user approved ID-only parent links in existing private workspace
+metadata; close/reopen and cold restart retain Back to parent. Parent work and
+callbacks remain untouched; automatic handback remains Codex-only.
+
+The update verified native Claude idle twice before restarting only the existing
+application service. Thirteen protected-file states, five saved workers,
+workspace/report settings, provider authentication, exact Auto selection and
+native Codex daemon identity were preserved. Independent verification matched
+117 installed source files and passed trusted HTTPS/authentication/assets/both
+listeners plus 105 installed checks, zero failures/skips, including real HTTP
+workflows using disposable native histories and authentication. Broad source
+regression passed 1,270 tests, zero failures and one supplementary-group fixture
+skip; final affected source checks and production build passed.
+
+Actual browser interaction and provider continuation of a real branch remain
+unverified. Broader Claude work and prior holds stay separate. No input remains
+for this branch-storage decision. Outcome documentation is newer than the
+installed functional payload.
+
+### Previous 1.29.1 checkpoint (2026-11-16, 04:18 UTC)
+
+Previously published and installed release was **1.29.1**, implementation and
 installed payload `4cc2ad545e419329637a8eb728032cf5b104b721`.
 The existing observation poll now reconciles an obsolete Coordinator turn only
 against fresh inactive native state and latest terminal history, preserving

@@ -20,7 +20,10 @@ Back to parent navigates; automatic Hand back & close remains Codex-only.
 The user approved keeping ID-only parent links in the existing private workspace
 file. Closed/reopened tabs and backend restoration retain parent navigation.
 No new database, transcript store or provider permission mechanism is added.
-Publication and production deployment are recorded separately after verification.
+Implementation `c929b2972632087ca8d16fffc8fcdaad19f311d1` is published and
+installed. Independent verification matched 117 source files, passed trusted
+HTTPS/authentication/assets checks and all 105 affected installed checks,
+including isolated real HTTP fork/close/reopen/cold-restoration workflows.
 Source verification includes actual loopback HTTP workflows with real SDK
 synthetic histories, cold restart and parent navigation. Broad regression passed
 1,270 tests, zero failures and one supplementary-group fixture skip; after the
