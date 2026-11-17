@@ -6,6 +6,7 @@ import { mkdir, mkdtemp, writeFile, readFile, symlink, rm } from 'node:fs/promis
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Workspace } from '../server/workspace.mjs';
+import { ClaudeSessions } from '../server/claude.mjs';
 import { COORDINATOR_TOOLS } from '../server/coordinator.mjs';
 import { DEFAULT_APPROVAL_POLICY } from '../server/approval-policy.mjs';
 const allReadingPolicy = { ...DEFAULT_APPROVAL_POLICY, sourceReading: 'all', instructions: 'Inspect all local text for this authorized deployment; preserve native permissions.' };
@@ -757,7 +758,7 @@ test('rationale style guidance preserves supplied explanations without truncatio
   } finally { await f.close(); }
 });
 
-test('non-approval feedback queues without dismissing the request and reaches the worker only when safe', async () => {
+test('legacy same-turn ask feedback never arrives as a stale wait instruction after request resolution', async () => {
   const f = await fixture();
   try {
     const worker = f.workspace.agent('worker');
@@ -775,16 +776,169 @@ test('non-approval feedback queues without dismissing the request and reaches th
     await assert.rejects(f.call('ccng_send_summary', { agentId: 'worker', summary }), /Only one message/);
     f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: 'worker', requestId: question.id } });
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal(f.coordinator.deliveries.get('worker').length, 1, 'resolving the request alone does not interrupt active work');
+    await f.coordinator.flush('worker');
+    assert.equal(f.coordinator.deliveries.has('worker'), false, 'resolved-request feedback is removed without interrupting work');
     f.rpc.complete('worker', 'worker-running');
-    await delivered(f);
+    await new Promise(resolve => setImmediate(resolve));
     const sent = f.rpc.calls.filter(call => call.method === 'turn/start' && call.params.threadId === 'worker');
-    assert.equal(sent.length, 1);
-    assert.ok(sent[0].params.input[0].text.includes(summary));
+    assert.equal(sent.length, 0);
+    assert.equal(f.coordinator.audit.at(-1).outcome, 'not-sent-stale-review');
     assert.equal(f.coordinator.deliveries.has('worker'), false);
     assert.equal(f.rpc.calls.some(call => call.method === 'turn/interrupt'), false);
     assert.equal(f.rpc.replies.length, 0);
   } finally { await f.close(); }
+});
+
+test('explicit current ask binding works across Coordinator turns and rejects historical tokens', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); f.rpc.ask('bound-ask', worker.id);
+    const question = worker.questions[0];
+    await f.call('ccng_review_approval', { agentId: worker.id, reviewToken: question.reviewToken, decision: 'ask', rationale: 'The target needs a user decision.', authorizationMessageId: null, authorizationQuote: null });
+    f.coordinator.completed(f.coordinator.id, 'coord-turn');
+    assert.equal(f.coordinator.reviewSummaryBindings.size, 0, 'only same-turn compatibility evidence is retained');
+    await assert.rejects(f.call('ccng_send_summary', { agentId: worker.id, summary: 'Historical feedback.', reviewToken: 'past-token' }), /no longer available/);
+    const result = await f.call('ccng_send_summary', { agentId: worker.id, summary: 'Bound feedback.', reviewToken: question.reviewToken });
+    assert.deepEqual(result, { queued: true });
+    const message = f.coordinator.deliveries.get(worker.id)[0];
+    assert.equal(message.summaryReview.bindings[0].question, question);
+    assert.doesNotThrow(() => JSON.stringify(f.coordinator.snapshot()), 'opaque native bindings do not enter browser snapshots');
+    assert.doesNotMatch(JSON.stringify(f.coordinator.snapshot()), /summaryReview|nativeRun|reviewSummaryBindings/);
+    f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: worker.id, requestId: question.id } });
+    await f.coordinator.flush(worker.id);
+    assert.equal(f.coordinator.deliveries.has(worker.id), false);
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('legacy feedback already stale at enqueue is not queued or delivered', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); f.rpc.ask('finished-ask', worker.id);
+    const question = worker.questions[0];
+    await f.call('ccng_review_approval', { agentId: worker.id, reviewToken: question.reviewToken, decision: 'ask', rationale: 'A user decision was needed.', authorizationMessageId: null, authorizationQuote: null });
+    f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: worker.id, requestId: question.id } });
+    const result = await f.call('ccng_send_summary', { agentId: worker.id, summary: 'Do not send this old wait instruction.' });
+    assert.deepEqual(result, { queued: false, outcome: 'not-sent-stale-review' });
+    assert.equal(f.coordinator.deliveries.has(worker.id), false); assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('changed ask feedback is discarded without dropping unrelated queued summaries', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); worker.turnId = 'worker-running'; worker.thread.status = { type: 'active' };
+    f.rpc.ask('changed-ask', worker.id); const question = worker.questions[0];
+    await f.call('ccng_review_approval', { agentId: worker.id, reviewToken: question.reviewToken, decision: 'ask', rationale: 'The exact target is unclear.', authorizationMessageId: null, authorizationQuote: null });
+    await f.call('ccng_send_summary', { agentId: worker.id, summary: 'Earlier request feedback.' });
+    f.coordinator.queue(worker, 'An independent result is available.', 'summary');
+    question.params.command = 'different-command';
+    await f.coordinator.flush(worker.id);
+    assert.deepEqual(f.coordinator.deliveries.get(worker.id).map(row => row.text), ['An independent result is available.']);
+    assert.equal(worker.questions[0], question); assert.equal(f.rpc.replies.length, 0);
+    f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: worker.id, requestId: question.id } });
+    f.rpc.complete(worker.id, 'worker-running'); await delivered(f);
+    assert.equal(f.rpc.calls.find(call => call.method === 'turn/start').params.input[0].text, 'An independent result is available.');
+  } finally { await f.close(); }
+});
+
+test('unrelated summary calls remain available while a native request awaits its user', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); f.rpc.ask('ordinary-context', worker.id);
+    const question = worker.questions[0];
+    await f.call('ccng_send_summary', { agentId: worker.id, summary: 'Independent project evidence is ready.' });
+    assert.equal(f.coordinator.deliveries.get(worker.id)[0].summaryReview, undefined);
+    f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: worker.id, requestId: question.id } });
+    await f.coordinator.flush(worker.id); await delivered(f);
+    assert.match(f.rpc.calls.find(call => call.method === 'turn/start').params.input[0].text, /Independent project evidence/);
+    assert.equal(f.rpc.replies.length, 0);
+  } finally { await f.close(); }
+});
+
+test('review feedback retains exact request identity across epochs, tokens and replaced request objects', async () => {
+  for (const change of ['epoch', 'token', 'request-object']) {
+    const f = await fixture();
+    try {
+      const worker = f.workspace.agent('worker'); f.rpc.ask('identity-bound-ask', worker.id);
+      const question = worker.questions[0];
+      await f.call('ccng_review_approval', { agentId: worker.id, reviewToken: question.reviewToken, decision: 'ask', rationale: 'The target needs a user decision.', authorizationMessageId: null, authorizationQuote: null });
+      await f.call('ccng_send_summary', { agentId: worker.id, summary: 'Feedback about the old request identity.' });
+      if (change === 'epoch') f.workspace.requestEpoch++;
+      else if (change === 'token') question.reviewToken = 'replacement-token';
+      else worker.questions = [{ ...question }];
+      await f.coordinator.flush(worker.id);
+      assert.equal(f.coordinator.deliveries.has(worker.id), false, change);
+      assert.equal(worker.questions.length, 1, change + ': dropping a summary must not remove the native request');
+      assert.equal(f.rpc.replies.length, 0); assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+    } finally { await f.close(); }
+  }
+});
+
+test('Claude ask feedback follows the exact SDK callback and never serializes its native run', async () => {
+  const f = await fixture(), runtime = new ClaudeSessions(); runtime.available = true;
+  f.workspace.claude = runtime;
+  const nativeId = '11111111-2222-4333-8444-555555555555';
+  const worker = runtime.make({ sessionId: nativeId, cwd: f.cwd, summary: 'Synthetic Claude worker' });
+  runtime.records.set(worker.id, worker); f.workspace.agents.set(worker.id, worker);
+  const query = {}; query.nativeCycle = query; runtime.runs.set(worker.id, { query });
+  const controller = new AbortController();
+  const pending = runtime.permission(worker, 'Bash', { command: 'synthetic-read-only-inspection' }, { toolUseID: 'synthetic-tool', signal: controller.signal });
+  try {
+    const question = worker.questions[0];
+    await f.call('ccng_review_approval', { agentId: worker.id, reviewToken: question.reviewToken, decision: 'ask', rationale: 'The native request needs its original manual controls.', authorizationMessageId: null, authorizationQuote: null });
+    assert.deepEqual(await f.call('ccng_send_summary', { agentId: worker.id, summary: 'Old native feedback.' }), { queued: true });
+    assert.doesNotThrow(() => JSON.stringify(f.coordinator.snapshot()), 'the circular native query stays private');
+    assert.doesNotMatch(JSON.stringify(f.coordinator.snapshot()), /nativeCycle|summaryReview/);
+    assert.equal(runtime.requests.size, 1, 'queueing feedback leaves the original callback pending');
+    controller.abort(); await pending;
+    await f.coordinator.flush(worker.id);
+    assert.equal(f.coordinator.deliveries.has(worker.id), false);
+    assert.equal(f.coordinator.audit.at(-1).outcome, 'not-sent-stale-review');
+    assert.equal(f.rpc.replies.length, 0); assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+  } finally { controller.abort(); await f.close(); }
+});
+
+test('stale review feedback with uncertain delivery stays retained and is never retried', async () => {
+  const f = await fixture();
+  try {
+    const worker = f.workspace.agent('worker'); f.rpc.ask('uncertain-feedback', worker.id);
+    const question = worker.questions[0];
+    await f.call('ccng_review_approval', { agentId: worker.id, reviewToken: question.reviewToken, decision: 'ask', rationale: 'Needs the original user decision.', authorizationMessageId: null, authorizationQuote: null });
+    await f.call('ccng_send_summary', { agentId: worker.id, summary: 'Potentially already sent feedback.' });
+    const message = f.coordinator.deliveries.get(worker.id)[0]; message.error = 'Synthetic uncertain native delivery.';
+    f.rpc.emit('notification', { method: 'serverRequest/resolved', params: { threadId: worker.id, requestId: question.id } });
+    await f.coordinator.flush(worker.id); await f.coordinator.flush(worker.id);
+    assert.equal(f.coordinator.deliveries.get(worker.id)[0], message); assert.match(message.error, /uncertain/);
+    assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false);
+    assert.equal(f.coordinator.audit.some(row => row.outcome === 'not-sent-stale-review'), false);
+  } finally { await f.close(); }
+});
+
+test('final summary guards preserve pause and cancellation during context loading without a native write', async () => {
+  for (const change of ['pause', 'stop-coordinator', 'restore', 'stop-worker', 'clear']) {
+    const f = await fixture();
+    try {
+      const worker = f.workspace.agent('worker'); f.coordinator.paused = true;
+      f.coordinator.queue(worker, 'Typed queue-guard fixture.', 'summary');
+      const message = f.coordinator.deliveries.get(worker.id)[0]; f.coordinator.paused = false;
+      let enter, release;
+      const entered = new Promise(resolve => { enter = resolve; }), gate = new Promise(resolve => { release = resolve; });
+      f.workspace.instructionContext = async () => { enter(); await gate; return {}; };
+      const sending = f.workspace.send(worker.id, message.text, { preserveAsyncQuestions: true, coordinatorSummary: { message } });
+      await entered;
+      if (change === 'pause') f.coordinator.paused = true;
+      else if (change === 'stop-coordinator') f.coordinator.stop();
+      else if (change === 'restore') f.workspace.restoring = true;
+      else if (change === 'stop-worker') worker.requestStopIntent = 'synthetic-stop';
+      else f.coordinator.clearMessages();
+      release();
+      await assert.rejects(sending, error => error.code === (change === 'clear' ? 'coordinator_summary_cancelled' : 'coordinator_summary_wait'));
+      assert.equal(f.rpc.calls.some(call => call.method === 'turn/start'), false, change);
+      if (change !== 'clear') assert.equal(f.coordinator.deliveries.get(worker.id)[0], message, change + ': a genuine wait preserves the row');
+      assert.equal(f.rpc.replies.length, 0);
+    } finally { await f.close(); }
+  }
 });
 
 test('events coalesce without steering a busy coordinator and stale tool turns cannot act', async () => {

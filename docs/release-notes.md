@@ -9,6 +9,24 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.36.0 — Carry handover tasks and stop stale approval-wait summaries
+
+Before a handover receiver imports its file, CCNG adds its association to the same
+source Beads tasks and verifies every link. It retains source links, closed/held/
+deferred states, ownership, content and dependencies. Task-bearing handovers must
+stay in the same canonical project; complete empty-source reads preserve ordinary
+cross-project handovers. Failure retains known receiver/artifact/partial links and
+does not send an import or create another chat automatically.
+
+Native concern feedback stays on the original approval card. Review-related
+summaries bind to their exact requests, including older same-turn tool calls;
+resolved or changed requests cancel only unsent bound feedback, with a final
+pre-write guard. This prevents the confirmed queue path from delivering “wait
+for approval” after the approval is finished. Ordinary summaries, uncertain sends,
+pauses/stops and manual native controls are preserved. No content filter, new
+timer or persistent approval store is introduced. Source-only 1.35.0 changes are
+included in this release; installation and actual acceptance are recorded separately.
+
 ## 1.35.0 — Retain Claude modes and show current concern reviews
 
 New Claude chats and handover receivers retain their requested Auto mode through

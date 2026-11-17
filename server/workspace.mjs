@@ -1,7 +1,7 @@
 import limits from './limits.json' with { type: 'json' };
 import { EventEmitter } from 'node:events';
 import { createHash, randomUUID } from 'node:crypto';
-import { stat } from 'node:fs/promises';
+import { realpath, stat } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { VERSION } from './version.mjs';
 import { WORKER_BASE_INSTRUCTIONS, WORKER_REPORT_INSTRUCTIONS, reportTimingContext } from './worker-instructions.mjs';
@@ -910,6 +910,15 @@ export class Workspace extends EventEmitter {
       throw Object.assign(new Error(`Another handover is already preparing ${name}. Wait for its outcome before choosing a receiving chat.`), { status: 409 });
     }
   }
+  async handoverTaskProject(agent, cwd) {
+    if (!this.beads || typeof this.beads.handoff !== 'function') throw Object.assign(new Error('Beads is unavailable. Restore task access before creating a handover.'), { status: 503 });
+    // Match the complete handoff read, including closed and normally hidden
+    // records. A bounded dashboard cannot establish that a project has no tasks.
+    const tasks = await this.beads.list(agent.cwd, ['--include-ephemeral', '--include-gates', '--include-infra', '--include-templates', '--label', sessionLabel(agent.id)], { limit: 0 });
+    const sameProject = await realpath(agent.cwd) === await realpath(cwd);
+    if (!sameProject && tasks.length) throw Object.assign(new Error('The source has linked Beads tasks and the receiving chat uses a different project directory. Choose the same project so the existing tasks can be linked safely.'), { status: 409 });
+    return sameProject;
+  }
   async createHandover(id, { provider, cwd, confirmedName } = {}) {
     const agent = this.agent(id);
     provider ??= agent.provider || 'codex';
@@ -919,8 +928,9 @@ export class Workspace extends EventEmitter {
     if (!this.readyFor({ provider })) throw Object.assign(new Error('The selected agent is unavailable. Reconnect it before creating the receiving chat.'), { status: 503 });
     if (typeof cwd !== 'string' || !isAbsolute(cwd) || /[\x00-\x1f\x7f]/.test(cwd)) throw Object.assign(new Error('Enter an absolute project directory without control characters.'), { status: 400 });
     if (confirmedName !== undefined && typeof confirmedName !== 'string') throw Object.assign(new Error('Choose the proposed receiving-chat version.'), { status: 400 });
+    const sourceCwd = agent.cwd;
     const checkSource = () => {
-      if (this.agents.get(id) !== agent) throw Object.assign(new Error('The source chat changed before the handover could finish.'), { status: 409 });
+      if (this.agents.get(id) !== agent || agent.cwd !== sourceCwd) throw Object.assign(new Error('The source chat or project changed before the handover could finish.'), { status: 409 });
       if (!this.readyFor(agent) || !agent.canSend || this.restoring || agent.questions.length || statusOf(agent.thread) === 'attention'
         || agent.handoff || this.handoffs.incoming(id) || this.summaryJobs.has(id) || this.returnJobs.has(id) || agent.returnSummary?.delivered) throw Object.assign(new Error('The source chat is unavailable or waiting for a request or handoff. Resolve it before creating a handover.'), { status: 409 });
       assertAsyncQuestionsAllowControl(agent);
@@ -931,6 +941,7 @@ export class Workspace extends EventEmitter {
     checkSource(); checkDuplicate();
     const directory = await stat(cwd).catch(() => null);
     if (!directory?.isDirectory()) throw Object.assign(new Error('The project directory does not exist or is unavailable.'), { status: 400 });
+    await this.handoverTaskProject(agent, cwd); checkSource(); checkDuplicate();
     const sourceName = agent.name;
     const plan = planHandoverName(sourceName, await this.handoverCatalog(cwd));
     checkSource(); checkDuplicate();
@@ -983,7 +994,7 @@ export class Workspace extends EventEmitter {
     });
   }
   async prepareHandover(agent, { provider, cwd, sourceName, skillPath, path, name, progress, checkSource }) {
-    let createdId, creationAttempted = false;
+    let createdId, creationAttempted = false, linkingTasks = false;
     try {
       const stopBeforeDispatch = agent.requestStopIntent;
       const receipt = await this.send(agent.id, handoverCreatePrompt(skillPath, path), { preserveAsyncQuestions: true });
@@ -1009,12 +1020,31 @@ export class Workspace extends EventEmitter {
       if (catalog.some(chat => chat.name === name)) throw new Error('The selected receiving-chat version now exists. Open it or explicitly choose another version; the prepared file remains available.');
       if (!this.readyFor({ provider })) throw new Error('The receiving agent is unavailable. The prepared file remains available; no receiving chat was started.');
       if (this.workerSlots() >= limits.maxWorkers) throw new Error('All worker tabs are now open. The prepared file remains available; no receiving chat was started.');
+      await this.handoverTaskProject(agent, cwd); checkPreparedSource();
       // Revalidate the same private artifact immediately before native creation.
       await verifyHandoverArtifact(path); checkPreparedSource();
       progress.state = 'starting'; this.changed();
       await this.create({ goal: handoverImportPrompt(path, name), cwd, provider }, {
         onStarting: () => { checkPreparedSource(); creationAttempted = true; },
-        beforeInput: async () => { await verifyHandoverArtifact(path); checkPreparedSource(); },
+        beforeInput: async () => {
+          await verifyHandoverArtifact(path); checkPreparedSource();
+          linkingTasks = true;
+          const target = this.agent(createdId);
+          const targetCwd = target.cwd;
+          const checkTarget = () => {
+            if (this.agents.get(target.id) !== target || target.cwd !== targetCwd) throw new Error('The receiving chat or project changed while linking its tasks.');
+          };
+          const sameProject = await this.handoverTaskProject(agent, targetCwd); checkPreparedSource(); checkTarget();
+          // Reuse additive, verified links to the same records; do not move
+          // source associations, copy tasks or activate held/deferred work.
+          if (sameProject) await this.beads.handoff(agent.cwd, agent.id, target.id);
+          checkPreparedSource(); checkTarget();
+          const tracker = await this.beads.linked(targetCwd, target.id);
+          checkPreparedSource(); checkTarget();
+          target.tracker = tracker; this.changed();
+          await verifyHandoverArtifact(path); checkPreparedSource();
+          linkingTasks = false;
+        },
         onCreated: targetId => {
           createdId = targetId; progress.id = targetId;
           const assignment = { path, sourceId: agent.id };
@@ -1027,7 +1057,9 @@ export class Workspace extends EventEmitter {
     } catch (error) {
       progress.state = 'failed';
       progress.error = createdId
-        ? `Receiving chat ${createdId} was allocated, but its startup/import request was not confirmed. Check that exact chat before retrying; no additional chat was automatically created.`
+        ? linkingTasks
+          ? `Receiving chat ${createdId} was allocated, but task linking or its final safety check failed before import. The source, prepared file and any completed task links remain. Check that exact chat and its task links before continuing; no import was sent or additional chat created. ${error.message}`
+          : `Receiving chat ${createdId} was allocated, but its startup/import request was not confirmed. Check that exact chat before retrying; no additional chat was automatically created.`
         : creationAttempted
           ? 'Receiving-chat creation was not confirmed. Check existing chats before retrying; creation was not automatically repeated.'
           : error.message || 'Handover preparation failed. Check the source before retrying.';
@@ -1136,9 +1168,14 @@ export class Workspace extends EventEmitter {
     this.changed();
     return thread.status?.type === 'active' && !!agent.turnId;
   }
-  async send(id, text, { report = false, reportSetting = false, coordinatorEvent = false, taskPing = false, concernReview = null, preserveAsyncQuestions = false, messageQuestion, images: suppliedImages } = {}) {
+  async send(id, text, { report = false, reportSetting = false, coordinatorEvent = false, taskPing = false, concernReview = null, coordinatorSummary = null, preserveAsyncQuestions = false, messageQuestion, images: suppliedImages } = {}) {
     const agent = this.agent(id);
-    const internalControl = report || reportSetting || coordinatorEvent || taskPing || concernReview || preserveAsyncQuestions;
+    const internalControl = report || reportSetting || coordinatorEvent || taskPing || concernReview || coordinatorSummary || preserveAsyncQuestions;
+    const assertSummaryDelivery = () => {
+      if (!coordinatorSummary) return;
+      if (!this.coordinator?.assertSummaryDelivery) throw Object.assign(new Error('The review summary is no longer available for delivery.'), { status: 409, code: 'coordinator_summary_cancelled' });
+      this.coordinator.assertSummaryDelivery(agent, coordinatorSummary.message);
+    };
     const assertConcernDelivery = () => {
       if (!concernReview) return;
       if (!this.coordinator?.deliveries.get(id)?.includes(concernReview.message)) {
@@ -1156,7 +1193,7 @@ export class Workspace extends EventEmitter {
         throw Object.assign(new Error('Concern delivery is waiting for the engineering chat to reach an authorized idle point.'), { status: 409, code: 'concern_review_wait' });
       }
     };
-    assertConcernDelivery();
+    assertConcernDelivery(); assertSummaryDelivery();
     const priorStopIntent = agent.requestStopIntent;
     const manualAccepted = () => { if (!internalControl && !messageQuestion && agent.requestStopIntent === priorStopIntent) delete agent.requestStopIntent; };
     if (internalControl) assertAsyncQuestionsAllowControl(agent);
@@ -1170,16 +1207,16 @@ export class Workspace extends EventEmitter {
     if (statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Load the pending request before sending another message.'), { status: 409 });
     await this.activate(id);
     const context = await this.instructionContext(agent);
-    assertConcernDelivery();
+    assertConcernDelivery(); assertSummaryDelivery();
     if (this.agents.get(id) !== agent) throw Object.assign(new Error('The worker was closed before message delivery.'), { status: 409 });
     if (!this.readyFor(agent)) throw Object.assign(new Error('Reconnect the native runtime before sending this message.'), { status: 503 });
     if (!agent.canSend) throw Object.assign(new Error(agent.managementNotice || 'The native agent does not allow direct input to this session.'), { status: 409 });
     if (taskPing && agent.thread.status?.type === 'active' && !agent.turnId) throw Object.assign(new Error('Wait for the active native turn identity before a silent task check.'), { status: 409 });
     if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
     if (agent.provider === 'claude') {
-      return await this.claude.send(agent, text.trim(), { images, report, reportSetting, instructions: Object.values(context).map(part => part.value).join('\n\n'), stillOpen: () => this.agents.get(id) === agent, ...(report || reportSetting ? { priority: 'next' } : {}) });
+      return await this.claude.send(agent, text.trim(), { images, report, reportSetting, instructions: Object.values(context).map(part => part.value).join('\n\n'), stillOpen: () => { assertSummaryDelivery(); return this.agents.get(id) === agent; }, ...(report || reportSetting ? { priority: 'next' } : {}) });
     }
-    if (agent.freshBranch && !report && !reportSetting && !taskPing && !concernReview && !messageQuestion) {
+    if (agent.freshBranch && !report && !reportSetting && !taskPing && !concernReview && !coordinatorSummary && !messageQuestion) {
       const title = text.trim().split('\n')[0].slice(0, 120) || 'Image message';
       await this.rpc.call('thread/name/set', { threadId: id, name: title });
       agent.name = title; agent.goal = title; agent.freshBranch = false;
@@ -1209,7 +1246,7 @@ export class Workspace extends EventEmitter {
     }
     // No await between this final concern-specific check and the native write.
     // Context loading may have raced a stop, pause, handoff or ownership change.
-    assertConcernDelivery();
+    assertConcernDelivery(); assertSummaryDelivery();
     if (agent.thread.status?.type === 'active' && agent.turnId) {
       const turnId = agent.turnId;
       const epoch = this.requestEpoch, stopIntent = agent.requestStopIntent;
@@ -1243,6 +1280,7 @@ export class Workspace extends EventEmitter {
         // Never fall back to starting a new turn after a rejected steer.
         const currentTurn = agent.turnId;
         deliveredTurn = currentTurn;
+        assertSummaryDelivery();
         try { delivery = await this.rpc.call('turn/steer', { threadId: id, expectedTurnId: currentTurn, input: messageInput, ...identity }); }
         catch (retryError) { if (rejectedTurnMismatch(retryError, currentTurn)) throw notSent(); throw retryError; }
       }

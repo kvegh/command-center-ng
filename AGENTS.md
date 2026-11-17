@@ -451,6 +451,21 @@ reader. Preserve source chat/history/tasks, drafts, pending native requests and
 operation ownership. Input acceptance does not prove model/file completion;
 never retry an uncertain creation or import automatically.
 
+Before receiver import, add its association to the same existing source Beads
+tasks using the complete verified handoff mechanism. Preserve source links and
+all task states, owners, dependencies/content, holds and deferred work. Do not
+clone records or activate tasks from link inheritance. Task-bearing handovers
+stay in the same canonical project; a complete zero-task source read permits an
+ordinary different-project handover. On partial linking failure retain the known
+receiver/artifact/links, send no import and do not duplicate creation or replay.
+
+Native ask feedback belongs on its original request card. Do not send another
+queued summary telling a worker to wait for that ask; delivery may follow its
+resolution. Bind necessary review feedback to the exact current request and
+cancel only unsent stale bound summaries. Preserve ordinary messages, pauses,
+stops, uncertain sends and native controls. Audit records and generic native
+waiting/input-needed labels are not proof of a current approval callback.
+
 The user approved per-worker report cadence in existing private workspace metadata,
 all current tasks with dependency-derived queued state, direct task answers and
 Markdown/GFM rendering with react-markdown and remark-gfm, raw HTML disabled.

@@ -186,6 +186,19 @@ claiming it saved a file does not bypass this check. Missing, empty, linked or
 unsafe files prevent receiver startup; source errors, interruptions and uncertain
 native delivery remain visible without automatic retries or cancellation.
 
+Before the new chat's first input, CCNG links every source-associated Beads task
+to the receiver using the same existing records, including closed, held, deferred
+and normally hidden records. Source associations, states, owners, dependencies
+and content are retained. The receiver reads its own conversation label and sees
+its existing linked work; this does not reactivate held/deferred tasks or grant
+authority for new work. The same canonical project directory is required when
+source tasks exist. A different-directory handover is allowed only when a complete
+read proves no source tasks; later source additions stop it safely. An unavailable
+tracker blocks rather than silently omitting tasks. If linking or final safety
+checks fail after allocation, the known receiver, prepared file and completed
+links remain, with no import or automatic duplicate creation. Inspect that exact
+receiver before continuing.
+
 The new chat's first input imports that exact file automatically, loads local
 instructions and reconciles project/task/operation state. There is no Import
 button or separate waiting startup turn. Source selection stays in place; use
@@ -219,8 +232,10 @@ native approval policy and sandbox. New Claude chats start in native Auto mode.
 These are native provider controls, not a CCNG approval allowlist or permissions
 store. CCNG does not override existing chats merely because of these new-chat
 defaults. Reopening an existing version applies no startup import or new-chat
-override and cannot bypass a pending request. Claude's first-query Auto option
-alone does not establish persistence after a future native process resumption.
+override and cannot bypass a pending request. Requested Auto/Manual preferences
+for retained Claude chats now persist across managed resumes in existing private
+workspace metadata, as described below; the first-query option alone was not
+sufficient in earlier releases.
 Actual mode confirmation and native controls remain authoritative.
 
 ## Branch and return a summary

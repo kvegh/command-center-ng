@@ -1,5 +1,57 @@
 # Design decisions history
 
+## 2026-11-17, 13:13 UTC — Carry task records and retire stale review feedback
+
+The user explicitly requested fixing missing handover task associations. Reuse
+the existing complete Beads handoff operation before receiver instructions/import:
+add the receiver association to the same records, retain source associations and
+every task state/owner/dependency/content, and refresh the receiver view. Verify
+all statuses, including normally hidden and closed records. A task-bearing
+handover requires the same canonical project; a complete zero-task read permits
+a different directory. Recheck after preparation and before input. Link/readback
+or safety failure retains the exact receiver, artifact and completed links,
+without an import or duplicate creation. This uses existing tracker/queue paths,
+not another store, copied task database or automatic task activation.
+
+A real user transcript established stale Coordinator wait summaries arriving
+after the associated commands completed. Source diagnosis found the prompt
+required non-approval summaries while the existing delivery gate waited for
+requests to resolve; a regression even expected that stale delivery. Stop
+requiring duplicate native-ask summaries. Bind necessary review feedback to exact
+requests reviewed in that turn (including older tool-call shapes), validate
+lifecycle/owner/connection before delivery and after awaits, and discard only
+known-unsent stale bound feedback. Preserve ordinary summaries, uncertain sends,
+pauses/stops and original manual controls. Bindings stay transient/private.
+Arbitrary false claims in unrelated free text remain an instruction issue;
+no semantic content filter, service or timer is added.
+
+The user separately requested Auto-review for the existing visualization receiver.
+One supported native settings update containing only approvalsReviewer:auto_review
+was acknowledged at 13:01:10.477770–13:01:18.579698 UTC. Model and idle state
+were unchanged; no approval-policy/sandbox override, native answer or model input
+was sent. No fresh settings notification or subsequent mode-bearing turn was
+observed; historical reviewer records predate the update, not proof of failure.
+The source-only 1.35.0 changes are retained in working 1.36.0.
+
+Read-only source/receiver inspection found one missing closed-task association in
+that receiver and none in the Claude receiver. At 13:09:46.359232–13:09:51.816972
+UTC, the existing verified Beads operation repaired that association: closed
+state, source link, content, ownership, dependencies and other labels were verified
+unchanged. No worker input was sent. The user confirmed Claude idle with no pending
+cards; an actual native idle baseline was then recorded for guarded app delivery.
+Earlier generic CLI waiting/input-needed observations were insufficient to claim
+an approval wait; this correction supersedes that earlier interpretation.
+Combined source checks, publication and installed verification follow before
+delivery is declared complete. Implementation commit is recorded after publication.
+
+Combined source verification succeeded at 13:13:16.964324–13:14:30.957865 UTC:
+1,394 tests passed, zero failures, one unavailable supplementary-group fixture
+skipped; TypeScript and production build passed (523 ms build). This includes
+the real isolated HTTP cases previously blocked by the local loopback sandbox.
+No tool installation or permission workaround was used. The changed behavior
+has also passed 67 focused handover/Beads checks and 135 Coordinator/concern checks.
+Actual installed verification follows the authorized guarded application update.
+
 ## 2026-11-17, 12:43 UTC — Publish verified corrections; preserve the native input wait
 
 Implementation `b5573ed16986d5f0a8cd0a81e6a4cac884fec15d` is SSH-published

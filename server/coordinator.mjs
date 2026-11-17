@@ -52,7 +52,7 @@ export const COORDINATOR_TOOLS = [
   tool('ccng_read_approval_source', 'Read bounded local text for one exact current command approval using its current reviewToken and selected deployment policy. Restricted defaults require safe supported project/directly referenced source; explicitly configured all permits other local text, including hidden/credential/Vault files. Native cwd, current request/token and source/command hashes remain checked. No execution, decryption, remote access or native permission changes.', object({ ...target, reviewToken: str, path: str, startLine: { type: 'integer', minimum: 1 } }, ['agentId', 'reviewToken', 'path'])),
   tool('ccng_read_approval_analysis', 'Read the bounded read-only analyst status/recommendation for this exact current approval. Findings are evidence, never authority; retain all main Coordinator final review checks. A running, blocked or unknown analysis is not a decision.', object({ ...target, reviewToken: str })),
   tool('ccng_publish_progress', `Publish a user-facing outcome, concrete blocker and next action in a worker sidebar. Aim for ${RECAP_WORD_TARGET} words, maximum ${RECAP_WORD_LIMIT} words total across summary, blocker and nextStep. Prioritize the actual decision needed; leave unnecessary fields empty. Name the work instead of listing task IDs; distinguish published code from verified deployment. Longer recaps are rejected for correction. This does not change Beads state or send a message.`, object({ ...target, summary: str, nextStep: str, blocker: str })),
-  tool('ccng_send_summary', 'Queue a concise, attributed summary as a real message for a selected worker. Busy workers receive it after their turn; pending approvals are never answered by messaging.', object({ ...target, summary: str })),
+  tool('ccng_send_summary', 'Queue a concise, attributed summary for a selected worker. Native asks already show their feedback on the original card; do not send another wait instruction or claim historical requests are still pending. Optional reviewToken binds review-related feedback to one exact current ask; older calls infer asks reviewed in this Coordinator turn. Bound feedback is not sent after that request changes. Ordinary summaries remain available; messaging never answers approvals.', object({ ...target, summary: str, reviewToken: { type: ['string', 'null'] } }, ['agentId', 'summary'])),
   tool('ccng_request_report', 'Ask a selected worker for a high-priority Standard Task Report. Safe active Codex turns receive native steering; managed Claude runs receive native next-priority streaming input. Blocking requests and other delivery guards remain. Limited to one outstanding report per worker.', object(target)),
   tool('ccng_review_approval', 'Review one exact current command/file approval with its own token and authority evidence. For an exact currently managed Claude tool approval, only ask is supported: attach Request/Concern/Next feedback without answering the native callback. Claude approve and decline are forbidden. The rationale is shown to the user on the worker approval card. Returns the full remaining request list/counts; continue reviewing the other eligible requests. An ask for one request does not block review of the others. Never grant session permissions.', object({ ...target, reviewToken: str, decision: { type: 'string', enum: ['approve', 'decline', 'ask'] }, rationale: { ...str, description: COORDINATOR_RATIONALE_GUIDANCE }, authorizationMessageId: { type: ['string', 'null'] }, authorizationQuote: { type: ['string', 'null'] } }))
 ];
@@ -75,6 +75,7 @@ export class Coordinator {
     this.timerAt = null; this.urgentPending = false;
     this.eventClock = { now: () => Date.now(), setTimeout, clearTimeout, ...eventClock };
     this.deliveries = new Map(); this.reportPending = new Set(); this.reportVersions = new Map(); this.reportResponses = new Map(); this.audit = []; this.stopped = false; this.running = false; this.messageActions = new Set();
+    this.reviewSummaryBindings = new Map();
     this.approvalSources = new Map();
     this.pendingConcerns = new Map(); this.concernSeen = new WeakSet(); this.concernError = null;
     this.setConcernReviewWorker(concernReviewWorkerId);
@@ -903,13 +904,55 @@ export class Coordinator {
     files.set(source.path, { sha256: source.sha256, commandSha256: source.commandSha256, workingDirectory: cwd }); this.approvalSources.set(question.reviewToken, files);
     return source;
   }
-  queue(agent, text, kind, { scheduledReport = false, startupDashboard = false, detailed = false, userRequestedReport = false, concernTarget, concernEpoch } = {}) {
+  summaryReviewBinding(agent, context, question) {
+    return { agent, context, question, review: question.review, reviewToken: question.reviewToken,
+      fingerprint: this.reviewerFingerprint(agent, context, question),
+      ...(agent.provider === 'claude' ? { nativeRun: this.workspace.claude?.runs.get(context.id) } : {}) };
+  }
+  rememberSummaryReview(agent, context, question) {
+    const key = this.workspace.agents.get(this.id)?.turnId + ':' + agent.id;
+    const bindings = this.reviewSummaryBindings.get(key) || [];
+    this.reviewSummaryBindings.set(key, [...bindings.filter(binding => binding.reviewToken !== question.reviewToken), this.summaryReviewBinding(agent, context, question)]);
+  }
+  summaryReviewCurrent(agent, review) {
+    return review.agent === agent && this.workspace.agents.get(agent.id) === agent
+      && review.coordinatorId === this.id && review.epoch === this.workspace.requestEpoch
+      && review.bindings.every(binding => {
+        const { context, question } = binding;
+        if (binding.agent !== agent || !this.requestCurrent(agent, context, question) || question.responding || question.unassociated || question.error
+          || question.review !== binding.review || question.review?.decision !== 'ask' || question.reviewToken !== binding.reviewToken
+          || this.reviewerFingerprint(agent, context, question) !== binding.fingerprint) return false;
+        const key = JSON.stringify([context.id, question.id]);
+        if (agent.provider !== 'claude') return this.workspace.pending.get(key) === question;
+        const runtime = this.workspace.claude, pending = runtime?.requests.get(key);
+        return runtime?.records.get(context.id) === context && runtime?.runs.get(context.id) === binding.nativeRun
+          && !!binding.nativeRun?.query && pending?.question === question && !pending.signal?.aborted;
+      });
+  }
+  assertSummaryDelivery(agent, message) {
+    if (!this.deliveries.get(agent.id)?.includes(message)) throw Object.assign(fail('The queued Coordinator summary was cancelled before delivery.'), { code: 'coordinator_summary_cancelled' });
+    if (this.paused || this.stopped || this.workspace.restoring || agent.requestStopIntent) {
+      throw Object.assign(fail('Coordinator summary delivery is waiting for the existing pause or stop to clear.'), { code: 'coordinator_summary_wait' });
+    }
+    if (message.summaryReview && !this.summaryReviewCurrent(agent, message.summaryReview)) {
+      throw Object.assign(fail('Review feedback was not sent because its exact native request resolved or changed. Read the current worker state.'), { code: 'stale_review_summary' });
+    }
+    if (!this.workspace.readyFor(agent) || !agent.canSend || agent.externalSession || agent.questions.length || hasOpenAsyncQuestions(agent)
+      || agent.turnId || agent.thread.status?.type !== 'idle' || agent.handoff || this.workspace.handoffs.incoming(agent.id)
+      || this.workspace.summaryJobs.has(agent.id) || this.workspace.returnJobs.has(agent.id) || agent.returnSummary?.delivered) {
+      throw Object.assign(fail('Coordinator summary delivery is waiting for an authorized idle point.'), { code: 'coordinator_summary_wait' });
+    }
+  }
+  staleSummary(agent) {
+    this.record({ agentId: agent.id, action: 'summary', outcome: 'not-sent-stale-review', rationale: 'Queued review feedback was not sent because its exact native request resolved or changed. It does not pause current work.' });
+  }
+  queue(agent, text, kind, { scheduledReport = false, startupDashboard = false, detailed = false, userRequestedReport = false, concernTarget, concernEpoch, summaryReview } = {}) {
     const rows = this.deliveries.get(agent.id) || [];
     // An explicit Report now keeps one bounded slot when ordinary messages fill
     // the queue. requestUserReport coalesces repeats; delivery guards still apply.
     const reservedReportSlot = userRequestedReport && kind === 'report' && rows.length === 4 && !rows.some(row => row.kind === 'report');
     if (rows.length >= 4 && !reservedReportSlot) throw fail("This worker's coordinator message queue is full.");
-    const message = { text, kind, id: randomUUID(), ...(scheduledReport ? { scheduledReport: true } : {}), ...(startupDashboard ? { startupDashboard: true } : {}), ...(detailed ? { detailed: true } : {}), ...(kind === 'concerns' ? { concernTarget, concernEpoch } : {}) };
+    const message = { text, kind, id: randomUUID(), ...(scheduledReport ? { scheduledReport: true } : {}), ...(startupDashboard ? { startupDashboard: true } : {}), ...(detailed ? { detailed: true } : {}), ...(kind === 'concerns' ? { concernTarget, concernEpoch } : {}), ...(summaryReview ? { summaryReview } : {}) };
     if (['report', 'report-setting', 'task-ping'].includes(kind)) {
       let index = Math.max(agent.coordinatorSending ? 1 : 0, rows.findLastIndex(row => row.error) + 1);
       if (kind === 'report-setting') while (rows[index]?.kind === 'report') index++;
@@ -964,7 +1007,14 @@ export class Coordinator {
   }
   async flush(id) {
     const rows = this.deliveries.get(id); const agent = this.workspace.agents.get(id);
-    if (this.stopped || this.paused || this.workspace.restoring || !rows?.length || rows[0].error || !agent || !this.workspace.readyFor(agent) || (agent.provider === 'claude' && agent.externalSession) || agent.questions.length || hasOpenAsyncQuestions(agent) || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag)) || !agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) return;
+    if (this.stopped || this.paused || this.workspace.restoring || !rows?.length || rows[0].error || !agent || agent.coordinatorSending) return;
+    // Review feedback must not become a new wait instruction after its native
+    // request ends. Leave unrelated rows and uncertain/in-flight sends intact.
+    while (rows[0]?.summaryReview && !rows[0].error && !this.summaryReviewCurrent(agent, rows[0].summaryReview)) {
+      rows.shift(); this.staleSummary(agent);
+    }
+    if (!rows.length) { if (this.deliveries.get(id) === rows) this.deliveries.delete(id); this.workspace.changed(); return; }
+    if (rows[0].error || !this.workspace.readyFor(agent) || (agent.provider === 'claude' && agent.externalSession) || agent.questions.length || hasOpenAsyncQuestions(agent) || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag)) || !agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) return;
     if (rows[0].kind === 'task-ping' && !this.taskPingAllowed(agent)) return;
     if (rows[0].kind === 'concerns' && (agent.requestStopIntent || agent.handoff || this.workspace.handoffs.incoming(id))) return;
     const busy = !!agent.turnId || agent.thread.status?.type === 'active';
@@ -976,6 +1026,7 @@ export class Coordinator {
     const reportInProgress = agent.coordinatorDeliveryKind === 'report';
     const previousScheduled = !!agent.scheduledReportInProgress;
     const previousTaskPing = !!agent.taskPingInProgress;
+    let cancelledSummary = false;
     const response = message.kind === 'report' ? {
       requestId: message.id, turnId: agent.provider === 'claude' ? agent.turnId || null : null, confirmed: false, scheduledReport: !!message.scheduledReport, startupDashboard: !!message.startupDashboard, detailed: !!message.detailed,
       candidates: new Map(), formatErrors: new Map(), completedTurns: new Set(),
@@ -986,7 +1037,7 @@ export class Coordinator {
       if (!reportInProgress) agent.coordinatorDeliveryKind = message.kind;
       if (message.kind === 'report') agent.scheduledReportInProgress = !!message.scheduledReport;
       if (message.kind === 'task-ping') agent.taskPingInProgress = true;
-      const delivery = await this.workspace.send(id, message.text, { report: message.kind === 'report', reportSetting: message.kind === 'report-setting', preserveAsyncQuestions: true, ...(message.kind === 'task-ping' ? { taskPing: true } : {}), ...(message.kind === 'concerns' ? { concernReview: { target: message.concernTarget, epoch: message.concernEpoch, message } } : {}) });
+      const delivery = await this.workspace.send(id, message.text, { report: message.kind === 'report', reportSetting: message.kind === 'report-setting', preserveAsyncQuestions: true, ...(message.kind === 'task-ping' ? { taskPing: true } : {}), ...(message.kind === 'concerns' ? { concernReview: { target: message.concernTarget, epoch: message.concernEpoch, message } } : {}), ...(message.summaryReview ? { coordinatorSummary: { message } } : {}) });
       // Clear/close can remove this queue while the native call is in flight.
       // Never remove a different message created during that await.
       if (rows[0] === message) rows.shift(); if (this.deliveries.get(id) === rows && !rows.length) this.deliveries.delete(id);
@@ -1008,9 +1059,15 @@ export class Coordinator {
       if (this.reportResponses.get(id) === response) this.reportResponses.delete(id);
       agent.coordinatorDeliveryKind = reportInProgress ? 'report' : null;
       agent.scheduledReportInProgress = previousScheduled;
+      if (['stale_review_summary', 'coordinator_summary_cancelled'].includes(error.code)) {
+        if (rows[0] === message) rows.shift();
+        if (this.deliveries.get(id) === rows && !rows.length) this.deliveries.delete(id);
+        if (error.code === 'stale_review_summary') this.staleSummary(agent);
+        cancelledSummary = true; return;
+      }
       // A live question can arrive during context preparation. Nothing was
       // sent in this case: preserve the same queued control until it is safe.
-      if (['async_question_pending', 'concern_review_wait', 'concern_review_cancelled'].includes(error.code)) { agent.taskPingInProgress = previousTaskPing; return; }
+      if (['async_question_pending', 'concern_review_wait', 'concern_review_cancelled', 'coordinator_summary_wait'].includes(error.code)) { agent.taskPingInProgress = previousTaskPing; return; }
       message.error = error.message;
       if (['report', 'report-setting'].includes(message.kind)) agent.reportError = error.message;
       if (message.startupDashboard) this.settleStartupDashboard(id, 'failed', agent);
@@ -1020,7 +1077,7 @@ export class Coordinator {
         : 'Coordinator message delivery was not confirmed; it will not retry automatically: ') + error.message;
       this.record({ agentId: id, action: message.kind, outcome: notSent ? 'not-sent' : 'unconfirmed', rationale: error.message });
     }
-    finally { agent.coordinatorSending = false; this.workspace.changed(); if (['report', 'report-setting', 'task-ping'].includes(this.deliveries.get(id)?.[0]?.kind) && !this.deliveries.get(id)[0].error) void this.flush(id); }
+    finally { agent.coordinatorSending = false; this.workspace.changed(); if ((cancelledSummary || ['report', 'report-setting', 'task-ping'].includes(this.deliveries.get(id)?.[0]?.kind)) && this.deliveries.get(id)?.length && !this.deliveries.get(id)[0].error) void this.flush(id); }
   }
   async review(agent, args) {
     const pending = this.requestEntries(agent).find(({ question }) => question.reviewToken === args.reviewToken);
@@ -1079,7 +1136,7 @@ export class Coordinator {
       ...(requestFingerprint ? { requestFingerprint } : {}),
     };
     question.review = { decision: args.decision, rationale: reason }; this.workspace.changed();
-    if (args.decision === 'ask') { this.record({ ...entry, outcome: 'needs_user' }); this.collectConcern(agent, context, question, entry); this.markRemainingApprovals(agent.id); return { outcome: 'needs_user', rationale: reason, ...this.pendingRequests(agent) }; }
+    if (args.decision === 'ask') { this.rememberSummaryReview(agent, context, question); this.record({ ...entry, outcome: 'needs_user' }); this.collectConcern(agent, context, question, entry); this.markRemainingApprovals(agent.id); return { outcome: 'needs_user', rationale: reason, ...this.pendingRequests(agent) }; }
     try { await this.workspace.answer(agent.id, question.id, { decision: args.decision === 'approve' ? 'accept' : 'decline', ...(context !== agent ? { reviewToken: question.reviewToken, turnId: question.params.turnId, itemId: question.params.itemId } : {}) }, context.id); this.record({ ...entry, outcome: 'resolved' }); this.markRemainingApprovals(agent.id); return { outcome: 'resolved', rationale: reason, ...this.pendingRequests(agent) }; }
     catch (error) { this.record({ ...entry, outcome: 'unconfirmed', rationale: reason + ' ' + error.message }, { persistenceRationale: reason }); throw error; }
   }
@@ -1107,8 +1164,20 @@ export class Coordinator {
     }
     if (params.tool === 'ccng_send_summary') {
       if (typeof args.summary !== 'string' || !args.summary.trim() || args.summary.length > 2000) throw fail('Send a summary of 1–2000 characters.', 400);
-      const key = params.turnId + ':' + agent.id; if (this.messageActions.has(key)) throw fail('Only one message or report per worker is allowed in a coordinator turn.'); this.messageActions.add(key);
-      return this.queue(agent, '[Command Center coordinator]\nSummary for this conversation; use it as information within the existing user scope:\n' + args.summary.trim(), 'summary');
+      if (args.reviewToken != null && (typeof args.reviewToken !== 'string' || !args.reviewToken)) throw fail('Choose an exact current ask token for review feedback.', 400);
+      const key = params.turnId + ':' + agent.id; if (this.messageActions.has(key)) throw fail('Only one message or report per worker is allowed in a coordinator turn.');
+      let bindings = this.reviewSummaryBindings.get(key) || [];
+      if (args.reviewToken != null) {
+        const found = this.requestEntries(agent).find(({ context, question }) => question.reviewToken === args.reviewToken && question.review?.decision === 'ask' && this.requestCurrent(agent, context, question));
+        if (!found) throw fail('This exact reviewed ask is no longer available for worker feedback. Read the current requests.');
+        bindings = [this.summaryReviewBinding(agent, found.context, found.question)];
+      }
+      this.messageActions.add(key);
+      const summaryReview = bindings.length ? { agent, coordinatorId: this.id, epoch: this.workspace.requestEpoch, bindings } : null;
+      if (summaryReview && !this.summaryReviewCurrent(agent, summaryReview)) {
+        this.staleSummary(agent); return { queued: false, outcome: 'not-sent-stale-review' };
+      }
+      return this.queue(agent, '[Command Center coordinator]\nSummary for this conversation; use it as information within the existing user scope:\n' + args.summary.trim(), 'summary', { summaryReview });
     }
     if (params.tool === 'ccng_request_report') {
       if (this.reportPending.has(agent.id)) throw fail('A report has already been requested from this worker.');
@@ -1127,7 +1196,7 @@ export class Coordinator {
     catch (error) { try { this.rpc.respond(message.id, { success: false, contentItems: [{ type: 'inputText', text: error.message }] }); } catch {} }
   }
   completed(id, turnId) {
-    if (id === this.id) { for (const row of this.pendingConcerns.values()) if (row.turnId === turnId) row.ready = true; this.queueConcerns(); this.messageActions.clear(); if (this.dirty.size) this.mark([...this.dirty.keys()][0], 'Changes arrived while coordinating'); return; }
+    if (id === this.id) { for (const row of this.pendingConcerns.values()) if (row.turnId === turnId) row.ready = true; this.queueConcerns(); this.messageActions.clear(); this.reviewSummaryBindings.clear(); if (this.dirty.size) this.mark([...this.dirty.keys()][0], 'Changes arrived while coordinating'); return; }
     const agent = this.workspace.agents.get(id); if (!agent) return;
     const taskPing = !!agent.taskPingInProgress;
     if (taskPing) { agent.taskPingInProgress = false; this.taskPingPending.delete(id); }
@@ -1149,15 +1218,16 @@ export class Coordinator {
     void this.flush(id);
     if (id === this.concernReviewWorkerId) this.queueConcerns();
   }
-  clearMessages() { this.deliveries.clear(); this.pendingConcerns.clear(); this.concernError = null; this.taskPingPending.clear(); this.reportPending.clear(); this.reportVersions.clear(); this.reportResponses.clear(); for (const [id, startup] of this.startupDashboardWorkers) if (startup.status === 'waiting') this.settleStartupDashboard(id, 'cancelled', startup.agent); this.error = null; this.armReports(); this.workspace.changed(); }
+  clearMessages() { this.deliveries.clear(); this.reviewSummaryBindings.clear(); this.pendingConcerns.clear(); this.concernError = null; this.taskPingPending.clear(); this.reportPending.clear(); this.reportVersions.clear(); this.reportResponses.clear(); for (const [id, startup] of this.startupDashboardWorkers) if (startup.status === 'waiting') this.settleStartupDashboard(id, 'cancelled', startup.agent); this.error = null; this.armReports(); this.workspace.changed(); }
   closed(id) {
+    for (const [key, bindings] of this.reviewSummaryBindings) if (bindings.some(binding => binding.agent.id === id)) this.reviewSummaryBindings.delete(key);
     if (id === this.concernReviewWorkerId && (this.pendingConcerns.size || this.deliveries.get(id)?.some(row => row.kind === 'concerns'))) {
       this.pendingConcerns.clear(); this.concernError = 'The engineering review chat was closed. Its unsent concern notices were cancelled; original requests remain pending.';
     }
     this.progressUpdater?.closed(id); this.deliveries.delete(id); this.taskPingPending.delete(id); this.reportPending.delete(id); this.reportVersions.delete(id); this.reportResponses.delete(id); this.reportSchedules.delete(id); this.startupDashboardWorkers.delete(id); this.armReports(); this.dirty.delete(id); if (!this.dirty.size) { this.clearEventTimer(); this.urgentPending = false; } this.pruneApprovalSources(); void this.refreshApprovalReviewers();
   }
   stop() {
-    this.stopped = true; this.reviewers?.stop(); this.progressUpdater?.stop(); this.nextTaskPingAt = null; this.taskPingPending.clear();
+    this.stopped = true; this.reviewSummaryBindings.clear(); this.reviewers?.stop(); this.progressUpdater?.stop(); this.nextTaskPingAt = null; this.taskPingPending.clear();
     for (const [id, rows] of this.deliveries) if (!this.workspace.agents.get(id)?.coordinatorSending) {
       const retained = rows.filter(row => row.kind !== 'task-ping'); rows.splice(0, rows.length, ...retained);
       if (!rows.length) this.deliveries.delete(id);

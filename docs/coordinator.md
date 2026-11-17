@@ -197,20 +197,28 @@ commands or raw code. Exact actions, tokens and authorization quotes/references
 remain in the review tools, whose safeguards are unchanged. These markers use
 existing Unicode/text rendering; no HTML styling or new dependency is required.
 
-After reviewing a worker's requests, instructions require one concise summary of
-non-approval results and reasons through `ccng_send_summary`. Multiple results
-are combined to respect the existing one-message/report limit. The worker may
-propose an easy, permitted alternative within its existing scope, or wait when
-only the user can decide. Feedback never authorizes a security workaround,
-credential change, scope expansion or automatic retry of the same action.
+Native ask feedback is shown on its original request card. Instructions no longer
+require another summary telling a blocked worker to wait: summary delivery waits
+for requests to resolve, making that text stale by arrival. Audit records and
+queued observations are historical evidence, not current callback state or a new
+pause. The Coordinator must read current requests before asserting one remains
+pending. A generic native waiting/input-needed label is insufficient evidence.
 
-This is an instructed use of the existing communication tool, not a new automatic
-transport or guaranteed model action. Check the queue acknowledgement and report
-failures honestly. Delivery remains queued while any native request is pending
-and until the worker is safely idle. An ask stays open for the user; it is never
-converted to decline just to deliver the notice. The worker cannot read a queued
-notice before those delivery conditions are met. Existing pause, confirmation,
-duplicate-message and failure/no-automatic-retry behavior remains.
+`ccng_send_summary` remains available for useful ordinary information. Necessary
+review-related feedback can bind to an exact current reviewed `reviewToken`;
+older same-turn calls inherit the asks actually reviewed in that turn. Those
+transient bindings use existing process memory and never become approval
+authority. If the request resolves, is replaced, changes owner/context or crosses
+a connection epoch, discard only the unsent bound summary and record that it was
+not sent. Check again after context loading and immediately before native input,
+including Claude's internal allocation waits. Pause/stop waits preserve the row;
+unrelated summaries, uncertain sends and native requests remain intact. No old
+command or approval is replayed. Free-text claims in unrelated unbound summaries
+are governed by instructions, not a message-content classifier or proof of truth.
+
+An ask is never converted to decline to deliver feedback. Check queued versus
+delivered outcomes and errors honestly. Existing bounded queue, duplicate-message,
+native permissions and no-automatic-retry behavior remain.
 
 ## Engineering review of recurring concerns
 

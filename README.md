@@ -59,7 +59,8 @@ user XML remains user text. See [chat display and typing](docs/usage.md#chat-dis
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
 - Create a versioned receiving chat from the Project overview after choosing
   Codex or Claude, prepare and verify the file first, then import automatically
-  at startup. Existing versions require an explicit open-or-increment choice. See [chat handovers](docs/usage.md#chat-handovers).
+  at startup. Link the same source Beads tasks before import, keeping their states
+  and source associations. Existing versions require an explicit open-or-increment choice. See [chat handovers](docs/usage.md#chat-handovers).
 - Chat, steer active work, interrupt a turn and answer supported native questions or approvals, including eligible current assistant-question cards.
   If native Codex explicitly rejects an outdated turn, refresh its current state
   and retry ordinary input once when safe; uncertain deliveries are not repeated.
@@ -98,6 +99,8 @@ user XML remains user text. See [chat display and typing](docs/usage.md#chat-dis
 - Review independent Codex approval requests with up to two read-only analysts; the Coordinator remains the sole automated approver. See [review boundaries and timing](docs/usage.md#coordinator-approval-review).
 - Show Coordinator concerns on the exact Claude approval card while retaining
   its manual decision. Claude concern feedback does not answer the tool request.
+- Cancel unsent review-related summaries when their exact requests resolve or
+  change, so an old concern cannot become a new instruction to wait.
 - Resolve relative command paths from the exact request's working directory, even when the chat or analyst started elsewhere; directory evidence still requires user authority for the action.
 - Forward new Coordinator concerns to a designated engineering chat for proactive in-scope fixes, using the existing message queue while preserving every original approval. Withheld fields explain their fixed redaction category without revealing matches. See [concern review](docs/coordinator.md#engineering-review-of-recurring-concerns).
 - Inspect safe playbooks, JSON, YAML, Markdown, Python and shell source through bounded read-only review tools, with secret protection and exact approval binding for source in a current request’s same-host project directory, even when the chat started elsewhere. Other outside-project helpers still require a direct command reference.
@@ -448,7 +451,9 @@ The functional HTTP tests use a disposable authenticated loopback CCNG instance,
 temporary project/skill files and synthetic native transports. They verify
 source requests, source-provider defaults, version conflicts, verified file-before-
 startup ordering, automatic initial import, retained assignments, input protections
-and uncertain-delivery handling.
+and uncertain-delivery handling. They also verify same-record task labels before
+receiver instructions/import, retained task state/content and source associations,
+cross-project safeguards and partial-link failures without duplicate import.
 User-message checks verify escaped HTML text remains visible without execution.
 They exit nonzero on failure and clean up test
 data; loopback-listener access is required. They do not ask a real model to

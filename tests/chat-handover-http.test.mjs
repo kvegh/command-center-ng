@@ -10,6 +10,7 @@ import { createApp } from '../server/main.mjs';
 import { setPassword } from '../server/auth.mjs';
 import { Workspace } from '../server/workspace.mjs';
 import { ClaudeSessions } from '../server/claude.mjs';
+import { BeadsTasks, sessionLabel } from '../server/beads.mjs';
 
 class Stream {
   waiting = null;
@@ -25,7 +26,23 @@ async function fixture(t) {
   const skillPath = join(directory, 'SKILL.md');
   await writeFile(skillPath, '# Synthetic handoff skill\n', { mode: 0o600 });
   const handoverPath = join(directory, 'handoff.md'), handoverText = '# Synthetic handover\nPreserve original work.\n';
-  const calls = [], queries = [], threads = new Map(), state = { fail: null, catalog: [] };
+  const calls = [], queries = [], threads = new Map(), state = { fail: null, catalog: [], taskRows: new Map(), contexts: [] };
+  const beads = new BeadsTasks({ run: async (_binary, args) => {
+    if (args.includes('version')) return { stdout: 'bd version 1.3.2\n' };
+    if (args.includes('--help')) return { stdout: '--json --readonly --brief --flat' };
+    if (args.includes('blocked')) return { stdout: '[]' };
+    if (args.includes('list')) {
+      const labels = args.flatMap((arg, index) => arg === '--label' ? [args[index + 1]] : []);
+      return { stdout: JSON.stringify([...state.taskRows.values()].filter(row => labels.every(label => row.labels.includes(label)))) };
+    }
+    if (args.includes('update')) {
+      const ids = args.slice(args.indexOf('update') + 1, args.indexOf('--add-label')), label = args[args.indexOf('--add-label') + 1];
+      for (const id of ids) { const row = state.taskRows.get(id); row.labels = [...new Set([...row.labels, label])]; }
+      if (state.failAfterTaskWrite) throw new Error('Synthetic task-link receipt failure.');
+      return { stdout: '{}' };
+    }
+    assert.fail('Unexpected Beads operation.');
+  } });
   let allocation = 0, turn = 0;
   const rpc = new EventEmitter(); rpc.ready = true; rpc.close = () => {};
   rpc.call = async (method, params) => {
@@ -48,8 +65,11 @@ async function fixture(t) {
     query(params) { const stream = new Stream(); stream.params = params; queries.push(stream); return stream; }
   };
   const claude = new ClaudeSessions({ loadSdk: async () => sdk, executable: async () => '/synthetic/unused/claude', activeSessions: async () => [] });
-  const workspace = new Workspace(rpc, { beads: null, claude, handoverTimeout: 2000, handoverPath: async () => handoverPath, handoverSkill: async () => skillPath });
-  workspace.instructionContext = async agent => ({ task: { value: 'ccng-session:' + agent.id } });
+  const workspace = new Workspace(rpc, { beads, claude, handoverTimeout: 2000, handoverPath: async () => handoverPath, handoverSkill: async () => skillPath });
+  workspace.instructionContext = async agent => {
+    state.contexts.push({ id: agent.id, taskIds: [...state.taskRows.values()].filter(row => row.labels.includes(sessionLabel(agent.id))).map(row => row.id) });
+    return { task: { value: 'ccng-session:' + agent.id } };
+  };
   workspace.list = async (_cursor, provider) => ({ agents: state.catalog.filter(chat => chat.provider === provider), nextCursor: null });
   threads.set('source', { id: 'source', cwd: directory, name: 'Source project', status: { type: 'idle' }, canAcceptDirectInput: true, turns: [] });
   const source = await workspace.open('source');
@@ -105,12 +125,19 @@ test('handover creation requires login and same-origin protection; manual import
 test('HTTP Create returns accepted progress before preparation and automatically imports only the completed file', async t => {
   for (const provider of ['codex', 'claude']) {
     const f = await fixture(t);
+    for (const [index, status] of ['open', 'in_progress', 'blocked', 'on_hold', 'deferred', 'closed'].entries()) {
+      const id = 'synthetic-task-' + index;
+      f.state.taskRows.set(id, { id, title: 'Synthetic retained task ' + index, status, labels: [sessionLabel('source'), 'original-label'], assignee: 'synthetic-owner', parent: 'synthetic-parent', blocked_by: ['synthetic-prerequisite'] });
+    }
+    const originalTasks = structuredClone([...f.state.taskRows.values()]);
     const response = await f.authenticated('/api/agents/source/handover-create', { provider, cwd: f.directory });
     assert.equal(response.status, 202, JSON.stringify(response.json()));
     assert.deepEqual(response.json(), { accepted: true, state: 'preparing', path: f.handoverPath });
     assert.equal(f.calls.filter(call => call.method === 'thread/start').length, 0); assert.equal(f.queries.length, 0);
     const prepared = await f.finish(); assert.equal(prepared.state, 'started');
     const receiver = f.workspace.agent(prepared.id);
+    assert.deepEqual([...f.state.taskRows.values()], originalTasks.map(row => ({ ...row, labels: [...row.labels, sessionLabel(receiver.id)] })), 'the original task records gain only the receiving conversation label');
+    assert.deepEqual(f.state.contexts.find(context => context.id === receiver.id).taskIds, originalTasks.map(row => row.id));
     const firstInput = provider === 'claude'
       ? (await f.queries[0].params.prompt.next()).value.message.content
       : f.calls.find(call => call.method === 'turn/start' && call.params.threadId === receiver.id).params.input[0].text;
@@ -119,10 +146,28 @@ test('HTTP Create returns accepted progress before preparation and automatically
     assert.equal(await readFile(f.handoverPath, 'utf8'), f.handoverText);
     const snapshot = await f.authenticated('/api/state'); assert.equal(snapshot.status, 200);
     assert.equal(snapshot.json().agents.find(agent => agent.id === 'source').handoverCreation.state, 'started');
+    assert.equal(snapshot.json().agents.find(agent => agent.id === receiver.id).taskCount, 5, 'all nonclosed source tasks appear in the receiver before continuation');
     const saved = JSON.parse(await readFile(f.workspaceFile, 'utf8'));
     assert.deepEqual(saved.workerHandoverImports[receiver.id], { path: f.handoverPath, sourceId: 'source' });
     assert.equal(f.calls.some(call => /archive|delete|interrupt/.test(call.method)), false);
   }
+});
+
+test('HTTP task-link uncertainty keeps original records and allocated receiver without importing or retrying', async t => {
+  const f = await fixture(t), task = { id: 'synthetic-held-task', title: 'Keep this task held', status: 'on_hold', labels: [sessionLabel('source')], assignee: 'synthetic-owner' };
+  f.state.taskRows.set(task.id, task); f.state.failAfterTaskWrite = true;
+  const response = await f.authenticated('/api/agents/source/handover-create', {}); assert.equal(response.status, 202);
+  const progress = await f.finish(); assert.equal(progress.state, 'failed'); assert(progress.id);
+  assert.match(progress.error, /task linking.*before import/);
+  assert.deepEqual(task, { id: 'synthetic-held-task', title: 'Keep this task held', status: 'on_hold', labels: [sessionLabel('source'), sessionLabel(progress.id)], assignee: 'synthetic-owner' });
+  assert(f.workspace.agents.has(progress.id));
+  assert.equal(f.calls.filter(call => call.method === 'thread/start').length, 1);
+  assert.equal(f.calls.filter(call => call.method === 'turn/start' && call.params.threadId === progress.id).length, 0);
+  assert.equal(f.state.contexts.some(context => context.id === progress.id), false);
+  assert.equal(await readFile(f.handoverPath, 'utf8'), f.handoverText);
+  const saved = JSON.parse(await readFile(f.workspaceFile, 'utf8'));
+  assert.deepEqual(saved.workerHandoverImports[progress.id], { path: f.handoverPath, sourceId: 'source' });
+  assert.equal(f.calls.some(call => /archive|delete|interrupt|cancel/.test(call.method)), false);
 });
 
 test('HTTP collision offers an existing chat and requires an explicit next-version choice before source work', async t => {

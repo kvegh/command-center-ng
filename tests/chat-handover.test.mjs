@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Workspace } from '../server/workspace.mjs';
 import { ClaudeSessions } from '../server/claude.mjs';
+import { BeadsTasks, sessionLabel } from '../server/beads.mjs';
 import { resolveHandoverSkill } from '../server/chat-handover.mjs';
 import limits from '../server/limits.json' with { type: 'json' };
 
@@ -20,7 +21,26 @@ class Stream {
 async function fixture(t, { sourceProvider = 'codex', handoverTimeout = 1000 } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'ccng-handover-test-'));
   const calls = [], queries = [], skills = [], threads = new Map();
-  const state = { fail: null, catalog: [], pages: [] };
+  const state = { fail: null, catalog: [], pages: [], taskRows: new Map(), taskCalls: [], contexts: [] };
+  const beads = new BeadsTasks({ run: async (_binary, args, options) => {
+    const command = args.includes('list') ? 'list' : args.includes('blocked') ? 'blocked' : args.includes('update') ? 'update' : null;
+    state.taskCalls.push({ command, args, cwd: options.cwd });
+    if (state.taskFailure === command) throw new Error('Synthetic Beads ' + command + ' failure.');
+    if (command === 'blocked') return { stdout: '[]' };
+    if (command === 'list') {
+      const labels = args.flatMap((arg, index) => arg === '--label' ? [args[index + 1]] : []);
+      return { stdout: JSON.stringify([...state.taskRows.values()].filter(row => labels.every(label => row.labels.includes(label)))) };
+    }
+    if (command === 'update') {
+      const ids = args.slice(args.indexOf('update') + 1, args.indexOf('--add-label'));
+      const label = args[args.indexOf('--add-label') + 1];
+      await state.beforeTaskWrite?.({ ids, label });
+      for (const id of ids) { const row = state.taskRows.get(id); row.labels = [...new Set([...row.labels, label])]; }
+      if (state.failAfterTaskWrite) throw new Error('Synthetic partial task-link acknowledgement failure.');
+      return { stdout: '{}' };
+    }
+    assert.fail('Unexpected Beads operation.');
+  } });
   let allocation = 0, turn = 0;
   const rpc = new EventEmitter(); rpc.ready = true;
   rpc.call = async (method, params) => {
@@ -45,8 +65,11 @@ async function fixture(t, { sourceProvider = 'codex', handoverTimeout = 1000 } =
   const claude = new ClaudeSessions({ loadSdk: async () => sdk, executable: async () => '/synthetic/unused/claude', activeSessions: async () => [] });
   await claude.initialize();
   const handoverPath = join(directory, 'handoff.md');
-  const workspace = new Workspace(rpc, { beads: null, claude, handoverTimeout, handoverPath: async () => handoverPath, handoverSkill: async provider => { skills.push(provider); return '/example/installed handoff/SKILL.md'; } });
-  workspace.instructionContext = async agent => ({ task: { value: 'ccng-session:' + agent.id } });
+  const workspace = new Workspace(rpc, { beads, claude, handoverTimeout, handoverPath: async () => handoverPath, handoverSkill: async provider => { skills.push(provider); return '/example/installed handoff/SKILL.md'; } });
+  workspace.instructionContext = async agent => {
+    state.contexts.push({ id: agent.id, taskIds: [...state.taskRows.values()].filter(row => row.labels.includes(sessionLabel(agent.id))).map(row => row.id) });
+    return { task: { value: 'ccng-session:' + agent.id } };
+  };
   workspace.list = async (cursor, provider) => {
     state.pages.push({ cursor, provider });
     return { agents: state.catalog.filter(row => row.provider === provider), nextCursor: null };
@@ -86,7 +109,7 @@ async function fixture(t, { sourceProvider = 'codex', handoverTimeout = 1000 } =
     await workspace.handoverJobs?.get(sourceId)?.promise;
     await rm(directory, { recursive: true, force: true });
   });
-  return { directory, handoverPath, workspace, source, sourceId, calls, queries, skills, state, threads, waitFor, start, preparation, finish, allocations };
+  return { directory, handoverPath, workspace, source, sourceId, calls, queries, skills, state, threads, beads, waitFor, start, preparation, finish, allocations };
 }
 
 function catalogChat(f, name, { id = 'closed-version', provider = 'codex', cwd = f.directory } = {}) {
@@ -98,6 +121,99 @@ function fillSlots(f, count) {
     f.workspace.agents.set(id, { ...f.source, id, name: 'Unrelated ' + index, questions: [], messages: [], tasks: [], workers: [] });
   }
 }
+
+function addTasks(f) {
+  for (const [index, status] of ['open', 'in_progress', 'on_hold', 'blocked', 'deferred', 'closed'].entries()) {
+    const id = 'task-' + index;
+    f.state.taskRows.set(id, { id, title: 'Synthetic task ' + index, status, priority: 2, assignee: 'synthetic-owner', labels: [sessionLabel(f.sourceId), 'keep-label'], parent: 'task-parent', blocked_by: ['task-prerequisite'], notes: 'Retained task evidence.' });
+  }
+}
+
+for (const provider of ['codex', 'claude']) test(`handover links every source task before ${provider} import without changing original records`, async t => {
+  const f = await fixture(t); addTasks(f);
+  const before = structuredClone([...f.state.taskRows.values()]);
+  await f.start({ provider });
+  const progress = await f.finish(); assert.equal(progress.state, 'started');
+  const receiverLabel = sessionLabel(progress.id);
+  assert.deepEqual([...f.state.taskRows.values()], before.map(row => ({ ...row, labels: [...row.labels, receiverLabel] })));
+  assert.deepEqual(f.state.contexts.find(context => context.id === progress.id).taskIds, before.map(row => row.id), 'all associations exist before startup instructions and first model input');
+  assert.equal(f.workspace.agent(progress.id).tracker.tasks.length, before.length);
+  const updates = f.state.taskCalls.filter(call => call.command === 'update');
+  assert.equal(updates.length, 1);
+  assert.ok(updates.every(call => !call.args.some(arg => ['--status', '--assignee', '--claim', '--set-labels', '--remove-label'].includes(arg))));
+  assert.ok(f.state.taskCalls.some(call => call.command === 'list' && call.args.includes('--include-gates') && call.args[call.args.indexOf('--limit') + 1] === '0'));
+});
+
+test('different-project handovers require no source tasks and reject new links before allocation', async t => {
+  const f = await fixture(t), other = join(f.directory, 'other-project'); await mkdir(other);
+  addTasks(f);
+  await assert.rejects(f.start({ cwd: other }), /linked Beads tasks.*different project/);
+  assert.equal(f.calls.some(call => ['turn/start', 'thread/start'].includes(call.method)), false);
+  f.state.taskRows.clear();
+  await f.start({ cwd: other }); await f.preparation();
+  addTasks(f);
+  const progress = await f.finish(); assert.equal(progress.state, 'failed'); assert.match(progress.error, /different project/);
+  assert.equal(f.allocations().length, 0); assert.equal(f.state.taskCalls.some(call => call.command === 'update'), false);
+});
+
+test('different-project handover without source tasks remains supported', async t => {
+  const f = await fixture(t), other = join(f.directory, 'other-project'); await mkdir(other);
+  await f.start({ cwd: other }); const progress = await f.finish();
+  assert.equal(progress.state, 'started'); assert.equal(f.workspace.agent(progress.id).cwd, other);
+  assert.equal(f.state.taskCalls.some(call => call.command === 'update'), false);
+});
+
+test('source tasks added after cross-project allocation block import without writing to another tracker', async t => {
+  const f = await fixture(t), other = join(f.directory, 'other-project'); await mkdir(other);
+  await f.start({ cwd: other }); await f.preparation();
+  const refresh = f.workspace.refreshTasks.bind(f.workspace);
+  f.workspace.refreshTasks = async id => { await refresh(id); if (id !== f.sourceId) addTasks(f); };
+  const progress = await f.finish();
+  assert.equal(progress.state, 'failed'); assert(progress.id); assert.match(progress.error, /different project/);
+  assert.equal(f.state.taskCalls.some(call => call.command === 'update'), false);
+  assert.equal(f.calls.filter(call => call.method === 'turn/start' && call.params.threadId === progress.id).length, 0);
+  assert(f.workspace.handoverImports.has(progress.id));
+});
+
+test('a changed source project cannot relink tasks after preparation', async t => {
+  const f = await fixture(t), other = join(f.directory, 'other-project'); await mkdir(other); addTasks(f);
+  await f.start(); await f.preparation(); f.source.cwd = other;
+  const progress = await f.finish(); assert.equal(progress.state, 'failed'); assert.match(progress.error, /project changed/);
+  assert.equal(f.allocations().length, 0); assert.equal(f.state.taskCalls.some(call => call.command === 'update'), false);
+});
+
+test('canonical project aliases safely reuse source task records', async t => {
+  const f = await fixture(t), alias = join(f.directory, 'project-alias'); await symlink(f.directory, alias); addTasks(f);
+  await f.start({ cwd: alias }); const progress = await f.finish();
+  assert.equal(progress.state, 'started');
+  assert.ok([...f.state.taskRows.values()].every(row => row.labels.includes(sessionLabel(progress.id))));
+});
+
+test('unavailable Beads fails before preparing or allocating a handover', async t => {
+  const f = await fixture(t); f.workspace.beads = null;
+  await assert.rejects(f.start(), /Beads is unavailable/);
+  assert.equal(f.calls.some(call => ['turn/start', 'thread/start'].includes(call.method)), false);
+});
+
+for (const failure of ['update', 'partial', 'readback', 'source-question']) test(`task-link ${failure} preserves the receiver and prevents first import`, async t => {
+  const f = await fixture(t); addTasks(f); await f.start(); await f.preparation();
+  const question = { id: 'source-human-decision', method: 'item/commandExecution/requestApproval', params: {} };
+  if (failure === 'partial') f.state.failAfterTaskWrite = true;
+  else if (failure === 'update') f.state.taskFailure = 'update';
+  else if (failure === 'readback') f.state.taskFailure = 'blocked';
+  else f.state.beforeTaskWrite = () => { f.source.questions.push(question); };
+  const progress = await f.finish();
+  assert.equal(progress.state, 'failed'); assert(progress.id); assert.match(progress.error, /task linking.*before import/);
+  assert(f.workspace.agents.has(progress.id)); assert(f.workspace.handoverImports.has(progress.id));
+  assert.equal(await readFile(f.handoverPath, 'utf8'), '# Synthetic handover\nPreserve original work.\n');
+  assert.equal(f.calls.filter(call => ['turn/start', 'turn/steer'].includes(call.method) && call.params.threadId === progress.id).length, 0);
+  assert.equal(f.state.contexts.some(context => context.id === progress.id), false);
+  assert.equal(f.allocations().length, 1);
+  if (failure === 'source-question') assert.equal(f.source.questions[0], question);
+  const expected = failure !== 'update';
+  assert.ok([...f.state.taskRows.values()].every(row => row.labels.includes(sessionLabel(f.sourceId)) && row.labels.includes(sessionLabel(progress.id)) === expected));
+  assert.equal(f.calls.some(call => /archive|delete|interrupt|cancel/.test(call.method)), false);
+});
 
 for (const provider of ['codex', 'claude']) test(`Create waits for source completion and a real file before starting ${provider} with immediate import`, async t => {
   const f = await fixture(t);
