@@ -10,7 +10,20 @@ feature. Reuse the pinned SDK's parent_tool_use_id and launch metadata, with an
 ID fallback rather than guessed names. Preserve separate parent/child streaming
 and prevent child output from becoming parent report/completion/model evidence.
 No SDK upgrade, extra store, missing-child transcript collection or native runtime
-change is selected. Implementation/verification are in progress for 1.39.0.
+change is selected. Implementation `0d8848629505d03ccf94e2fc8808325c6f91b1c2`
+(1.39.0) is SSH-published with remote readback verified on 2026-11-17 at
+21:20:34–21:20:41 CET. All 277 checks across 15 source suites passed without
+failures/skips in 6.948 seconds; TypeScript/production build passed in 511ms.
+Independent read-only review found no concrete blocker. Coverage uses controlled
+SDK streams, exact native-history fixtures, HTTP and rendered UI checks, not a
+manufactured genuine model/subagent run or physical-browser interaction.
+
+The exact screenshot sentence was absent from a bounded read-only native parent
+history probe; no existing child-only text was reconstructed or fetched from a
+separate transcript. The release includes source-only 1.38.1 layout changes.
+The installed app remains 1.38.0; installation is held for the existing unanswered
+safe-idle question, followed by fresh native checks. No live input, native
+approval, worker interruption, daemon activation or deployed permission changed.
 
 Separately, the user asked about Claude surviving CCNG restarts and explicitly
 rejected implementing a replacement without native support. Read-only assessment
