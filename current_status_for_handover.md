@@ -1,5 +1,42 @@
 # Current status for handover
 
+Verified checkpoint: 2026-11-17, 13:20 UTC. Beads remains authoritative.
+
+Published and installed **1.36.0** implementation
+`e5cddb597a07e8e1c8ef7427f5f4cc06abeddaa8` includes the source-only 1.35.0
+mode/indicator fixes. Handovers link the same all-status source tasks before
+receiver instructions/import, retaining source associations and states/owners/
+dependencies. Partial failures keep the known receiver/artifact/links without
+import or duplicate creation. Different-project handovers require a complete
+zero-task source read. One missing closed-task association was repaired in an
+existing receiver and verified; no source task state or owner changed.
+
+Native ask feedback stays on its original card. Necessary queued review feedback
+binds to exact requests; resolved/replaced/context-changed requests cancel only
+known-unsent bound rows, including final pre-write races. Ordinary summaries,
+uncertain sends and pause/stop/manual controls remain. Arbitrary unrelated
+free text remains subject to prompt guidance, not semantic filtering.
+
+Native Auto-review for the requested existing Codex receiver is confirmed by a
+natural later turn, and later natural Claude inputs confirm Auto. Open Claude
+mode intent persists in existing workspace metadata, with explicit Manual and
+acknowledgement/failure distinctions preserved. No extra native test turn was
+created. The user's actual idle confirmation resolved the earlier uncertainty;
+generic CLI waiting/input-needed alone was not proof of an approval wait.
+
+Full source checks passed 1,394 with zero failures/one unavailable system-group
+fixture skip; TypeScript/build passed. After a safety guard caught newer completed
+native activity, fresh actual idle/history checks allowed the update. Thirteen
+protected-file states, five workers, workspace/report settings and native Codex
+daemon identity were preserved. Installed verification matched 120 files,
+passed HTTPS/auth/assets/listeners and all 308 checks across fourteen suites.
+Real future model/browser workflows and typing acceptance are not inferred from
+fixtures; rt9g and unrelated held/deferred work remain intact. No new Goal,
+timer, dispatcher, approval store, provider scope or ownership transfer.
+Outcome docs are newer than the installed functional payload.
+
+### Previous source-only 1.35.0 checkpoint (superseded before installation)
+
 Verified checkpoint: 2026-11-17, 12:43 UTC. Beads remains authoritative.
 
 Source **1.35.0** `b5573ed16986d5f0a8cd0a81e6a4cac884fec15d` is published;

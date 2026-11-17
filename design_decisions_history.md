@@ -1,5 +1,52 @@
 # Design decisions history
 
+## 2026-11-17, 13:20 UTC — Verify combined handover and review delivery
+
+Implementation `e5cddb597a07e8e1c8ef7427f5f4cc06abeddaa8` (1.36.0) is
+SSH-published and installed. It includes the source-only 1.35.0 mode-retention
+and Claude-indicator corrections, plus same-record handover task links and stale
+review-summary cancellation. Source verification at 13:13:16.964324–
+13:14:30.957865 UTC passed 1,394 tests with zero failures and one unavailable
+system-group fixture skipped; TypeScript/build passed (523 ms build).
+
+The first update guard at 13:16:27.249090–13:16:31.587161 UTC refused before
+installation because native history changed after the user's idle confirmation.
+Read-only reconciliation found a newer input and completed end-turn reply, actual
+idle before/after the read and the same process. The refreshed guard retained
+the safety requirement. The update succeeded at 13:18:55.172516–
+13:19:18.800891 UTC after idle/unchanged-history checks before installation and
+restart. Thirteen protected-file states, five saved workers, workspace/pause/
+report settings, native profiles/CLI and native Codex daemon identity were
+preserved. No active work, original approval or unrelated service was interrupted.
+
+Independent installed verification succeeded at 13:19:54.799787–
+13:20:04.898713 UTC: all 120 source files matched, trusted HTTPS/authentication,
+served assets and both listeners passed, and all 308 checks across fourteen
+installed-module suites passed without failures/skips (5.404 seconds). These
+exercise real isolated HTTP/private-file workflows with controlled native
+transports, including all-status labels before import and resolved-request
+cancellation. No new real chat, model input or approval was manufactured for
+acceptance; actual future model/browser interactions remain separate evidence.
+
+The requested native Auto-review change for the visualization receiver was
+confirmed by a naturally occurring later turn at 13:10:40.856 UTC, rather than
+by another setter or artificial prompt. Natural Claude inputs at 13:01:19.544
+and 13:14:28.028 UTC also record Auto, superseding earlier acknowledgement-only
+uncertainty. The exact-session selector and protected configuration survived
+the app update. One missing closed-task association was repaired and verified
+in the existing receiver without changing its state, content, ownership or
+dependencies. The other inspected receiver had no missing source links.
+
+Elapsed time from the first guarded update refusal to installed verification
+was 3 minutes 37.650 seconds. Main delay was reconciling newer completed native
+activity and then the guarded update/checks; active effort versus waiting was
+not separately measured. Local HTTP fixture permission failures were resolved
+through the established native-account execution route without installation or
+a sandbox/access workaround. Earlier deployment holds are superseded by this
+verified delivery; unrelated held/deferred work and physical browser/typing
+acceptance remain intact. Outcome documentation is newer than the installed
+functional payload.
+
 ## 2026-11-17, 13:13 UTC — Carry task records and retire stale review feedback
 
 The user explicitly requested fixing missing handover task associations. Reuse
