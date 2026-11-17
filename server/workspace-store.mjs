@@ -5,16 +5,36 @@ import { mkdir, open, rename, stat, unlink, realpath } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { REPORT_INTERVALS } from './worker-instructions.mjs';
+import { isClaudeId, MAX_CLAUDE_BRANCH_LINKS } from './claude.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const MAX_WORKSPACE_BYTES = 65_536;
 const validId = id => typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(id) && !['constructor', 'prototype'].includes(id);
 export const emptyWorkspace = () => ({ version: 1, workerIds: [], coordinatorId: null, coordinatorPaused: false });
+function claudeBranchParents(value) {
+  if (value === undefined) return {};
+  if (!value || typeof value !== 'object' || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw new Error('Invalid saved workspace Claude branch links.');
+  const entries = Object.entries(value);
+  if (entries.length > MAX_CLAUDE_BRANCH_LINKS || entries.some(([child, parent]) => !isClaudeId(child) || !isClaudeId(parent))) throw new Error('Invalid saved workspace Claude branch links.');
+  // UUID spelling cannot disguise a self-link or a cycle through the same session.
+  const parents = new Map(entries.map(([child, parent]) => [child.toLowerCase(), parent.toLowerCase()]));
+  if (parents.size !== entries.length) throw new Error('Invalid saved workspace Claude branch links.');
+  for (const child of parents.keys()) {
+    const path = new Set(); let current = child;
+    while (parents.has(current)) {
+      if (path.has(current)) throw new Error('Invalid saved workspace Claude branch links: cyclic parent relationship.');
+      path.add(current); current = parents.get(current);
+    }
+  }
+  return Object.fromEntries(entries);
+}
 export function workspaceRecord(data) {
   if (!data || data.version !== 1 || !Array.isArray(data.workerIds) || data.workerIds.length > limits.maxWorkers || data.workerIds.some(id => !validId(id)) || new Set(data.workerIds).size !== data.workerIds.length || (data.coordinatorId !== null && !validId(data.coordinatorId)) || typeof data.coordinatorPaused !== 'boolean' || data.workerIds.includes(data.coordinatorId)) throw new Error('Invalid saved workspace. Move the private workspace file aside to start a fresh workspace.');
   const intervals = data.workerReportIntervals;
   if (intervals !== undefined && (!intervals || typeof intervals !== 'object' || Array.isArray(intervals) || Object.entries(intervals).some(([id, minutes]) => !data.workerIds.includes(id) || !REPORT_INTERVALS.includes(minutes)))) throw new Error('Invalid saved workspace report settings.');
   const enabled = Object.fromEntries(Object.entries(intervals || {}).filter(([, minutes]) => minutes));
-  return { version: 1, workerIds: [...data.workerIds], coordinatorId: data.coordinatorId, coordinatorPaused: data.coordinatorPaused, ...(Object.keys(enabled).length ? { workerReportIntervals: enabled } : {}) };
+  const parents = claudeBranchParents(data.claudeBranchParents);
+  return { version: 1, workerIds: [...data.workerIds], coordinatorId: data.coordinatorId, coordinatorPaused: data.coordinatorPaused, ...(Object.keys(enabled).length ? { workerReportIntervals: enabled } : {}), ...(Object.keys(parents).length ? { claudeBranchParents: parents } : {}) };
 }
 export class WorkspaceStore {
   constructor(file) {
@@ -28,7 +48,7 @@ export class WorkspaceStore {
       if (directory === appRoot || directory.startsWith(appRoot + sep)) throw new Error('Store workspace state outside the application checkout.');
       handle = await open(this.file, constants.O_RDONLY | constants.O_NOFOLLOW);
       const info = await handle.stat();
-      if (!info.isFile() || info.size > 8192 || info.mode & 0o077 || (process.getuid && info.uid !== process.getuid())) throw new Error('Workspace file must be a small private file owned by the current user (mode 600).');
+      if (!info.isFile() || info.size > MAX_WORKSPACE_BYTES || info.mode & 0o077 || (process.getuid && info.uid !== process.getuid())) throw new Error('Workspace file must be a small private file owned by the current user (mode 600).');
       let data;
       try { data = JSON.parse(await handle.readFile('utf8')); } catch { throw new Error('Saved workspace contains invalid JSON.'); }
       return workspaceRecord(data);
@@ -37,6 +57,7 @@ export class WorkspaceStore {
   }
   save(value) {
     const data = JSON.stringify(workspaceRecord(value)) + '\n';
+    if (Buffer.byteLength(data, 'utf8') > MAX_WORKSPACE_BYTES) throw new Error('Saved workspace exceeds the 64-KiB private metadata limit.');
     const job = this.queue.then(async () => {
       await mkdir(dirname(this.file), { recursive: true, mode: 0o700 });
       const directory = await stat(dirname(this.file));
@@ -73,7 +94,12 @@ export class WorkspacePersistence {
     workspace.restoration = { status: 'pending', error: null, warnings: [] };
   }
   async initialize() {
-    try { this.saved = await this.store.load(); }
+    try {
+      this.saved = await this.store.load();
+      // Load links before any saved worker opens. Closed ancestors stay available
+      // without reading or resuming their native conversations.
+      this.workspace.claudeBranchParents = new Map(Object.entries(this.saved.claudeBranchParents || {}));
+    }
     catch (error) { this.fileError = true; this.workspace.restoration = { status: 'error', error: 'Workspace restoration is unavailable: ' + error.message, warnings: [] }; }
     this.loaded = true;
     if (!this.fileError && this.workspace.available()) void this.restore();
@@ -116,7 +142,8 @@ export class WorkspacePersistence {
     const workers = [...this.workspace.agents.values()].filter(agent => agent.role !== 'coordinator').map(agent => agent.id);
     const workerIds = [...new Set([...workers, ...this.failedIds])].slice(0, limits.maxWorkers);
     const intervals = Object.fromEntries(workerIds.map(id => [id, this.workspace.agents.get(id)?.reportIntervalMinutes ?? this.saved.workerReportIntervals?.[id] ?? 0]).filter(([, minutes]) => minutes));
-    return { version: 1, workerIds, coordinatorId: this.workspace.coordinator?.id || null, coordinatorPaused: this.workspace.coordinator?.paused || false, ...(Object.keys(intervals).length ? { workerReportIntervals: intervals } : {}) };
+    const parents = Object.fromEntries(this.workspace.claudeBranchParents || []);
+    return { version: 1, workerIds, coordinatorId: this.workspace.coordinator?.id || null, coordinatorPaused: this.workspace.coordinator?.paused || false, ...(Object.keys(intervals).length ? { workerReportIntervals: intervals } : {}), ...(Object.keys(parents).length ? { claudeBranchParents: parents } : {}) };
   }
   async retry() {
     if (!this.fileError && (this.failedIds.length || (this.workspace.coordinator?.id && !this.workspace.agents.has(this.workspace.coordinator.id)))) { this.saved = this.record(); this.ready = false; }

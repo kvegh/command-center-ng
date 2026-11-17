@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { WorkspaceStore, WorkspacePersistence, emptyWorkspace } from '../server/workspace-store.mjs';
 import { Workspace } from '../server/workspace.mjs';
+import { ClaudeSessions, MAX_CLAUDE_BRANCH_LINKS } from '../server/claude.mjs';
 
 const record = (workerIds = ['one'], coordinatorId = null, coordinatorPaused = false) => ({ version: 1, workerIds, coordinatorId, coordinatorPaused });
 async function fixture() { const dir = await mkdtemp(join(tmpdir(), 'ccng-workspace-')); return { dir, store: new WorkspaceStore(join(dir, 'config', 'workspace.json')), close: () => rm(dir, { recursive: true, force: true }) }; }
@@ -78,6 +79,106 @@ test('workspace metadata rejects invalid IDs and more than sixteen workers', asy
       assert.throws(() => f.store.save(value), /Invalid saved workspace/);
     }
   } finally { await f.close(); }
+});
+
+const claudeId = index => 'claude-11111111-2222-4333-8444-' + index.toString(16).padStart(12, '0');
+
+test('private workspace roundtrips bounded Claude branch ancestry independently of open tabs', async () => {
+  const f = await fixture();
+  try {
+    const parents = Object.fromEntries(Array.from({ length: MAX_CLAUDE_BRANCH_LINKS }, (_, index) => [claudeId(index + 1), claudeId(index)]));
+    const saved = { ...record([claudeId(MAX_CLAUDE_BRANCH_LINKS)]), claudeBranchParents: parents };
+    await f.store.save(saved);
+    assert.deepEqual(await f.store.load(), saved);
+    const bytes = (await stat(f.store.file)).size;
+    assert(bytes > 8192 && bytes <= 65_536, 'the supported link capacity must not exceed its own readable file limit');
+    assert.equal((await stat(f.store.file)).mode & 0o777, 0o600);
+    assert.deepEqual(Object.keys(JSON.parse(await readFile(f.store.file, 'utf8'))).sort(), ['claudeBranchParents', 'coordinatorId', 'coordinatorPaused', 'version', 'workerIds']);
+    await f.store.save(record());
+    assert.deepEqual(await f.store.load(), record(), 'legacy metadata shape remains unchanged');
+    await f.store.save({ ...record(), claudeBranchParents: {} });
+    assert.deepEqual(await f.store.load(), record(), 'empty optional links need no new persisted field');
+  } finally { await f.close(); }
+});
+
+test('malformed, excessive and cyclic Claude parent links fail without overwriting saved metadata', async () => {
+  const f = await fixture();
+  try {
+    await f.store.save(record());
+    const original = await readFile(f.store.file, 'utf8');
+    const alias = 'claude-' + claudeId(10).slice(7).toUpperCase();
+    const invalid = [
+      null, [], 'not-links', new Date(),
+      { unrelated: claudeId(1) }, { [claudeId(1)]: 'codex-worker' },
+      { [claudeId(1)]: { parentId: claudeId(0) } },
+      JSON.parse('{"__proto__":"' + claudeId(0) + '"}'),
+      { [claudeId(1)]: claudeId(1) }, { [alias]: claudeId(10) },
+      { [claudeId(1)]: claudeId(2), [claudeId(2)]: claudeId(1) },
+      { [claudeId(1)]: alias, [claudeId(10)]: claudeId(1) },
+      { [claudeId(10)]: claudeId(0), [alias]: claudeId(0) },
+      Object.fromEntries(Array.from({ length: MAX_CLAUDE_BRANCH_LINKS + 1 }, (_, index) => [claudeId(index + 1), claudeId(0)]))
+    ];
+    for (const claudeBranchParents of invalid) assert.throws(() => f.store.save({ ...record(), claudeBranchParents }), /Claude branch links/);
+    assert.equal(await readFile(f.store.file, 'utf8'), original);
+    await writeFile(f.store.file, JSON.stringify({ ...record(), claudeBranchParents: { [claudeId(1)]: claudeId(1) } }));
+    await assert.rejects(f.store.load(), /Claude branch links/);
+    const malformed = await readFile(f.store.file, 'utf8');
+    await assert.rejects(f.store.save(record(['replacement'])), /Claude branch links/);
+    assert.equal(await readFile(f.store.file, 'utf8'), malformed);
+  } finally { await f.close(); }
+});
+
+test('oversized private workspace files are rejected and preserved without replacement', async () => {
+  const f = await fixture();
+  try {
+    await f.store.save(record());
+    const oversized = JSON.stringify(record()) + ' '.repeat(65_536);
+    await writeFile(f.store.file, oversized);
+    await assert.rejects(f.store.load(), /small private file/);
+    await assert.rejects(f.store.save(record(['replacement'])), /small private file/);
+    assert.equal(await readFile(f.store.file, 'utf8'), oversized);
+  } finally { await f.close(); }
+});
+
+test('Claude ancestry loads before read-only restoration and survives closed tabs and retries', async () => {
+  const f = await fixture(), ancestor = claudeId(0), parent = claudeId(1), child = claudeId(2), closedSibling = claudeId(3);
+  const parents = { [parent]: ancestor, [child]: parent, [closedSibling]: parent };
+  const saved = { ...record([child]), claudeBranchParents: parents };
+  await f.store.save(saved);
+  const rpc = new Rpc(f.dir); rpc.ready = false;
+  const reads = [];
+  const runtime = new ClaudeSessions({
+    executable: async () => '/synthetic/unused/claude', activeSessions: async () => [],
+    loadSdk: async () => ({
+      query() { assert.fail('Workspace restoration must not start a Claude query.'); },
+      listSessions: async () => [],
+      getSessionInfo: async sessionId => { reads.push(['info', sessionId]); return { sessionId, cwd: f.dir, summary: 'Synthetic restored branch' }; },
+      getSessionMessages: async sessionId => { reads.push(['history', sessionId]); return []; }
+    })
+  });
+  await runtime.initialize();
+  const workspace = new Workspace(rpc, { beads: null, claude: runtime });
+  const open = workspace.open.bind(workspace), opened = [];
+  workspace.open = async (id, options) => {
+    assert.deepEqual(Object.fromEntries(workspace.claudeBranchParents), parents, 'all ancestry must be loaded before a worker opens');
+    opened.push({ id, options }); return open(id, options);
+  };
+  const persistence = new WorkspacePersistence(workspace, f.store);
+  try {
+    await persistence.initialize(); await persistence.restore(); await persistence.flush();
+    assert.deepEqual(opened, [{ id: child, options: { observeOnly: true } }]);
+    assert.equal(workspace.agent(child).parentId, parent);
+    assert.equal(workspace.agent(child).observingOnly, true);
+    assert(reads.every(([, id]) => id === child.slice(7)), 'restoration does not read closed parents or siblings');
+    assert.deepEqual(await f.store.load(), saved);
+    workspace.close(child); await persistence.flush();
+    assert.deepEqual(await f.store.load(), { ...record([]), claudeBranchParents: parents });
+    await persistence.retry();
+    assert.deepEqual(Object.fromEntries(workspace.claudeBranchParents), parents);
+    assert.equal(workspace.agents.size, 0, 'closed links do not reopen native conversations');
+    assert.deepEqual(rpc.calls, []);
+    assert.equal(runtime.runs.size, 0); assert.equal(runtime.starts.size, 0); assert.equal(runtime.requests.size, 0);
+  } finally { await persistence.close(); await runtime.shutdown(); await f.close(); }
 });
 
 test('startup restores sixteen workers and the same paused coordinator with read-only native calls', async () => {

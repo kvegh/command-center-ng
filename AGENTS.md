@@ -619,8 +619,13 @@ details for legacy records; retain the explicit clarification action.
 Keep SDK tool/MCP grants manual and tied to exact callbacks. Do not take over an
 external active CLI session, change native auth/settings or claim live model
 validation from fixtures. Closing a tab keeps managed processes running; app
-shutdown ends SDK-owned runs and retains native history. Claude branching is
-not yet integrated. Preserve explicit closed-tab request reopening.
+shutdown ends SDK-owned runs and retains native history. Claude branching uses
+the official SDK's native fork operation without a model call or callback
+transfer. Preserve explicit closed-tab request reopening.
+The user explicitly approved ID-only Claude branch-parent links in the existing
+private workspace metadata. Keep them across tab closure and backend restart;
+retain native transcripts and callbacks in their existing owners. Do not add
+another store or extend this approval to deferred Claude automatic handback.
 Task rows use natural height with a viewport sized to the first three rows;
 assignee names remain in backend metadata rather than row presentation. Model
 and Effort labels/selects stay on one line; omit routine descriptive paragraphs.

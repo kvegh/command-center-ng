@@ -9,6 +9,25 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.31.0 — Claude branching
+
+Claude Branch chat and completed-reply Branch here use the installed official
+SDK's native fork operation through the existing authenticated routes. Forking
+starts no model turn and preserves the parent's live approvals and activity.
+The branch has fresh native message IDs and its own conversation/task context.
+Back to parent navigates; automatic Hand back & close remains Codex-only.
+
+The user approved keeping ID-only parent links in the existing private workspace
+file. Closed/reopened tabs and backend restoration retain parent navigation.
+No new database, transcript store or provider permission mechanism is added.
+Publication and production deployment are recorded separately after verification.
+Source verification includes actual loopback HTTP workflows with real SDK
+synthetic histories, cold restart and parent navigation. Broad regression passed
+1,270 tests, zero failures and one supplementary-group fixture skip; after the
+final cutoff guard, all 105 affected checks passed with zero skips. Build passed
+(584 ms). No live user session was forked and actual provider continuation/browser
+interaction is unverified.
+
 ## 1.30.1 — Show Coordinator concerns on Claude approval cards
 
 The existing review tool can attach an ask rationale to one exact current,

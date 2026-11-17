@@ -19,6 +19,7 @@ export const CLAUDE_APPROVAL = 'claude/tool/requestApproval';
 export const CLAUDE_QUESTION = 'claude/tool/requestUserInput';
 export const CLAUDE_ELICITATION = 'claude/mcp/elicitation/request';
 export const isClaudeId = id => typeof id === 'string' && id.startsWith('claude-') && uuid.test(id.slice(7));
+export const MAX_CLAUDE_BRANCH_LINKS = 256;
 const sessionId = id => { if (!isClaudeId(id)) throw fail('Choose a valid local Claude session.', 400); return id.slice(7); };
 
 class Inputs {
@@ -58,7 +59,7 @@ function put(agent, record) {
 
 function blocks(message) { return typeof message?.content === 'string' ? [{ type: 'text', text: message.content }] : Array.isArray(message?.content) ? message.content : []; }
 
-export function addClaudeMessage(agent, message, turnId = message.uuid || 'history', timing = {}) {
+export function addClaudeMessage(agent, message, turnId = message.uuid || 'history', timing = {}, { live = false } = {}) {
   const id = message.uuid || randomUUID();
   const nativeTime = messageTime(message.timestamp);
   const time = nativeTime ? { timestamp: nativeTime, timestampSource: 'native' } : timing;
@@ -67,12 +68,15 @@ export function addClaudeMessage(agent, message, turnId = message.uuid || 'histo
   // Tool results still reconcile normally and assistant reports stay visible.
   const syntheticInput = message.type === 'user' && message.isSynthetic === true;
   const content = blocks(message.message); let images = [];
+  // Persisted terminal replies have a native cutoff. Live replies wait for the
+  // successful result/idle pair in finishTurn, including background activity.
+  const completedReply = !live && message.type === 'assistant' && ['end_turn', 'stop_sequence'].includes(message.message?.stop_reason);
   if (message.type === 'user' && !syntheticInput) for (const block of content) if (block.type === 'image' && block.source?.type === 'base64') {
     try { images = validateImages([...images, readInlineImage('data:' + block.source.media_type + ';base64,' + block.source.data)]); } catch { /* Unsupported or oversized native images stay unavailable; never fetch alternatives. */ }
   }
   if (images.length) put(agent, { id: id + ':0', nativeMessageId: id, turnId, type: 'user', text: bounded(content.filter(block => block.type === 'text').map(block => block.text || '').join('\n')), images, state: 'completed', ...time });
   for (const [index, block] of content.entries()) {
-    if (block.type === 'text' && block.text && !images.length && !syntheticInput) put(agent, { id: id + ':' + index, nativeMessageId: id, turnId, type: message.type === 'assistant' ? 'assistant' : 'user', text: bounded(block.text), state: 'completed', ...time });
+    if (block.type === 'text' && block.text && !images.length && !syntheticInput) put(agent, { id: id + ':' + index, nativeMessageId: id, turnId, type: message.type === 'assistant' ? 'assistant' : 'user', text: bounded(block.text), state: 'completed', ...(message.type === 'assistant' ? { nativeStopReason: message.message?.stop_reason ?? null } : {}), ...(completedReply ? { branchable: true } : {}), ...time });
     if (block.type === 'tool_use') put(agent, { id: 'tool:' + block.id, turnId, type: 'activity', text: bounded(block.name + '\n' + JSON.stringify(block.input, null, 2)), state: 'inProgress' });
     if (block.type === 'tool_result') {
       const item = agent.messages.find(item => item.id === 'tool:' + block.tool_use_id);
@@ -107,7 +111,7 @@ export class ClaudeSessions extends EventEmitter {
   }
   make(info, goal) {
     const id = 'claude-' + info.sessionId;
-    return { id, nativeSessionId: info.sessionId, provider: 'claude', role: 'worker', name: info.customTitle || info.summary || goal || 'Claude agent', goal: goal || info.firstPrompt || info.summary || 'No goal recorded', cwd: info.cwd, model: null, reasoningEffort: null, modelSettingsAvailable: false, permissionSettingsAvailable: false, permissionMode: null, permissionChange: null, autoReviewConfigured: this.autoReviewSessions.has(id), thread: { id, cwd: info.cwd, status: { type: 'idle' } }, parentId: null, canSend: true, canBranch: false, messages: [], tasks: [], workers: [], questions: [], turnId: null, lastCompletedTurnId: null, olderCursor: null, activity: null, summary: null, reportIntervalMinutes: 0, reportError: null, observingOnly: true };
+    return { id, nativeSessionId: info.sessionId, provider: 'claude', role: 'worker', name: info.customTitle || info.summary || goal || 'Claude agent', goal: goal || info.firstPrompt || info.summary || 'No goal recorded', cwd: info.cwd, model: null, reasoningEffort: null, modelSettingsAvailable: false, permissionSettingsAvailable: false, permissionMode: null, permissionChange: null, autoReviewConfigured: this.autoReviewSessions.has(id), thread: { id, cwd: info.cwd, status: { type: 'idle' } }, parentId: null, canSend: true, canBranch: typeof this.sdk?.forkSession === 'function', messages: [], tasks: [], workers: [], questions: [], turnId: null, lastCompletedTurnId: null, olderCursor: null, activity: null, summary: null, reportIntervalMinutes: 0, reportError: null, observingOnly: true };
   }
   async list(cursor) {
     this.ready(); const offset = cursor ? Number(cursor) : 0;
@@ -124,6 +128,26 @@ export class ClaudeSessions extends EventEmitter {
   }
   create(cwd, goal) {
     this.ready(); const agent = this.make({ sessionId: randomUUID(), cwd, summary: goal.split('\n')[0].slice(0, 120) }, goal.split('\n')[0]); agent.newSession = true; agent.observingOnly = false; this.records.set(agent.id, agent); return agent;
+  }
+  async fork(source, lastTurnId) {
+    this.ready();
+    if (this.records.get(source.id) !== source || source.provider !== 'claude') throw fail('Choose an open local Claude conversation.', 400);
+    if (typeof this.sdk.forkSession !== 'function') throw fail('The installed Claude SDK does not support session branching.', 503);
+    const atReply = lastTurnId !== undefined && lastTurnId !== null;
+    const reply = atReply && source.messages.findLast(message => message.type === 'assistant' && message.turnId === lastTurnId && message.branchable && message.state === 'completed' && uuid.test(message.nativeMessageId));
+    if (atReply && (typeof lastTurnId !== 'string' || !reply)) throw fail('Choose a completed reply to branch from.', 400);
+    const name = `Branch · ${source.goal}`.slice(0, 120);
+    // The SDK copies only persisted native history. It never starts a query,
+    // interrupts the parent or transfers its live permission callbacks.
+    const result = await this.sdk.forkSession(source.nativeSessionId, { dir: source.cwd, title: name, ...(atReply ? { upToMessageId: reply.nativeMessageId } : {}) });
+    if (!uuid.test(result?.sessionId) || result.sessionId === source.nativeSessionId || this.records.has('claude-' + result.sessionId)) throw fail('Claude did not return a new branch identity. Check native sessions before retrying.');
+    // Preserve the known native relationship even if opening its view fails.
+    this.emit('forked', 'claude-' + result.sessionId, source.id);
+    let branch;
+    try { branch = await this.open('claude-' + result.sessionId); }
+    catch { throw fail(`Claude created branch claude-${result.sessionId}, but its view could not be opened. Reopen that session from Add agent instead of creating another branch.`); }
+    branch.parentId = source.id; branch.name = name; branch.goal = source.goal; branch.freshBranch = true;
+    this.changed(branch); return branch;
   }
   async refresh(agent) {
     this.ready(); if (this.runs.has(agent.id)) return;
@@ -175,6 +199,12 @@ export class ClaudeSessions extends EventEmitter {
   }
   async send(agent, text, { instructions = '', stillOpen = () => true, priority, images = [], report = false, reportSetting = false } = {}) {
     this.ready(); images = validateImages(images); let job = this.runs.get(agent.id);
+    if (agent.freshBranch && !report && !reportSetting && typeof this.sdk.renameSession === 'function') {
+      const title = text.trim().split('\n')[0].slice(0, 120) || 'Image message';
+      await this.sdk.renameSession(agent.nativeSessionId, title, { dir: agent.cwd });
+      if (!stillOpen()) throw fail('The worker was closed before sending its Claude message.');
+      agent.name = title; agent.goal = title; agent.freshBranch = false;
+    }
     if (!job || this.starts.has(agent.id)) {
       let start = this.starts.get(agent.id);
       if (!start) { start = this.startRun(agent, instructions, stillOpen); this.starts.set(agent.id, start); }
@@ -207,7 +237,7 @@ export class ClaudeSessions extends EventEmitter {
         const stream = message.type === 'assistant' ? agent.messages.find(item => item.id === streamedId) : null;
         const timing = { timestamp: stream?.timestamp || new Date().toISOString(), timestampSource: stream?.timestampSource || 'received' };
         if (message.type === 'assistant') { agent.messages = agent.messages.filter(item => item.id !== streamedId); const thinking = agent.messages.find(item => item.id === 'thinking:' + job.turnId); if (thinking) thinking.state = 'completed'; job.streamId = null; job.streamTimestamp = null; job.streamText = ''; }
-        addClaudeMessage(agent, message, job.turnId, timing);
+        addClaudeMessage(agent, message, job.turnId, timing, { live: true });
         if (message.type === 'assistant') this.emit('assistantMessageCompleted', agent.id, { id: stream?.id || message.uuid + ':0', turnId: job.turnId, type: 'assistant', state: 'completed', text: blocks(message.message).filter(block => block.type === 'text').map(block => block.text || '').join('\n') });
         for (const block of blocks(message.message)) if (block.type === 'tool_result') this.confirm(agent, block.tool_use_id);
       }
@@ -244,6 +274,10 @@ export class ClaudeSessions extends EventEmitter {
     const message = job.result; if (!message) return;
     agent.finishedTurn = { id: job.turnId, status: message.is_error ? 'failed' : 'completed' }; agent.lastCompletedTurnId = job.turnId;
     if (message.is_error) agent.runError = bounded((message.errors || []).join('\n') || 'Claude did not complete this turn.');
+    if (!message.is_error) {
+      const reply = agent.messages.findLast(item => item.type === 'assistant' && item.turnId === job.turnId && item.nativeMessageId && item.state === 'completed');
+      if (reply && reply.nativeStopReason !== 'tool_use') reply.branchable = true;
+    }
     job.result = null; job.turnId = null; agent.turnId = null; agent.thread.status = { type: 'idle' };
     this.emit('completed', agent.id);
   }

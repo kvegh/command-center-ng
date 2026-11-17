@@ -142,18 +142,25 @@ instructions are injected as runtime context, not standalone chat messages.
 
 ## Branch and return a summary
 
-**Branch here**, beside a completed Codex reply, copies history through that
+**Branch here**, beside a completed Codex or Claude reply, copies history through that
 reply. Intermediate progress messages do not offer that completed-turn control.
 **Branch chat**, beside the composer controls, takes a native snapshot of current
 stored history, including the ongoing exchange. Later parent messages are not
-part of the snapshot. The parent continues running; a copied partial turn can
-be marked interrupted in the child without interrupting the parent.
+part of the snapshot. The parent continues running. Codex can mark a copied
+partial turn interrupted in the child. Claude copies its persisted transcript,
+including any unfinished tool-call text; live callbacks and approvals stay
+with the parent. Text still streaming or not yet persisted is outside the copy.
 
 The branch waits for your follow-up. Its first message becomes its goal.
 Branches share the project's directory; they do not create Git branches or
 worktrees. Existing branches retain their original snapshots after an update.
+Claude branch-to-parent IDs are retained in the existing private workspace file,
+including after tab closure and backend restart. No transcript or permission
+callback is saved there. Up to 256 Claude branch links are retained; reaching
+that bound refuses a new branch and keeps existing links intact.
 
-**Back to parent** only navigates. **Hand back & close** starts a background
+**Back to parent** only navigates. **Hand back & close** is currently Codex-only
+and starts a background
 handoff with one click, including while the branch is working. You can switch
 tabs immediately. CCNG asks the branch to finish at a safe checkpoint, settle
 its local background work and prepare a concise summary of findings, decisions,

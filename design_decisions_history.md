@@ -1,5 +1,52 @@
 # Design decisions history
 
+## 2026-11-17, UTC — Add native Claude branches in the existing workspace
+
+The user explicitly requested implementation after learning that Claude branch
+controls were disabled. This authorizes this feature independently of broader
+deferred Claude work. Reuse the already installed official SDK's `forkSession`
+operation and existing authenticated branch route and controls. No dependency,
+provider service, model call or separate transcript store is added.
+
+Branch chat copies current persisted native history; Branch here maps only an
+eligible completed reply to its native message UUID. Live replies wait for
+successful native turn completion. The SDK remaps child UUIDs and leaves the
+source transcript unchanged; pending callbacks, task links and exact-session
+Auto selections are not copied by CCNG. The first explicit child follow-up uses
+the child's identity and task context. Existing Codex-only automatic handback
+stays separate from parent navigation, including backend provider guards.
+
+The SDK writes native fork provenance but omits it from its public session-read
+interfaces. The user explicitly answered “Save links in existing workspace”
+and “yes”. Reuse existing private workspace metadata for ID-only parent links,
+including closed tabs, so parent navigation survives backend restarts. The
+alternative of process-only links was presented and not selected. No separate
+database or transcript reader is added. Retain at most 256 links in a bounded
+64 KiB private file; reject invalid/cyclic mappings and new branches at the
+bound rather than silently pruning relationships. Apply links before read-only
+restoration. An existing schema without links remains valid.
+
+Source verification through the established backend account passed 249 checks
+across eleven suites, zero failures/skips, in 5.105 seconds. This includes real
+loopback HTTP API workflows using disposable native transcripts and the real
+installed SDK, with no model/provider request. Native local sandbox listener
+restrictions prevented those socket tests there; permissions were unchanged.
+The production build passed (420 ms; nonblocking 500.24 kB bundle advisory).
+Full native-account source regression passed 1,263 tests with zero failures and
+one skip in 59.007 seconds (2026-11-17, 05:51:41.598602–05:52:44.816137 UTC
+wrapper execution). The skip's exact case was not retained in the compact
+result. The earlier full local sandbox run failed eight file suites; the native
+account run resolves the release regression result without changing permissions.
+After the storage decision, broad regression passed 1,270 tests, zero failures
+and one supplementary-group fixture skip in 64.879 seconds. Independent review
+found that a successful turn could expose earlier tool-use text as a reply
+cutoff; retaining native stop reason and excluding known tool-use messages
+resolved it. The final affected-source verification passed all 105 checks with
+zero failures/skips in 1.915 seconds, including real HTTP restart workflows.
+Build passed (584 ms). Implementation/publication/deployment outcomes follow
+when verified; these are API and installed-SDK fixtures, not a live model or
+browser interaction claim.
+
 ## 2026-11-16, 16:52 UTC — Attach Claude approval concerns without answering requests
 
 The user reported that a Coordinator concern was absent from the originating

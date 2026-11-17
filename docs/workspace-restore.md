@@ -7,11 +7,12 @@ required. Codex retains conversation histories and Beads retains task records.
 
 | Location | Saved state |
 | --- | --- |
-| `workspace.json` beside the password configuration | Up to sixteen open worker IDs, the coordinator ID and coordinator pause state |
+| `workspace.json` beside the password configuration | Up to sixteen open worker IDs, report intervals, coordinator ID/pause state and ID-only Claude branch-parent links |
 | Browser local storage, key `ccng.workspace.v1` | Selected tab, worker order, unsent drafts, reading positions and whether a chat was at the bottom |
 | `decisions.jsonl` beside `workspace.json` | Private coordinator decision summaries, reloaded for display; older records retained |
 | `sessions/` beside `auth.json` | Owner-private hashed application-session records, original expiry and explicit revocation generation |
 | Native Codex storage | Existing conversation context, messages, branch relationships and coordinator tool history |
+| Native Claude storage | Existing Claude transcripts and forked copies; parent navigation uses the private workspace links |
 | Existing Beads tracker | Durable tasks, states and conversation labels |
 
 The server file defaults to
@@ -20,6 +21,11 @@ The server file defaults to
 and workspace files. Keep it outside the checkout and installation target so
 updates preserve it. New files use mode 600 and atomic replacement; malformed,
 unsafe or linked files are rejected without overwriting them.
+The bounded file accepts up to 256 Claude branch-parent links and 64 KiB of
+metadata. Links survive closing their tabs. Restoration applies links before
+opening saved views, without starting models, replaying approvals or reopening
+closed tabs. A known native fork remains recorded even if opening its view
+fails; its error identifies the created session so it can be reopened directly.
 
 ## Startup and continuation
 

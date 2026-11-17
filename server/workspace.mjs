@@ -15,7 +15,7 @@ import { BeadsTasks, sessionLabel } from './beads.mjs';
 import { Coordinator, COORDINATOR_NAME, isCoordinatorThread } from './coordinator.mjs';
 import { SUMMARY_LIMIT, SUMMARY_SCHEMA, summaryPrompt, readSummary } from './branch-summary.mjs';
 import { BranchHandoffs } from './branch-handoff.mjs';
-import { ClaudeSessions, isClaudeId } from './claude.mjs';
+import { ClaudeSessions, isClaudeId, MAX_CLAUDE_BRANCH_LINKS } from './claude.mjs';
 import { readEnvironmentInstructions, environmentInstructionContext } from './environment-instructions.mjs';
 import { messageTime } from './message-time.mjs';
 import { validateImages, codexImages, imageReferences, readInlineImage } from './image-input.mjs';
@@ -96,6 +96,8 @@ export class Workspace extends EventEmitter {
     this.coordinator = coordinator ? new Coordinator(this, typeof coordinator === 'object' ? coordinator : {}) : null;
     this.restoring = false; this.observedReads = new Map(); this.restoration = null;
     this.claude = claude === true ? new ClaudeSessions() : claude;
+    this.claudeBranchParents = new Map();
+    this.claude?.on('forked', (childId, parentId) => { this.claudeBranchParents.set(childId, parentId); this.changed(); });
     this.claude?.on('change', id => { this.changed(); if (this.agents.has(id)) void this.coordinator?.flush(id); });
     this.claude?.on('completed', id => { if (this.agents.has(id)) { this.coordinator?.completed(id); void this.refreshTasks(id); } });
     this.claude?.on('assistantMessageCompleted', (id, message) => { if (this.agents.has(id)) this.coordinator?.reportMessageCompleted(id, message); });
@@ -230,7 +232,11 @@ export class Workspace extends EventEmitter {
     return { mimeType: checked.mimeType, bytes: Buffer.from(checked.dataUrl.slice(checked.dataUrl.indexOf(',') + 1), 'base64') };
   }
   async list(cursor, provider = 'codex') {
-    if (provider === 'claude') { if (!this.claude) throw Object.assign(new Error('Local Claude support is unavailable.'), { status: 503 }); return this.claude.list(cursor); }
+    if (provider === 'claude') {
+      if (!this.claude) throw Object.assign(new Error('Local Claude support is unavailable.'), { status: 503 });
+      const result = await this.claude.list(cursor);
+      return { ...result, agents: result.agents.map(agent => ({ ...agent, parentId: this.claudeBranchParents.get(agent.id) || null, forkedFromId: this.claudeBranchParents.get(agent.id) || null })) };
+    }
     if (provider !== 'codex') throw Object.assign(new Error('Choose Codex or Claude.'), { status: 400 });
     const result = await this.rpc.call('thread/list', { limit: 50, useStateDbOnly: true, ...(cursor ? { cursor } : {}) });
     return { agents: result.data.filter(t => !isCoordinatorThread(t)).map(t => ({ id: t.id, name: t.name || t.preview?.split('\n')[0]?.slice(0, 90) || 'Untitled agent', cwd: t.cwd, status: statusOf(t), parentId: t.parentThreadId || null, forkedFromId: t.forkedFromId || null })), nextCursor: result.nextCursor };
@@ -245,7 +251,8 @@ export class Workspace extends EventEmitter {
     try {
       if (isClaudeId(id)) {
         if (!this.claude) throw Object.assign(new Error('Local Claude support is unavailable.'), { status: 503 });
-        const agent = await this.claude.open(id); this.agents.set(id, agent); await this.refreshTasks(id); this.changed();
+        const agent = await this.claude.open(id); agent.parentId = this.claudeBranchParents.get(id) || agent.parentId || null;
+        this.agents.set(id, agent); await this.refreshTasks(id); this.changed();
         if (this.coordinator && !this.restoring && this.rpc.ready) { void this.coordinator.ensure().catch(() => {}); this.coordinator.mark(id, 'Claude worker opened'); }
         return agent;
       }
@@ -1103,13 +1110,20 @@ export class Workspace extends EventEmitter {
   }
   async fork(id, lastTurnId) {
     const source = this.agent(id);
-    if (source.provider === 'claude') throw Object.assign(new Error('Claude branching is not supported in Command Center yet. This session remains unchanged.'), { status: 400 });
     if (source.role === 'coordinator') throw Object.assign(new Error('Branch a worker conversation instead.'), { status: 400 });
     const atReply = lastTurnId !== undefined && lastTurnId !== null;
     if (atReply && (typeof lastTurnId !== 'string' || !source.messages.some(message => message.turnId === lastTurnId && message.branchable))) throw Object.assign(new Error('Choose a completed reply to branch from.'), { status: 400 });
     if (this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error('Close an agent tab before opening a branch. Conversations are kept.'), { status: 409 });
+    if (source.provider === 'claude' && this.claudeBranchParents.size + this.creating >= MAX_CLAUDE_BRANCH_LINKS) throw Object.assign(new Error('The saved Claude branch-link limit has been reached. Existing conversations and links are kept.'), { status: 409 });
     this.creating++; let reserved = true;
     try {
+      if (source.provider === 'claude') {
+        const branch = await this.claude.fork(source, lastTurnId);
+        this.creating--; reserved = false;
+        this.agents.set(branch.id, branch);
+        await this.refreshTasks(branch.id);
+        this.changed(); return branch.id;
+      }
       // Omit the cutoff for Branch chat; only Branch here selects a historical reply.
       const { thread } = await this.rpc.call('thread/fork', { threadId: id, ...(atReply ? { lastTurnId } : {}), excludeTurns: true, deferGoalContinuation: true });
       const name = `Branch · ${source.goal}`.slice(0, 120);
@@ -1133,6 +1147,7 @@ export class Workspace extends EventEmitter {
   idleBranch(id, { allowUnloaded = false } = {}) {
     const branch = this.agent(id);
     if (!branch.parentId) throw Object.assign(new Error('This conversation has no parent branch.'), { status: 400 });
+    if (branch.provider === 'claude') throw Object.assign(new Error('Automatic summary handback is currently available for Codex branches. Use Back to parent to navigate.'), { status: 409 });
     const status = statusOf(branch.thread, branch.questions);
     if (status === 'attention') throw Object.assign(new Error(`Child chat "${branch.name}" has a pending question or approval. Answer it here (or load its pending request), then retry Return summary.`), { status: 409 });
     if (status === 'running') throw Object.assign(new Error(`Child chat "${branch.name}" is still responding. Wait for its turn to finish, then retry Return summary.`), { status: 409 });

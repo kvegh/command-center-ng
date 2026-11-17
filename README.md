@@ -49,7 +49,7 @@ states are historical. EXIF metadata was removed without changing image pixels.
 
 ## What you can do
 
-- Open existing Codex conversations or start new agents in explicit project directories.
+- Open local Codex or Claude conversations, or start new agents in explicit project directories.
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
 - Chat, steer active work, interrupt a turn and answer supported native questions or approvals, including eligible current assistant-question cards.
   If native Codex explicitly rejects an outdated turn, refresh its current state
@@ -257,8 +257,9 @@ with the native Claude/Google configuration; no new login is created.
 ## Current scope and limits
 
 - Session management is **local to the backend host**; no SSH or remote-agent monitoring.
-- Codex is the current operational focus. Official Claude Agent SDK code exists,
-  but Claude completion and live validation remain **TODO**.
+- Local Claude sessions support native current-history and completed-reply
+  branching with the installed official Agent SDK. Broader Claude completion
+  and live validation remain **TODO**; automatic branch handback is Codex-only.
 - Conversations stay traceable: correct earlier inputs or decisions in follow-up
   messages. Edit/Rewind is withdrawn; branching remains separate and available.
 - Native Goals controls and automatic Goal creation were withdrawn; tasks remain in Beads.
@@ -387,6 +388,28 @@ stage the existing tests temporarily and link their server imports to it:
 The temporary files are removed on exit; the installation remains unchanged.
 Passing these tests does not establish a native client's current tool exposure
 or resolve a pending human decision. See the [source-reader limits](docs/usage.md#coordinator-approval-review).
+
+### Verify Claude branching
+
+With the existing Node and SDK dependencies, run:
+
+```sh
+node --test tests/claude-branching.test.mjs tests/claude-branching-http.test.mjs
+```
+
+The HTTP check starts an isolated CCNG instance on an ephemeral loopback port,
+logs in through its normal API and forks disposable native Claude histories.
+It checks full/cutoff copies, parent navigation, unchanged source history,
+authentication, origin checks and callback isolation. It exits nonzero on
+failure and removes its temporary authentication, workspace and transcripts.
+No protected inputs, provider access or real user sessions are needed. The host
+must permit loopback listeners; a sandbox denial is a failed check, not a skip.
+
+After deployment, stage these same two test files in a temporary `tests/`
+directory and link its sibling `server` to the actual installation's `server/`.
+Run the command there to exercise the installed application and SDK. This
+verifies the API workflow in an isolated instance, not a user's browser or a
+model's later continuation of the branch.
 
 ### Verify Coordinator tab indicators
 
