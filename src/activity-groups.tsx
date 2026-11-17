@@ -1,6 +1,6 @@
 import React from 'react';
 
-type ActivityMessage = { id: string; type: 'user' | 'assistant' | 'activity'; text: string; state: string; activityTitle?: string; internalReport?: boolean; internalReportControl?: boolean; internalCoordinatorEvent?: boolean; internalTaskPing?: boolean };
+type ActivityMessage = { id: string; type: 'user' | 'assistant' | 'activity'; text: string; state: string; nativeQuestionTranscript?: { questions: string[]; result?: string }; activityTitle?: string; internalReport?: boolean; internalReportControl?: boolean; internalCoordinatorEvent?: boolean; internalTaskPing?: boolean };
 type MessageGroup<T> = { kind: 'message'; id: string; message: T } | { kind: 'activity'; id: string; items: T[] };
 
 export function isVisibleMessage(message: ActivityMessage): boolean {
@@ -12,7 +12,7 @@ export function groupMessages<T extends ActivityMessage>(messages: T[]): Message
   for (const message of messages) {
     if (!isVisibleMessage(message)) continue;
     const last = groups.at(-1);
-    if (message.type !== 'activity') groups.push({ kind: 'message', id: message.id, message });
+    if (message.type !== 'activity' || message.nativeQuestionTranscript?.result !== undefined) groups.push({ kind: 'message', id: message.id, message });
     else if (last?.kind === 'activity') last.items.push(message);
     else groups.push({ kind: 'activity', id: message.id, items: [message] });
   }

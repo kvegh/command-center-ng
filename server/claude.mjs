@@ -60,6 +60,14 @@ function put(agent, record) {
 
 function blocks(message) { return typeof message?.content === 'string' ? [{ type: 'text', text: message.content }] : Array.isArray(message?.content) ? message.content : []; }
 
+function questionTranscript(input) {
+  const fields = input?.questions;
+  if (!Array.isArray(fields) || !fields.length || fields.length > 8
+    || fields.some(field => typeof field?.question !== 'string' || !field.question.trim())
+    || fields.reduce((size, field) => size + field.question.length, 0) > 32_000) return null;
+  return { questions: fields.map(field => field.question) };
+}
+
 export function addClaudeMessage(agent, message, turnId = message.uuid || 'history', timing = {}, { live = false } = {}) {
   const id = message.uuid || randomUUID();
   const nativeTime = messageTime(message.timestamp);
@@ -81,11 +89,17 @@ export function addClaudeMessage(agent, message, turnId = message.uuid || 'histo
       const notification = claudeTaskNotification(message, agent.nativeSessionId, block.text);
       put(agent, { id: id + ':' + index, nativeMessageId: id, turnId, type: notification ? 'activity' : message.type === 'assistant' ? 'assistant' : 'user', text: bounded(block.text), state: 'completed', ...notification, ...(message.type === 'assistant' ? { nativeStopReason: message.message?.stop_reason ?? null } : {}), ...(completedReply ? { branchable: true } : {}), ...time });
     }
-    if (block.type === 'tool_use') put(agent, { id: 'tool:' + block.id, turnId, type: 'activity', text: bounded(block.name + '\n' + JSON.stringify(block.input, null, 2)), state: 'inProgress' });
+    if (block.type === 'tool_use') {
+      // Question tools belong in readable history after their live card closes;
+      // they remain native activity, never fabricated human input or authority.
+      const transcript = message.type === 'assistant' && block.name === 'AskUserQuestion' && typeof block.id === 'string' && block.id
+        ? questionTranscript(block.input) : null;
+      put(agent, { id: 'tool:' + block.id, turnId, type: 'activity', text: bounded(block.name + '\n' + JSON.stringify(block.input, null, 2)), state: 'inProgress', ...(transcript ? { nativeQuestionTranscript: transcript } : {}) });
+    }
     if (block.type === 'tool_result') {
       const item = agent.messages.find(item => item.id === 'tool:' + block.tool_use_id);
       const output = typeof block.content === 'string' ? block.content : (block.content || []).filter(part => part.type === 'text').map(part => part.text).join('\n');
-      put(agent, { id: 'tool:' + block.tool_use_id, turnId: item?.turnId || turnId, type: 'activity', text: bounded((item?.text || 'Claude tool result') + '\n\n' + output), state: block.is_error ? 'failed' : 'completed' });
+      put(agent, { id: 'tool:' + block.tool_use_id, turnId: item?.turnId || turnId, type: 'activity', text: bounded((item?.text || 'Claude tool result') + '\n\n' + output), state: block.is_error ? 'failed' : 'completed', ...(item?.nativeQuestionTranscript ? { nativeQuestionTranscript: { ...item.nativeQuestionTranscript, result: bounded(output) } } : {}) });
     }
   }
   if (message.type === 'assistant' && typeof message.message?.model === 'string') { agent.currentTurnModel = message.message.model; if (!agent.sdkModelOverride) agent.model = message.message.model; }

@@ -67,11 +67,15 @@ function markAnswered(agent, ids) {
   }
 }
 
-export function retireAsyncQuestions(agent, notice, retirement = 'followup') {
-  for (const message of agent.messages) for (const question of message.nativeQuestions || []) {
+export function retireAsyncQuestionMessage(message, notice, retirement = 'metadata') {
+  for (const question of message.nativeQuestions || []) {
     const binding = question[bindingKey];
     if (binding && !binding.retired && !['submitted', 'unconfirmed'].includes(binding.state)) { binding.state = 'read-only'; binding.retired = true; binding.notice = notice; binding.retirement = retirement; }
   }
+}
+
+export function retireAsyncQuestions(agent, notice, retirement = 'followup') {
+  for (const message of agent.messages) retireAsyncQuestionMessage(message, notice, retirement);
 }
 
 export function observeAsyncQuestionInput(agent, record, item) {

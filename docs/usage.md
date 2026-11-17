@@ -286,6 +286,25 @@ sends a summary, archives a branch or answers a question.
 Open one to reach its existing answer card. A request with several questions
 shows each question. Opening a card does not answer or dismiss it.
 
+Completed Claude question exchanges remain in the conversation outside collapsed
+actions. Their original question and native response are read-only, using the
+existing native transcript on reload. The result stays native tool output, not a
+fabricated user message or another pending card. Other actions remain collapsed.
+
+For Codex assistant-message questions, submitting an answer keeps its text visible
+beside the original question. A native update that removes the question's answer
+controls retains already observed question details as read-only history. The
+native reply is also shown as a quoted question and answer, and reload reconstructs
+that reply from native history. No answer is resent to restore its display.
+Locally retained text remains browser-memory-only until the native reply appears;
+reload cannot recover a question or answer absent from native history. Submission
+acceptance does not mean the agent processed the answer or completed the task.
+
+Run `node --test tests/native-message-question.test.mjs tests/native-message-question-ui.test.mjs`
+for question/answer retention, partial submissions, native removal, history refresh
+and stale-send guards. These isolated tests use controlled native transport and
+rendered React output; real browser interaction remains separate acceptance.
+
 ### Coordinator approval review
 
 The Coordinator tab is twice the normal tab height, with its name in the upper

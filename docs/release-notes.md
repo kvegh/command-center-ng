@@ -9,6 +9,21 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.37.0 — Keep answered questions visible
+
+Completed Claude AskUserQuestion exchanges remain visible in the main conversation
+instead of disappearing into collapsed actions. The original question and native
+response are read-only and reconstruct from the existing native transcript,
+without relabeling tool output as a human message. Pending cards and exact native
+answer controls retain their existing behavior.
+
+An explicit native removal now retires a previously observed assistant-message
+question's controls while retaining its original displayed details. Submission
+also keeps the answer visible beside the question. Native reply messages keep
+their existing quoted-question/answer display and raw copy through history reads.
+No answer is replayed, no callback is reconstructed and no transcript store is
+added. Browser-only text cannot survive refresh until native history records it.
+
 ## 1.36.0 — Carry handover tasks and stop stale approval-wait summaries
 
 Before a handover receiver imports its file, CCNG adds its association to the same

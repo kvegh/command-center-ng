@@ -110,4 +110,17 @@ test('actual MessageText integration preserves only user markup, including struc
   const answers = renderMessage({ ...message, nativeQuestionReplies: [{ question: 'Which <format>?', answer: '<p>My answer</p>' }] });
   assert.match(answers, /<blockquote>Which &lt;format&gt;\?<\/blockquote>/);
   assert.match(answers, /&lt;p&gt;My answer&lt;\/p&gt;/);
+  const question = { type: 'activity', state: 'completed', text: 'Original native tool text', nativeQuestionTranscript: {
+    questions: ['Keep <existing> settings?', 'Which next step?'], result: 'User answered: **Keep them**.\n<script>literal native output</script>'
+  } };
+  const original = structuredClone(question), html = renderMessage(question);
+  assert.match(html, /aria-label="Question and response"/);
+  assert.match(html, /<blockquote>Keep &lt;existing&gt; settings\?<\/blockquote>/);
+  assert.match(html, /Which next step\?/);
+  assert.match(html, /<strong>Keep them<\/strong>/);
+  assert.match(html, /&lt;script&gt;literal native output&lt;\/script&gt;/);
+  assert.doesNotMatch(html, /<script>|<form|<input|<textarea|Send answer|Original native tool text/);
+  assert.deepEqual(question, original, 'visible native output retains original copy and provenance');
+  assert.match(renderMessage({ ...question, state: 'failed' }), /Question response failed/);
+  assert.match(renderMessage({ ...question, nativeQuestionTranscript: { questions: ['Keep settings?'], result: '' } }), /Claude returned no response text/);
 });

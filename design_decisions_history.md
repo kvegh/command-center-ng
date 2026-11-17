@@ -1,5 +1,45 @@
 # Design decisions history
 
+## 2026-11-17, 14:13 UTC — Retain answered questions
+
+The user reported that decision cards and their answers disappear on submission.
+Source inspection confirmed two Codex assistant-message display defects: explicit
+native null question metadata removed the observed question, and the submitted
+form hid its retained answer. Version 1.37.0 keeps observed question details on
+the same native item and retires answer eligibility, while retaining submitted
+text in the existing browser-memory input state. Native user reply rendering
+continues to provide the quoted question and answer during history reload.
+
+This uses existing native records and UI state, with no additional transcript
+store, callback reconstruction, model input, permission change or response replay.
+The alternative of persisting another answer log was unnecessary and outside the
+approved storage design. A cold reload can only reconstruct data native history
+actually exposes; local-only accepted text is not claimed durable.
+
+The user then identified the affected provider as Claude and supplied a screenshot.
+Claude AskUserQuestion tool calls/results were confirmed to fall into collapsed
+actions after card removal. The same release retains their native activity
+provenance while showing known completed question exchanges outside those groups,
+using original question strings and exact matching native result text. Existing
+native history reconstructs this view; arbitrary tool output is never classified
+as human authority. Legacy blocking Codex persistence remains unverified and
+unchanged. Verification, publication and installed outcomes follow
+when available; implementation commit is pending.
+
+Final combined source verification completed at 14:17:49.948520 UTC: 1,400
+tests passed with zero failures and one unavailable supplementary-group fixture
+skipped. TypeScript and production build passed (375 ms build). Focused rendered
+checks preserve question/result order, literal-safe text, copy and activity
+provenance; they do not establish physical browser acceptance. No real question
+was created, answered or replayed to test the correction.
+
+A bounded read-only check of the affected existing conversation at 14:18:01–
+14:18:06 UTC reconstructed all 15 completed question exchanges from 439 native
+messages, retaining activity provenance. This confirms that this conversation
+already contains the information needed by the corrected renderer. The worker
+was busy, so no application restart or native control action was attempted.
+Publication may proceed; installation waits for a verified safe idle checkpoint.
+
 ## 2026-11-17, 13:20 UTC — Verify combined handover and review delivery
 
 Implementation `e5cddb597a07e8e1c8ef7427f5f4cc06abeddaa8` (1.36.0) is

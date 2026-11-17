@@ -6,7 +6,7 @@ import { isAbsolute } from 'node:path';
 import { VERSION } from './version.mjs';
 import { WORKER_BASE_INSTRUCTIONS, WORKER_REPORT_INSTRUCTIONS, reportTimingContext } from './worker-instructions.mjs';
 import { isHumanRequest, manualRequestAnswer, nativeMessageQuestions } from './native-requests.mjs';
-import { asyncQuestionView, currentAsyncQuestion, asyncQuestionReply, retainAsyncQuestionState, observeAsyncQuestionInput, retireAsyncQuestions, setAsyncQuestionDelivery, assertAsyncQuestionsAllowControl, hasOpenAsyncQuestions } from './async-question-replies.mjs';
+import { asyncQuestionView, currentAsyncQuestion, asyncQuestionReply, retainAsyncQuestionState, observeAsyncQuestionInput, retireAsyncQuestions, retireAsyncQuestionMessage, setAsyncQuestionDelivery, assertAsyncQuestionsAllowControl, hasOpenAsyncQuestions } from './async-question-replies.mjs';
 import { isNativeToolApproval, nativeApprovalAnswer } from './approval-choices.mjs';
 import { readModelCatalog, validateModelChoice } from './worker-models.mjs';
 import { markInternalInput, reportMessageFlags } from './report-messages.mjs';
@@ -681,16 +681,13 @@ export class Workspace extends EventEmitter {
     const images = item.type === 'userMessage' ? codexImages(item.content) : [];
     const previous = agent.messages.findIndex(m => m.id === item.id && m.turnId === turnId);
     const previousRecord = agent.messages[previous] || prior;
-    const questionFields = item.type === 'agentMessage' && !Object.hasOwn(item, 'questions') && previousRecord?.nativeQuestions?.length
+    // Native removal ends answer eligibility, not the question's visible history.
+    // Keep already observed details on this exact item; never recreate a callback.
+    if (item.type === 'agentMessage' && item.questions === null && previousRecord?.nativeQuestions?.length) retireAsyncQuestionMessage(previousRecord, 'The native question is no longer open.');
+    const questionFields = item.type === 'agentMessage' && (!Object.hasOwn(item, 'questions') || item.questions === null) && previousRecord?.nativeQuestions?.length
       ? { nativeQuestions: previousRecord.nativeQuestions, ...(previousRecord.nativeQuestionsTruncated ? { nativeQuestionsTruncated: true } : {}) } : nativeMessageQuestions(item);
     const text = itemText(item);
-    if (!text && !images.length && !questionFields.nativeQuestions?.length) {
-      if (item.type === 'agentMessage' && item.questions === null && previousRecord?.nativeQuestions?.length) {
-        if (previous >= 0 && !previousRecord.text) agent.messages.splice(previous, 1);
-        else { delete previousRecord.nativeQuestions; delete previousRecord.nativeQuestionsTruncated; }
-      }
-      return;
-    }
+    if (!text && !images.length && !questionFields.nativeQuestions?.length) return;
     const record = { id: item.id, turnId, branchable, nativeType: item.type, type: item.type === 'userMessage' ? 'user' : item.type === 'agentMessage' ? 'assistant' : 'activity', text: text || '', ...questionFields, ...(item.type === 'fileChange' ? { fileChangeContext: fileChangeContext(item.changes) } : {}), ...(images.length ? { images } : {}), state: item.status || 'completed', ...itemTime(item, previousRecord, live), ...reportMessageFlags(item, previousRecord) };
     if (previous >= 0) agent.messages[previous] = record; else agent.messages.push(record);
     if ((record.fileChangeContext || previousRecord?.fileChangeContext) && record.fileChangeContext?.contentSha256 !== previousRecord?.fileChangeContext?.contentSha256) {

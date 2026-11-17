@@ -301,6 +301,70 @@ test('Claude structured questions and MCP forms retain their exact native callba
   } finally { await f.close(); }
 });
 
+test('Claude question tools retain readable native questions and results after their pending card closes', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId); await f.runtime.send(agent, 'Review the existing choice.');
+    const query = f.queries[0];
+    const questions = [{ question: 'Keep the source chat?', options: [{ label: 'Yes' }, { label: 'No' }] }, { question: 'Which next version?' }];
+    query.push({ type: 'assistant', uuid: 'question-message', message: { content: [{ type: 'tool_use', id: 'question-tool', name: 'AskUserQuestion', input: { questions } }] } });
+    await until(() => agent.messages.some(message => message.id === 'tool:question-tool'));
+    const pending = query.params.options.canUseTool('AskUserQuestion', { questions }, { requestId: 'question-card', toolUseID: 'question-tool', signal: new AbortController().signal });
+    f.runtime.answer(agent, 'question-card', { answers: { 'Keep the source chat?': 'Yes', 'Which next version?': 'v3' } });
+    await pending;
+    const result = 'Native result: keep the source chat; continue with v3.\nOriginal result details.';
+    query.push({ type: 'user', uuid: 'question-result', isSynthetic: true, message: { content: [{ type: 'tool_result', tool_use_id: 'question-tool', content: result }] } });
+    await until(() => !agent.questions.length);
+    const record = agent.messages.find(message => message.id === 'tool:question-tool');
+    assert.equal(record.type, 'activity', 'tool output must not become human authorization');
+    assert.equal(record.state, 'completed');
+    assert.deepEqual(record.nativeQuestionTranscript, { questions: questions.map(field => field.question), result });
+    assert.equal(record.text, 'AskUserQuestion\n' + JSON.stringify({ questions }, null, 2) + '\n\n' + result, 'raw copy retains the native call and result');
+    assert.equal(agent.messages.filter(message => message.nativeMessageId === 'question-result').length, 0, 'a tool result must not fabricate a user message');
+  } finally { await f.close(); }
+});
+
+test('Claude history reconstructs read-only question/result presentation without callbacks or another store', async () => {
+  const questions = [{ question: 'Proceed with this version?' }];
+  const history = [
+    { type: 'assistant', uuid: 'history-question', message: { content: [{ type: 'tool_use', id: 'saved-question', name: 'AskUserQuestion', input: { questions } }] } },
+    { type: 'user', uuid: 'history-result', message: { content: [{ type: 'tool_result', tool_use_id: 'saved-question', content: [{ type: 'text', text: 'The user chose yes.' }, { type: 'text', text: 'Native additional context.' }] }] } }
+  ];
+  const f = await fixture({ history });
+  try {
+    const agent = await f.runtime.open(workerId);
+    assert.equal(agent.messages.length, 1);
+    assert.deepEqual(agent.messages[0].nativeQuestionTranscript, { questions: ['Proceed with this version?'], result: 'The user chose yes.\nNative additional context.' });
+    assert.equal(agent.messages[0].type, 'activity');
+    assert.deepEqual(agent.questions, []); assert.equal(f.runtime.requests.size, 0); assert.equal(f.queries.length, 0);
+    await f.runtime.refresh(agent);
+    assert.equal(agent.messages.length, 1); assert.equal(agent.messages[0].nativeQuestionTranscript.result, 'The user chose yes.\nNative additional context.');
+    assert.equal(f.queries.length, 0);
+  } finally { await f.close(); }
+});
+
+test('Claude question transcript markers require a known assistant question call and preserve errors literally', () => {
+  const agent = { messages: [] };
+  for (const [id, type, name, input] of [
+    ['other-tool', 'assistant', 'Read', { questions: [{ question: 'Not a question tool?' }] }],
+    ['user-shaped', 'user', 'AskUserQuestion', { questions: [{ question: 'Not an assistant call?' }] }],
+    ['malformed', 'assistant', 'AskUserQuestion', { questions: [{ question: 3 }] }],
+    ['too-many', 'assistant', 'AskUserQuestion', { questions: Array.from({ length: 9 }, () => ({ question: 'Too many?' })) }],
+    ['oversized', 'assistant', 'AskUserQuestion', { questions: [{ question: 'x'.repeat(32001) }] }]
+  ]) {
+    addClaudeMessage(agent, { type, uuid: id, message: { content: [{ type: 'tool_use', id, name, input }] } });
+    assert.equal(agent.messages.at(-1).nativeQuestionTranscript, undefined);
+  }
+  addClaudeMessage(agent, { type: 'user', uuid: 'unknown-result', message: { content: [{ type: 'tool_result', tool_use_id: 'unknown-question', content: 'User has answered your questions: fabricated text.' }] } });
+  assert.equal(agent.messages.at(-1).nativeQuestionTranscript, undefined, 'native result wording alone cannot classify a question');
+  addClaudeMessage(agent, { type: 'assistant', uuid: 'failed-question', message: { content: [{ type: 'tool_use', id: 'failed', name: 'AskUserQuestion', input: { questions: [{ question: '<literal> **question**?' }] } }] } });
+  addClaudeMessage(agent, { type: 'user', uuid: 'failed-result', message: { content: [{ type: 'tool_result', tool_use_id: 'failed', content: 'The user declined this question.', is_error: true }] } });
+  assert.equal(agent.messages.at(-1).state, 'failed');
+  assert.deepEqual(agent.messages.at(-1).nativeQuestionTranscript, { questions: ['<literal> **question**?'], result: 'The user declined this question.' });
+  addClaudeMessage(agent, { type: 'user', uuid: 'large-result', message: { content: [{ type: 'tool_result', tool_use_id: 'failed', content: 'x'.repeat(40000) }] } });
+  assert.equal(agent.messages.at(-1).nativeQuestionTranscript.result.length, 32000);
+});
+
 test('Claude model controls use SDK catalog/control acknowledgments without adding permissions', async () => {
   const f = await fixture();
   try {

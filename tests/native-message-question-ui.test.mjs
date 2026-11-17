@@ -167,6 +167,16 @@ test('a retiring or uncertain question retains its local answer text without a r
   }
 });
 
+test('an accepted answer stays visible beside its historical question without another send control', () => {
+  const { element } = itemFixture({ question: { ...available(), answerState: 'submitted' }, supported: true,
+    input: { draft: 'Keep the original chat.\nStart the next version.', delivery: 'submitted' }, answer: () => assert.fail('History cannot send') });
+  const html = renderToStaticMarkup(element);
+  assert.match(html, /Choose the scope/);
+  assert.match(html, /Your submitted answer:/);
+  assert.match(html, /Keep the original chat\.\nStart the next version\./);
+  assert.doesNotMatch(html, /<form|<textarea|Send answer|Discard retained text/);
+});
+
 test('partial answers and filtered metadata retain original per-chat question identity', () => {
   const props = { agentId: 'worker-a', messageId: 'message-a', questions: [available(2), available(5)], answer: async () => ({ accepted: true }) };
   const items = value => descendants(NativeMessageQuestions(value), node => node.type === NativeMessageQuestionItem);

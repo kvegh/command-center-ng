@@ -54,6 +54,18 @@ test('only consecutive activity collapses; conversation order and original recor
   assert.equal(groups[1].items[0], messages[1]);
 });
 
+test('a completed native question exchange stays visible between collapsed actions without changing its provenance', () => {
+  const exchange = { ...message('question'), nativeQuestionTranscript: { questions: ['Keep the existing settings?'], result: 'User answered: Yes.' } };
+  const pending = { ...message('pending', 'activity', 'inProgress'), nativeQuestionTranscript: { questions: ['Another choice?'] } };
+  const messages = [message('before'), exchange, message('after'), pending];
+  const before = structuredClone(messages), groups = groupMessages(messages);
+  assert.deepEqual(groups.map(group => group.kind), ['activity', 'message', 'activity']);
+  assert.equal(groups[1].message, exchange);
+  assert.equal(exchange.type, 'activity', 'native tool output must not become a human authority message');
+  assert.deepEqual(groups[2].items, [messages[2], pending], 'unanswered questions retain their live card and ordinary activity');
+  assert.deepEqual(messages, before);
+});
+
 test('groups and individual command details start closed without losing or executing command text', () => {
   const html = render([message('one', 'activity', 'completed', 'printf first\nprintf "<script>literal</script>"'), message('two')]);
   assert.equal((html.match(/<details\b/g) || []).length, 3);

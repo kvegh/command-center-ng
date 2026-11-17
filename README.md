@@ -61,7 +61,7 @@ user XML remains user text. See [chat display and typing](docs/usage.md#chat-dis
   Codex or Claude, prepare and verify the file first, then import automatically
   at startup. Link the same source Beads tasks before import, keeping their states
   and source associations. Existing versions require an explicit open-or-increment choice. See [chat handovers](docs/usage.md#chat-handovers).
-- Chat, steer active work, interrupt a turn and answer supported native questions or approvals, including eligible current assistant-question cards.
+- Chat, steer active work, interrupt a turn and answer supported native questions or approvals, including eligible current assistant-question cards. Completed Claude question exchanges remain visible in chat after their pending cards close, including when reloading native history.
   If native Codex explicitly rejects an outdated turn, refresh its current state
   and retry ordinary input once when safe; uncertain deliveries are not repeated.
 - See received native requests and matching file-change details automatically, including verified Codex child requests in their parent chat. Distinguish requests needing your answer from native waits with unavailable details.
@@ -281,7 +281,10 @@ with the native Claude/Google configuration; no new login is created.
   CCNG-owned Claude runs; native history remains available for later resume.
 - Unsent image drafts disappear on browser refresh; text drafts use browser storage.
 - Eligible live Codex assistant-question cards accept independent option/free-text
-  answers. Restored, terminal or unbound questions remain read-only. Missing native
+  answers. Submitted answer text stays visible, and already observed questions
+  remain read-only history when native updates close their controls. Native reply
+  messages retain quoted questions and answers after reload. Restored, terminal
+  or unbound questions remain read-only. Missing native
   request details cannot be answered or reconstructed from a waiting status.
   Eligible active Codex contexts may be reconnected once. An explicit native
   overload rejection permits at most two additional attempts, at least five

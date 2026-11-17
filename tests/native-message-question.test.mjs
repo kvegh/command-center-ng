@@ -68,7 +68,7 @@ test('metadata is bounded and partial malformed data carries an explicit truncat
   assert.deepEqual(partial, { nativeQuestions: [{ title: 'Valid', options: ['One', 'Two'], questionIndex: 1 }, { title: 'No options', options: null, questionIndex: 2 }], nativeQuestionsTruncated: true });
 });
 
-test('matching native completion can retain metadata omitted by the update and explicit None clears it', async () => {
+test('native metadata removal retains the exact observed question as read-only history', async () => {
   const f = fixture(); f.workspace.addItem(f.agent, f.item(), 'turn');
   f.workspace.addItem(f.agent, { id: 'message', type: 'agentMessage', text: '' }, 'turn');
   assert.equal(f.agent.messages[0].nativeQuestions.length, 1);
@@ -76,9 +76,11 @@ test('matching native completion can retain metadata omitted by the update and e
   await f.workspace.history('worker');
   assert.equal(f.agent.messages[0].nativeQuestions.length, 1);
   f.workspace.addItem(f.agent, f.item({ questions: null }), 'turn');
-  assert.equal(f.agent.messages.length, 0);
+  assert.equal(f.agent.messages.length, 1);
+  assert.equal(f.workspace.snapshot().agents[0].messages[0].nativeQuestions[0].answerState, 'read-only');
+  assert.equal(f.agent.messages[0].nativeQuestions[0].title, 'Which target?');
   f.workspace.addItem(f.agent, f.item({ id: 'other-message', questions: undefined }), 'turn');
-  assert.equal(f.agent.messages.length, 0, 'other native IDs cannot inherit question metadata');
+  assert.equal(f.agent.messages.length, 1, 'other native IDs cannot inherit question metadata');
 });
 
 test('Coordinator older full native pages retain display-only questions and no pending request', async () => {
@@ -190,10 +192,33 @@ test('ordinary followup and true terminal completion retire editors without dele
   }
   const f = replyFixture(); f.complete();
   f.workspace.addItem(f.agent, f.item({ questions: null }), 'turn', false, { live: true, completed: true });
-  assert.equal(f.agent.messages.length, 0);
+  assert.equal(f.agent.messages.length, 1);
+  assert.deepEqual(f.states(), ['read-only']);
   f.complete(); assert.deepEqual(f.states(), ['read-only'], 'explicit metadata removal cannot make a duplicate ID new again');
   for (const text of ['> ' + envelope(answered(0)), envelope(answered(0)) + '\nextra text']) {
     const g = replyFixture(); g.complete(); nativeUser(g, text); assert.deepEqual(g.states(), ['read-only'], 'ordinary text is not treated as a canonical answered identity');
+  }
+});
+
+test('submitted questions and native answers survive metadata removal and history refresh', async () => {
+  for (const echoFirst of [true, false]) {
+    const f = replyFixture(); f.complete();
+    await f.workspace.answerMessageQuestion('worker', { messageId: 'message', questionIndex: 0, answer: 'Keep the existing workspace.' });
+    const reply = f.calls[0].params.input[0].text;
+    if (echoFirst) nativeUser(f, reply);
+    f.complete({ questions: null });
+    if (!echoFirst) nativeUser(f, reply);
+    assert.deepEqual(f.states(), ['submitted']);
+    const rows = () => f.workspace.snapshot().agents[0].messages;
+    assert.equal(rows()[0].nativeQuestions[0].title, 'Which target?');
+    assert.deepEqual(rows().find(message => message.type === 'user').nativeQuestionReplies, [{ question: 'Which target?', answer: 'Keep the existing workspace.' }]);
+    f.rpc.call = async () => ({ data: [{ id: 'turn', status: 'completed', items: [f.item({ questions: null }), { id: 'reply', type: 'userMessage', content: [{ type: 'text', text: reply }] }] }], nextCursor: null });
+    await f.workspace.history('worker');
+    assert.equal(rows()[0].nativeQuestions[0].title, 'Which target?');
+    assert.deepEqual(f.states(), ['submitted']);
+    assert.ok(rows().some(message => message.nativeQuestionReplies?.[0]?.answer === 'Keep the existing workspace.'));
+    await assert.rejects(f.workspace.answerMessageQuestion('worker', { messageId: 'message', questionIndex: 0, answer: 'Duplicate' }));
+    assert.equal(f.calls.length, 1, 'retained history must never resend a response');
   }
 });
 
@@ -233,6 +258,7 @@ test('final reply preflight rejects changes while native context is loading with
     f => { f.agent.handoff = { phase: 'transferring' }; f.workspace.returnJobs.set('worker', {}); },
     f => { f.workspace.summaryJobs.set('worker', {}); },
     f => { f.workspace.agents.delete('worker'); },
+    f => { f.complete({ questions: null }); },
     f => { f.complete({ questions: [{ title: 'Changed question', options: null }] }); }
   ]) {
     const f = replyFixture(); f.complete(); let release, entered;

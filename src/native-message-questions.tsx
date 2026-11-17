@@ -56,7 +56,7 @@ export function NativeMessageQuestionItem({ question, supported, disabledReason,
         : state === 'submitting' ? 'An answer is being sent. Its acceptance is not confirmed yet.'
           : state === 'unconfirmed' ? 'Answer delivery is unconfirmed. Check the native Codex client; CCNG will not resend it automatically.'
             : question.answerNotice || 'This question is read-only here. Review its current state in the native Codex client.'}</p>
-      {!!draft.trim() && state !== 'submitted' && <><p className="field-note">Your answer text is retained in this tab:</p><pre>{draft}</pre><button type="button" className="button subtle small" onClick={() => setDraft('')}>Discard retained text</button></>}
+      {!!draft.trim() && <><p className="field-note">{state === 'submitted' ? 'Your submitted answer:' : 'Your answer text is retained in this tab:'}</p><pre>{draft}</pre>{state !== 'submitted' && <button type="button" className="button subtle small" onClick={() => setDraft('')}>Discard retained text</button>}</>}
     </>}
     {error && <p className="error-text" role="alert">{error}</p>}
   </li>;

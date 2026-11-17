@@ -546,6 +546,17 @@ uncertain-send errors; no automatic follow-up/retry,
 question store, broader Coordinator authority or Claude support is introduced.
 Publication and deployed acceptance remain pending until actual verification.
 
+Retain already observed Codex assistant-question details as read-only chat history
+when native metadata explicitly removes their controls. Keep submitted local answer
+text visible until its native reply is displayed; reload relies on native history,
+without a separate answer store, fabricated receipt or automatic resend. Retaining
+displayed details must never reactivate an editor or bypass final delivery guards.
+
+Completed native Claude AskUserQuestion exchanges remain visible outside collapsed
+actions, reconstructing from the same native tool call/result on history reload.
+Keep their activity provenance and raw copy; never invent a human message from
+tool output, reopen callbacks or resend an answer to restore the display.
+
 Retain known native Codex child status for backend/Coordinator readback. Show its
 activity in a default-collapsed Subagents section below Tasks. Delivered pending
 child approval/question cards and necessary recovery warnings stay outside that
