@@ -25,3 +25,7 @@ export function Markdown({ value, preserveHtmlText = false }: { value: string; p
         : <a href={src} target="_blank" rel="noopener noreferrer">{alt || 'Image'}</a>
     }}>{value}</ReactMarkdown></div>;
 }
+
+// Draft edits and unrelated workspace updates leave these primitive props
+// unchanged. Keep their Markdown parsing out of the typing render path.
+export const MemoizedMarkdown = React.memo(Markdown);

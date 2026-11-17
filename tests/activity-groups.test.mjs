@@ -14,6 +14,36 @@ const { groupMessages, ActivityGroup, isVisibleMessage } = await import('data:te
 const message = (id, type = 'activity', state = 'completed', text = `Action ${id}`) => ({ id, type, state, text });
 const render = messages => renderToStaticMarkup(React.createElement(ActivityGroup, { messages }));
 
+test('a verified notification has a readable collapsed heading and retains escaped original details', () => {
+  const text = '<task-notification><summary>Agent "Example" finished</summary><result><script>literal</script></result></task-notification>';
+  const notice = { ...message('native-notice', 'activity', 'completed', text), activityTitle: 'Claude task completed — Agent "Example" finished' };
+  const html = render([notice]);
+  const heading = html.slice(0, html.indexOf('</summary>'));
+  assert.match(heading, /Claude task completed/);
+  assert.doesNotMatch(heading, /task-notification|<script>|You/);
+  assert.doesNotMatch(html, /<details[^>]*\bopen(?:=|\s|>)/);
+  assert.ok(html.includes('&lt;task-notification&gt;'));
+  assert.ok(html.includes('&lt;script&gt;literal&lt;/script&gt;'));
+  assert.equal(notice.text, text);
+  assert.equal(groupMessages([notice])[0].kind, 'activity');
+});
+
+test('user XML stays a user message beside verified notifications and activity summaries retain status', () => {
+  const text = '<task-notification><status>failed</status></task-notification>';
+  const user = message('user-xml', 'user', 'completed', text);
+  const notice = { ...message('verified-failure', 'activity', 'failed', text), activityTitle: 'Claude task failed' };
+  const groups = groupMessages([user, notice]);
+  assert.equal(groups[0].kind, 'message');
+  assert.equal(groups[0].message, user);
+  assert.equal(groups[1].kind, 'activity');
+  assert.match(render([notice]), /activity-group failed/);
+  assert.match(render([notice]), /1 failed/);
+  const stopped = render([{ ...notice, state: 'stopped', activityTitle: 'Claude task stopped' }]);
+  assert.match(stopped, /activity-group stopped/);
+  assert.match(stopped, /1 stopped/);
+  assert.equal(user.text, text);
+});
+
 test('only consecutive activity collapses; conversation order and original records remain intact', () => {
   const messages = [message('user', 'user'), message('one'), message('two'), message('reply', 'assistant'), message('three')];
   const before = structuredClone(messages);

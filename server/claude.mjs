@@ -9,6 +9,7 @@ import { formContent } from './native-requests.mjs';
 import { validateModelChoice } from './worker-models.mjs';
 import { messageTime } from './message-time.mjs';
 import { readInlineImage, validateImages } from './image-input.mjs';
+import { readClaudeMessages, claudeTaskNotification } from './claude-notifications.mjs';
 
 const run = promisify(execFile);
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
@@ -54,7 +55,7 @@ function put(agent, record) {
   if (previous?.timestamp && record.timestampSource === 'received') record = { ...record, timestamp: previous.timestamp, timestampSource: previous.timestampSource };
   if (index < 0) agent.messages.push(record); else agent.messages[index] = { ...agent.messages[index], ...record };
   agent.messages = agent.messages.slice(-600);
-  if (record.type === 'activity') agent.activity = { text: record.text.split('\n')[0].slice(0, 180), state: record.state };
+  if (record.type === 'activity') agent.activity = { text: (record.activityTitle || record.text.split('\n')[0]).slice(0, 180), state: record.state };
 }
 
 function blocks(message) { return typeof message?.content === 'string' ? [{ type: 'text', text: message.content }] : Array.isArray(message?.content) ? message.content : []; }
@@ -76,7 +77,10 @@ export function addClaudeMessage(agent, message, turnId = message.uuid || 'histo
   }
   if (images.length) put(agent, { id: id + ':0', nativeMessageId: id, turnId, type: 'user', text: bounded(content.filter(block => block.type === 'text').map(block => block.text || '').join('\n')), images, state: 'completed', ...time });
   for (const [index, block] of content.entries()) {
-    if (block.type === 'text' && block.text && !images.length && !syntheticInput) put(agent, { id: id + ':' + index, nativeMessageId: id, turnId, type: message.type === 'assistant' ? 'assistant' : 'user', text: bounded(block.text), state: 'completed', ...(message.type === 'assistant' ? { nativeStopReason: message.message?.stop_reason ?? null } : {}), ...(completedReply ? { branchable: true } : {}), ...time });
+    if (block.type === 'text' && block.text && !images.length && !syntheticInput) {
+      const notification = claudeTaskNotification(message, agent.nativeSessionId, block.text);
+      put(agent, { id: id + ':' + index, nativeMessageId: id, turnId, type: notification ? 'activity' : message.type === 'assistant' ? 'assistant' : 'user', text: bounded(block.text), state: 'completed', ...notification, ...(message.type === 'assistant' ? { nativeStopReason: message.message?.stop_reason ?? null } : {}), ...(completedReply ? { branchable: true } : {}), ...time });
+    }
     if (block.type === 'tool_use') put(agent, { id: 'tool:' + block.id, turnId, type: 'activity', text: bounded(block.name + '\n' + JSON.stringify(block.input, null, 2)), state: 'inProgress' });
     if (block.type === 'tool_result') {
       const item = agent.messages.find(item => item.id === 'tool:' + block.tool_use_id);
@@ -157,7 +161,7 @@ export class ClaudeSessions extends EventEmitter {
     const version = info && Number.isFinite(info.lastModified) && Number.isFinite(info.fileSize) ? JSON.stringify([info.lastModified, info.fileSize]) : null;
     const historyChanged = version === null || version !== agent.historyVersion;
     if (historyChanged) {
-      const messages = await this.sdk.getSessionMessages(agent.nativeSessionId, { dir: agent.cwd, includeSystemMessages: true });
+      const messages = await readClaudeMessages(this.sdk, agent.nativeSessionId, { dir: agent.cwd, includeSystemMessages: true });
       const previous = new Map(agent.messages.map(message => [message.id, message]));
       agent.messages = []; for (const message of messages.slice(-600)) addClaudeMessage(agent, message);
       for (const message of agent.messages) if (!message.timestamp && previous.get(message.id)?.timestamp) {

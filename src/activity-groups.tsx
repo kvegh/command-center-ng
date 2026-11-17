@@ -1,6 +1,6 @@
 import React from 'react';
 
-type ActivityMessage = { id: string; type: 'user' | 'assistant' | 'activity'; text: string; state: string; internalReport?: boolean; internalReportControl?: boolean; internalCoordinatorEvent?: boolean; internalTaskPing?: boolean };
+type ActivityMessage = { id: string; type: 'user' | 'assistant' | 'activity'; text: string; state: string; activityTitle?: string; internalReport?: boolean; internalReportControl?: boolean; internalCoordinatorEvent?: boolean; internalTaskPing?: boolean };
 type MessageGroup<T> = { kind: 'message'; id: string; message: T } | { kind: 'activity'; id: string; items: T[] };
 
 export function isVisibleMessage(message: ActivityMessage): boolean {
@@ -25,7 +25,7 @@ function activityStatus(messages: ActivityMessage[]) {
     const state = message.state.replace(/[ _-]/g, '').toLowerCase();
     if (['failed', 'error', 'declined'].includes(state)) counts.failed++;
     else if (['inprogress', 'running', 'started', 'pending'].includes(state)) counts.running++;
-    else if (['interrupted', 'cancelled', 'canceled'].includes(state)) counts.stopped++;
+    else if (['stopped', 'interrupted', 'cancelled', 'canceled'].includes(state)) counts.stopped++;
     else if (['completed', 'succeeded', 'success'].includes(state)) counts.completed++;
     else counts.other++;
   }
@@ -41,11 +41,11 @@ export function ActivityGroup({ messages }: { messages: ActivityMessage[] }) {
     <summary>
       <svg className="activity-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" aria-hidden="true"><path d="m4 2 4 4-4 4" /></svg>
       <span className="activity-dot" aria-hidden="true" />
-      <span>{messages.length} {messages.length === 1 ? 'action' : 'actions'}</span>
+      <span>{messages.length === 1 && messages[0].activityTitle ? messages[0].activityTitle : `${messages.length} ${messages.length === 1 ? 'action' : 'actions'}`}</span>
       <small>{status.label}</small>
     </summary>
     <div className="activity-entries">{messages.map(message => <details key={message.id} className="activity-message">
-      <summary><span className="activity-dot" aria-hidden="true" /><span>{message.text.split('\n')[0] || 'Action'}</span><small>{message.state}</small></summary>
+      <summary><span className="activity-dot" aria-hidden="true" /><span>{message.activityTitle || message.text.split('\n')[0] || 'Action'}</span><small>{message.state}</small></summary>
       <pre><code>{message.text}</code></pre>
     </details>)}</div>
   </details>;

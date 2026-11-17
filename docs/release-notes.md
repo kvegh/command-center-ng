@@ -9,6 +9,20 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.34.0 — Readable Claude activity and cheaper long-chat typing
+
+Verified Claude task notices render as collapsed activity with readable headings
+and retained original details. Native origin metadata, not matching XML tags,
+establishes their identity in live and restored messages. History uses one
+official SDK read/projection pipeline without another persistent store or raw
+transcript rewriting; genuine user markup stays visible as user text.
+
+Unchanged Markdown and absolute timestamp rendering now reuse React's existing
+render boundaries during typing and unrelated snapshots. Changed text, status,
+questions and other visible data still update. No history is removed and no
+new rendering framework is added. Browser typing improvement needs actual
+acceptance rather than being inferred from Node rendering diagnostics.
+
 ## 1.33.0 — Prepare before automatic handover startup
 
 Create handover defaults to the source provider. It prepares and verifies the

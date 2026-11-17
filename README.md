@@ -49,6 +49,11 @@ states are historical. EXIF metadata was removed without changing image pixels.
 
 ## What you can do
 
+Long-chat typing reuses unchanged Markdown and timestamp rendering. Live message,
+status and request updates still render normally. Verified Claude task notices
+appear as collapsed activity with readable headings and original details; genuine
+user XML remains user text. See [chat display and typing](docs/usage.md#chat-display-and-typing).
+
 - Open local Codex or Claude conversations, or start new agents in explicit project directories.
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
 - Create a versioned receiving chat from the Project overview after choosing
@@ -391,6 +396,23 @@ stage the existing tests temporarily and link their server imports to it:
 The temporary files are removed on exit; the installation remains unchanged.
 Passing these tests does not establish a native client's current tool exposure
 or resolve a pending human decision. See the [source-reader limits](docs/usage.md#coordinator-approval-review).
+
+### Verify Claude notification presentation
+
+With the existing development dependencies, run:
+
+```sh
+node --test tests/claude-notifications.test.mjs tests/claude.test.mjs tests/activity-groups.test.mjs tests/claude-message-visibility.test.mjs tests/worker-ui.test.mjs tests/message-time-ui.test.mjs
+```
+
+The checks cover trusted native provenance, one SDK history-read pipeline,
+normal history filtering, genuine user lookalikes, retained escaped details and
+existing Markdown/time behavior. They do not create a model turn, rewrite a
+transcript or measure browser typing latency. After deployment, run against
+installed modules in the same temporary harness described below. For a real
+history read, target an existing local session with known notification metadata
+and report counts/IDs only; never print its conversation contents. A user's
+post-update typing check or browser profiling is still needed to assess latency.
 
 ### Verify chat handover controls
 

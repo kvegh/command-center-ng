@@ -1,5 +1,41 @@
 # Design decisions history
 
+## 2026-11-17, UTC — Correct Claude notice identity and avoid unchanged render work
+
+The user requested a fix for native Claude completion XML labelled as You, then
+reported sluggish typing in a long chat. The exact reported historical notice
+has native task-notification origin metadata that the SDK's normal history
+projection discards. Recover only that verified marker by exact session/message
+identity using one official SDK import/projection pipeline in request-scoped
+memory. Keep the SDK responsible for conversation-chain and isMeta filtering;
+release raw entries afterward. No custom filesystem reader, persistent store,
+query attachment, new dependency or second transcript read is added. The two
+pinned SDK APIs are alpha; a missing capability retains legacy readable history
+without guessing identity from XML. Notification text only supplies the readable
+summary/status after provenance is established; original details remain escaped.
+
+Draft changes currently render App's conversation tree again, including plain
+Markdown and timestamp components. Memoize these two expensive components using
+their existing primitive props, preserving their callable renderers, live updates,
+formatting, copying and raw-text policy. This uses existing React boundaries,
+without virtualization, history truncation, formatter caches or a broad rendering
+ban. New messages, streaming text, status/requests and other changed visible data
+must continue to update. The user endorsed updates based on changed visible data.
+
+Bounded Node diagnostics showed material repeated Markdown and time-formatting
+cost; these are not browser latency measurements or proof of the complete user
+incident's cause. Working version is 1.34.0. Focused checks, installed historical
+classification and a real typing acceptance check are recorded when available;
+actual browser typing improvement remains unverified until observed.
+
+Source verification succeeded at 11:19:45.384006–11:21:05.395092 UTC: 1,361 tests
+passed, zero failures, with only the unavailable supplementary-group fixture
+skipped; primary-group preservation is checked separately. TypeScript and the
+production build passed (444 ms build). A read-only actual-session check verified
+the exact reported notice becomes activity with its original details/identity
+preserved, using one SDK import and one in-memory SDK projection. No model turn
+or history mutation was made. Browser typing acceptance remains pending.
+
 ## 2026-11-17, 10:06 UTC — Verify automatic handover startup and review defaults
 
 Published implementation `f3d1cf6179829ef11f400ca332ea5d3332497c37` is 1.33.0.

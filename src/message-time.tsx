@@ -10,3 +10,7 @@ export function MessageTime({ timestamp, source }: { timestamp?: string; source?
   const title = label ? `${source === 'received' ? 'First received by Command Center' : 'Recorded by the agent runtime'} · ${new Date(timestamp!).toLocaleString()}` : 'Message time unavailable in the recorded history';
   return <span className="message-time" title={title}><span aria-hidden="true">|</span>{label ? <time dateTime={timestamp}>{label}</time> : <span aria-label="Message time unavailable">—</span>}</span>;
 }
+
+// Draft edits do not change recorded timestamps or their provenance. Avoid
+// rebuilding locale formatters for every message on unrelated renders.
+export const MemoizedMessageTime = React.memo(MessageTime);

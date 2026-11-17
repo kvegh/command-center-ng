@@ -140,6 +140,30 @@ updates its schedule and subsequent turn context. The older report-setting marke
 remains supported for compatibility, but is not currently queued. Base/shared
 instructions are injected as runtime context, not standalone chat messages.
 
+## Chat display and typing
+
+Typing updates the composer immediately. Unchanged message Markdown and absolute
+message timestamps reuse their existing React rendering, including during
+unrelated workspace snapshots. New/streaming text, tool progress, requests,
+status/task changes and changed timestamp metadata still update normally. This
+avoids repeated parsing and formatting; it does not remove history or freeze the
+conversation. A handover may reduce loaded history temporarily, but is not the
+underlying rendering fix. Actual typing latency depends on the browser/device.
+
+Claude task-completion notices with verified native origin metadata appear as
+collapsed activity with a readable title and status. Expand them to read the
+original escaped details. Pasting XML does not make a message an internal notice.
+The application does not execute XML, rewrite native history, infer authority
+from a notification or change native task/permission state.
+
+For restored Claude history, CCNG uses the official SDK to read the original
+session once into request-scoped memory, then lets the SDK apply its normal
+conversation-chain and metadata filtering. Only the verified notification-origin
+marker is retained by exact message identity. Raw import entries are released
+after projection; no persistent store or extra transcript pass is added. These
+pinned SDK APIs are alpha. If the metadata-capable API is unavailable, legacy
+history remains readable without guessing notification identity from its text.
+
 ## Chat handovers
 
 The worker Project overview offers **Create handover**. The agent choice defaults
