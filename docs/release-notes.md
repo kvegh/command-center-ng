@@ -9,6 +9,14 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.38.1 — Move activity away from the input
+
+Keep live status below the selected top tab as a compact overlay over older
+conversation text. Its existing child-local clock and evidence rules are unchanged.
+Move the version badge between the branding and Sign out, including narrow
+layouts, and remove the redundant local-workspace footer. Tab order and native
+controls remain unchanged. Installation and physical-browser checks are separate.
+
 ## 1.38.0 — Make long Claude tool waits visible
 
 The composer now shows Claude tool requests, descriptions and confirmed native

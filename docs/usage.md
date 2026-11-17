@@ -25,8 +25,11 @@ background tint of the compact title folder tab attached to the input below.
 Status/frame colours remain independent; inactive top tabs, the adjacent selector and status indicators
 stay on neutral backgrounds. Choose **cyan**, **violet**, **green**, **blue**,
 **teal** or **rose**. Older saved amber choices become blue, leaving amber for
-attention states and preserving other preferences. Narrow layouts place stacked
-status indicators above the title so the tab stays attached to the input.
+attention states and preserving other preferences. Live activity and input receipts appear in a compact overlay at the top of the
+conversation, below the selected top tab. Its background keeps the text readable
+while it can cover older history; it does not take space from the input. The
+version badge sits between the top-right branding and Sign out, including on
+narrow layouts. The redundant local-workspace footer is omitted.
 Tab order, chat colours, text drafts and reading positions use existing browser
 preferences. They do not synchronize across browsers or devices.
 

@@ -303,10 +303,11 @@ test('Claude input is queued until the exact source-owned message echo is confir
   assert.equal(inputReceiptLabel(worker({ provider: 'claude', messages: [] }), undefined), null, 'missing receipt history stays unknown');
 });
 
-test('Claude work status is mounted in the composer and its clock cannot rebuild App history', async () => {
+test('Claude work status overlays history below the top tabs and its clock cannot rebuild App history', async () => {
   const main = await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8');
   assert.doesNotMatch(main, /active\.provider !== 'claude' && <WorkerStatus/);
-  assert.match(main, /<ChatHeader[^\n]+<WorkerStatus/);
+  assert.match(main, /<div className="conversation-status"><WorkerStatus/);
+  assert.doesNotMatch(main, /<ChatHeader[^\n]+<WorkerStatus/);
   const status = await readFile(new URL('../src/worker-status.tsx', import.meta.url), 'utf8');
   assert.match(status, /setInterval\(\(\) => setNow\(Date\.now\(\)\), 1000\)/);
   assert.doesNotMatch(status, /fetch\(|new EventSource|\/api\/|interrupt\(/);

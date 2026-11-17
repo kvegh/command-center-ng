@@ -197,7 +197,7 @@ unrelated restart boundaries. This does not authorize replaying lost messages.
 ## Interface
 
 Keep workspace branding at the right of the full-width navigation bar, with
-Logout last, immediately after it. Put the compact classic/contrastful/light
+Logout last, after the branding and version badge. Put the compact classic/contrastful/light
 palette menu in the former Logout position and group Add agent with its count.
 Keep worker tabs on the left. Group the coordinator and prominent cyan Add agent
 button together on the right, with the coordinator immediately before Add agent
@@ -605,7 +605,7 @@ This Codex-specific work does not authorize another provider's implementation.
 ## Approved Claude activity transparency
 
 The user requires visible ongoing work so a long tool wait does not appear stalled.
-Reuse SDK events, existing messages and the composer status. Tool calls establish
+Reuse SDK events, existing messages and the live activity status. Tool calls establish
 requests; only matching native progress establishes execution. Distinguish native
 request timestamps from first receipt, reported runtime from progress age, and
 backend/browser connection from actual worker activity. Missing evidence stays
@@ -617,23 +617,14 @@ and all existing permissions, local-only boundaries and pause/stop controls.
 
 ## Approved worker controls and layout
 
-Keep a compact header inside the composer, directly above the chat input and
-below the scrolling history. Put the current chat title in a compact coloured
-folder-style tab attached to the input below it. Keep the adjacent colour
-selector and Codex input/activity/connection indicators on neutral backgrounds,
-outside the coloured title. It belongs to the input area, not the top of the chat
-pane. Keep the top-right branding and smaller text than the composer. Offer six
-theme-compatible choices: cyan, violet, green, blue, teal and rose. Store choices
-in existing browser preferences per conversation; migrate saved amber to blue
-without losing unrelated preferences. Amber remains reserved for attention.
-Confirm Input received only after native input acknowledgement. Keep real native
-worker-update age separate from browser/backend heartbeat freshness; disconnected
-or delayed updates show last-known activity, never an invented stuck diagnosis.
-Do not add status-only pings or restart/resend work for activity indicators.
-The separately approved task-attention schedule below is not a connection probe.
-Claude activity integration remains deferred. Default shell installation goes to
-~/commandcenter-ng; --prefix selects another home-contained app directory.
-Preserve existing installations and require their explicit path for updates.
+Keep the compact title folder tab and six-colour selector attached above the
+input. Show the existing WorkerStatus once in a compact, theme-backed overlay
+at the top of the conversation, below the selected top tab. It may cover older
+text; keep its clock child-local and the overlay clear of input and native
+controls. Preserve exact native receipts, progress provenance and last-known
+connection evidence. Keep cyan, violet, green, blue, teal and rose in existing
+per-chat browser preferences; amber remains attention-only. Do not add probes,
+automatic sends, interruption or restart for status display.
 
 Escape uses the existing Interrupt action for the visible eligible native turn.
 Keep local dialog/question/select/summary-review/resize and composition Escape
@@ -646,7 +637,8 @@ settings/permissions. Preserve coordinator restrictions.
 Keep the desktop sidebar resizable with bounded browser-local width, keyboard
 controls and stacked mobile layout. Align the coordinator with the chat column,
 keep it immediately before Add agent, and display the version badge at its
-existing font size in the composer footer. Chat text shrinks with its column within a90ch maximum width.
+existing font size between the top-right branding and Logout. Omit the redundant
+local-workspace footer. Chat text shrinks with its column within a90ch maximum width.
 The named Standard Task Report format lives in server/worker-instructions.md;
 the coordinator backend owns saved intervals and sends silent one-off timer triggers.
 
@@ -831,7 +823,7 @@ Task instructions encourage continuation but do not guarantee autonomous wakeup.
 The coordinator retains its read-only role; all Claude work remains postponed.
 
 The user approved a draggable horizontal divider between history and the whole
-composer (title/status strip, text input and footer). Preserve keyboard controls,
+composer (title strip and text input). Preserve keyboard controls,
 cancel/reset and available-history bounds. Store the size in existing browser
 preferences; do not add server settings or alter worker/native state for resizing.
 

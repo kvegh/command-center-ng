@@ -90,7 +90,7 @@ user XML remains user text. See [chat display and typing](docs/usage.md#chat-dis
 - Keep coordinator decision summaries across restarts in a private local file.
 - Delegate worker progress, linked-task/blocker monitoring and sidebar recaps to one internal progress helper, independently of approvals.
 - Keep loaded chat pages in native order across refreshes without the former silent 600-record trim; load earlier pages explicitly.
-- Keep current Claude tool requests and confirmed progress visible beside the input,
+- Keep current Claude tool requests and confirmed progress visible below the selected top tab,
   including descriptions, recorded/first-seen age, last progress and reported run
   time. Input receipts distinguish CCNG queuing from the exact native echo;
   neither means the model processed the message. Missing progress stays unknown.

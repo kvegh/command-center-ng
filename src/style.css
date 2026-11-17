@@ -261,7 +261,7 @@ pre { max-width: 100%; padding: 14px 16px; background: #0d1420; border: 1px soli
 .older-button { display: block; margin: 0 auto 22px; color: #83b5d7; background: none; border: 0; font: 10px var(--mono); text-decoration: underline; text-underline-offset: 4px; }
 
 .composer { position: relative; display: flex; flex-direction: column; min-height: 0; padding: 14px 23px 12px; background: #111a27; border-top: 1px solid var(--line); overflow: auto; }
-.composer > .chat-header, .composer-foot { flex-shrink: 0; }
+.composer > .chat-header { flex-shrink: 0; }
 .composer-divider { position: absolute; top: 0; left: 0; right: 0; height: 8px; z-index: 2; cursor: row-resize; touch-action: none; }
 .composer-divider:hover, .composer-divider.resizing { background: #68d9fa40; }
 .composer-divider:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -278,7 +278,6 @@ kbd { font-family: inherit; }
 .composer-separator { margin: 0 6px; }
 .send-button { width: 34px; height: 31px; display: flex; align-items: center; justify-content: center; color: #10212c; background: var(--accent); border: 0; border-radius: 5px; }
 .send-button:hover { background: #a1e9ff; }
-.composer-foot { display: flex; justify-content: space-between; color: #697f9d; font: 8px var(--mono); margin-top: 10px; }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 15px; border: 1px solid transparent; border-radius: 6px; font-size: 12px; font-weight: 500; }
 .button.primary { color: #10212d; background: var(--accent); border-color: var(--accent); }
 .button.primary:hover { background: #a1e9ff; border-color: #a1e9ff; }
@@ -425,8 +424,6 @@ kbd { font-family: inherit; }
   .composer textarea { font-size: 16px; min-height: 43px; }
   input, .question-card input, .new-agent input, .search, .return-dialog textarea { font-size: 16px; }
   .composer-controls > span { font-size: 8px; }
-  .composer-foot { font-size: 7px; gap: 10px; }
-  .composer-foot > span:last-child { max-width: 55%; text-align: right; }
   .workspace-footer { font-size: 7px; margin: 12px 3px; }
   .workspace-footer > span:last-child { display: none; }
   .question-card { padding: 13px; }
@@ -583,7 +580,6 @@ kbd { font-family: inherit; }
 .overview-header > .brand { margin-left: auto; }
 .topbar > .tabs-row .tabs { flex: 1; width: auto; }
 .sidebar-divider { display: none; }
-.composer-foot .version { display: inline-flex; font: 10px var(--mono); }
 .task-summary > .task-scroll { gap: 6px; }
 @media (min-width: 901px) {
   .topbar { display: grid; grid-template-columns: minmax(0, 1fr) var(--overview-width, clamp(364px, 32.2vw, 448px)); gap: 0; padding-left: 13px; padding-right: 13px; }
@@ -740,7 +736,6 @@ kbd { font-family: inherit; }
 :root[data-theme="contrastful"] input::placeholder,
 :root[data-theme="contrastful"] textarea::placeholder,
 :root[data-theme="contrastful"] .composer-controls > span,
-:root[data-theme="contrastful"] .composer-foot,
 :root[data-theme="contrastful"] .activity-message small,
 :root[data-theme="contrastful"] .conversation-top,
 :root[data-theme="contrastful"] .conversation-top > span:last-child,
@@ -818,7 +813,6 @@ kbd { font-family: inherit; }
 :root[data-theme="light"] .activity-group,
 :root[data-theme="light"] .activity-group > summary small,
 :root[data-theme="light"] .composer-controls > span,
-:root[data-theme="light"] .composer-foot,
 :root[data-theme="light"] .workspace-footer,
 :root[data-theme="light"] .empty-workspace p,
 :root[data-theme="light"] .conversation-empty,
@@ -1089,3 +1083,8 @@ kbd { font-family: inherit; }
   .composer { flex: none; height: auto; max-height: none; overflow: visible; }
   .composer textarea { font-size: 16px; height: 9.6em; min-height: 9.6em; max-height: 9.6em; line-height: 1.6; overflow-y: auto; resize: none; }
 }
+
+/* Keep activity below the selected top tab without taking space from history. */
+.conversation-status { position: sticky; top: 0; height: 0; z-index: 2; pointer-events: none; }
+.conversation-status > .worker-status { width: fit-content; max-width: 100%; margin-left: 0; justify-content: flex-start; padding: 6px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+.overview-header > .topbar-version { display: inline-flex; flex-shrink: 0; white-space: nowrap; padding: 4px 6px; letter-spacing: 0; }

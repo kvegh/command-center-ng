@@ -66,7 +66,6 @@ test('contrastful fixes measured weak small text without weakening the main conv
   const theme = 'contrastful'; const palette = rootValues(theme);
   minimum(style(theme, '.message-body', 'color'), palette['--surface'], 7, 'main chat');
   minimum(style(theme, 'textarea::placeholder', 'color'), style(theme, '.composer-box', 'background'), 4.5, 'composer placeholder');
-  minimum(style(theme, '.composer-foot', 'color'), style(theme, '.composer', 'background'), 4.5, 'composer footer');
   minimum(style(theme, '.activity-message small', 'color'), palette['--surface'], 4.5, 'activity metadata');
   minimum(style(theme, '.choice.selected span', 'color'), style(theme, '.choice.selected', 'background'), 4.5, 'selected choice description');
   minimum(style(theme, '.tab-close', 'color'), '#234252', 3, 'close glyph across selected-tab gradient');
@@ -88,7 +87,6 @@ test('light text and important states meet normal-size text contrast on their ac
   const pairs = [
     ['chat', style(theme, '.message-body', 'color'), palette['--surface']],
     ['placeholder', style(theme, 'textarea::placeholder', 'color'), style(theme, '.composer-box', 'background')],
-    ['footer', style(theme, '.composer-foot', 'color'), style(theme, '.composer', 'background')],
     ['primary action', style(theme, '.button.primary', 'color'), style(theme, '.button.primary', 'background')],
     ['interrupt', style(theme, '.button.interrupt', 'color'), style(theme, '.button.interrupt', 'background')],
     ['amber action', style(theme, '.button.amber', 'color'), style(theme, '.button.amber', 'background')],

@@ -237,19 +237,16 @@ has focus; the composer input frame and top agent tabs retain existing styling.
 Provide cyan, violet, green, blue, teal and rose. Migrate older saved amber choices
 to blue without losing other browser preferences; reserve amber for attention.
 
-Keep a compact header inside the composer, directly above the input box and
-below the scrolling history. This strip belongs to the chat input area. Put the
-title tab and six-colour selector on the left; put Codex input receipt, native activity,
-connection state and last real update age on the right. Use smaller text than
-the input, readable contrast across all three themes and existing browser-local
-per-conversation preferences. On narrow layouts, stacked status indicators go
-above the title row so the folder tab still joins the input. Distinguish native input acceptance
-from model activity, and transport heartbeats from real worker updates. Mark
-unconfirmed connections and last-known activity truthfully; no guessed stuck
-diagnosis, automatic resend, interruption, worker ping or restart.
+Keep the compact chat title and six-colour selector attached above the input.
+Show activity, native input receipt, connection state and last real update age
+in a compact, theme-backed overlay at the top of the conversation, below the
+selected top tab. It may cover older text without consuming composer space.
+Keep status updates isolated from message rendering and preserve truthful
+unknown/last-known evidence. Place the version badge between the top-right
+branding and Sign out; omit the redundant local-workspace footer.
 
 On desktop, place a draggable horizontal divider between the chat history and
-the whole composer, including its header, input and footer. Dragging up enlarges the
+the whole composer, including its header and input. Dragging up enlarges the
 composer/input area and dragging down shrinks it. Support Up/Down keys, Shift
 for larger steps, Home for the minimum height and End for the maximum.
 Double-click resets automatic sizing. Escape during resizing or pointer

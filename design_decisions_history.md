@@ -1,5 +1,17 @@
 # Design decisions history
 
+## 2026-11-17, 21:04 CET — Relocate activity and version
+
+The user selected activity directly below the enlarged active top tab, allowing
+it to cover older conversation text. Reuse the existing status component in a
+zero-height sticky wrapper with a theme-backed, click-through surface; its clock
+stays isolated from App history. Move the version between branding and Logout
+and remove the local-workspace footer because provider identity is already in
+the chat controls. Keep the input title and tab ordering unchanged. No new
+architecture, storage, dependencies or native execution behavior is selected.
+The 1.38.1 implementation builds and all seven affected source test files pass.
+Physical browser placement remains unverified. The commit reference follows publication.
+
 ## 2026-11-17, 16:39 UTC — Install and verify visible questions and Claude activity
 
 Implementation `5083e3c20596fbe907fb5e072b3cb82750f18a14` (1.38.0)
