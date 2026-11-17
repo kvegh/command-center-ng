@@ -718,6 +718,18 @@ earlier instructions, or the existing branch action for a separate conversation.
 
 ### Claude Auto and Manual permissions
 
+New Claude chats, including handover receivers, start with Auto selected. Their
+requested mode is retained with the existing private workspace metadata for open
+chats, so a new managed process after restart uses the same preference. Explicit
+Auto/Manual changes are retained only after the native control acknowledges them;
+an observed fallback is not silently saved as your choice. Restoration only reads
+the chat and preference; it does not start a process or answer a pending request.
+Legacy chats without a saved preference keep their existing operator/default
+behavior. A later explicit per-chat Manual choice overrides an unchanged operator
+Auto selection; changing the operator selection deliberately supersedes the older
+preference for that affected chat. Configured intent, native acknowledgement and
+the latest reported mode remain distinct evidence.
+
 Operators can enable Auto for exact sessions directly in the existing private
 `INSTALL_DIR/etc/config.conf`; no browser is required. Use a comma-separated list
 of full Claude worker IDs (at most sixteen), or `disabled`:

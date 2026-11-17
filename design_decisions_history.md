@@ -1,5 +1,44 @@
 # Design decisions history
 
+## 2026-11-17, 12:32 UTC — Retain requested Claude modes and repair review indication
+
+The user explicitly requested enabling Auto in the current handover receiver and
+making the setting survive future resumes. Native metadata proved initial Auto
+was applied, but a later managed process resumed in Default. Retain requested
+auto/default preferences for open Claude chats in the existing private workspace
+record, loading them before read-only restoration. New creation records Auto;
+explicit native mode changes record intent only after acknowledgement. Native
+fallback observations never silently replace that intent. Preserve legacy chats
+without a preference, observer-only startup and every pending request. This is a
+small extension of existing metadata, not another service, permission database
+or persistent approval-rule store. A later acknowledged per-chat Manual overrides
+an unchanged operator default; changed operator selection supersedes the older
+preference for that affected chat. Failed native setters remain unconfirmed.
+
+The user also reported no Evaluating/Concerned indication. Source diagnosis
+confirmed stale exclusion of all Claude workers from Evaluating despite supported
+ask-only concern reviews. Expose the same exact live capability to the browser
+and use it for active main reviews; analysts remain Codex-only. Preserve the
+intentional nine-second pulse for new concerns, mount/reconnect baselines and
+manual native approvals. Version is 1.35.0; implementation commit and actual
+validation/delivery outcomes will be recorded after they exist.
+
+Full source verification succeeded at 12:40:35.584862–12:41:54.586556 UTC:
+1,373 tests passed with zero failures and one unavailable supplementary-group
+fixture skipped; TypeScript and build passed (422 ms build). The native-account
+run covered the local HTTP fixtures previously blocked by loopback sandbox
+permissions. An initial new case-alias test fixture used only numeric UUID
+characters, so uppercasing did not create an alias; correcting the synthetic
+fixture retained the production validation. No validation was relaxed.
+
+The requested current receiver was separately added to the existing exact-session
+operator selector, retaining the original selection. One native reload control
+acknowledged Auto without a service/process restart or approval answer. Its prior
+reported mode remained Default; no fresh mode event was fabricated. The actual
+Claude process still reports a waiting permission prompt, so application restart
+and installed verification of this new release remain held pending a safe idle
+checkpoint. Existing deployed code is still 1.34.1.
+
 ## 2026-11-17, 11:42 UTC — Verify notice and draft-rendering delivery
 
 Implementation `d6796665c5606c779c1414b455770f60fb8ff59a` (1.34.1) was

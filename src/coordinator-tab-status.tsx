@@ -19,17 +19,28 @@ export function coordinatorEvaluating(state: CoordinatorTabSnapshot) {
     || !coordinator?.id || coordinator.paused || coordinator.starting) return false;
   const main = state.agents.find(agent => agent.id === coordinator.id && agent.role === 'coordinator');
   if (!main || main.provider === 'claude') return false;
-  const tokens = state.agents.filter(agent => agent.role !== 'coordinator' && agent.provider !== 'claude')
-    .flatMap(agent => [agent, ...(agent.workers || [])]).flatMap(context => (context.questions || []).filter(question =>
-      question.params.threadId === context.id && question.reviewToken && !question.responding && !question.error
-      && (!question.review || question.review.decision === 'queued') && !isHumanCommandApproval(question)
-      && ['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method)
-      && nativeApprovalChoices(question, { allowPersistent: false }).some(choice => choice.answer.decision === 'accept'))
-      .map(question => question.reviewToken));
-  if (!tokens.length) return false;
+  const tokens = new Set<string>(), analystTokens = new Set<string>();
+  for (const agent of state.agents.filter(agent => agent.role !== 'coordinator')) {
+    const claude = agent.provider === 'claude';
+    for (const context of claude ? [agent] : [agent, ...(agent.workers || [])]) for (const question of context.questions || []) {
+      if (question.params.threadId !== context.id || !question.reviewToken || question.responding || question.error || question.unassociated) continue;
+      // Claude eligibility comes from the backend's exact owned-callback guard,
+      // and permits concern feedback only. It does not enable native approval.
+      const eligible = claude
+        ? question.method === 'claude/tool/requestApproval' && !question.review && question.reviewCapability?.decisions.includes('ask')
+        : (!question.review || question.review.decision === 'queued') && !isHumanCommandApproval(question)
+          && ['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(question.method)
+          && nativeApprovalChoices(question, { allowPersistent: false }).some(choice => choice.answer.decision === 'accept');
+      if (!eligible) continue;
+      tokens.add(question.reviewToken);
+      // Approval analysts remain Codex-only; Claude concerns use the main review.
+      if (!claude) analystTokens.add(question.reviewToken);
+    }
+  }
+  if (!tokens.size) return false;
   return !!(main.turnId && (main.ownStatus ?? main.status) === 'running')
     || !!coordinator.approvalAnalyses?.some(analysis => analysis.status === 'running' && analysis.current === true && analysis.active === true
-      && typeof analysis.turnId === 'string' && !!analysis.turnId.trim() && tokens.includes(analysis.reviewToken));
+      && typeof analysis.turnId === 'string' && !!analysis.turnId.trim() && analystTokens.has(analysis.reviewToken));
 }
 
 export function observeCoordinatorConcerns(previous: ConcernObservation | undefined, coordinatorId: string | null, entries: CoordinatorAuditEntry[], connected: boolean) {

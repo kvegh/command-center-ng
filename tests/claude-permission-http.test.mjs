@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { randomBytes } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../server/main.mjs';
@@ -77,7 +77,7 @@ async function fixture(t) {
   };
   const login = await request('/api/login', { password });
   assert.equal(login.statusCode, 200); const cookie = login.headers['set-cookie'];
-  return { runtime, workspace, agents, queries, controls, failure, request,
+  return { runtime, workspace, app, directory, agents, queries, controls, failure, request,
     authenticated: (path, data, options = {}) => request(path, data, { cookie, ...options }),
     route: id => '/api/agents/' + encodeURIComponent(id) + '/permission-settings' };
 }
@@ -123,6 +123,21 @@ test('authenticated permission changes reach only the selected live Claude proce
   assert.deepEqual(manual.json(), { available: true, configuredAuto: false, mode: 'auto', change: { mode: 'default', status: 'acknowledged' } });
   assert.deepEqual(f.controls, [{ id: selected.nativeSessionId, mode: 'auto' }, { id: selected.nativeSessionId, mode: 'default' }]);
   assert.deepEqual([...f.runtime.requests.values()], pending); assert.equal(answers, 0);
+});
+
+test('acknowledged mode changes await workspace persistence and distinguish a save warning from native failure', async t => {
+  const f = await fixture(t), selected = f.agents[0];
+  const changed = await f.authenticated(f.route(selected.id), { mode: 'auto' });
+  assert.equal(changed.statusCode, 200); assert.equal(changed.json().change.status, 'acknowledged');
+  const saved = JSON.parse(await readFile(join(f.directory, 'workspace.json'), 'utf8'));
+  assert.equal(saved.claudePermissionModes[selected.id], 'auto', 'the response follows the durable metadata write');
+  f.app.persistence.store.save = async () => { throw new Error('Synthetic metadata storage failure.'); };
+  const manual = await f.authenticated(f.route(selected.id), { mode: 'default' });
+  assert.equal(manual.statusCode, 200); assert.equal(manual.json().change.status, 'acknowledged');
+  assert.match(manual.json().workspaceSaveWarning, /Synthetic metadata storage failure/);
+  assert.equal(f.workspace.restoration.error, manual.json().workspaceSaveWarning);
+  assert.deepEqual(f.controls, [{ id: selected.nativeSessionId, mode: 'auto' }, { id: selected.nativeSessionId, mode: 'default' }], 'metadata failure never retries an acknowledged native action');
+  assert.equal(JSON.parse(await readFile(join(f.directory, 'workspace.json'), 'utf8')).claudePermissionModes[selected.id], 'auto', 'failed metadata is not reported as saved');
 });
 
 test('permission routes reject non-Claude targets, unknown workers and injected modes before native control', async t => {

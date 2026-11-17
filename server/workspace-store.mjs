@@ -45,6 +45,14 @@ function workerHandoverImports(value, workerIds) {
   }
   return Object.fromEntries(assignments);
 }
+function claudePermissionModes(value, workerIds) {
+  if (value === undefined) return {};
+  if (!value || typeof value !== 'object' || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw new Error('Invalid saved workspace Claude permission modes.');
+  const entries = Object.entries(value);
+  if (entries.some(([id, mode]) => !isClaudeId(id) || !workerIds.includes(id) || !['auto', 'default'].includes(mode))
+    || new Set(entries.map(([id]) => id.toLowerCase())).size !== entries.length) throw new Error('Invalid saved workspace Claude permission modes.');
+  return Object.fromEntries(entries);
+}
 export function workspaceRecord(data) {
   if (!data || data.version !== 1 || !Array.isArray(data.workerIds) || data.workerIds.length > limits.maxWorkers || data.workerIds.some(id => !validId(id)) || new Set(data.workerIds).size !== data.workerIds.length || (data.coordinatorId !== null && !validId(data.coordinatorId)) || typeof data.coordinatorPaused !== 'boolean' || data.workerIds.includes(data.coordinatorId)) throw new Error('Invalid saved workspace. Move the private workspace file aside to start a fresh workspace.');
   const intervals = data.workerReportIntervals;
@@ -52,7 +60,8 @@ export function workspaceRecord(data) {
   const enabled = Object.fromEntries(Object.entries(intervals || {}).filter(([, minutes]) => minutes));
   const parents = claudeBranchParents(data.claudeBranchParents);
   const handovers = workerHandoverImports(data.workerHandoverImports, data.workerIds);
-  return { version: 1, workerIds: [...data.workerIds], coordinatorId: data.coordinatorId, coordinatorPaused: data.coordinatorPaused, ...(Object.keys(enabled).length ? { workerReportIntervals: enabled } : {}), ...(Object.keys(parents).length ? { claudeBranchParents: parents } : {}), ...(Object.keys(handovers).length ? { workerHandoverImports: handovers } : {}) };
+  const modes = claudePermissionModes(data.claudePermissionModes, data.workerIds);
+  return { version: 1, workerIds: [...data.workerIds], coordinatorId: data.coordinatorId, coordinatorPaused: data.coordinatorPaused, ...(Object.keys(enabled).length ? { workerReportIntervals: enabled } : {}), ...(Object.keys(parents).length ? { claudeBranchParents: parents } : {}), ...(Object.keys(handovers).length ? { workerHandoverImports: handovers } : {}), ...(Object.keys(modes).length ? { claudePermissionModes: modes } : {}) };
 }
 export class WorkspaceStore {
   constructor(file) {
@@ -118,6 +127,8 @@ export class WorkspacePersistence {
       // without reading or resuming their native conversations.
       this.workspace.claudeBranchParents = new Map(Object.entries(this.saved.claudeBranchParents || {}));
       this.workspace.handoverImports = new Map(Object.entries(this.saved.workerHandoverImports || {}));
+      // Restore only selected intent; opening saved views still starts no query.
+      if (this.workspace.claude) this.workspace.claude.permissionPreferences = new Map(Object.entries(this.saved.claudePermissionModes || {}));
     }
     catch (error) { this.fileError = true; this.workspace.restoration = { status: 'error', error: 'Workspace restoration is unavailable: ' + error.message, warnings: [] }; }
     this.loaded = true;
@@ -165,7 +176,8 @@ export class WorkspacePersistence {
     const handovers = Object.fromEntries([...(this.workspace.handoverImports || [])]
       .filter(([id]) => workerIds.includes(id))
       .map(([id, assignment]) => [id, { path: assignment.path, sourceId: assignment.sourceId }]));
-    return { version: 1, workerIds, coordinatorId: this.workspace.coordinator?.id || null, coordinatorPaused: this.workspace.coordinator?.paused || false, ...(Object.keys(intervals).length ? { workerReportIntervals: intervals } : {}), ...(Object.keys(parents).length ? { claudeBranchParents: parents } : {}), ...(Object.keys(handovers).length ? { workerHandoverImports: handovers } : {}) };
+    const modes = Object.fromEntries([...(this.workspace.claude?.permissionPreferences || [])].filter(([id]) => workerIds.includes(id)));
+    return { version: 1, workerIds, coordinatorId: this.workspace.coordinator?.id || null, coordinatorPaused: this.workspace.coordinator?.paused || false, ...(Object.keys(intervals).length ? { workerReportIntervals: intervals } : {}), ...(Object.keys(parents).length ? { claudeBranchParents: parents } : {}), ...(Object.keys(handovers).length ? { workerHandoverImports: handovers } : {}), ...(Object.keys(modes).length ? { claudePermissionModes: modes } : {}) };
   }
   async retry() {
     if (!this.fileError && (this.failedIds.length || (this.workspace.coordinator?.id && !this.workspace.agents.has(this.workspace.coordinator.id)))) { this.saved = this.record(); this.ready = false; }

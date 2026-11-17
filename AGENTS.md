@@ -437,7 +437,12 @@ automatic import as its first input. No separate Import button or waiting turn.
 Append v2 or advance trailing vN; an existing destination requires an explicit
 open-existing or create-next-unused choice. Recheck names before startup.
 New Codex chats request native Auto-review routing while preserving approval
-policy/sandbox; new Claude chats start in native Auto mode. Preserve existing
+policy/sandbox; new Claude chats start in native Auto mode. Retain requested
+Auto/Manual preferences for open Claude chats in the existing private workspace
+metadata across managed resumes/restarts, saving explicit control changes only
+after native acknowledgement. Do not persist observed fallbacks as user choices,
+answer requests during restoration or start processes merely to restore settings.
+Preserve existing
 chats' settings. These explicit user changes supersede earlier manual import and
 unselected-provider rules. Keep path/source ID in existing private workspace
 metadata and the artifact

@@ -92,6 +92,8 @@ user XML remains user text. See [chat display and typing](docs/usage.md#chat-dis
 - Select native Claude Auto mode for exact sessions in private backend settings;
   reload those selections live without a browser or worker interruption.
   Optional per-chat Auto/Manual controls use the same native SDK operation.
+  New Claude chats retain Auto across managed resumes and application restarts;
+  acknowledged per-chat Manual choices are retained too, in private workspace metadata.
   See [Claude permissions](docs/usage.md#claude-auto-and-manual-permissions).
 - Review independent Codex approval requests with up to two read-only analysts; the Coordinator remains the sole automated approver. See [review boundaries and timing](docs/usage.md#coordinator-approval-review).
 - Show Coordinator concerns on the exact Claude approval card while retaining
@@ -397,6 +399,23 @@ stage the existing tests temporarily and link their server imports to it:
 The temporary files are removed on exit; the installation remains unchanged.
 Passing these tests does not establish a native client's current tool exposure
 or resolve a pending human decision. See the [source-reader limits](docs/usage.md#coordinator-approval-review).
+
+### Verify Claude mode retention and Coordinator indication
+
+With the existing development dependencies, run:
+
+```sh
+node --test tests/claude.test.mjs tests/workspace-store.test.mjs tests/claude-permission-http.test.mjs tests/claude-permission-config.test.mjs tests/claude-coordinator-concerns.test.mjs tests/coordinator-tab-status.test.mjs
+```
+
+These checks exercise native-control contracts, authenticated HTTP handlers,
+real private metadata writes and restart restoration, failed saves, unchanged
+pending callbacks, and exact current concern capability. Native/model behavior
+uses controlled SDK fixtures; no real chat or approval is created or answered.
+After deployment, run against copied installed modules using the existing
+temporary harness and development TypeScript/PostCSS parsers. Verify running
+version, served assets and authentication separately. Real future resume mode
+events and browser indicator observation remain separate acceptance evidence.
 
 ### Verify notification presentation and history rendering
 

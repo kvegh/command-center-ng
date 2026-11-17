@@ -97,6 +97,7 @@ export class ClaudeSessions extends EventEmitter {
     super(); this.loadSdk = loadSdk; this.findExecutable = executable; this.readActive = activeSessions;
     this.records = new Map(); this.runs = new Map(); this.starts = new Map(); this.requests = new Map(); this.available = false; this.error = null; this.activeCache = null; this.stopped = false;
     this.autoReviewSessions = new Set();
+    this.permissionPreferences = new Map();
   }
   async initialize() {
     try {
@@ -131,7 +132,9 @@ export class ClaudeSessions extends EventEmitter {
     try { await this.refresh(agent); return agent; } catch (error) { this.records.delete(id); throw error; }
   }
   create(cwd, goal) {
-    this.ready(); const agent = this.make({ sessionId: randomUUID(), cwd, summary: goal.split('\n')[0].slice(0, 120) }, goal.split('\n')[0]); agent.newSession = true; agent.observingOnly = false; this.records.set(agent.id, agent); return agent;
+    this.ready(); const agent = this.make({ sessionId: randomUUID(), cwd, summary: goal.split('\n')[0].slice(0, 120) }, goal.split('\n')[0]); agent.newSession = true; agent.observingOnly = false; this.records.set(agent.id, agent);
+    // Keep the new-chat default as intent, independently of native status/fallbacks.
+    this.permissionPreferences.set(agent.id, 'auto'); return agent;
   }
   async fork(source, lastTurnId) {
     this.ready();
@@ -187,11 +190,12 @@ export class ClaudeSessions extends EventEmitter {
       this.runs.set(agent.id, job); agent.externalSession = false; agent.canSend = true; agent.observingOnly = false; agent.managementNotice = null;
       agent.permissionMode = null; agent.permissionChange = null; agent.permissionSettingsAvailable = false;
       try {
+        const permissionMode = this.permissionPreferences.get(agent.id) ?? (this.autoReviewSessions.has(agent.id) ? 'auto' : undefined);
         job.query = this.sdk.query({ prompt: inputs, options: {
           cwd: agent.cwd, pathToClaudeCodeExecutable: this.executable, settingSources: ['user', 'project', 'local'],
-          // New CCNG chats use the user-selected Auto default. Existing sessions
-          // keep their native settings unless explicitly selected in configuration.
-          ...(agent.newSession || this.autoReviewSessions.has(agent.id) ? { permissionMode: 'auto' } : {}),
+          // Reuse a selected per-chat mode on explicit resumes. Unchanged operator
+          // defaults do not override a later acknowledged Manual choice.
+          ...(permissionMode ? { permissionMode } : {}),
           ...(agent.newSession ? { sessionId: agent.nativeSessionId, title: agent.name } : { resume: agent.nativeSessionId }),
           systemPrompt: { type: 'preset', preset: 'claude_code', append: instructions }, includePartialMessages: true, abortController,
           canUseTool: (name, input, options) => this.permission(agent, name, input, options),
@@ -362,6 +366,9 @@ export class ClaudeSessions extends EventEmitter {
     this.autoReviewSessions = selected;
     const results = [];
     for (const { id, mode, agent, job } of changes) {
+      // A changed operator selection is new intent for future starts even if its
+      // live control fails. It must not be masked by an older per-chat choice.
+      this.permissionPreferences.delete(id);
       if (agent) { agent.autoReviewConfigured = selected.has(id); this.changed(agent); }
       // Only an existing owned process is updated. Unloaded sessions retain
       // this selection for their next explicit start without being resumed.
@@ -393,6 +400,7 @@ export class ClaudeSessions extends EventEmitter {
       if (!current()) throw fail('The managed Claude process changed before confirmation; the outcome is unconfirmed.');
       // A control acknowledgement is separate from the latest native status,
       // which may already report a model-driven fallback to another mode.
+      this.permissionPreferences.set(agent.id, choice.mode);
       change.status = 'acknowledged'; this.changed(agent); return this.permissionSettings(agent);
     } catch (error) {
       if (this.records.get(agent.id) === agent && agent.permissionChange === change) { agent.permissionChange = { ...change, status: 'unconfirmed', error: bounded(error.message) }; this.changed(agent); }

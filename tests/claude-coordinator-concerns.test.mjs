@@ -36,11 +36,14 @@ test('Coordinator attaches an ask concern to the exact Claude callback without a
     let settled = false; f.pending.then(() => { settled = true; });
     const before = f.coordinator.pendingRequests(f.agent);
     assert.deepEqual(before.questions[0].reviewCapability.decisions, ['ask']);
+    const browserQuestion = () => f.workspace.snapshot().agents.find(agent => agent.id === f.agent.id).questions[0];
+    assert.deepEqual(browserQuestion().reviewCapability.decisions, ['ask'], 'the browser receives the same exact current capability as Coordinator tools');
     assert.equal(before.requestSummary.unreviewedApprovals, 0, 'Claude requests do not enter automatic approval analysis');
     const result = await f.call();
     assert.equal(result.outcome, 'needs_user'); assert.equal(result.questions[0].review.rationale, rationale);
     assert.deepEqual(f.question.review, { decision: 'ask', rationale });
     assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === f.agent.id).questions[0].review.rationale, rationale, 'browser snapshots retain the concern on the original request');
+    assert.deepEqual(browserQuestion().reviewCapability.decisions, [], 'a completed concern cannot leave evaluation eligibility behind');
     assert.equal(f.agent.questions[0], f.question); assert.equal(!!f.question.responding, false);
     assert.equal(f.claude.requests.get(JSON.stringify([f.agent.id, f.question.id])).question, f.question);
     assert.equal(settled, false); assert.equal(f.coordinator.audit.at(-1).decision, 'ask');
@@ -88,7 +91,10 @@ test('Claude concern feedback refuses stale, foreign, unowned, ended and non-app
   for (const [name, change] of Object.entries(changes)) {
     const f = fixture();
     try {
+      const approval = f.question.method === CLAUDE_APPROVAL;
       change(f); await assert.rejects(f.call(), undefined, name);
+      const view = f.workspace.requestView(f.agent, f.question);
+      if (approval && f.question.method === CLAUDE_APPROVAL && name !== 'wrongToken') assert.deepEqual(view.reviewCapability.decisions, [], name + ': stale browser capability must also be absent');
       assert.equal(f.question.review, undefined, name); assert.equal(f.coordinator.audit.length, 0, name);
     } finally { f.close(); }
   }

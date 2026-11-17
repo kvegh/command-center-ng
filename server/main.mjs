@@ -306,7 +306,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
         if (detailRoute && request.method === 'GET') return json(response, await workspace.taskDetail(decodeURIComponent(detailRoute[1]), decodeURIComponent(detailRoute[2])));
         const permissionRoute = path.match(/^\/api\/agents\/([^/]+)\/permission-settings$/);
         if (permissionRoute && request.method === 'GET') return json(response, await workspace.permissionSettings(decodeURIComponent(permissionRoute[1])));
-        if (permissionRoute && request.method === 'POST') return json(response, await workspace.updatePermissionMode(decodeURIComponent(permissionRoute[1]), await body(request)));
+        if (permissionRoute && request.method === 'POST') return savedWorkspaceJson(response, await workspace.updatePermissionMode(decodeURIComponent(permissionRoute[1]), await body(request)));
         const modelRoute = path.match(/^\/api\/agents\/([^/]+)\/model-settings$/);
         if (modelRoute && request.method === 'GET') return json(response, await workspace.modelSettings(decodeURIComponent(modelRoute[1])));
         if (modelRoute && request.method === 'POST') return json(response, await workspace.updateModel(decodeURIComponent(modelRoute[1]), await body(request)));

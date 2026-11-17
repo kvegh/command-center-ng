@@ -83,6 +83,81 @@ test('workspace metadata rejects invalid IDs and more than sixteen workers', asy
 
 const claudeId = index => 'claude-11111111-2222-4333-8444-' + index.toString(16).padStart(12, '0');
 
+test('private workspace preserves only valid retained Claude Auto or Manual intent', async () => {
+  const f = await fixture();
+  try {
+    const auto = claudeId(10), manual = claudeId(11);
+    const saved = { ...record([auto, manual, 'codex-worker']), claudePermissionModes: { [auto]: 'auto', [manual]: 'default' } };
+    await f.store.save(saved); assert.deepEqual(await f.store.load(), saved);
+    const original = await readFile(f.store.file, 'utf8');
+    const invalid = [null, [], 'auto', new Date(), { [auto]: 'bypassPermissions' }, { [auto]: null }, { [auto]: { mode: 'auto' } }, { 'codex-worker': 'auto' }, { [claudeId(3)]: 'auto' }, JSON.parse('{"__proto__":"auto"}')];
+    for (const claudePermissionModes of invalid) assert.throws(() => f.store.save({ ...saved, claudePermissionModes }), /Claude permission modes/);
+    const alias = 'claude-' + auto.slice(7).toUpperCase();
+    assert.throws(() => f.store.save({ ...record([auto, alias]), claudePermissionModes: { [auto]: 'auto', [alias]: 'default' } }), /Claude permission modes/);
+    assert.equal(await readFile(f.store.file, 'utf8'), original);
+    assert.equal((await stat(f.store.file)).mode & 0o777, 0o600);
+    await f.store.save({ ...record(), claudePermissionModes: {} });
+    assert.deepEqual(await f.store.load(), record(), 'legacy or empty preferences need no field');
+  } finally { await f.close(); }
+});
+
+test('saved Claude mode intent loads before observe-only restoration and applies only on explicit resume', async () => {
+  for (const mode of ['auto', 'default']) {
+    const f = await fixture(), id = claudeId(1), rpc = new Rpc(f.dir); rpc.ready = false;
+    const saved = { ...record([id]), claudePermissionModes: { [id]: mode } };
+    await f.store.save(saved);
+    const queries = [];
+    const runtime = new ClaudeSessions({
+      executable: async () => '/synthetic/unused/claude', activeSessions: async () => [],
+      loadSdk: async () => ({ listSessions: async () => [],
+        getSessionInfo: async sessionId => ({ sessionId, cwd: f.dir, summary: 'Synthetic handover' }),
+        getSessionMessages: async () => [],
+        query(params) { queries.push(params); return { async *[Symbol.asyncIterator]() {} }; }
+      })
+    });
+    await runtime.initialize(); const workspace = new Workspace(rpc, { beads: null, claude: runtime });
+    const persistence = new WorkspacePersistence(workspace, f.store);
+    try {
+      await persistence.initialize(); await persistence.restore(); await persistence.flush();
+      assert.equal(runtime.permissionPreferences.get(id), mode);
+      assert.equal(queries.length, 0, 'restoring a preference is not native execution');
+      assert.equal(runtime.runs.size, 0); assert.equal(runtime.requests.size, 0);
+      assert.deepEqual(await f.store.load(), saved);
+      const agent = workspace.agent(id);
+      await runtime.startRun(agent, '', () => true);
+      assert.equal(queries[0].options.permissionMode, mode);
+      assert.equal(queries[0].options.resume, id.slice(7));
+      assert.equal(agent.permissionMode, null, 'a requested resume mode is not an invented native mode report');
+      workspace.close(id); await persistence.flush();
+      assert.deepEqual(await f.store.load(), record([]), 'closed preferences do not reopen tabs or grow saved metadata');
+    } finally { await persistence.close(); await runtime.shutdown(); await f.close(); }
+  }
+});
+
+test('a newly allocated Claude handover identity saves Auto before input and retains it when query allocation fails', async () => {
+  const f = await fixture(), rpc = new Rpc(f.dir); rpc.ready = false;
+  let createdId, beforeInput, queries = 0;
+  const runtime = new ClaudeSessions({
+    executable: async () => '/synthetic/unused/claude', activeSessions: async () => [],
+    loadSdk: async () => ({ listSessions: async () => [], getSessionInfo: async () => undefined, getSessionMessages: async () => [],
+      query() { queries++; assert.equal(beforeInput.claudePermissionModes[createdId], 'auto'); throw new Error('Synthetic query allocation failed.'); }
+    })
+  });
+  await runtime.initialize(); const workspace = new Workspace(rpc, { beads: null, claude: runtime });
+  const persistence = new WorkspacePersistence(workspace, f.store);
+  try {
+    await persistence.initialize(); await persistence.restore();
+    await assert.rejects(workspace.create({ provider: 'claude', cwd: f.dir, goal: 'Import the prepared handover.' }, {
+      onCreated: id => { createdId = id; },
+      beforeInput: async () => { await persistence.flush(); beforeInput = await f.store.load(); }
+    }), /query allocation failed/);
+    assert.equal(queries, 1); assert.equal(runtime.runs.size, 0);
+    assert.equal(workspace.agent(createdId), runtime.records.get(createdId));
+    await persistence.flush();
+    assert.deepEqual(await f.store.load(), { ...record([createdId]), claudePermissionModes: { [createdId]: 'auto' } });
+  } finally { await persistence.close(); await runtime.shutdown(); await f.close(); }
+});
+
 test('private workspace roundtrips bounded Claude branch ancestry independently of open tabs', async () => {
   const f = await fixture();
   try {

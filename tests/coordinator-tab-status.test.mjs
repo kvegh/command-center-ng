@@ -65,6 +65,30 @@ test('only a token-matched running analyst or a verified child request contribut
   assert.equal(coordinatorEvaluating(snapshot({ agents: [main(), worker({ questions: [], workers: [child] })] })), false);
 });
 
+test('managed Claude concerns count only with the current backend ask-only capability and active main review', () => {
+  const claudeQuestion = extra => question({ method: 'claude/tool/requestApproval', reviewCapability: { decisions: ['ask'] }, ...extra });
+  const state = (extra = {}, mainExtra = {}) => snapshot({ agents: [main(mainExtra), worker({ provider: 'claude', questions: [claudeQuestion(extra)] })] });
+  assert.equal(coordinatorEvaluating(state()), true, 'a main review of an eligible Claude concern is visible');
+  for (const extra of [
+    { reviewCapability: undefined }, { reviewCapability: { decisions: [] } }, { reviewCapability: { decisions: ['approve'] } },
+    { review: { decision: 'ask' } }, { review: { decision: 'queued' } }, { responding: true }, { unassociated: true },
+    { error: 'The request changed.' }, { reviewToken: undefined }, { params: { threadId: 'another-worker' } },
+    { method: 'claude/tool/requestUserInput' }, { method: 'claude/mcp/elicitation/request' },
+  ]) assert.equal(coordinatorEvaluating(state(extra)), false, JSON.stringify(extra));
+  assert.equal(coordinatorEvaluating(state({}, { turnId: null })), false);
+  const idle = state({}, { status: 'idle', turnId: null });
+  idle.coordinator.approvalAnalyses = [analyst()];
+  assert.equal(coordinatorEvaluating(idle), false, 'a matching analyst cannot fabricate a Claude review');
+  assert.equal(coordinatorEvaluating(snapshot({ agents: [main(), worker({ provider: 'claude', questions: [], workers: [{ id: 'child', questions: [claudeQuestion({ params: { threadId: 'child' } })] }] })] })), false, 'Claude child callbacks are not inferred');
+});
+
+test('new Claude ask feedback pulses Concerned but existing feedback is not replayed', () => {
+  const baseline = observeCoordinatorConcerns(undefined, 'main', [], true);
+  const claude = entry({ agentId: 'claude-worker' });
+  assert.equal(observeCoordinatorConcerns(baseline.observation, 'main', [claude], true).concernId, claude.id);
+  assert.equal(observeCoordinatorConcerns(undefined, 'main', [claude], true).concernId, null);
+});
+
 test('concerns pulse only for newly observed main asks, never initial/restored audit or storage updates', () => {
   const old = entry({ id: 'old-ask', at: '2027-01-01T12:00:00.000Z' });
   const baseline = observeCoordinatorConcerns(undefined, 'main', [old], true);

@@ -214,6 +214,10 @@ export class Workspace extends EventEmitter {
     const pending = !question.unassociated && this.pending.get(requestKey(agent.id, question.id)) === question && agent.questions.includes(question);
     const referral = pending && !question.review ? this.coordinator?.historicalReferral?.(agent, question) : null;
     const view = referral ? { ...question, review: referral } : question;
+    if (question.method === 'claude/tool/requestApproval') return { ...view, reviewCapability: {
+      decisions: this.coordinator?.claudeConcernCurrent?.(agent, agent, question) && !question.review ? ['ask'] : [],
+      notice: 'Ask-only concern feedback. The Coordinator cannot approve or decline this Claude tool call; native manual controls remain unchanged.'
+    } };
     if (question.method !== 'item/fileChange/requestApproval') return view;
     const p = question.params, binding = { threadId: agent.id, turnId: p.turnId, itemId: p.itemId, type: 'fileChange' };
     const message = pending && p.threadId === agent.id && typeof p.turnId === 'string' && typeof p.itemId === 'string'
@@ -1062,6 +1066,7 @@ export class Workspace extends EventEmitter {
         onStarting?.();
         const agent = this.claude.create(cwd, goal.trim()); this.agents.set(agent.id, agent); this.creating--; reserved = false;
         onCreated?.(agent.id);
+        this.changed();
         await this.refreshTasks(agent.id); await beforeInput?.(); await this.send(agent.id, goal.trim());
         if (this.coordinator && this.rpc.ready) { void this.coordinator.ensure().catch(() => {}); this.coordinator.mark(agent.id, 'Claude worker started'); }
         return agent.id;

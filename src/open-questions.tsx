@@ -5,7 +5,8 @@ export type Question = {
   id: string | number; method: string;
   params: Record<string, any> & { startedAtMs?: number | null };
   reviewToken?: string;
-  responding?: boolean; error?: string | null;
+  responding?: boolean; unassociated?: boolean; error?: string | null;
+  reviewCapability?: { decisions: string[]; notice?: string };
   review?: { decision: string; rationale: string; historicalAt?: string; decisionId?: string };
   nativeItem?: {
     threadId: string; turnId: string; itemId: string; type: 'fileChange';

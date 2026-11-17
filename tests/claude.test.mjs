@@ -333,7 +333,7 @@ test('Claude permission settings never start or take over a process and reject w
   } finally { await f.close(); }
 });
 
-test('Claude permission changes are session-only and preserve pending callbacks, model and other workers', async () => {
+test('Claude permission changes are per-chat and preserve pending callbacks, model and other workers', async () => {
   const f = await fixture();
   try {
     const agent = await f.runtime.open(workerId), other = f.runtime.create('/example/other-project', 'Other work');
@@ -346,6 +346,7 @@ test('Claude permission changes are session-only and preserve pending callbacks,
     const pending = query.params.options.canUseTool('Bash', { command: 'read-project-metadata' }, { requestId: 'mode-request', toolUseID: 'mode-tool', signal: new AbortController().signal });
     const question = agent.questions[0], turn = agent.turnId;
     const result = await f.runtime.updatePermissionMode(agent, { mode: 'auto' });
+    assert.equal(f.runtime.permissionPreferences.get(agent.id), 'auto');
     assert.deepEqual(result, { available: true, mode: 'default', change: { mode: 'auto', status: 'acknowledged' }, configuredAuto: false }, 'native acknowledgement must not invent observed mode');
     assert.deepEqual(f.controls, [['permissionMode', 'auto']]);
     assert.equal(agent.questions[0], question); assert.equal(!!question.responding, false);
@@ -372,6 +373,7 @@ test('Claude permission control serializes writes and reports a native refusal w
     assert.equal(calls, 1); assert.equal(f.queries.length, 1); assert.deepEqual(f.controls, []);
     const state = f.runtime.permissionSettings(agent);
     assert.equal(state.mode, null); assert.equal(state.change.status, 'unconfirmed'); assert.match(state.change.error, /unavailable for this model/);
+    assert.equal(f.runtime.permissionPreferences.has(agent.id), false, 'a failed setter does not persist requested mode as successful intent');
   } finally { await f.close(); }
 });
 
@@ -414,6 +416,7 @@ test('permission acknowledgements from an ended or replaced query cannot update 
       const state = f.runtime.permissionSettings(agent);
       assert.equal(state.available, replacement); assert.equal(state.mode, replacement ? 'default' : null);
       assert.equal(state.change?.status ?? null, replacement ? null : 'unconfirmed');
+      assert.equal(f.runtime.permissionPreferences.has(agent.id), false, 'stale acknowledgements cannot persist a preference');
     } finally { await f.close(); }
   }
 });
@@ -440,6 +443,7 @@ test('restored Claude sessions retain native defaults unless explicitly selected
   try {
     const agent = await f.runtime.open(workerId), other = f.runtime.create('/example/other-project', 'Other work');
     other.newSession = false; // Model a second existing session, not a new chat.
+    f.runtime.permissionPreferences.delete(other.id);
     await f.runtime.configureAutoReviewSessions([workerId]);
     await f.runtime.send(agent, 'Review selected work.'); await f.runtime.send(other, 'Review other work.');
     assert.equal(f.queries[0].params.options.permissionMode, 'auto');
@@ -453,6 +457,7 @@ test('new Claude chats default to native Auto and return the exact input turn re
   const f = await fixture();
   try {
     const agent = f.runtime.create('/example/new-project', 'New requested work');
+    assert.equal(f.runtime.permissionPreferences.get(agent.id), 'auto', 'intent exists before query allocation or native input');
     const receipt = await f.runtime.send(agent, 'Prepare the requested handover.');
     const query = f.queries[0], options = query.params.options;
     assert.equal(options.permissionMode, 'auto');
@@ -470,6 +475,50 @@ test('new Claude chats default to native Auto and return the exact input turn re
     await until(() => agent.finishedTurn?.id === receipt.turnId);
     assert.equal(agent.finishedTurn.status, 'completed');
     assert.deepEqual(f.controls, [], 'new-chat default needs no permission mutation control');
+  } finally { await f.close(); }
+});
+
+test('new-chat Auto survives a managed resume and native fallbacks do not become selected preferences', async () => {
+  const f = await fixture();
+  try {
+    const agent = f.runtime.create('/example/project', 'New handover chat');
+    await f.runtime.send(agent, 'Import the prepared handover.');
+    const first = f.queries[0];
+    first.push({ type: 'system', subtype: 'init', session_id: agent.nativeSessionId, permissionMode: 'auto' });
+    first.push({ type: 'system', subtype: 'status', session_id: agent.nativeSessionId, permissionMode: 'default' });
+    await until(() => !agent.newSession && agent.permissionMode === 'default');
+    assert.equal(f.runtime.permissionPreferences.get(agent.id), 'auto');
+    first.close(); await until(() => !f.runtime.runs.has(agent.id));
+    await f.runtime.send(agent, 'Explicitly continue the same chat.');
+    assert.equal(f.queries[1].params.options.resume, agent.nativeSessionId);
+    assert.equal(f.queries[1].params.options.permissionMode, 'auto');
+    assert.equal(Object.hasOwn(f.queries[1].params.options, 'sessionId'), false);
+  } finally { await f.close(); }
+});
+
+test('acknowledged Manual survives resume and an unchanged operator Auto default', async () => {
+  const f = await fixture();
+  try {
+    await f.runtime.configureAutoReviewSessions([workerId]);
+    const agent = await f.runtime.open(workerId); await f.runtime.send(agent, 'Review this project.');
+    await f.runtime.updatePermissionMode(agent, { mode: 'default' });
+    assert.deepEqual(await f.runtime.configureAutoReviewSessions([workerId]), []);
+    assert.equal(f.runtime.permissionPreferences.get(agent.id), 'default');
+    f.queries[0].close(); await until(() => !f.runtime.runs.has(agent.id));
+    await f.runtime.send(agent, 'Explicitly continue in Manual.');
+    assert.equal(f.queries[1].params.options.permissionMode, 'default');
+  } finally { await f.close(); }
+});
+
+test('failed query allocation retains the new-chat Auto intent for its known identity', async () => {
+  const f = await fixture();
+  try {
+    const agent = f.runtime.create('/example/project', 'New handover chat');
+    f.sdk.query = () => { throw new Error('Synthetic allocation failure.'); };
+    await assert.rejects(f.runtime.send(agent, 'Import the prepared handover.'), /allocation failure/);
+    assert.equal(f.runtime.records.get(agent.id), agent);
+    assert.equal(f.runtime.permissionPreferences.get(agent.id), 'auto');
+    assert.equal(f.runtime.runs.size, 0);
   } finally { await f.close(); }
 });
 
@@ -495,11 +544,14 @@ test('failed live Auto-review selection stays configured for future starts witho
   const f = await fixture();
   try {
     const agent = await f.runtime.open(workerId); await f.runtime.send(agent, 'Review.');
+    await f.runtime.updatePermissionMode(agent, { mode: 'default' });
+    assert.equal(f.runtime.permissionPreferences.get(agent.id), 'default');
     let calls = 0; f.queries[0].setPermissionMode = async () => { calls++; throw new Error('Native mode unavailable.'); };
     const [result] = await f.runtime.configureAutoReviewSessions([workerId]);
     assert.equal(result.status, 'unconfirmed'); assert.match(result.error, /Native mode unavailable/);
     assert.equal(f.runtime.permissionSettings(agent).configuredAuto, true); assert.equal(agent.autoReviewConfigured, true);
     assert.equal(f.runtime.permissionSettings(agent).mode, null);
+    assert.equal(f.runtime.permissionPreferences.has(agent.id), false, 'new operator intent invalidates the older per-chat choice without pretending native acknowledgement');
     assert.deepEqual(await f.runtime.configureAutoReviewSessions([workerId]), []); assert.equal(calls, 1);
     f.queries[0].close(); await until(() => !f.runtime.runs.has(agent.id));
     await f.runtime.send(agent, 'Explicitly continue.');
