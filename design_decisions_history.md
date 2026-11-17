@@ -10,7 +10,21 @@ and remove the local-workspace footer because provider identity is already in
 the chat controls. Keep the input title and tab ordering unchanged. No new
 architecture, storage, dependencies or native execution behavior is selected.
 The 1.38.1 implementation builds and all seven affected source test files pass.
-Physical browser placement remains unverified. The commit reference follows publication.
+Implementation: `9bba55da4edf34bf44681baf73f37041ff97894a`, SSH-published and
+remote-readback verified on 2026-11-17 at 21:05 CET. All 65 checks across seven
+affected suites pass without skips in 3.640 seconds; TypeScript/build passed.
+Independent read-only source review found no concrete blocker. Physical-browser
+placement, particularly the narrowest desktop header, remains unverified.
+
+The live app still runs 1.38.0. Read-only native inspection at 21:05 CET found its
+owned Claude process busy, so no install/restart was attempted. A user readiness
+question is pending. Resume only at a verified safe idle checkpoint, preserving
+native decisions, protected settings and the native Codex daemon. An earlier
+read-only checkpoint failed because its command did not inherit the service PATH;
+using the existing service environment corrected inspection without any config
+or permission change. Local sandbox SSH publication could not read system SSH
+configuration permissions; the established native-account AAP route succeeded
+without altering SSH configuration or access controls.
 
 ## 2026-11-17, 16:39 UTC — Install and verify visible questions and Claude activity
 
