@@ -1,5 +1,33 @@
 # Current status for handover
 
+Verified checkpoint: 2026-11-17, 10:06 UTC. Beads remains the task source of truth.
+
+Current published and installed release is **1.33.0**, implementation
+`f3d1cf6179829ef11f400ca332ea5d3332497c37`. Create handover defaults to the source
+provider, prepares and verifies the private artifact first, then starts the
+versioned receiver with automatic import as its first input. Import controls are
+removed. Existing next versions require an explicit open-existing or confirmed
+next-unused choice. No pending operation/import is replayed on restoration.
+
+New Codex workers request native Auto-review without changing approval policy or
+sandbox; new Claude workers request native Auto on their first managed query.
+Existing chats are not overridden. Native mode confirmation remains authoritative;
+fresh real provider startup and later Claude resumption behavior remain unverified.
+
+Source regression passed 1,347 tests, zero failures and one unavailable group
+fixture skip; TypeScript/build passed. A safe app update verified native Claude
+idle twice and preserved thirteen protected-file states, five saved workers,
+workspace/report/pause settings, native profiles and native Codex daemon identity.
+Installed verification matched 119 files and passed HTTPS/auth/assets/listeners
+and 164 relevant checks across eleven suites, zero failures/skips, including real
+isolated HTTP and filesystem workflows with synthetic providers. Fresh browser
+interaction remains unverified. The reported earlier missing-file incident was
+import-before-write; that existing receiver subsequently loaded the original file,
+and no duplicate engineering import was sent. Broader holds/deferred work remain
+unchanged. This outcome documentation is newer than the installed payload.
+
+### Previous 1.32.0 checkpoint
+
 Verified checkpoint: 2026-11-17, 09:32 UTC. Beads remains the task source of truth.
 
 Current published and installed release is **1.32.0**, implementation

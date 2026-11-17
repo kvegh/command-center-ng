@@ -192,9 +192,11 @@ explicit operational handoff is reconciled. Holds, withdrawals and pauses remain
 New CCNG Codex chats request native Auto-review routing while retaining the
 native approval policy and sandbox. New Claude chats start in native Auto mode.
 These are native provider controls, not a CCNG approval allowlist or permissions
-store. Existing chats retain their settings; reopening an existing version does
-not apply new-chat defaults or bypass a pending request. Actual mode confirmation
-and native controls remain authoritative.
+store. CCNG does not override existing chats merely because of these new-chat
+defaults. Reopening an existing version applies no startup import or new-chat
+override and cannot bypass a pending request. Claude's first-query Auto option
+alone does not establish persistence after a future native process resumption.
+Actual mode confirmation and native controls remain authoritative.
 
 ## Branch and return a summary
 

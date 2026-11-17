@@ -1,5 +1,36 @@
 # Design decisions history
 
+## 2026-11-17, 10:06 UTC — Verify automatic handover startup and review defaults
+
+Published implementation `f3d1cf6179829ef11f400ca332ea5d3332497c37` is 1.33.0.
+It defaults provider selection to the source, prepares and verifies the complete
+file before receiver startup, imports in the first input, and removes Import.
+An occupied version offers explicit open-existing or next-unused creation.
+New Codex workers request native Auto-review routing; new Claude workers request
+Auto on their first managed query. Existing chats are not changed by these
+defaults. Native mode reports remain authoritative; future Claude process
+resumption is not proven to retain a first-query option merely by setting it.
+
+The existing app update succeeded at 10:05:43.019899–10:06:06.140378 UTC after
+native Claude idle checks before installation and restart. Thirteen protected
+file states, five saved workers, workspace/pause/report settings, native profiles
+and native Codex daemon identity were preserved. The operational wrapper retained
+an obsolete manual-import diagnostic label; the installed application and tests
+verify automatic initial import. No native model, new real chat, approval answer
+or duplicate import was manufactured for acceptance.
+
+Independent installed verification succeeded at 10:06:30.085094–10:06:38.940529
+UTC: all 119 source files matched; trusted HTTPS, authentication, served assets
+and both listeners passed. All 164 checks across eleven relevant installed suites
+passed, zero failures/skips, in 4.677 seconds. This includes real isolated HTTP
+workflows with actual temporary files, duplicate choices, startup ordering,
+unknown-delivery protections and synthetic provider controls. The source full
+suite passed 1,347 with one unavailable group fixture skipped; build passed.
+Fresh browser interaction and new-chat provider-mode confirmation remain
+unverified. The earlier real receiver recovered and imported its original file
+before this update; engineering did not resend it. Outcome documentation is
+newer than the installed functional payload.
+
 ## 2026-11-17, UTC — Prepare before automatic import and select existing versions
 
 The user explicitly changed the handover flow: default the provider choice to
