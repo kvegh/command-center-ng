@@ -1,5 +1,33 @@
 # Design decisions history
 
+## 2026-11-17, 11:42 UTC — Verify notice and draft-rendering delivery
+
+Implementation `d6796665c5606c779c1414b455770f60fb8ff59a` (1.34.1) was
+SSH-published and read back at 11:39:39.169381–11:39:46.010585 UTC.
+It includes notice implementation `c43c261f99adf199ae1d8370f738608512b53851`,
+the source-only 1.34.0 checkpoint, and the complete history boundary.
+The existing app update succeeded at 11:40:11.624358–11:40:34.505188 UTC,
+with native Claude idle guards before installation and restart. Thirteen
+protected-file states, five saved workers, workspace/report/pause settings,
+native profiles and native Codex daemon identity were preserved.
+
+Installed verification succeeded at 11:41:55.619448–11:42:07.724053 UTC:
+all 120 source files matched, HTTPS/authentication/assets/listeners passed,
+and all 134 relevant checks across twelve suites passed without failures/skips
+(6.672 seconds). The exact original notice was verified through installed
+modules and the existing SDK as activity with a readable heading and retained
+original details. No native model turn or history mutation was manufactured.
+
+The first installed harness run failed loading mobile tests because production
+correctly omits the development-only PostCSS parser. A focused reproduction
+confirmed that cause; linking the already installed development parser into
+the disposable harness resolved it. No package installation, runtime change or
+extra restart was needed. Source verification had passed 1,364 tests with one
+unavailable system-group fixture skipped and TypeScript/build passing. Actual
+browser typing latency and physical layout remain unverified; the user has
+been asked to test the existing long chat after refresh. This outcome supersedes
+earlier pending publication/deployment entries, not that acceptance limitation.
+
 ## 2026-11-17, 11:26 UTC — Exclude ordinary draft edits from history rendering
 
 After source 1.34.0 `c43c261f99adf199ae1d8370f738608512b53851` was published, the

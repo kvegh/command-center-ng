@@ -1,5 +1,34 @@
 # Current status for handover
 
+Verified checkpoint: 2026-11-17, 11:42 UTC. Beads remains the task source of truth.
+
+Published and installed release is **1.34.1**, implementation
+`d6796665c5606c779c1414b455770f60fb8ff59a`. Verified native Claude completion
+notices now display as collapsed activity, with readable headings and escaped
+original details. Genuine user markup stays user text. The exact screenshot
+notice passed an actual installed SDK/history classification check.
+
+Ordinary composer draft edits reuse the grouped history through existing React
+memoization; changed message/control/question inputs still update it. Native
+approval/recovery controls remain live outside the history boundary. No framework,
+history truncation, dependency or permission change was introduced.
+
+Source verification passed 1,364 tests, zero failures, one unavailable
+supplementary-group fixture skipped; TypeScript/build passed. The safe app update
+preserved thirteen protected-file states, five saved workers, settings and native
+Codex daemon identity. Installed verification matched 120 files, passed
+HTTPS/auth/assets/listeners, and passed all 134 checks across twelve suites.
+The disposable harness needed the existing development PostCSS parser linked;
+no runtime package or service correction was needed.
+
+Actual browser typing acceptance is pending the user's refresh/test of the long
+chat (Beads typing task); no model turn, new test chat or history mutation was
+manufactured. Broader holds/deferred work remain unchanged. Source-only 1.34.0
+was superseded before deployment. This outcome documentation is newer than
+the installed functional payload. Earlier handover/review defaults remain in place.
+
+### Previous 1.33.0 checkpoint
+
 Verified checkpoint: 2026-11-17, 10:06 UTC. Beads remains the task source of truth.
 
 Current published and installed release is **1.33.0**, implementation
