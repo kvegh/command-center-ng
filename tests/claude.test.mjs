@@ -435,16 +435,41 @@ test('Claude Auto-review selection validates before mutation and configures unlo
   } finally { await f.close(); }
 });
 
-test('only explicitly selected Claude sessions pass auto mode to a new native query', async () => {
+test('restored Claude sessions retain native defaults unless explicitly selected for Auto', async () => {
   const f = await fixture();
   try {
     const agent = await f.runtime.open(workerId), other = f.runtime.create('/example/other-project', 'Other work');
+    other.newSession = false; // Model a second existing session, not a new chat.
     await f.runtime.configureAutoReviewSessions([workerId]);
     await f.runtime.send(agent, 'Review selected work.'); await f.runtime.send(other, 'Review other work.');
     assert.equal(f.queries[0].params.options.permissionMode, 'auto');
     assert.equal(Object.hasOwn(f.queries[1].params.options, 'permissionMode'), false, 'unselected sessions retain native defaults');
     assert.equal(f.runtime.permissionSettings(agent).mode, null, 'configured startup option is not a native observed mode');
     assert.deepEqual(f.controls, []);
+  } finally { await f.close(); }
+});
+
+test('new Claude chats default to native Auto and return the exact input turn receipt', async () => {
+  const f = await fixture();
+  try {
+    const agent = f.runtime.create('/example/new-project', 'New requested work');
+    const receipt = await f.runtime.send(agent, 'Prepare the requested handover.');
+    const query = f.queries[0], options = query.params.options;
+    assert.equal(options.permissionMode, 'auto');
+    assert.equal(options.sessionId, agent.nativeSessionId); assert.equal(options.resume, undefined);
+    assert.deepEqual(receipt, { turnId: agent.turnId });
+    assert.ok(receipt.turnId);
+    assert.equal(agent.permissionMode, null, 'requested startup mode is not native confirmation');
+    for (const key of ['allowedTools', 'allowDangerouslySkipPermissions', 'settings', 'model']) assert.equal(Object.hasOwn(options, key), false, key);
+    const input = (await query.params.prompt.next()).value;
+    assert.equal(input.uuid, receipt.turnId); assert.equal(input.message.content, 'Prepare the requested handover.');
+    query.push({ type: 'system', subtype: 'init', session_id: agent.nativeSessionId, permissionMode: 'auto' });
+    await until(() => agent.permissionMode === 'auto');
+    assert.equal(agent.newSession, false);
+    query.push({ type: 'result', subtype: 'success', is_error: false });
+    await until(() => agent.finishedTurn?.id === receipt.turnId);
+    assert.equal(agent.finishedTurn.status, 'completed');
+    assert.deepEqual(f.controls, [], 'new-chat default needs no permission mutation control');
   } finally { await f.close(); }
 });
 

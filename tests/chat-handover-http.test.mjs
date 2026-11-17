@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { randomBytes } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../server/main.mjs';
@@ -18,28 +18,27 @@ class Stream {
   [Symbol.asyncIterator]() { return this; }
 }
 
-// A real authenticated loopback app with isolated provider transports. Only
-// generated input delivery is proved; no model produces or reads an artifact.
+// Actual HTTP/authentication/persistence and file metadata; native providers are
+// isolated transports. These tests never ask a real model to write or import.
 async function fixture(t) {
-  const directory = await mkdtemp(join(tmpdir(), 'ccng-handover-http-'));
-  const project = join(directory, 'project'); await mkdir(project);
+  const directory = await mkdtemp(join(tmpdir(), 'ccng-auto-handover-http-'));
   const skillPath = join(directory, 'SKILL.md');
   await writeFile(skillPath, '# Synthetic handoff skill\n', { mode: 0o600 });
-  const handoverPath = join(directory, 'handoff.md'), handoverText = '# Synthetic handover\nKeep original task states.\n';
-  await writeFile(handoverPath, handoverText, { mode: 0o600 });
-  const calls = [], queries = [], threads = new Map(); const state = { fail: null };
+  const handoverPath = join(directory, 'handoff.md'), handoverText = '# Synthetic handover\nPreserve original work.\n';
+  const calls = [], queries = [], threads = new Map(), state = { fail: null, catalog: [] };
+  let allocation = 0, turn = 0;
   const rpc = new EventEmitter(); rpc.ready = true; rpc.close = () => {};
   rpc.call = async (method, params) => {
     calls.push({ method, params });
     if (method === state.fail) throw new Error('Synthetic native receipt unknown.');
     if (method === 'thread/start') {
-      const thread = { id: 'received-' + (threads.size + 1), name: 'New chat', cwd: params.cwd, status: { type: 'idle' }, canAcceptDirectInput: true, turns: [] };
+      const thread = { id: 'receiver-' + ++allocation, cwd: params.cwd, name: 'New chat', status: { type: 'idle' }, canAcceptDirectInput: true, turns: [] };
       threads.set(thread.id, thread); return { thread };
     }
     if (method === 'thread/name/set') { threads.get(params.threadId).name = params.name; return {}; }
     if (['thread/read', 'thread/resume'].includes(method)) return { thread: threads.get(params.threadId), instructionSources: [] };
     if (method === 'thread/turns/list') return { data: [], nextCursor: null };
-    if (method === 'turn/start') return { turn: { id: 'turn-' + params.threadId } };
+    if (method === 'turn/start') return { turn: { id: 'turn-' + ++turn } };
     if (method === 'turn/steer') return { turnId: params.expectedTurnId };
     assert.fail('Unexpected native call: ' + method);
   };
@@ -49,14 +48,24 @@ async function fixture(t) {
     query(params) { const stream = new Stream(); stream.params = params; queries.push(stream); return stream; }
   };
   const claude = new ClaudeSessions({ loadSdk: async () => sdk, executable: async () => '/synthetic/unused/claude', activeSessions: async () => [] });
-  const workspace = new Workspace(rpc, { beads: null, claude, handoverPath: async () => handoverPath, handoverSkill: async () => skillPath });
+  const workspace = new Workspace(rpc, { beads: null, claude, handoverTimeout: 2000, handoverPath: async () => handoverPath, handoverSkill: async () => skillPath });
   workspace.instructionContext = async agent => ({ task: { value: 'ccng-session:' + agent.id } });
-  threads.set('source', { id: 'source', cwd: project, name: 'Source project', status: { type: 'idle' }, canAcceptDirectInput: true, turns: [] });
+  workspace.list = async (_cursor, provider) => ({ agents: state.catalog.filter(chat => chat.provider === provider), nextCursor: null });
+  threads.set('source', { id: 'source', cwd: directory, name: 'Source project', status: { type: 'idle' }, canAcceptDirectInput: true, turns: [] });
   const source = await workspace.open('source');
+  const waitFor = predicate => new Promise((resolve, reject) => {
+    const check = () => { if (predicate()) { clearTimeout(timer); workspace.off('change', check); resolve(); } };
+    const timer = setTimeout(() => { workspace.off('change', check); reject(new Error('Synthetic handover progress did not arrive.')); }, 3000);
+    workspace.on('change', check); check();
+  });
   const authFile = join(directory, 'auth.json'), password = randomBytes(24).toString('base64url');
   await setPassword(password, authFile);
-  const app = await createApp({ rpc, workspace, authFile, workspaceFile: join(directory, 'workspace.json'), config: { cwd: project } });
-  t.after(async () => { try { await app.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
+  const workspaceFile = join(directory, 'workspace.json');
+  const app = await createApp({ rpc, workspace, authFile, workspaceFile, config: { cwd: directory } });
+  t.after(async () => {
+    rpc.ready = false; workspace.changed(); await workspace.handoverJobs.get('source')?.promise;
+    try { await app.close(); } finally { await rm(directory, { recursive: true, force: true }); }
+  });
   await app.persistence.restore();
   await new Promise((resolve, reject) => { app.server.once('error', reject); app.server.listen(0, '127.0.0.1', resolve); });
   const port = app.server.address().port, origin = `http://127.0.0.1:${port}`;
@@ -65,80 +74,92 @@ async function fixture(t) {
       let text = ''; response.setEncoding('utf8'); response.on('data', chunk => { text += chunk; }); response.on('error', reject);
       response.on('end', () => resolve({ status: response.statusCode, headers: response.headers, json: () => JSON.parse(text) }));
     });
-    client.setTimeout(5000, () => client.destroy(new Error('Synthetic handover HTTP request timed out.')));
+    client.setTimeout(5000, () => client.destroy(new Error('Synthetic HTTP request timed out.')));
     client.on('error', reject); client.end(data === undefined ? undefined : JSON.stringify(data));
   });
   const login = await request('/api/login', { password }); assert.equal(login.status, 200);
   const cookie = login.headers['set-cookie'][0].split(';')[0];
   const authenticated = (path, data, options = {}) => request(path, data, { cookie, ...options });
-  return { directory, project, skillPath, handoverPath, handoverText, workspace, source, calls, queries, state, request, authenticated };
+  const finish = async ({ contents = handoverText } = {}) => {
+    await waitFor(() => !!source.turnId || source.handoverCreation?.state === 'failed');
+    if (contents !== null) await writeFile(handoverPath, contents, { mode: 0o600 });
+    const turnId = source.turnId;
+    source.finishedTurn = { id: turnId, status: 'completed' }; source.lastCompletedTurnId = turnId;
+    source.turnId = null; source.thread.status = { type: 'idle' }; workspace.changed();
+    await waitFor(() => ['started', 'failed'].includes(source.handoverCreation?.state));
+    await workspace.handoverJobs.get('source')?.promise; await app.persistence.flush();
+    return source.handoverCreation;
+  };
+  return { directory, skillPath, handoverPath, handoverText, workspaceFile, workspace, source, calls, queries, state, threads, request, authenticated, finish };
 }
 
-test('handover source and receiver actions require login and same-origin protection', async t => {
-  const f = await fixture(t), before = f.calls.length;
-  for (const [path, data] of [['/api/agents/source/handover-create', { provider: 'codex', cwd: f.project }], ['/api/agents/source/handover-import', {}]]) {
-    const denied = await f.request(path, data);
-    assert.equal(denied.status, 403); assert.equal(denied.json().code, 'authentication_required');
-    const foreign = await f.authenticated(path, data, { requestOrigin: 'https://unrelated.example' });
-    assert.equal(foreign.status, 403); assert.match(foreign.json().error, /origin/i);
-  }
+test('handover creation requires login and same-origin protection; manual import routes are removed', async t => {
+  const f = await fixture(t), path = '/api/agents/source/handover-create', before = f.calls.length;
+  const denied = await f.request(path, {}); assert.equal(denied.status, 403); assert.equal(denied.json().code, 'authentication_required');
+  const foreign = await f.authenticated(path, {}, { requestOrigin: 'https://unrelated.example' });
+  assert.equal(foreign.status, 403); assert.match(foreign.json().error, /origin/i);
+  for (const old of ['/api/agents/source/handover-import', '/api/handovers/import']) assert.equal((await f.authenticated(old, {})).status, 404);
   assert.equal(f.calls.length, before); assert.equal(f.queries.length, 0);
 });
 
-test('Create prepares selected waiting receivers; each explicit Import uses that same chat without cloning again', async t => {
-  const f = await fixture(t);
-  const createdCodex = await f.authenticated('/api/agents/source/handover-create', { provider: 'codex', cwd: f.project });
-  assert(createdCodex.status >= 200 && createdCodex.status < 300, JSON.stringify(createdCodex.json()));
-  const codex = createdCodex.json(); assert.equal(codex.accepted, true); assert.equal(codex.path, f.handoverPath); assert.notEqual(codex.id, 'source');
-  const waitingCodex = f.calls.find(call => call.method === 'turn/start' && call.params.threadId === codex.id);
-  assert.match(waitingCodex.params.input[0].text, /wait/i);
-  assert.doesNotMatch(waitingCodex.params.input[0].text, /^Read the handover at/m);
-  const sourceInput = f.calls.find(call => call.method === 'turn/start' && call.params.threadId === 'source').params.input[0].text;
-  assert(sourceInput.includes(JSON.stringify(f.skillPath))); assert(sourceInput.includes(JSON.stringify(f.handoverPath)));
-  assert.deepEqual(f.workspace.agent(codex.id).handoverImport, { path: f.handoverPath, sourceId: 'source' });
-  const createdClaude = await f.authenticated('/api/agents/source/handover-create', { provider: 'claude', cwd: f.project });
-  assert(createdClaude.status >= 200 && createdClaude.status < 300, JSON.stringify(createdClaude.json()));
-  const claude = createdClaude.json(); assert.match(claude.id, /^claude-/); assert.equal(f.queries.length, 1);
-  const waitingClaude = (await f.queries[0].params.prompt.next()).value;
-  assert.match(waitingClaude.message.content, /wait/i); assert.doesNotMatch(waitingClaude.message.content, /^Read the handover at/m);
-  assert.equal(f.queries[0].params.options.sessionId, claude.id.slice(7)); assert.equal(f.queries[0].params.options.permissionMode, undefined);
-  const request = { id: 'source-still-pending', method: 'item/commandExecution/requestApproval', params: {} };
-  f.source.questions.push(request); const sourceBefore = structuredClone(f.source);
-  const allocations = f.calls.filter(call => call.method === 'thread/start').length;
-  const importedCodex = await f.authenticated(`/api/agents/${codex.id}/handover-import`, {});
-  assert.equal(importedCodex.status, 200, JSON.stringify(importedCodex.json()));
-  assert.equal(importedCodex.json().accepted, true);
-  const codexInput = f.calls.filter(call => ['turn/start', 'turn/steer'].includes(call.method) && call.params.threadId === codex.id).at(-1);
-  assert(codexInput.params.input[0].text.includes(JSON.stringify(f.handoverPath)));
-  const importedClaude = await f.authenticated(`/api/agents/${claude.id}/handover-import`, {});
-  assert.equal(importedClaude.status, 200, JSON.stringify(importedClaude.json()));
-  const claudeInput = (await f.queries[0].params.prompt.next()).value;
-  assert(claudeInput.message.content.includes(JSON.stringify(f.handoverPath)));
-  assert.equal(f.queries.length, 1); assert.equal(f.calls.filter(call => call.method === 'thread/start').length, allocations);
-  assert.deepEqual(f.source, sourceBefore); assert.equal(f.source.questions[0], request);
-  assert.equal(await readFile(f.handoverPath, 'utf8'), f.handoverText);
-  assert.equal(f.workspace.agents.size, 3);
-});
-
-test('unassigned imports, invalid creation choices and uncertain receiver allocation keep original work intact', async t => {
-  const f = await fixture(t);
-  for (const data of [{}, { provider: 'unknown', cwd: f.project }]) {
-    const invalid = await f.authenticated('/api/agents/source/handover-create', data); assert.equal(invalid.status, 400);
+test('HTTP Create returns accepted progress before preparation and automatically imports only the completed file', async t => {
+  for (const provider of ['codex', 'claude']) {
+    const f = await fixture(t);
+    const response = await f.authenticated('/api/agents/source/handover-create', { provider, cwd: f.directory });
+    assert.equal(response.status, 202, JSON.stringify(response.json()));
+    assert.deepEqual(response.json(), { accepted: true, state: 'preparing', path: f.handoverPath });
+    assert.equal(f.calls.filter(call => call.method === 'thread/start').length, 0); assert.equal(f.queries.length, 0);
+    const prepared = await f.finish(); assert.equal(prepared.state, 'started');
+    const receiver = f.workspace.agent(prepared.id);
+    const firstInput = provider === 'claude'
+      ? (await f.queries[0].params.prompt.next()).value.message.content
+      : f.calls.find(call => call.method === 'turn/start' && call.params.threadId === receiver.id).params.input[0].text;
+    assert.equal(firstInput.split('\n')[0], 'Source project v2'); assert.match(firstInput, /^Read the handover at/m);
+    assert(firstInput.includes(JSON.stringify(f.handoverPath))); assert.doesNotMatch(firstInput, /press.*Import|acknowledge that you are waiting/i);
+    assert.equal(await readFile(f.handoverPath, 'utf8'), f.handoverText);
+    const snapshot = await f.authenticated('/api/state'); assert.equal(snapshot.status, 200);
+    assert.equal(snapshot.json().agents.find(agent => agent.id === 'source').handoverCreation.state, 'started');
+    const saved = JSON.parse(await readFile(f.workspaceFile, 'utf8'));
+    assert.deepEqual(saved.workerHandoverImports[receiver.id], { path: f.handoverPath, sourceId: 'source' });
+    assert.equal(f.calls.some(call => /archive|delete|interrupt/.test(call.method)), false);
   }
-  const sourceImport = await f.authenticated('/api/agents/source/handover-import', {});
-  assert(sourceImport.status >= 400);
-  const obsolete = await f.authenticated('/api/handovers/import', { provider: 'codex', cwd: f.project, path: f.handoverPath });
-  assert.equal(obsolete.status, 404, 'the old import-creates-another-chat endpoint must be removed');
-  assert.equal(f.calls.filter(call => call.method === 'thread/start').length, 0);
-  f.state.fail = 'thread/name/set';
-  const known = await f.authenticated('/api/agents/source/handover-create', { provider: 'codex', cwd: f.project });
-  assert(known.status >= 400); assert.match(known.json().error, /received-2/); assert.match(known.json().error, /open|check both chats/i);
-  assert.equal(f.calls.filter(call => call.method === 'thread/start').length, 1);
-  f.state.fail = 'thread/start';
-  const unknown = await f.authenticated('/api/agents/source/handover-create', { provider: 'codex', cwd: f.project });
-  assert(unknown.status >= 400); assert.match(unknown.json().error, /not confirmed.*check existing/i);
-  assert.equal(f.calls.filter(call => call.method === 'thread/start').length, 2, 'one attempt per explicit Create, no automatic retry');
-  assert.equal(f.workspace.agent('source'), f.source); assert.equal(f.workspace.creating, 0);
-  assert.equal(f.calls.some(call => /archive|delete|interrupt/.test(call.method)), false);
 });
 
+test('HTTP collision offers an existing chat and requires an explicit next-version choice before source work', async t => {
+  const f = await fixture(t), existing = { id: 'closed-v2', name: 'Source project v2', provider: 'codex', cwd: f.directory };
+  f.state.catalog.push(existing);
+  f.threads.set(existing.id, { ...existing, status: { type: 'idle' }, canAcceptDirectInput: true, turns: [] });
+  const conflict = await f.authenticated('/api/agents/source/handover-create', {});
+  assert.equal(conflict.status, 409); assert.equal(conflict.json().code, 'handover_name_conflict');
+  assert.deepEqual(conflict.json().handoverConflict, { existing: [{ id: existing.id, name: existing.name, provider: existing.provider }], nextName: 'Source project v3' });
+  assert.equal(f.calls.some(call => ['turn/start', 'thread/start'].includes(call.method)), false);
+  const opened = await f.authenticated('/api/agents/closed-v2/open', {}); assert.equal(opened.status, 200);
+  assert.equal(f.workspace.agent(existing.id).name, existing.name);
+  assert.equal(f.calls.some(call => ['turn/start', 'thread/start'].includes(call.method)), false, 'opening an existing version must not prepare/import/create');
+  const confirmed = await f.authenticated('/api/agents/source/handover-create', { confirmedName: 'Source project v3' });
+  assert.equal(confirmed.status, 202); assert.equal((await f.finish()).name, 'Source project v3');
+});
+
+test('HTTP progress fails visibly when a completed source claims a file that is missing', async t => {
+  const f = await fixture(t);
+  assert.equal((await f.authenticated('/api/agents/source/handover-create', {})).status, 202);
+  f.source.messages.push({ id: 'saved-claim', type: 'assistant', text: 'Saved the handover.' });
+  const progress = await f.finish({ contents: null }); assert.equal(progress.state, 'failed');
+  const snapshot = await f.authenticated('/api/state');
+  const visible = snapshot.json().agents.find(agent => agent.id === 'source').handoverCreation;
+  assert.equal(visible.state, 'failed'); assert.match(visible.error, /file|source|handover/i);
+  assert.equal(f.calls.filter(call => call.method === 'thread/start').length, 0); assert.equal(f.workspace.agents.size, 1);
+});
+
+test('HTTP accepted operations preserve known and uncertain allocation errors without automatically creating twice', async t => {
+  for (const fail of ['thread/start', 'thread/name/set']) {
+    const f = await fixture(t);
+    const accepted = await f.authenticated('/api/agents/source/handover-create', {}); assert.equal(accepted.status, 202);
+    f.state.fail = fail;
+    const progress = await f.finish(); assert.equal(progress.state, 'failed'); assert.match(progress.error, /confirm|check|receiv/i);
+    assert.equal(f.calls.filter(call => call.method === 'thread/start').length, 1);
+    if (fail === 'thread/name/set') assert(progress.id, 'the actual allocated identity must remain visible');
+    assert.equal(f.workspace.agent('source'), f.source); assert.equal(f.workspace.creating, 0);
+    assert.equal(f.calls.some(call => /archive|delete|interrupt/.test(call.method)), false);
+  }
+});

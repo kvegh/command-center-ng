@@ -429,12 +429,18 @@ force; starting enabled reports after restoration is explicitly authorized.
 
 ## Approved worker sidebar and branch-summary refinement
 
-The user approved Create handover / Import handover under the worker Project
-heading. Reuse the installed handoff skill and existing native input paths.
-Create explicitly asks Codex/Claude, starts a waiting receiver and requests the
-source artifact. Append v2 to the source name or increment its trailing vN.
-Import in that receiver defaults to its assigned file and uses that same chat.
-Keep the path/source ID in existing private workspace metadata and the artifact
+The user approved Create handover under the worker Project heading. Reuse the
+installed handoff skill and native input paths. Default the selectable provider
+to the source provider. Prepare the complete artifact first, verify exact source
+turn completion and private nonempty file metadata, then start the receiver with
+automatic import as its first input. No separate Import button or waiting turn.
+Append v2 or advance trailing vN; an existing destination requires an explicit
+open-existing or create-next-unused choice. Recheck names before startup.
+New Codex chats request native Auto-review routing while preserving approval
+policy/sandbox; new Claude chats start in native Auto mode. Preserve existing
+chats' settings. These explicit user changes supersede earlier manual import and
+unselected-provider rules. Keep path/source ID in existing private workspace
+metadata and the artifact
 in its native temporary location, without another store, upload or backend file
 reader. Preserve source chat/history/tasks, drafts, pending native requests and
 operation ownership. Input acceptance does not prove model/file completion;

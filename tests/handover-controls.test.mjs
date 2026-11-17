@@ -11,7 +11,7 @@ const require = createRequire(import.meta.url);
 const source = await readFile(new URL('../src/handover-controls.tsx', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React } }).outputText
   .replace(/from ['"]react['"]/, `from '${pathToFileURL(require.resolve('react')).href}'`);
-const { HandoverControls, HandoverCreateForm, HandoverImportForm, HandoverReadyNotice } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
+const { HandoverControls, HandoverCreateForm, HandoverConflictChoices, HandoverProgressNotice } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
 
 function elements(value) {
   if (Array.isArray(value)) return value.flatMap(elements);
@@ -19,64 +19,92 @@ function elements(value) {
   return [value, ...elements(value.props.children)];
 }
 const createValue = { provider: 'claude', cwd: '/example/project' };
-const importValue = { path: '/tmp/example-transfer/handoff.md' };
+const artifactPath = '/tmp/example-transfer/handoff.md';
+const accepted = { accepted: true, path: artifactPath, state: 'preparing' };
+const progress = { state: 'preparing', name: 'Example project v2', provider: 'claude', path: artifactPath };
 const submitEvent = () => ({ preventDefault() {} });
 function fixture(overrides = {}) {
   let element;
   const calls = [];
-  const props = { agentId: 'synthetic-source', cwd: '/example/project', canCreate: true, canImport: false, codexReady: true, claudeReady: true, full: false,
-    create: async value => { calls.push(['create', value]); return { id: 'synthetic-receiver', path: importValue.path }; },
-    importHandover: async value => { calls.push(['import', value]); }, choose: id => calls.push(['choose', id]), ...overrides };
+  const props = { agentId: 'synthetic-source', cwd: '/example/project', sourceProvider: 'codex', canCreate: true, codexReady: true, claudeReady: true, full: false,
+    create: async value => { calls.push(['create', value]); return accepted; },
+    openExisting: async id => { calls.push(['open-existing', id]); }, choose: id => calls.push(['choose', id]), ...overrides };
   function Capture() { element = HandoverControls(props); return null; }
   renderToStaticMarkup(React.createElement(Capture));
   const tree = elements(element);
   return { element, calls, html: renderToStaticMarkup(element), create: tree.find(node => node.type === 'button' && node.props.children === 'Create handover'),
-    openImport: tree.find(node => node.type === 'button' && node.props.children === 'Import handover'),
-    dialogs: tree.filter(node => node.type === 'dialog'), createForm: tree.find(node => node.type === HandoverCreateForm), importForm: tree.find(node => node.type === HandoverImportForm) };
+    dialogs: tree.filter(node => node.type === 'dialog'), createForm: tree.find(node => node.type === HandoverCreateForm),
+    progressNotice: tree.find(node => node.type === HandoverProgressNotice) };
 }
 function createForm(overrides = {}) {
   const calls = [];
-  const props = { id: 'synthetic-create', draft: { provider: '', cwd: '/example/project' }, change: value => calls.push(['change', value]), busy: false, error: '', codexReady: true, claudeReady: true, full: false,
+  const props = { id: 'synthetic-create', draft: { provider: 'codex', cwd: '/example/project' }, change: value => calls.push(['change', value]), busy: false, error: '', codexReady: true, claudeReady: true, full: false,
     submit: async value => calls.push(['submit', value]), ...overrides };
   const element = HandoverCreateForm(props), tree = elements(element);
-  return { element, calls, html: renderToStaticMarkup(element), select: tree.find(node => node.type === 'select'), field: tree.find(node => node.type === 'input'), button: tree.find(node => node.type === 'button') };
-}
-function importForm(overrides = {}) {
-  const calls = [];
-  const element = HandoverImportForm({ id: 'synthetic-import', path: importValue.path, change: value => calls.push(['change', value]), busy: false, canImport: true, error: '', submit: async value => calls.push(['submit', value]), ...overrides });
-  const tree = elements(element);
-  return { element, calls, html: renderToStaticMarkup(element), fields: tree.filter(node => node.type === 'input'), button: tree.find(node => node.type === 'button') };
+  return { element, calls, html: renderToStaticMarkup(element), select: tree.find(node => node.type === 'select'), field: tree.find(node => node.type === 'input'), button: tree.find(node => node.type === 'button' && node.props.type === 'submit') };
 }
 
-test('the source offers Create and keeps Import assigned to the receiving chat', async () => {
+test('Create is the only action and opening it neither submits nor changes chats', async () => {
   const f = fixture();
-  assert.equal(f.create.props.disabled, false); assert.equal(f.openImport.props.disabled, true);
-  assert.match(f.html, /Create handover/); assert.match(f.html, /Import handover/);
-  await f.create.props.onClick(); await f.openImport.props.onClick();
+  assert.equal(f.create.props.disabled, false); assert.equal(f.dialogs.length, 1);
+  assert.match(f.html, /Create handover/); assert.doesNotMatch(f.html, /Import handover|Handover path|type="file"/);
+  await f.create.props.onClick();
   assert.deepEqual(f.calls, [], 'opening controls does not submit work or switch chats');
-  assert.equal(f.createForm.props.draft.provider, ''); assert.equal(f.createForm.props.draft.cwd, '/example/project');
-  assert.equal(f.importForm.props.canImport, false);
+  assert.equal(f.createForm.props.draft.cwd, '/example/project');
   const blocked = fixture({ canCreate: false });
   assert.equal(blocked.create.props.disabled, true);
+  await blocked.create.props.onClick(); assert.deepEqual(blocked.calls, []);
 });
 
-test('agent choice is explicit at creation and no handover path is requested there', async () => {
+test('the source provider is selected by default for both native agents', () => {
+  for (const sourceProvider of ['codex', 'claude']) {
+    const f = fixture({ sourceProvider });
+    assert.equal(f.createForm.props.draft.provider, sourceProvider);
+    assert.match(f.html, new RegExp(`<option value="${sourceProvider}" selected="">`));
+    assert.doesNotMatch(f.html, /Choose an agent/);
+  }
+});
+
+test('agent choice remains editable and creation needs no artifact path', async () => {
   const f = createForm();
-  assert.equal(f.select.props.required, true); assert.equal(f.select.props.value, ''); assert.equal(f.button.props.disabled, true);
-  assert.match(f.html, /Which agent should continue\?/); assert.match(f.html, /Choose an agent/);
+  assert.equal(f.select.props.required, true); assert.equal(f.select.props.value, 'codex'); assert.equal(f.button.props.disabled, false);
+  assert.match(f.html, /Which agent should continue\?/);
   assert.match(f.html, /The source chat stays available/);
+  assert.match(f.html, /Prepare the handover first, then start a fresh receiving chat that imports it automatically/);
   assert.doesNotMatch(f.html, /Handover path|type="file"/);
-  await f.element.props.onSubmit(submitEvent()); assert.deepEqual(f.calls, []);
+  f.select.props.onChange({ target: { value: 'claude' } });
+  assert.deepEqual(f.calls, [['change', createValue]]);
   const selected = createForm({ draft: { provider: 'claude', cwd: '  /example/project with spaces  ' } });
   await selected.element.props.onSubmit(submitEvent());
   assert.deepEqual(selected.calls, [['submit', { provider: 'claude', cwd: '/example/project with spaces' }]]);
-  for (const overrides of [{ draft: { ...createValue, provider: '' } }, { draft: { ...createValue, cwd: ' ' } }, { full: true }, { claudeReady: false }, { busy: true }]) {
+  for (const overrides of [{ draft: { ...createValue, cwd: ' ' } }, { claudeReady: false }, { busy: true }]) {
     const unavailable = createForm({ draft: createValue, ...overrides });
     assert.equal(unavailable.button.props.disabled, true); await unavailable.element.props.onSubmit(submitEvent()); assert.deepEqual(unavailable.calls, []);
   }
 });
 
-test('confirmed creation stays in the source and does not duplicate an outstanding request', async () => {
+test('an unavailable source-provider default never silently switches agents', async () => {
+  const f = fixture({ sourceProvider: 'claude', claudeReady: false });
+  assert.equal(f.createForm.props.draft.provider, 'claude');
+  const form = HandoverCreateForm(f.createForm.props), nodes = elements(form);
+  assert.equal(nodes.find(node => node.type === 'button').props.disabled, true);
+  assert.equal(nodes.find(node => node.type === 'option' && node.props.value === 'claude').props.disabled, true);
+  await f.createForm.props.submit(createValue); assert.deepEqual(f.calls, []);
+  await f.createForm.props.submit({ ...createValue, provider: 'codex' });
+  assert.deepEqual(f.calls, [['create', { ...createValue, provider: 'codex' }]]);
+});
+
+test('a full workspace can request duplicate discovery without selecting another agent', async () => {
+  const f = fixture({ full: true, sourceProvider: 'claude' });
+  assert.equal(f.create.props.disabled, false);
+  assert.match(f.html, /You can check for an existing version; close a tab before creating a new one/);
+  const form = createForm({ draft: createValue, full: true });
+  assert.equal(form.button.props.disabled, false);
+  await form.element.props.onSubmit(submitEvent());
+  assert.deepEqual(form.calls, [['submit', createValue]], 'the existing backend owns collision and allocation checks');
+});
+
+test('an accepted preparation stays in the source without duplicate requests or navigation', async () => {
   let release;
   const f = fixture({ create: value => { f.calls.push(['create', value]); return new Promise(resolve => { release = resolve; }); } });
   const pending = f.createForm.props.submit(createValue);
@@ -84,73 +112,86 @@ test('confirmed creation stays in the source and does not duplicate an outstandi
   assert.deepEqual(f.calls, [['create', createValue]]);
   let prevented = false; f.dialogs[0].props.onCancel({ preventDefault() { prevented = true; } });
   assert.equal(prevented, true);
-  release({ id: 'synthetic-receiver', path: importValue.path }); await pending;
-  assert.deepEqual(f.calls, [['create', createValue]], 'successful creation does not choose the receiving tab or import its file');
+  release(accepted); await pending;
+  await f.createForm.props.submit(createValue);
+  assert.deepEqual(f.calls, [['create', createValue]], 'the backend owns later startup/import, without another browser action');
 });
 
-test('the source offers explicit receiving-chat navigation without claiming the file is ready', () => {
-  const calls = [], receiver = { id: 'synthetic-receiver', path: importValue.path };
-  const element = HandoverReadyNotice({ receiver, choose: id => calls.push(id) });
-  const html = renderToStaticMarkup(element);
-  assert.match(html, /Receiving chat started and handover requested/);
-  assert.match(html, /source agent will report when the file is ready/);
-  assert.match(html, /click Import handover there/);
-  assert.doesNotMatch(html, /Handover saved successfully|Import completed/);
+test('snapshot preparation and startup prevent duplicate work after a remount', async () => {
+  for (const state of ['preparing', 'starting']) {
+    const f = fixture({ progress: { ...progress, state } });
+    assert.equal(f.create.props.disabled, true); assert.equal(f.createForm.props.busy, true);
+    await f.createForm.props.submit(createValue); assert.deepEqual(f.calls, []);
+    let prevented = false; f.dialogs[0].props.onCancel({ preventDefault() { prevented = true; } });
+    assert.equal(prevented, true);
+  }
+});
+
+test('progress distinguishes preparing, starting, started and failed without claiming completed import', () => {
+  for (const state of ['preparing', 'starting']) {
+    const node = HandoverProgressNotice({ progress: { ...progress, state }, choose: () => assert.fail('No receiving chat exists yet.') });
+    assert.equal(elements(node).filter(item => item.type === 'button').length, 0);
+    assert.match(renderToStaticMarkup(node), state === 'preparing' ? /will start after the file is ready/ : /Starting Example project v2 with automatic import/);
+  }
+  const calls = [];
+  const node = HandoverProgressNotice({ progress: { ...progress, state: 'started', id: 'synthetic-receiver' }, choose: id => calls.push(id) });
+  const html = renderToStaticMarkup(node);
+  assert.match(html, /Automatic handover import was requested/); assert.doesNotMatch(html, /Import handover|Import completed/);
   assert.deepEqual(calls, []);
-  elements(element).find(node => node.type === 'button').props.onClick();
+  elements(node).find(item => item.type === 'button').props.onClick();
   assert.deepEqual(calls, ['synthetic-receiver']);
+  const failed = fixture({ progress: { ...progress, state: 'failed', error: 'The prepared file is unavailable. Check the source.' } });
+  assert.match(failed.html, /role="alert"/); assert.match(failed.html, /The prepared file is unavailable/);
+  assert.equal(failed.create.props.disabled, false);
 });
 
-test('the receiving chat offers its assigned path by default and import asks no agent or directory', () => {
-  const f = fixture({ agentId: 'synthetic-receiver', canImport: true, defaultHandoverPath: importValue.path });
-  assert.equal(f.openImport.props.disabled, false); assert.equal(f.importForm.props.path, importValue.path);
-  const body = importForm();
-  assert.equal(body.fields.length, 1); assert.equal(body.fields[0].props.value, importValue.path);
-  assert.doesNotMatch(body.html, /<select|Which agent|Project directory|Start chat/);
-  assert.match(body.html, /assigned path does not mean the file is ready/);
-  assert.match(body.html, /Import into this receiving chat/);
+const collision = {
+  existing: [{ id: 'existing-codex', name: 'Example project v2', provider: 'codex' }, { id: 'existing-claude', name: 'Example project v2', provider: 'claude' }],
+  nextName: 'Example project v3'
+};
+test('a name conflict requires an explicit existing-chat or next-version action', async () => {
+  const calls = [];
+  const node = HandoverConflictChoices({ conflict: collision, busy: false,
+    openExisting: async id => calls.push(['open', id]), createNext: async name => calls.push(['create-next', name]) });
+  const html = renderToStaticMarkup(node), buttons = elements(node).filter(item => item.type === 'button');
+  assert.match(html, /Open Example project v2 \(Codex\)/); assert.match(html, /Open Example project v2 \(Claude\)/);
+  assert.match(html, /Create Example project v3/); assert.deepEqual(calls, []);
+  await buttons[0].props.onClick(); assert.deepEqual(calls, [['open', 'existing-codex']]);
+  await buttons[1].props.onClick(); assert.deepEqual(calls, [['open', 'existing-codex'], ['open', 'existing-claude']]);
+  await buttons[2].props.onClick();
+  assert.deepEqual(calls, [['open', 'existing-codex'], ['open', 'existing-claude'], ['create-next', 'Example project v3']]);
 });
 
-test('explicit import acts in the current receiver without creating or choosing another chat', async () => {
-  let release;
-  const f = fixture({ agentId: 'synthetic-receiver', canImport: true, defaultHandoverPath: importValue.path, full: true,
-    importHandover: value => { f.calls.push(['import', value]); return new Promise(resolve => { release = resolve; }); } });
-  const pending = f.importForm.props.submit({ path: '  ' + importValue.path + '  ' });
-  await f.importForm.props.submit(importValue);
-  assert.deepEqual(f.calls, [['import', importValue]]);
-  let prevented = false; f.dialogs[1].props.onCancel({ preventDefault() { prevented = true; } });
-  assert.equal(prevented, true); release(); await pending;
-  assert.deepEqual(f.calls, [['import', importValue]], 'a full workspace still permits import into its existing receiver');
-  const unavailable = fixture({ canImport: false });
-  await unavailable.importForm.props.submit(importValue); assert.deepEqual(unavailable.calls, []);
+test('a pending conflict action disables every alternative and suppresses normal form submission', async () => {
+  const choices = HandoverConflictChoices({ conflict: collision, busy: true,
+    openExisting: async () => assert.fail('Already opening a chat.'), createNext: async () => assert.fail('Already creating a chat.') });
+  for (const button of elements(choices).filter(item => item.type === 'button')) {
+    assert.equal(button.props.disabled, true); await button.props.onClick();
+  }
+  const f = createForm({ conflictChoices: choices });
+  assert.equal(f.button, undefined);
+  await f.element.props.onSubmit(submitEvent()); assert.deepEqual(f.calls, []);
 });
 
-test('creation and import drafts/errors remain independently available after failure', async () => {
-  const create = createForm({ draft: createValue, error: 'Inspect the created receiving chat before trying again.' });
+test('creation retains editable drafts and visible errors while preparation text is accurate', async () => {
+  const create = createForm({ draft: createValue, error: 'Inspect the source chat before trying again.' });
   assert.equal(create.select.props.value, 'claude'); assert.equal(create.field.props.value, '/example/project');
   assert.match(create.html, /role="alert"/);
   create.select.props.onChange({ target: { value: 'codex' } });
   create.field.props.onChange({ target: { value: '/example/another project' } });
   assert.deepEqual(create.calls, [['change', { provider: 'codex', cwd: '/example/project' }], ['change', { provider: 'claude', cwd: '/example/another project' }]]);
-  const imported = importForm({ error: 'The file is not ready. Keep this assigned path.' });
-  assert.equal(imported.fields[0].props.value, importValue.path); assert.match(imported.html, /Keep this assigned path/);
-  imported.fields[0].props.onChange({ target: { value: '/tmp/another-transfer/handoff.md' } });
-  assert.deepEqual(imported.calls, [['change', '/tmp/another-transfer/handoff.md']]);
-  for (const overrides of [{ canImport: false }, { busy: true }, { path: ' ' }]) {
-    const blocked = importForm(overrides); assert.equal(blocked.button.props.disabled, true);
-    await blocked.element.props.onSubmit(submitEvent()); assert.deepEqual(blocked.calls, []);
-  }
+  const preparing = createForm({ busy: true });
+  assert.match(preparing.html, /Preparing handover…/);
+  assert.equal(preparing.select.props.disabled, true); assert.equal(preparing.field.props.disabled, true);
+  await preparing.element.props.onSubmit(submitEvent()); assert.deepEqual(preparing.calls, []);
 });
 
 test('failed or unconfirmed requests never navigate or retry automatically', async () => {
-  for (const result of ['reject', undefined, {}, { id: 'new' }]) {
+  const conflictError = Object.assign(new Error('The receiving name already exists.'), { code: 'handover_name_conflict', handoverConflict: collision });
+  for (const result of [conflictError, new Error('Check the source chat.'), undefined, {}, { id: 'new' }]) {
     let attempts = 0;
-    const f = fixture({ create: async () => { attempts++; if (result === 'reject') throw new Error('Check existing chats.'); return result; } });
+    const f = fixture({ create: async () => { attempts++; if (result instanceof Error) throw result; return result; } });
     await f.createForm.props.submit(createValue);
     assert.equal(attempts, 1); assert.deepEqual(f.calls, []); await Promise.resolve(); assert.equal(attempts, 1);
   }
-  let attempts = 0;
-  const f = fixture({ canImport: true, importHandover: async () => { attempts++; throw new Error('Check this chat before retrying.'); } });
-  await f.importForm.props.submit(importValue);
-  assert.equal(attempts, 1); assert.deepEqual(f.calls, []); await Promise.resolve(); assert.equal(attempts, 1);
 });

@@ -27,13 +27,15 @@ opening saved views, without starting models, replaying approvals or reopening
 closed tabs. A known native fork remains recorded even if opening its view
 fails; its error identifies the created session so it can be reopened directly.
 
-Version 1.32.0 adds optional `workerHandoverImports` entries containing only the
-reserved artifact path and source ID for each retained receiving tab. Assignment
-loads before saved workers open, so Import offers that exact path after restart,
-including when the source tab was closed. Closing the receiver removes its saved
-assignment. The artifact contents remain outside workspace metadata; temporary
-file cleanup can remove them. Assignment does not prove file readiness, restore
-an import, start a model or transfer permissions. The existing 64 KiB bound applies.
+Version 1.32.0 added optional `workerHandoverImports` entries containing only
+artifact paths and source IDs for retained receivers. Version 1.33.0 keeps these
+references for known allocated receivers, including partially failed startup;
+artifact contents remain outside workspace metadata. Closing a receiver removes
+its saved assignment. Temporary file cleanup can remove the artifact. Restoring
+metadata never imports, starts a model or transfers permissions; the 64 KiB bound
+still applies. New preparations are one-off backend operations: browser refresh
+can observe current progress, but backend restart does not replay preparation or
+startup. Inspect native histories before manually retrying uncertain actions.
 
 ## Startup and continuation
 

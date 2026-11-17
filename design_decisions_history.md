@@ -1,5 +1,48 @@
 # Design decisions history
 
+## 2026-11-17, UTC — Prepare before automatic import and select existing versions
+
+The user explicitly changed the handover flow: default the provider choice to
+the source provider, prepare the complete file first, then start the receiver
+with automatic import as its first input. Remove the Import button and waiting
+startup turn. This supersedes the earlier approved manual-import/no-default
+flow without replaying old assignments or changing existing chats.
+
+A reported real missing-file import was a timing race: the receiver read before
+the source wrote its artifact. Bounded original history and file metadata
+confirmed the artifact subsequently existed and the same receiver had already
+loaded and reconciled it. No duplicate import, receiving chat or regeneration was
+sent by engineering. New creation waits for the exact source preparation turn
+and verifies private nonempty regular-file metadata. The source publishes the
+completed artifact atomically; the backend does not read its contents. Progress
+uses a one-off in-memory operation and existing events, without a new persistent
+queue, scheduler or automatic replay after backend restart. Native questions,
+interruptions, stop intent and uncertain outcomes retain their normal controls.
+
+The user also requires a choice if the next version already exists: open that
+existing chat without model input, or explicitly confirm the next unused version.
+Check project-local histories and recheck before startup; do not silently bump a
+name that becomes occupied. Preserve the source and native operation ownership.
+
+Separately, the user explicitly requested native Auto-review for new Codex chats
+and native Auto mode for new Claude chats. Use the installed providers' native
+creation controls, retaining Codex approval policy/sandbox and existing chats'
+settings. Do not add a CCNG permissions store, approval bypass or global native
+profile change. Working version is 1.33.0; verification/publication/deployment
+outcomes and implementation commit will be recorded when known.
+
+The first revised full run at 10:01:02.177744–10:02:10.659753 UTC passed 1,346
+tests, with one older path test expecting the former reviewer parameters and
+one unavailable supplementary-group fixture skipped. Its expectation now checks
+only the requested reviewer addition while retaining policy/sandbox/model
+omission; all seven path checks passed. No production behavior was relaxed.
+The final run at 10:03:02.248716–10:04:14.478829 UTC passed 1,347 tests, zero
+failures, and only that group-fixture skip; primary-group preservation is checked
+separately. TypeScript and production build passed (432 ms build). All five
+revised HTTP cases passed using disposable authentication, real file fixtures
+and synthetic provider transports. Fresh browser/provider-mode confirmation
+remains separate from this source evidence.
+
 ## 2026-11-17, 09:32 UTC — Deliver versioned handovers and visible user markup
 
 Implementation `66c753b3c92dcc7e39c29e1552d62d3e88fa426d` is published 1.32.0,

@@ -316,14 +316,13 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           if (request.method === 'GET') return json(response, await workspace.taskCatalog(id));
           if (request.method === 'POST') return json(response, await workspace.linkTasks(id, (await body(request)).ids));
         }
-        const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|message-question-answer|interrupt|history|answer|review|requests|report-settings|report|fork|parent|summary|return|handoff|handover-create|handover-import)$/);
+        const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|message-question-answer|interrupt|history|answer|review|requests|report-settings|report|fork|parent|summary|return|handoff|handover-create)$/);
         if (match && request.method === 'POST') {
           const [, encoded, action] = match; const id = decodeURIComponent(encoded); const data = await body(request, action === 'message' ? imageLimits.maxRequestBytes : 65_536);
           if (action === 'open') await workspace.open(id);
           if (action === 'close') workspace.close(id);
           if (action === 'message') await workspace.send(id, data.text, { images: data.images });
-          if (action === 'handover-create') return savedWorkspaceJson(response, await workspace.createHandover(id, data), 201);
-          if (action === 'handover-import') return json(response, await workspace.importHandover(id, data));
+          if (action === 'handover-create') return savedWorkspaceJson(response, await workspace.createHandover(id, data), 202);
           if (action === 'message-question-answer') return json(response, await workspace.answerMessageQuestion(id, data));
           if (action === 'interrupt') await workspace.interrupt(id);
           if (action === 'history') await workspace.history(id, data.cursor);
@@ -372,7 +371,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
       response.end(request.method === 'HEAD' ? undefined : content);
     } catch (error) {
       if (response.headersSent) response.end();
-      else json(response, { error: error.message || 'Request failed.', ...(['authentication_required', 'invalid_password', 'authentication_unavailable', 'invalid_async_question_answer', 'async_question_not_current', 'async_question_delivery_unconfirmed'].includes(error.code) ? { code: error.code } : {}) }, error.status || 500);
+      else json(response, { error: error.message || 'Request failed.', ...(['authentication_required', 'invalid_password', 'authentication_unavailable', 'invalid_async_question_answer', 'async_question_not_current', 'async_question_delivery_unconfirmed', 'handover_name_conflict'].includes(error.code) ? { code: error.code } : {}), ...(error.code === 'handover_name_conflict' ? { handoverConflict: error.handoverConflict } : {}) }, error.status || 500);
     }
   };
   const createListener = host => {

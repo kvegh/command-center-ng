@@ -237,7 +237,8 @@ test('new workers require an explicit project directory and use it unchanged', a
     assert.equal(f.calls.some(call => call.method === 'thread/start'), false);
     const cwd = join(f.dir, 'selected project'); await mkdir(cwd);
     const id = await f.workspace.create({ goal: 'Work in the selected project', cwd });
-    assert.deepEqual(f.calls.find(call => call.method === 'thread/start').params, { cwd });
+    // Native policy/sandbox/model are omitted while new-chat review defaults to Auto.
+    assert.deepEqual(f.calls.find(call => call.method === 'thread/start').params, { cwd, approvalsReviewer: 'auto_review' });
     assert.equal(f.workspace.agent(id).cwd, cwd);
   } finally { await f.close(); }
 });
@@ -561,7 +562,7 @@ test('seventeen simultaneous creates start only sixteen agents; closing a tab ne
     const results = await Promise.allSettled(Array.from({ length: limits.maxWorkers + 1 }, (_, i) => f.workspace.create({ goal: 'Independent task ' + i, cwd: f.dir })));
     assert.equal(results.filter(r => r.status === 'fulfilled').length, limits.maxWorkers);
     assert.equal(f.calls.filter(c => c.method === 'thread/start').length, limits.maxWorkers);
-    for (const c of f.calls.filter(c => c.method === 'thread/start')) assert.deepEqual(Object.keys(c.params), ['cwd']);
+    for (const c of f.calls.filter(c => c.method === 'thread/start')) assert.deepEqual(c.params, { cwd: f.dir, approvalsReviewer: 'auto_review' });
     const first = f.workspace.snapshot().agents[0]; f.workspace.close(first.id);
     assert.equal(f.calls.filter(c => c.method === 'turn/interrupt').length, 0);
     f.ask('background', first.id); await waitFor(() => f.workspace.snapshot().backgroundQuestions === 1);

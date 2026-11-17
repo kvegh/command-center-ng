@@ -32,13 +32,14 @@ test('seventeen concurrent opens reserve only sixteen worker tabs', async () => 
   assert.equal(rpc.calls.length, before);
 });
 
-test('seventeen concurrent creates start only sixteen native workers with unchanged settings', async () => {
+test('seventeen concurrent creates start only sixteen workers with native Auto-review and inherited permissions', async () => {
   const { rpc, workspace } = fixture();
   const results = await Promise.allSettled(Array.from({ length: 17 }, (_, i) => workspace.create({ goal: 'Task ' + i, cwd: '/tmp' })));
   assert.equal(results.filter(result => result.status === 'fulfilled').length, 16);
   const starts = rpc.calls.filter(call => call.method === 'thread/start');
   assert.equal(starts.length, 16);
-  for (const call of starts) assert.deepEqual(call.params, { cwd: '/tmp' });
+  // Only review routing changes; approval policy, sandbox and model stay native.
+  for (const call of starts) assert.deepEqual(call.params, { cwd: '/tmp', approvalsReviewer: 'auto_review' });
   assert.equal(workspace.workerSlots(), 16);
 });
 

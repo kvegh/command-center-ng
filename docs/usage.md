@@ -142,45 +142,59 @@ instructions are injected as runtime context, not standalone chat messages.
 
 ## Chat handovers
 
-The worker Project overview has **Create handover** and **Import handover**
-directly below the project heading.
+The worker Project overview offers **Create handover**. The agent choice defaults
+to the source chat's provider; you can change it and the project directory.
 
-**Create handover** asks which agent should receive it, with no agent preselected,
-and offers the source project directory. Choose Codex or Claude. CCNG starts a
-fresh receiving chat and reserves a private temporary `handoff.md` path for it.
-The source worker is asked to use its installed `handoff` skill and write that
-exact file. Codex uses the user's `.agents/skills/handoff/SKILL.md`; Claude uses
-`.claude/skills/handoff/SKILL.md`. Install the skill through the existing
-environment setup first; CCNG does not install it. The source stays selected;
-**Open receiving chat** is an explicit navigation action. Closing the source
-tab preserves native history and does not stop its existing native work.
+Create first checks the selected project's existing local chat names. If the next
+version already exists, explicitly choose **Open existing** or **Create** the next
+unused version. Opening an existing chat selects it without importing again,
+creating another chat or sending model input. For example, `Project` normally
+becomes `Project v2`; if that exists, you can open it or confirm `Project v3`.
+Trailing `vN` versions advance numerically; bare numbers remain part of the name.
+A name taken during preparation stops startup rather than silently advancing it.
 
-The new chat inherits the source name with an advanced trailing version:
-`Project` becomes `Project v2`, and `Project v2` becomes `Project v3`. A bare
-number is part of the name: `Project 2` becomes `Project 2 v2`. The receiver
-starts by waiting; it must not read/import the file or continue project work
-until you press Import. Source request acceptance and path assignment do not
-prove the file was written; the source worker reports when it is ready.
+After confirmation, the source uses its installed `handoff` skill to prepare the
+complete file in a private temporary directory and atomically publish it at the
+assigned path. CCNG waits for that exact native preparation turn to complete and
+checks the saved file's metadata before starting the receiver. A source reply
+claiming it saved a file does not bypass this check. Missing, empty, linked or
+unsafe files prevent receiver startup; source errors, interruptions and uncertain
+native delivery remain visible without automatic retries or cancellation.
 
-Switch to that receiving chat and press **Import handover**. Its assigned path
-is offered by default; confirm Import there. This sends to the same already
-started chat, without creating another chat or asking for the agent again.
-The worker reads the file using native tools and permissions, loads local
-instructions and reconciles current project/task/operation state. CCNG never
-reads, uploads or copies the artifact content. Only the receiving/source IDs and
-path are kept in existing private workspace metadata for open/restored receivers;
-no extra store is added. Temporary artifacts can be removed by the OS, so import
-promptly. If creation/startup/source delivery is unconfirmed, inspect the known
-chat IDs before retrying; CCNG never automatically repeats uncertain actions.
+The new chat's first input imports that exact file automatically, loads local
+instructions and reconciles project/task/operation state. There is no Import
+button or separate waiting startup turn. Source selection stays in place; use
+**Open receiving chat** when it starts. Startup input acceptance still does not
+prove that the model successfully read/reconciled the artifact: check its reply.
 
-The handover contains relevant goals, decisions, progress, test evidence, task
-and repository references, blockers and next steps. It is a working brief, not
-a lossless transcript or fresh approval. Original history/files/tasks remain
-in place; task labels, states and owners are not automatically copied or changed.
-Native permissions, credentials, pending callbacks and running agents/jobs are
-not transferred. Source chats retain monitoring responsibility until an explicit
-operational handoff is reconciled. Pauses, holds, deferred work and withdrawals
-remain intact. Creating/importing does not archive the source or clear drafts.
+Codex uses the installed `.agents/skills/handoff/SKILL.md`; Claude uses
+`.claude/skills/handoff/SKILL.md`. CCNG does not install skills. It checks file
+metadata, not artifact contents; the receiving agent reads through native tools
+and permissions. Only receiving/source IDs and artifact path use existing private
+workspace metadata. Temporary files can be removed by the OS, so import promptly.
+
+Preparation progress survives browser refresh while the existing backend remains
+running. It is a one-off in-memory operation, without a new scheduler or replay
+queue. Backend restart does not resume preparation or replay an import. Inspect
+source/native history and any known receiving ID before trying again after an
+uncertain result. A pending native decision stays pending for its original user.
+
+The source stays available; closing its tab after preparation preserves native
+history and does not stop native work. A handover is a working brief of relevant
+goals, decisions, progress, tests, task/repository references, blockers and next
+steps. Original history/files/tasks stay in place. Native permissions, credentials,
+callbacks and running operations are not transferred; task states/owners are not
+automatically copied. Original chats retain monitoring responsibility until an
+explicit operational handoff is reconciled. Holds, withdrawals and pauses remain.
+
+### New-chat native review defaults
+
+New CCNG Codex chats request native Auto-review routing while retaining the
+native approval policy and sandbox. New Claude chats start in native Auto mode.
+These are native provider controls, not a CCNG approval allowlist or permissions
+store. Existing chats retain their settings; reopening an existing version does
+not apply new-chat defaults or bypass a pending request. Actual mode confirmation
+and native controls remain authoritative.
 
 ## Branch and return a summary
 

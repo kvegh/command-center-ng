@@ -52,8 +52,8 @@ states are historical. EXIF metadata was removed without changing image pixels.
 - Open local Codex or Claude conversations, or start new agents in explicit project directories.
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
 - Create a versioned receiving chat from the Project overview after choosing
-  Codex or Claude, then explicitly import its assigned handover file in that
-  new chat. See [chat handovers](docs/usage.md#chat-handovers).
+  Codex or Claude, prepare and verify the file first, then import automatically
+  at startup. Existing versions require an explicit open-or-increment choice. See [chat handovers](docs/usage.md#chat-handovers).
 - Chat, steer active work, interrupt a turn and answer supported native questions or approvals, including eligible current assistant-question cards.
   If native Codex explicitly rejects an outdated turn, refresh its current state
   and retry ordinary input once when safe; uncertain deliveries are not repeated.
@@ -397,13 +397,14 @@ or resolve a pending human decision. See the [source-reader limits](docs/usage.m
 With the existing development dependencies, run:
 
 ```sh
-node --test tests/chat-handover.test.mjs tests/chat-handover-http.test.mjs tests/handover-controls.test.mjs tests/handover-chat-name.test.mjs tests/workspace-store.test.mjs tests/claude-message-visibility.test.mjs
+node --test tests/chat-handover.test.mjs tests/chat-handover-http.test.mjs tests/handover-controls.test.mjs tests/handover-chat-name.test.mjs tests/handover-artifact.test.mjs tests/workspace-store.test.mjs tests/claude-message-visibility.test.mjs
 ```
 
 The functional HTTP tests use a disposable authenticated loopback CCNG instance,
 temporary project/skill files and synthetic native transports. They verify
-source requests, explicit agent selection, versioned waiting receivers, same-chat
-import, restored assignments, input protections and uncertain-delivery handling.
+source requests, source-provider defaults, version conflicts, verified file-before-
+startup ordering, automatic initial import, retained assignments, input protections
+and uncertain-delivery handling.
 User-message checks verify escaped HTML text remains visible without execution.
 They exit nonzero on failure and clean up test
 data; loopback-listener access is required. They do not ask a real model to

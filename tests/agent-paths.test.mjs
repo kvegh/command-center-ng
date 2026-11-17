@@ -43,7 +43,7 @@ for (const provider of ['codex', 'claude']) {
       assert.equal(start.params.cwd, project);
       assert.deepEqual(f.sent, [{ id, goal: 'Inspect the selected project' }]);
       assert.equal(f.workspace.creating, 0);
-      if (provider === 'codex') assert.deepEqual(start.params, { cwd: project }, 'native permissions and model settings are not overridden');
+      if (provider === 'codex') assert.deepEqual(start.params, { cwd: project, approvalsReviewer: 'auto_review' }, 'only the requested reviewer default is added; native policy, sandbox and model remain unchanged');
     }
   });
 

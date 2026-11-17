@@ -185,7 +185,9 @@ export class ClaudeSessions extends EventEmitter {
       try {
         job.query = this.sdk.query({ prompt: inputs, options: {
           cwd: agent.cwd, pathToClaudeCodeExecutable: this.executable, settingSources: ['user', 'project', 'local'],
-          ...(this.autoReviewSessions.has(agent.id) ? { permissionMode: 'auto' } : {}),
+          // New CCNG chats use the user-selected Auto default. Existing sessions
+          // keep their native settings unless explicitly selected in configuration.
+          ...(agent.newSession || this.autoReviewSessions.has(agent.id) ? { permissionMode: 'auto' } : {}),
           ...(agent.newSession ? { sessionId: agent.nativeSessionId, title: agent.name } : { resume: agent.nativeSessionId }),
           systemPrompt: { type: 'preset', preset: 'claude_code', append: instructions }, includePartialMessages: true, abortController,
           canUseTool: (name, input, options) => this.permission(agent, name, input, options),
@@ -219,6 +221,7 @@ export class ClaudeSessions extends EventEmitter {
     const content = images.length ? [...images.map(image => ({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.dataUrl.slice(image.dataUrl.indexOf(',') + 1) } })), ...(text ? [{ type: 'text', text }] : [])] : text;
     job.inputs.push({ type: 'user', session_id: agent.nativeSessionId, uuid: messageId, timestamp, parent_tool_use_id: null, ...(syntheticInput ? { isSynthetic: true } : {}), ...(priority ? { priority } : {}), message: { role: 'user', content } });
     this.changed(agent);
+    return { turnId: job.turnId };
   }
   async consume(agent, job) {
     try { for await (const message of job.query) {

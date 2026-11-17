@@ -9,6 +9,21 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.33.0 — Prepare before automatic handover startup
+
+Create handover defaults to the source provider. It prepares and verifies the
+complete private artifact before starting the versioned receiver, whose first
+input imports automatically. The separate Import button is removed. Missing or
+unsafe files prevent startup; native questions and uncertain outcomes are not
+answered, cancelled or retried automatically. Existing version names offer an
+explicit open-existing or create-next-unused choice, with a second name check
+before startup. Reopening an existing chat sends no import or model request.
+
+New Codex chats request native Auto-review routing with their approval policy
+and sandbox retained; new Claude chats start in native Auto mode. Existing chats
+keep their settings. Installed behavior and actual provider confirmations are
+reported separately from source implementation and input acceptance.
+
 ## 1.32.0 — Project overview handover controls
 
 Workers show Create handover and Import handover beneath the Project heading.

@@ -19,7 +19,7 @@ import { ClaudeSessions, isClaudeId, MAX_CLAUDE_BRANCH_LINKS } from './claude.mj
 import { readEnvironmentInstructions, environmentInstructionContext } from './environment-instructions.mjs';
 import { messageTime } from './message-time.mjs';
 import { validateImages, codexImages, imageReferences, readInlineImage } from './image-input.mjs';
-import { resolveHandoverSkill, reserveHandoverPath, nextHandoverChatName, handoverCreatePrompt, handoverWaitingPrompt, handoverImportPrompt } from './chat-handover.mjs';
+import { resolveHandoverSkill, reserveHandoverPath, planHandoverName, verifyHandoverArtifact, handoverCreatePrompt, handoverImportPrompt } from './chat-handover.mjs';
 
 export const input = (text, images = []) => [...(text ? [{ type: 'text', text, text_elements: [] }] : []), ...images.map(image => ({ type: 'image', url: image.dataUrl }))];
 const requestKey = (threadId, requestId) => JSON.stringify([threadId, requestId]);
@@ -85,7 +85,7 @@ function itemTime(item, previous, live) {
 }
 
 export class Workspace extends EventEmitter {
-  constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, recoveryTimeout = 2000, beads = new BeadsTasks(), coordinator = false, claude = null, handoffOptions, handoverSkill = resolveHandoverSkill, handoverPath = reserveHandoverPath } = {}) {
+  constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, recoveryTimeout = 2000, beads = new BeadsTasks(), coordinator = false, claude = null, handoffOptions, handoverSkill = resolveHandoverSkill, handoverPath = reserveHandoverPath, handoverTimeout = 10 * 60_000 } = {}) {
     super(); this.rpc = rpc; this.agents = new Map(); this.pending = new Map(); this.requestEpoch = 0; this.opening = new Set(); this.watched = new Set(); this.creating = 0; this.error = null;
     // Browser refresh follows backend replacement, not native RPC reconnects.
     this.serverInstanceId = randomUUID();
@@ -100,6 +100,7 @@ export class Workspace extends EventEmitter {
     this.claudeBranchParents = new Map();
     this.handoverSkill = handoverSkill;
     this.handoverPath = handoverPath; this.handoverImports = new Map();
+    this.handoverJobs = new Map(); this.handoverTimeout = handoverTimeout;
     this.claude?.on('forked', (childId, parentId) => { this.claudeBranchParents.set(childId, parentId); this.changed(); });
     this.claude?.on('change', id => { this.changed(); if (this.agents.has(id)) void this.coordinator?.flush(id); });
     this.claude?.on('completed', id => { if (this.agents.has(id)) { this.coordinator?.completed(id); void this.refreshTasks(id); } });
@@ -882,52 +883,154 @@ export class Workspace extends EventEmitter {
     try { agent.tracker = await this.beads.setLinks(agent.cwd, id, ids); this.changed(); return agent.tracker; }
     catch (error) { await this.refreshTasks(id); throw error; }
   }
-  async createHandover(id, { provider, cwd } = {}) {
+  async handoverCatalog(cwd) {
+    const chats = new Map([...this.agents.values()]
+      .filter(agent => agent.role !== 'coordinator' && agent.cwd === cwd)
+      .map(agent => [agent.id, { id: agent.id, name: agent.name, provider: agent.provider || 'codex' }]));
+    for (const provider of ['codex', 'claude']) {
+      if (!this.readyFor({ provider })) continue;
+      let cursor; const seen = new Set(); let complete = false;
+      for (let page = 0; page < 100; page++) {
+        const result = await this.list(cursor, provider);
+        for (const chat of result.agents) if (chat.cwd === cwd) chats.set(chat.id, { id: chat.id, name: chat.name, provider });
+        if (!result.nextCursor) { complete = true; break; }
+        if (seen.has(result.nextCursor)) break;
+        seen.add(result.nextCursor); cursor = result.nextCursor;
+      }
+      if (!complete) throw Object.assign(new Error('The existing chat versions could not be checked completely. Check current chats before starting a receiving chat.'), { status: 503 });
+    }
+    return [...chats.values()];
+  }
+  checkHandoverReservation(cwd, name, sourceId) {
+    if ([...this.handoverJobs.entries()].some(([id, job]) => id !== sourceId && job.cwd === cwd && job.progress.name === name)) {
+      throw Object.assign(new Error(`Another handover is already preparing ${name}. Wait for its outcome before choosing a receiving chat.`), { status: 409 });
+    }
+  }
+  async createHandover(id, { provider, cwd, confirmedName } = {}) {
     const agent = this.agent(id);
+    provider ??= agent.provider || 'codex';
+    cwd = typeof cwd === 'string' ? cwd.trim() : cwd ?? agent.cwd;
     if (agent.role === 'coordinator') throw Object.assign(new Error('Choose a worker chat to create its handover.'), { status: 400 });
     if (!['codex', 'claude'].includes(provider)) throw Object.assign(new Error('Choose Codex or Claude for the receiving chat.'), { status: 400 });
     if (!this.readyFor({ provider })) throw Object.assign(new Error('The selected agent is unavailable. Reconnect it before creating the receiving chat.'), { status: 503 });
+    if (typeof cwd !== 'string' || !isAbsolute(cwd) || /[\x00-\x1f\x7f]/.test(cwd)) throw Object.assign(new Error('Enter an absolute project directory without control characters.'), { status: 400 });
+    if (confirmedName !== undefined && typeof confirmedName !== 'string') throw Object.assign(new Error('Choose the proposed receiving-chat version.'), { status: 400 });
     const checkSource = () => {
-      if (this.agents.get(id) !== agent) throw Object.assign(new Error('The source chat changed before the handover request was sent.'), { status: 409 });
+      if (this.agents.get(id) !== agent) throw Object.assign(new Error('The source chat changed before the handover could finish.'), { status: 409 });
       if (!this.readyFor(agent) || !agent.canSend || this.restoring || agent.questions.length || statusOf(agent.thread) === 'attention'
         || agent.handoff || this.handoffs.incoming(id) || this.summaryJobs.has(id) || this.returnJobs.has(id) || agent.returnSummary?.delivered) throw Object.assign(new Error('The source chat is unavailable or waiting for a request or handoff. Resolve it before creating a handover.'), { status: 409 });
       assertAsyncQuestionsAllowControl(agent);
     };
-    checkSource();
-    if (this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error('Close an agent tab before starting the receiving chat.'), { status: 409 });
+    const checkDuplicate = () => {
+      if (this.handoverJobs.has(id)) throw Object.assign(new Error('A handover is already being prepared for this source chat. Check its current progress before starting another.'), { status: 409 });
+    };
+    checkSource(); checkDuplicate();
+    const directory = await stat(cwd).catch(() => null);
+    if (!directory?.isDirectory()) throw Object.assign(new Error('The project directory does not exist or is unavailable.'), { status: 400 });
+    const sourceName = agent.name;
+    const plan = planHandoverName(sourceName, await this.handoverCatalog(cwd));
+    checkSource(); checkDuplicate();
+    if ((plan.existing.length && confirmedName !== plan.nextName)
+      || (confirmedName !== undefined && confirmedName !== plan.nextName)) {
+      throw Object.assign(new Error('A receiving version already exists or the proposed version changed. Open an existing chat or explicitly choose the next unused version.'), {
+        status: 409, code: 'handover_name_conflict', handoverConflict: { existing: plan.existing, nextName: plan.nextName }
+      });
+    }
+    this.checkHandoverReservation(cwd, plan.nextName, id);
+    if (this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error('Close an agent tab before creating the receiving chat.'), { status: 409 });
     const skillPath = await this.handoverSkill(agent.provider || 'codex');
-    checkSource();
+    checkSource(); checkDuplicate();
+    this.checkHandoverReservation(cwd, plan.nextName, id);
     const path = await this.handoverPath();
-    checkSource();
-    let createdId, creationAttempted = false, receiverStarted = false;
+    checkSource(); checkDuplicate();
+    this.checkHandoverReservation(cwd, plan.nextName, id);
+    const progress = { state: 'preparing', name: plan.nextName, provider, path };
+    const record = { cwd, progress, promise: null };
+    this.handoverJobs.set(id, record); agent.handoverCreation = progress; this.changed();
+    // This is one user-requested operation. It observes native completion rather
+    // than keeping an HTTP request open or polling/replaying work after restart.
+    record.promise = this.prepareHandover(agent, { provider, cwd, sourceName, skillPath, path, name: plan.nextName, progress, checkSource })
+      .finally(() => { if (this.handoverJobs.get(id) === record) this.handoverJobs.delete(id); this.changed(); });
+    return { accepted: true, path, state: 'preparing' };
+  }
+  waitForHandoverTurn(agent, turnId, stopIntent) {
+    if (typeof turnId !== 'string' || !turnId) return Promise.reject(new Error('Source preparation receipt has no confirmed native turn identity. Check the source before retrying.'));
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = error => {
+        if (settled) return; settled = true;
+        clearTimeout(timer); this.off('change', check); error ? reject(error) : resolve();
+      };
+      const check = () => {
+        if (this.agents.get(agent.id) !== agent) return finish(new Error('The source view closed while preparing its handover. Its native work was not cancelled.'));
+        if (!this.readyFor(agent)) return finish(new Error('The native connection changed during preparation. Check the source; nothing was retried or cancelled.'));
+        if (agent.requestStopIntent !== stopIntent) return finish(new Error('The source was stopped during preparation. No receiving chat was started.'));
+        if (agent.turnId && agent.turnId !== turnId) return finish(new Error('The source native turn changed during preparation. Check it before retrying.'));
+        if (agent.finishedTurn?.id === turnId) {
+          if (agent.finishedTurn.status !== 'completed') return finish(new Error('The source preparation turn did not complete successfully. No receiving chat was started.'));
+          return finish();
+        }
+        if (statusOf(agent.thread) === 'error') finish(new Error('The source runtime failed during preparation. Check its native result before retrying.'));
+        // Pending native questions remain pending for the human; they do not
+        // become approvals or failures merely because this observer is waiting.
+      };
+      const timer = setTimeout(() => finish(new Error('Handover preparation timed out. Check the source native turn before retrying; it was not interrupted and no receiving chat was started.')), this.handoverTimeout);
+      this.on('change', check); check();
+    });
+  }
+  async prepareHandover(agent, { provider, cwd, sourceName, skillPath, path, name, progress, checkSource }) {
+    let createdId, creationAttempted = false;
     try {
-      await this.create({ goal: handoverWaitingPrompt(path, nextHandoverChatName(agent.name)), cwd: cwd ?? agent.cwd, provider }, {
-        onStarting: () => { creationAttempted = true; },
+      const stopBeforeDispatch = agent.requestStopIntent;
+      const receipt = await this.send(agent.id, handoverCreatePrompt(skillPath, path), { preserveAsyncQuestions: true });
+      if (agent.requestStopIntent && agent.requestStopIntent !== stopBeforeDispatch) {
+        throw new Error('The source was stopped while preparation input was being accepted. Check its native result; no receiving chat was started.');
+      }
+      const stopIntent = agent.requestStopIntent;
+      await this.waitForHandoverTurn(agent, receipt?.turnId, stopIntent);
+      const checkPreparedSource = () => {
+        checkSource();
+        this.checkHandoverReservation(cwd, name, agent.id);
+        if (agent.requestStopIntent !== stopIntent || agent.turnId
+          || agent.finishedTurn?.id !== receipt.turnId || agent.finishedTurn.status !== 'completed') {
+          throw new Error('The source state changed after preparation. Check the saved file and source before starting a receiving chat.');
+        }
+      };
+      checkPreparedSource();
+      if (agent.name !== sourceName) throw new Error('The source name changed during preparation. Check the prepared file before creating another version.');
+      await verifyHandoverArtifact(path);
+      checkPreparedSource();
+      const catalog = await this.handoverCatalog(cwd);
+      checkPreparedSource();
+      if (catalog.some(chat => chat.name === name)) throw new Error('The selected receiving-chat version now exists. Open it or explicitly choose another version; the prepared file remains available.');
+      if (!this.readyFor({ provider })) throw new Error('The receiving agent is unavailable. The prepared file remains available; no receiving chat was started.');
+      if (this.workerSlots() >= limits.maxWorkers) throw new Error('All worker tabs are now open. The prepared file remains available; no receiving chat was started.');
+      // Revalidate the same private artifact immediately before native creation.
+      await verifyHandoverArtifact(path); checkPreparedSource();
+      progress.state = 'starting'; this.changed();
+      await this.create({ goal: handoverImportPrompt(path, name), cwd, provider }, {
+        onStarting: () => { checkPreparedSource(); creationAttempted = true; },
+        beforeInput: async () => { await verifyHandoverArtifact(path); checkPreparedSource(); },
         onCreated: targetId => {
-          createdId = targetId;
-          const assignment = { path, sourceId: id };
+          createdId = targetId; progress.id = targetId;
+          const assignment = { path, sourceId: agent.id };
           this.handoverImports.set(targetId, assignment);
           const target = this.agents.get(targetId); if (target) target.handoverImport = assignment;
           this.changed();
         }
       });
-      receiverStarted = true;
-      checkSource();
-      await this.send(id, handoverCreatePrompt(skillPath, path, createdId), { preserveAsyncQuestions: true });
-      return { id: createdId, path, accepted: true };
+      progress.state = 'started'; this.changed();
     } catch (error) {
-      if (createdId) throw Object.assign(new Error(`Receiving chat ${createdId} was ${receiverStarted ? 'started, but the source handover request' : 'allocated, but its startup'} was not confirmed. Check both chats before trying again; no second chat was created automatically.`), { status: error.status || 502 });
-      if (creationAttempted) throw Object.assign(new Error('Receiving-chat creation was not confirmed. Check existing chats before trying again; no creation was automatically retried.'), { status: error.status || 502 });
-      throw error;
+      progress.state = 'failed';
+      progress.error = createdId
+        ? `Receiving chat ${createdId} was allocated, but its startup/import request was not confirmed. Check that exact chat before retrying; no additional chat was automatically created.`
+        : creationAttempted
+          ? 'Receiving-chat creation was not confirmed. Check existing chats before retrying; creation was not automatically repeated.'
+          : error.message || 'Handover preparation failed. Check the source before retrying.';
+      this.changed();
     }
   }
-  async importHandover(id, { path } = {}) {
-    const agent = this.agent(id), assignment = this.handoverImports.get(id);
-    if (agent.role === 'coordinator' || !assignment) throw Object.assign(new Error('Open the receiving chat created for a handover before importing it.'), { status: 400 });
-    await this.send(id, handoverImportPrompt(path ?? assignment.path), { preserveAsyncQuestions: true });
-    return { accepted: true };
-  }
-  async create({ goal, cwd, provider = 'codex' }, { onCreated, onStarting } = {}) {
+  async create({ goal, cwd, provider = 'codex' }, { onCreated, onStarting, beforeInput } = {}) {
     if (!['codex', 'claude'].includes(provider)) throw Object.assign(new Error('Choose Codex or Claude.'), { status: 400 });
     if (this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error(`All ${limits.maxWorkers} worker tabs are already open.`), { status: 409 });
     if (typeof goal !== 'string' || !goal.trim() || goal.length > 2000) throw Object.assign(new Error('Enter a goal of 1–2000 characters.'), { status: 400 });
@@ -956,20 +1059,22 @@ export class Workspace extends EventEmitter {
     try {
       if (provider === 'claude') {
         if (!this.claude) throw Object.assign(new Error('Local Claude support is unavailable.'), { status: 503 });
+        onStarting?.();
         const agent = this.claude.create(cwd, goal.trim()); this.agents.set(agent.id, agent); this.creating--; reserved = false;
         onCreated?.(agent.id);
-        await this.refreshTasks(agent.id); await this.send(agent.id, goal.trim());
+        await this.refreshTasks(agent.id); await beforeInput?.(); await this.send(agent.id, goal.trim());
         if (this.coordinator && this.rpc.ready) { void this.coordinator.ensure().catch(() => {}); this.coordinator.mark(agent.id, 'Claude worker started'); }
         return agent.id;
       }
-      // Do not override native model, permissions, instructions, or approval policy.
+      // New workers use the user-selected native reviewer default. Preserve
+      // native approval policy, sandbox, model and instructions.
       onStarting?.();
-      const { thread } = await this.rpc.call('thread/start', { cwd });
+      const { thread } = await this.rpc.call('thread/start', { cwd, approvalsReviewer: 'auto_review' });
       onCreated?.(thread.id);
       await this.rpc.call('thread/name/set', { threadId: thread.id, name: goal.trim().split('\n')[0].slice(0, 120) });
       this.creating--; reserved = false;
       const agent = await this.open(thread.id); agent.goal = goal.trim().split('\n')[0]; agent.name = agent.goal;
-      await this.send(thread.id, goal.trim()); return thread.id;
+      await beforeInput?.(); await this.send(thread.id, goal.trim()); return thread.id;
     } finally { if (reserved) this.creating--; }
   }
   async answerMessageQuestion(id, data) {
@@ -1067,7 +1172,7 @@ export class Workspace extends EventEmitter {
     if (taskPing && agent.thread.status?.type === 'active' && !agent.turnId) throw Object.assign(new Error('Wait for the active native turn identity before a silent task check.'), { status: 409 });
     if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
     if (agent.provider === 'claude') {
-      await this.claude.send(agent, text.trim(), { images, report, reportSetting, instructions: Object.values(context).map(part => part.value).join('\n\n'), stillOpen: () => this.agents.get(id) === agent, ...(report || reportSetting ? { priority: 'next' } : {}) }); return;
+      return await this.claude.send(agent, text.trim(), { images, report, reportSetting, instructions: Object.values(context).map(part => part.value).join('\n\n'), stillOpen: () => this.agents.get(id) === agent, ...(report || reportSetting ? { priority: 'next' } : {}) });
     }
     if (agent.freshBranch && !report && !reportSetting && !taskPing && !concernReview && !messageQuestion) {
       const title = text.trim().split('\n')[0].slice(0, 120) || 'Image message';
@@ -1285,7 +1390,7 @@ export class Workspace extends EventEmitter {
       throw error;
     }
   }
-  close(id) { const agent = this.agent(id); if (agent.role === 'coordinator') throw Object.assign(new Error('Pause the coordinator using its controls.'), { status: 409 }); if (this.summaryJobs.has(id) || this.returnJobs.has(id)) throw Object.assign(new Error('Wait for the branch handoff to finish before closing its tab.'), { status: 409 }); this.agents.delete(id); this.coordinator?.closed(id); this.changed(); }
+  close(id) { const agent = this.agent(id); if (agent.role === 'coordinator') throw Object.assign(new Error('Pause the coordinator using its controls.'), { status: 409 }); if (this.summaryJobs.has(id) || this.returnJobs.has(id)) throw Object.assign(new Error('Wait for the branch handoff to finish before closing its tab.'), { status: 409 }); if (this.handoverJobs.has(id)) throw Object.assign(new Error('Wait for handover preparation to finish before closing the source tab. Native requests and interruption remain available.'), { status: 409 }); this.agents.delete(id); this.coordinator?.closed(id); this.changed(); }
   request(message) {
     const p = message.params || {};
     if (['execCommandApproval', 'applyPatchApproval'].includes(message.method) && typeof p.conversationId === 'string' && !p.threadId) p.threadId = p.conversationId;
