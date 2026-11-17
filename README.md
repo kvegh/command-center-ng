@@ -51,6 +51,9 @@ states are historical. EXIF metadata was removed without changing image pixels.
 
 - Open local Codex or Claude conversations, or start new agents in explicit project directories.
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
+- Create a versioned receiving chat from the Project overview after choosing
+  Codex or Claude, then explicitly import its assigned handover file in that
+  new chat. See [chat handovers](docs/usage.md#chat-handovers).
 - Chat, steer active work, interrupt a turn and answer supported native questions or approvals, including eligible current assistant-question cards.
   If native Codex explicitly rejects an outdated turn, refresh its current state
   and retry ordinary input once when safe; uncertain deliveries are not repeated.
@@ -388,6 +391,31 @@ stage the existing tests temporarily and link their server imports to it:
 The temporary files are removed on exit; the installation remains unchanged.
 Passing these tests does not establish a native client's current tool exposure
 or resolve a pending human decision. See the [source-reader limits](docs/usage.md#coordinator-approval-review).
+
+### Verify chat handover controls
+
+With the existing development dependencies, run:
+
+```sh
+node --test tests/chat-handover.test.mjs tests/chat-handover-http.test.mjs tests/handover-controls.test.mjs tests/handover-chat-name.test.mjs tests/workspace-store.test.mjs tests/claude-message-visibility.test.mjs
+```
+
+The functional HTTP tests use a disposable authenticated loopback CCNG instance,
+temporary project/skill files and synthetic native transports. They verify
+source requests, explicit agent selection, versioned waiting receivers, same-chat
+import, restored assignments, input protections and uncertain-delivery handling.
+User-message checks verify escaped HTML text remains visible without execution.
+They exit nonzero on failure and clean up test
+data; loopback-listener access is required. They do not ask a real model to
+write/read a handover or change a real chat. UI checks use the existing React
+and TypeScript tooling, without a new browser framework.
+
+After deployment, copy these tests into a temporary `tests/` directory with
+sibling `server/` and `src/` copied from the installation, its `package.json`,
+and runtime dependencies linked from the installation. Add the already installed
+development TypeScript tool for UI checks; do not install packages for this test.
+Run the same command there to check installed application components. This establishes the
+isolated API workflow, not actual model completion or browser interaction.
 
 ### Verify Claude branching
 

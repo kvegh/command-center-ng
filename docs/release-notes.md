@@ -9,6 +9,25 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.32.0 — Project overview handover controls
+
+Workers show Create handover and Import handover beneath the Project heading.
+Create asks Codex or Claude, starts a new waiting receiver and requests the source
+skill to write its exact assigned file. Source-name suffixes advance to v2/v3.
+The source remains available. In the receiving chat, Import defaults to that
+file and explicitly sends to the same chat; it never creates another chat or
+automatically imports. Only IDs and path use existing private workspace metadata.
+No extra store, artifact upload, approval transfer or automatic task mutation
+is added. Pending native questions and ownership gates remain authoritative;
+uncertain allocation/input is not retried and known created IDs remain visible.
+Publication, installed checks and model/browser verification are recorded
+separately rather than inferred from input acceptance.
+
+User-message rendering also preserves HTML/XML-looking text as safe escaped
+text instead of silently dropping HTML blocks. Raw HTML remains unexecuted;
+assistant rendering and native history are unchanged. Exact screenshot row
+identities and browser acceptance remain unverified.
+
 ## 1.31.0 — Claude branching
 
 Claude Branch chat and completed-reply Branch here use the installed official

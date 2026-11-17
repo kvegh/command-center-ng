@@ -140,6 +140,48 @@ updates its schedule and subsequent turn context. The older report-setting marke
 remains supported for compatibility, but is not currently queued. Base/shared
 instructions are injected as runtime context, not standalone chat messages.
 
+## Chat handovers
+
+The worker Project overview has **Create handover** and **Import handover**
+directly below the project heading.
+
+**Create handover** asks which agent should receive it, with no agent preselected,
+and offers the source project directory. Choose Codex or Claude. CCNG starts a
+fresh receiving chat and reserves a private temporary `handoff.md` path for it.
+The source worker is asked to use its installed `handoff` skill and write that
+exact file. Codex uses the user's `.agents/skills/handoff/SKILL.md`; Claude uses
+`.claude/skills/handoff/SKILL.md`. Install the skill through the existing
+environment setup first; CCNG does not install it. The source stays selected;
+**Open receiving chat** is an explicit navigation action. Closing the source
+tab preserves native history and does not stop its existing native work.
+
+The new chat inherits the source name with an advanced trailing version:
+`Project` becomes `Project v2`, and `Project v2` becomes `Project v3`. A bare
+number is part of the name: `Project 2` becomes `Project 2 v2`. The receiver
+starts by waiting; it must not read/import the file or continue project work
+until you press Import. Source request acceptance and path assignment do not
+prove the file was written; the source worker reports when it is ready.
+
+Switch to that receiving chat and press **Import handover**. Its assigned path
+is offered by default; confirm Import there. This sends to the same already
+started chat, without creating another chat or asking for the agent again.
+The worker reads the file using native tools and permissions, loads local
+instructions and reconciles current project/task/operation state. CCNG never
+reads, uploads or copies the artifact content. Only the receiving/source IDs and
+path are kept in existing private workspace metadata for open/restored receivers;
+no extra store is added. Temporary artifacts can be removed by the OS, so import
+promptly. If creation/startup/source delivery is unconfirmed, inspect the known
+chat IDs before retrying; CCNG never automatically repeats uncertain actions.
+
+The handover contains relevant goals, decisions, progress, test evidence, task
+and repository references, blockers and next steps. It is a working brief, not
+a lossless transcript or fresh approval. Original history/files/tasks remain
+in place; task labels, states and owners are not automatically copied or changed.
+Native permissions, credentials, pending callbacks and running agents/jobs are
+not transferred. Source chats retain monitoring responsibility until an explicit
+operational handoff is reconciled. Pauses, holds, deferred work and withdrawals
+remain intact. Creating/importing does not archive the source or clear drafts.
+
 ## Branch and return a summary
 
 **Branch here**, beside a completed Codex or Claude reply, copies history through that

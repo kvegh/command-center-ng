@@ -439,3 +439,82 @@ test('startup refresh combines fresh worker reports, restored intervals and coor
     assert.equal(f.workspace.snapshot().agents.find(agent => agent.id === 'one').progress.summary, 'Current release is published; deployment is being checked.');
   } finally { await f.close(); }
 });
+
+test('handover assignments save only selected worker metadata and keep legacy workspace shape', async () => {
+  const f = await fixture();
+  const assignment = { path: '/tmp/synthetic-handover/handoff.md', sourceId: 'original-chat' };
+  const saved = { ...record(['receiver']), workerHandoverImports: { receiver: assignment } };
+  try {
+    await f.store.save({ ...saved, handoverText: 'synthetic-content-must-not-save', approvals: ['synthetic-approval'] });
+    assert.deepEqual(await f.store.load(), saved);
+    const content = await readFile(f.store.file, 'utf8');
+    assert.equal(content.includes('synthetic-content-must-not-save'), false);
+    assert.equal(content.includes('synthetic-approval'), false);
+    assert.deepEqual(Object.keys(JSON.parse(content).workerHandoverImports.receiver).sort(), ['path', 'sourceId']);
+    assert.equal((await stat(f.store.file)).mode & 0o777, 0o600);
+    await f.store.save({ ...record(['receiver']), workerHandoverImports: {} });
+    assert.deepEqual(await f.store.load(), record(['receiver']), 'empty optional metadata does not alter legacy files');
+  } finally { await f.close(); }
+});
+
+test('handover assignments reject foreign workers, invalid paths and content-bearing records before writing', async () => {
+  const f = await fixture();
+  const assignment = { path: '/tmp/synthetic-handover/handoff.md', sourceId: 'original-chat' };
+  try {
+    await f.store.save(record(['receiver']));
+    const before = await readFile(f.store.file, 'utf8');
+    const invalid = [null, [], 'invalid', { absent: assignment }, { receiver: null }, { receiver: [] },
+      { receiver: { ...assignment, sourceId: '../outside' } },
+      { receiver: { ...assignment, sourceId: 'receiver' } },
+      { receiver: { ...assignment, sourceId: 'RECEIVER' } },
+      { receiver: { path: assignment.path } }, { receiver: { sourceId: assignment.sourceId } },
+      { receiver: { ...assignment, contents: 'not-metadata' } },
+      ...['relative/handoff.md', '/tmp/wrong.md', '/tmp/handoff.md\n', '/tmp/a\u0000/handoff.md', '/' + 'x'.repeat(1024) + '/handoff.md']
+        .map(path => ({ receiver: { ...assignment, path } }))];
+    for (const workerHandoverImports of invalid) {
+      assert.throws(() => f.store.save({ ...record(['receiver']), workerHandoverImports }), /handover assignments/);
+      assert.equal(await readFile(f.store.file, 'utf8'), before);
+    }
+  } finally { await f.close(); }
+});
+
+test('handover assignments are loaded before read-only restoration and retained for failed workers', async () => {
+  const f = await fixture();
+  const receiver = { path: '/tmp/synthetic-receiver/handoff.md', sourceId: 'original-chat' };
+  const missing = { path: '/tmp/synthetic-missing/handoff.md', sourceId: 'another-original' };
+  const saved = { ...record(['receiver', 'missing']), workerHandoverImports: { receiver, missing } };
+  await f.store.save(saved);
+  const rpc = new Rpc(f.dir); rpc.missing.add('missing');
+  const workspace = new Workspace(rpc, { beads: null });
+  const actualOpen = workspace.open.bind(workspace);
+  workspace.open = async (...args) => {
+    assert.deepEqual(workspace.handoverImports.get('receiver'), receiver);
+    assert.deepEqual(workspace.handoverImports.get('missing'), missing);
+    return actualOpen(...args);
+  };
+  const persistence = new WorkspacePersistence(workspace, f.store);
+  try {
+    await persistence.initialize(); await persistence.restore(); await persistence.flush();
+    assert.deepEqual(await f.store.load(), saved);
+    assert.deepEqual([...workspace.agents.keys()], ['receiver']);
+    assert.deepEqual(persistence.failedIds, ['missing']);
+    assert.ok(rpc.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)));
+    workspace.close('receiver'); await persistence.flush();
+    assert.deepEqual((await f.store.load()).workerHandoverImports, { missing });
+    await workspace.open('receiver', { observeOnly: true }); await persistence.flush();
+    assert.deepEqual((await f.store.load()).workerHandoverImports, { receiver, missing });
+    assert.ok(rpc.calls.every(call => ['thread/read', 'thread/turns/list'].includes(call.method)), 'restoring defaults never imports or starts a model');
+  } finally { await persistence.close(); await f.close(); }
+});
+
+test('invalid saved handover assignments remain untouched and prevent implicit replacement', async () => {
+  const f = await fixture();
+  const saved = { ...record(['receiver']), workerHandoverImports: { absent: { path: '/tmp/synthetic/handoff.md', sourceId: 'original-chat' } } };
+  try {
+    await f.store.save(record(['receiver']));
+    const invalid = JSON.stringify(saved) + '\n'; await writeFile(f.store.file, invalid, { mode: 0o600 });
+    await assert.rejects(f.store.load(), /handover assignments/);
+    await assert.rejects(f.store.save(record(['receiver'])), /handover assignments/);
+    assert.equal(await readFile(f.store.file, 'utf8'), invalid);
+  } finally { await f.close(); }
+});

@@ -429,6 +429,17 @@ force; starting enabled reports after restoration is explicitly authorized.
 
 ## Approved worker sidebar and branch-summary refinement
 
+The user approved Create handover / Import handover under the worker Project
+heading. Reuse the installed handoff skill and existing native input paths.
+Create explicitly asks Codex/Claude, starts a waiting receiver and requests the
+source artifact. Append v2 to the source name or increment its trailing vN.
+Import in that receiver defaults to its assigned file and uses that same chat.
+Keep the path/source ID in existing private workspace metadata and the artifact
+in its native temporary location, without another store, upload or backend file
+reader. Preserve source chat/history/tasks, drafts, pending native requests and
+operation ownership. Input acceptance does not prove model/file completion;
+never retry an uncertain creation or import automatically.
+
 The user approved per-worker report cadence in existing private workspace metadata,
 all current tasks with dependency-derived queued state, direct task answers and
 Markdown/GFM rendering with react-markdown and remark-gfm, raw HTML disabled.

@@ -181,6 +181,7 @@ a { color: var(--accent); }
 .branch-handoff { flex: 1 1 100%; min-width: 0; }
 .parent-link { display: flex; align-items: center; gap: 7px; min-width: 0; background: none; border: 0; padding: 4px 0; color: var(--violet); font-size: 11px; }
 .parent-link span { color: #7e91af; max-width: 240px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; margin-left: 5px; }
+.handover-controls > .button-row { flex-wrap: wrap; }
 .branch-button { color: var(--accent); background: #68d9fa0b; border-color: #68d9fa30; }
 .branch-button:hover { background: #68d9fa18; border-color: #68d9fa65; }
 

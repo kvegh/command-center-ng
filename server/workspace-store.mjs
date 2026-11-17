@@ -6,6 +6,7 @@ import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { REPORT_INTERVALS } from './worker-instructions.mjs';
 import { isClaudeId, MAX_CLAUDE_BRANCH_LINKS } from './claude.mjs';
+import { validateHandoverPath } from './chat-handover.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const MAX_WORKSPACE_BYTES = 65_536;
@@ -28,13 +29,30 @@ function claudeBranchParents(value) {
   }
   return Object.fromEntries(entries);
 }
+function workerHandoverImports(value, workerIds) {
+  if (value === undefined) return {};
+  const plainObject = item => item && typeof item === 'object' && !Array.isArray(item) && [Object.prototype, null].includes(Object.getPrototypeOf(item));
+  if (!plainObject(value)) throw new Error('Invalid saved workspace handover assignments.');
+  const assignments = [];
+  for (const [id, assignment] of Object.entries(value)) {
+    if (!workerIds.includes(id) || !plainObject(assignment) || Object.keys(assignment).length !== 2
+      || !Object.hasOwn(assignment, 'path') || !Object.hasOwn(assignment, 'sourceId')
+      || !validId(assignment.sourceId) || assignment.sourceId.toLowerCase() === id.toLowerCase()) throw new Error('Invalid saved workspace handover assignments.');
+    let path;
+    try { path = validateHandoverPath(assignment.path); }
+    catch { throw new Error('Invalid saved workspace handover assignments.'); }
+    assignments.push([id, { path, sourceId: assignment.sourceId }]);
+  }
+  return Object.fromEntries(assignments);
+}
 export function workspaceRecord(data) {
   if (!data || data.version !== 1 || !Array.isArray(data.workerIds) || data.workerIds.length > limits.maxWorkers || data.workerIds.some(id => !validId(id)) || new Set(data.workerIds).size !== data.workerIds.length || (data.coordinatorId !== null && !validId(data.coordinatorId)) || typeof data.coordinatorPaused !== 'boolean' || data.workerIds.includes(data.coordinatorId)) throw new Error('Invalid saved workspace. Move the private workspace file aside to start a fresh workspace.');
   const intervals = data.workerReportIntervals;
   if (intervals !== undefined && (!intervals || typeof intervals !== 'object' || Array.isArray(intervals) || Object.entries(intervals).some(([id, minutes]) => !data.workerIds.includes(id) || !REPORT_INTERVALS.includes(minutes)))) throw new Error('Invalid saved workspace report settings.');
   const enabled = Object.fromEntries(Object.entries(intervals || {}).filter(([, minutes]) => minutes));
   const parents = claudeBranchParents(data.claudeBranchParents);
-  return { version: 1, workerIds: [...data.workerIds], coordinatorId: data.coordinatorId, coordinatorPaused: data.coordinatorPaused, ...(Object.keys(enabled).length ? { workerReportIntervals: enabled } : {}), ...(Object.keys(parents).length ? { claudeBranchParents: parents } : {}) };
+  const handovers = workerHandoverImports(data.workerHandoverImports, data.workerIds);
+  return { version: 1, workerIds: [...data.workerIds], coordinatorId: data.coordinatorId, coordinatorPaused: data.coordinatorPaused, ...(Object.keys(enabled).length ? { workerReportIntervals: enabled } : {}), ...(Object.keys(parents).length ? { claudeBranchParents: parents } : {}), ...(Object.keys(handovers).length ? { workerHandoverImports: handovers } : {}) };
 }
 export class WorkspaceStore {
   constructor(file) {
@@ -99,6 +117,7 @@ export class WorkspacePersistence {
       // Load links before any saved worker opens. Closed ancestors stay available
       // without reading or resuming their native conversations.
       this.workspace.claudeBranchParents = new Map(Object.entries(this.saved.claudeBranchParents || {}));
+      this.workspace.handoverImports = new Map(Object.entries(this.saved.workerHandoverImports || {}));
     }
     catch (error) { this.fileError = true; this.workspace.restoration = { status: 'error', error: 'Workspace restoration is unavailable: ' + error.message, warnings: [] }; }
     this.loaded = true;
@@ -143,7 +162,10 @@ export class WorkspacePersistence {
     const workerIds = [...new Set([...workers, ...this.failedIds])].slice(0, limits.maxWorkers);
     const intervals = Object.fromEntries(workerIds.map(id => [id, this.workspace.agents.get(id)?.reportIntervalMinutes ?? this.saved.workerReportIntervals?.[id] ?? 0]).filter(([, minutes]) => minutes));
     const parents = Object.fromEntries(this.workspace.claudeBranchParents || []);
-    return { version: 1, workerIds, coordinatorId: this.workspace.coordinator?.id || null, coordinatorPaused: this.workspace.coordinator?.paused || false, ...(Object.keys(intervals).length ? { workerReportIntervals: intervals } : {}), ...(Object.keys(parents).length ? { claudeBranchParents: parents } : {}) };
+    const handovers = Object.fromEntries([...(this.workspace.handoverImports || [])]
+      .filter(([id]) => workerIds.includes(id))
+      .map(([id, assignment]) => [id, { path: assignment.path, sourceId: assignment.sourceId }]));
+    return { version: 1, workerIds, coordinatorId: this.workspace.coordinator?.id || null, coordinatorPaused: this.workspace.coordinator?.paused || false, ...(Object.keys(intervals).length ? { workerReportIntervals: intervals } : {}), ...(Object.keys(parents).length ? { claudeBranchParents: parents } : {}), ...(Object.keys(handovers).length ? { workerHandoverImports: handovers } : {}) };
   }
   async retry() {
     if (!this.fileError && (this.failedIds.length || (this.workspace.coordinator?.id && !this.workspace.agents.has(this.workspace.coordinator.id)))) { this.saved = this.record(); this.ready = false; }

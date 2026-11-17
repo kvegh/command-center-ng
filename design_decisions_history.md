@@ -1,5 +1,51 @@
 # Design decisions history
 
+## 2026-11-17, UTC — Reuse the handoff skill through Project overview controls
+
+The user requested Create handover / Import handover beneath the worker Project
+heading. After discussing what transfers, the user selected creating a fresh
+receiving chat and explicitly asking which agent should continue. The user's
+later clarification fixes the order: Create asks Codex/Claude and the project
+directory, starts a waiting receiver, and requests the source artifact. The
+source stays selected and available. Import in that receiver offers its exact
+assigned path and submits to the same chat, without another agent choice or
+another chat. This supersedes the unpublished draft in which Import created
+the receiver. Closing the source tab preserves native history and native work.
+
+The receiving name appends ` v2` when no trailing `vN` exists, or increments that
+number. Bare trailing numbers remain part of the descriptive name. The receiver
+loads its instructions and waits until the user explicitly imports the artifact.
+
+Reuse the existing installed `handoff` skill and native message/create paths.
+The backend reserves a private temporary directory and retains only the assigned
+path/source ID for open receivers in the existing private workspace metadata.
+The source worker's normal native tools write the artifact at that exact path.
+Import sends a quoted path and evidence/reconciliation instructions. The backend
+never reads, uploads or copies handover content, adds another store, installs
+skills, archives source chats or transfers approvals/task ownership. A reserved
+path or accepted request is not proof of actual artifact/model completion.
+
+Creation callbacks retain a known receiving-session identity if naming/opening
+or input fails. Unknown allocation remains unconfirmed; neither path retries
+or deletes the native conversation automatically. Existing authentication,
+origin, native question/ownership and worker-slot protections remain in force.
+API/UI tests use disposable data and synthetic native transports; actual model
+artifact creation/import and browser interaction require separate evidence.
+Implementation commit, verification and delivery are recorded when known.
+
+The first revised full regression on 2026-11-17, 09:26:29–09:27:39 UTC passed
+1,317 tests, failed one existing permission-reload synchronization test, and
+skipped one unavailable supplementary-group fixture. Fifty event-loop ticks
+did not prove asynchronous configuration reading had completed under load. The
+test now waits for actual fixture configuration entry with a bounded timeout;
+all eight focused checks passed. Production reload and permission handling were
+unchanged. The final revised run at 09:28:48.284370–09:30:00.267681 UTC passed
+1,318 tests, zero failures, and skipped only that unavailable supplementary-group
+fixture (primary-group preservation checked separately). TypeScript and the
+production build passed; the existing large-bundle advisory remains nonblocking.
+This includes isolated real HTTP routes with disposable authentication/native
+transports, not model-created artifacts or browser acceptance.
+
 ## 2026-11-17, 08:17 UTC — Verify installed Claude branching and parent restoration
 
 Implementation `c929b2972632087ca8d16fffc8fcdaad19f311d1` is public 1.31.0,

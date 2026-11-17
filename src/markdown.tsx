@@ -9,8 +9,10 @@ function codeText(children: React.ReactNode): string {
     : typeof child === 'string' || typeof child === 'number' ? String(child) : '').join('');
 }
 
-export function Markdown({ value }: { value: string }) {
-  return <div className="markdown prose"><ReactMarkdown skipHtml remarkPlugins={[remarkGfm]}
+export function Markdown({ value, preserveHtmlText = false }: { value: string; preserveHtmlText?: boolean }) {
+  // Without an HTML parser, react-markdown escapes raw tags as text. Preserve user
+  // pastes this way rather than dropping them; this never enables HTML execution.
+  return <div className="markdown prose"><ReactMarkdown skipHtml={!preserveHtmlText} remarkPlugins={[remarkGfm]}
     components={{
       pre: ({ node, children, ...props }) => <div className="markdown-code-block">
         <div className="markdown-code-actions"><CopyButton text={codeText(children)} label="Copy code" compact /></div>

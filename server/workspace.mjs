@@ -19,6 +19,7 @@ import { ClaudeSessions, isClaudeId, MAX_CLAUDE_BRANCH_LINKS } from './claude.mj
 import { readEnvironmentInstructions, environmentInstructionContext } from './environment-instructions.mjs';
 import { messageTime } from './message-time.mjs';
 import { validateImages, codexImages, imageReferences, readInlineImage } from './image-input.mjs';
+import { resolveHandoverSkill, reserveHandoverPath, nextHandoverChatName, handoverCreatePrompt, handoverWaitingPrompt, handoverImportPrompt } from './chat-handover.mjs';
 
 export const input = (text, images = []) => [...(text ? [{ type: 'text', text, text_elements: [] }] : []), ...images.map(image => ({ type: 'image', url: image.dataUrl }))];
 const requestKey = (threadId, requestId) => JSON.stringify([threadId, requestId]);
@@ -84,7 +85,7 @@ function itemTime(item, previous, live) {
 }
 
 export class Workspace extends EventEmitter {
-  constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, recoveryTimeout = 2000, beads = new BeadsTasks(), coordinator = false, claude = null, handoffOptions } = {}) {
+  constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, recoveryTimeout = 2000, beads = new BeadsTasks(), coordinator = false, claude = null, handoffOptions, handoverSkill = resolveHandoverSkill, handoverPath = reserveHandoverPath } = {}) {
     super(); this.rpc = rpc; this.agents = new Map(); this.pending = new Map(); this.requestEpoch = 0; this.opening = new Set(); this.watched = new Set(); this.creating = 0; this.error = null;
     // Browser refresh follows backend replacement, not native RPC reconnects.
     this.serverInstanceId = randomUUID();
@@ -97,6 +98,8 @@ export class Workspace extends EventEmitter {
     this.restoring = false; this.observedReads = new Map(); this.restoration = null;
     this.claude = claude === true ? new ClaudeSessions() : claude;
     this.claudeBranchParents = new Map();
+    this.handoverSkill = handoverSkill;
+    this.handoverPath = handoverPath; this.handoverImports = new Map();
     this.claude?.on('forked', (childId, parentId) => { this.claudeBranchParents.set(childId, parentId); this.changed(); });
     this.claude?.on('change', id => { this.changed(); if (this.agents.has(id)) void this.coordinator?.flush(id); });
     this.claude?.on('completed', id => { if (this.agents.has(id)) { this.coordinator?.completed(id); void this.refreshTasks(id); } });
@@ -252,6 +255,7 @@ export class Workspace extends EventEmitter {
       if (isClaudeId(id)) {
         if (!this.claude) throw Object.assign(new Error('Local Claude support is unavailable.'), { status: 503 });
         const agent = await this.claude.open(id); agent.parentId = this.claudeBranchParents.get(id) || agent.parentId || null;
+        agent.handoverImport = this.handoverImports.get(id);
         this.agents.set(id, agent); await this.refreshTasks(id); this.changed();
         if (this.coordinator && !this.restoring && this.rpc.ready) { void this.coordinator.ensure().catch(() => {}); this.coordinator.mark(id, 'Claude worker opened'); }
         return agent;
@@ -268,6 +272,7 @@ export class Workspace extends EventEmitter {
       const agent = { id, name: thread.name || 'Codex agent', goal: thread.name || thread.preview?.split('\n')[0] || 'No goal recorded', cwd: thread.cwd, model: thread.model || null, reasoningEffort: thread.reasoningEffort ?? null, thread, parentId: thread.forkedFromId || null, canSend: thread.canAcceptDirectInput !== false, messages: [], tasks: [], workers: [], questions: [], turnId: null, lastCompletedTurnId: null, olderCursor: null, activity: null, summary: null, reportIntervalMinutes: 0, reportError: null };
       this.admitPendingQuestions(agent, epoch);
       agent.role = role; agent.observingOnly = observeOnly; agent.instructionSources = instructionSources || [];
+      agent.handoverImport = this.handoverImports.get(id);
       this.agents.set(id, agent);
       try { await this.history(id); await this.refreshTasks(id); } catch (error) { this.agents.delete(id); throw error; }
       this.changed();
@@ -877,7 +882,52 @@ export class Workspace extends EventEmitter {
     try { agent.tracker = await this.beads.setLinks(agent.cwd, id, ids); this.changed(); return agent.tracker; }
     catch (error) { await this.refreshTasks(id); throw error; }
   }
-  async create({ goal, cwd, provider = 'codex' }) {
+  async createHandover(id, { provider, cwd } = {}) {
+    const agent = this.agent(id);
+    if (agent.role === 'coordinator') throw Object.assign(new Error('Choose a worker chat to create its handover.'), { status: 400 });
+    if (!['codex', 'claude'].includes(provider)) throw Object.assign(new Error('Choose Codex or Claude for the receiving chat.'), { status: 400 });
+    if (!this.readyFor({ provider })) throw Object.assign(new Error('The selected agent is unavailable. Reconnect it before creating the receiving chat.'), { status: 503 });
+    const checkSource = () => {
+      if (this.agents.get(id) !== agent) throw Object.assign(new Error('The source chat changed before the handover request was sent.'), { status: 409 });
+      if (!this.readyFor(agent) || !agent.canSend || this.restoring || agent.questions.length || statusOf(agent.thread) === 'attention'
+        || agent.handoff || this.handoffs.incoming(id) || this.summaryJobs.has(id) || this.returnJobs.has(id) || agent.returnSummary?.delivered) throw Object.assign(new Error('The source chat is unavailable or waiting for a request or handoff. Resolve it before creating a handover.'), { status: 409 });
+      assertAsyncQuestionsAllowControl(agent);
+    };
+    checkSource();
+    if (this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error('Close an agent tab before starting the receiving chat.'), { status: 409 });
+    const skillPath = await this.handoverSkill(agent.provider || 'codex');
+    checkSource();
+    const path = await this.handoverPath();
+    checkSource();
+    let createdId, creationAttempted = false, receiverStarted = false;
+    try {
+      await this.create({ goal: handoverWaitingPrompt(path, nextHandoverChatName(agent.name)), cwd: cwd ?? agent.cwd, provider }, {
+        onStarting: () => { creationAttempted = true; },
+        onCreated: targetId => {
+          createdId = targetId;
+          const assignment = { path, sourceId: id };
+          this.handoverImports.set(targetId, assignment);
+          const target = this.agents.get(targetId); if (target) target.handoverImport = assignment;
+          this.changed();
+        }
+      });
+      receiverStarted = true;
+      checkSource();
+      await this.send(id, handoverCreatePrompt(skillPath, path, createdId), { preserveAsyncQuestions: true });
+      return { id: createdId, path, accepted: true };
+    } catch (error) {
+      if (createdId) throw Object.assign(new Error(`Receiving chat ${createdId} was ${receiverStarted ? 'started, but the source handover request' : 'allocated, but its startup'} was not confirmed. Check both chats before trying again; no second chat was created automatically.`), { status: error.status || 502 });
+      if (creationAttempted) throw Object.assign(new Error('Receiving-chat creation was not confirmed. Check existing chats before trying again; no creation was automatically retried.'), { status: error.status || 502 });
+      throw error;
+    }
+  }
+  async importHandover(id, { path } = {}) {
+    const agent = this.agent(id), assignment = this.handoverImports.get(id);
+    if (agent.role === 'coordinator' || !assignment) throw Object.assign(new Error('Open the receiving chat created for a handover before importing it.'), { status: 400 });
+    await this.send(id, handoverImportPrompt(path ?? assignment.path), { preserveAsyncQuestions: true });
+    return { accepted: true };
+  }
+  async create({ goal, cwd, provider = 'codex' }, { onCreated, onStarting } = {}) {
     if (!['codex', 'claude'].includes(provider)) throw Object.assign(new Error('Choose Codex or Claude.'), { status: 400 });
     if (this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error(`All ${limits.maxWorkers} worker tabs are already open.`), { status: 409 });
     if (typeof goal !== 'string' || !goal.trim() || goal.length > 2000) throw Object.assign(new Error('Enter a goal of 1–2000 characters.'), { status: 400 });
@@ -907,12 +957,15 @@ export class Workspace extends EventEmitter {
       if (provider === 'claude') {
         if (!this.claude) throw Object.assign(new Error('Local Claude support is unavailable.'), { status: 503 });
         const agent = this.claude.create(cwd, goal.trim()); this.agents.set(agent.id, agent); this.creating--; reserved = false;
+        onCreated?.(agent.id);
         await this.refreshTasks(agent.id); await this.send(agent.id, goal.trim());
         if (this.coordinator && this.rpc.ready) { void this.coordinator.ensure().catch(() => {}); this.coordinator.mark(agent.id, 'Claude worker started'); }
         return agent.id;
       }
       // Do not override native model, permissions, instructions, or approval policy.
+      onStarting?.();
       const { thread } = await this.rpc.call('thread/start', { cwd });
+      onCreated?.(thread.id);
       await this.rpc.call('thread/name/set', { threadId: thread.id, name: goal.trim().split('\n')[0].slice(0, 120) });
       this.creating--; reserved = false;
       const agent = await this.open(thread.id); agent.goal = goal.trim().split('\n')[0]; agent.name = agent.goal;

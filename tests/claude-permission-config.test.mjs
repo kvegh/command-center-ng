@@ -12,7 +12,6 @@ import { Workspace } from '../server/workspace.mjs';
 
 const first = 'claude-11111111-2222-4333-8444-555555555555';
 const second = 'claude-66666666-7777-4888-8999-aaaaaaaaaaaa';
-const tick = () => new Promise(resolve => setImmediate(resolve));
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
 
 async function directoryFixture(t, { cleanup = true } = {}) {
@@ -27,11 +26,12 @@ async function appFixture(t, { initial = [first], restore = false } = {}) {
   const f = await directoryFixture(t, { cleanup: false }), authFile = join(f.directory, 'auth.json');
   await setPassword(randomBytes(24).toString('base64url'), authFile);
   await f.write('claude_auto_review_sessions: ' + (initial.join(',') || 'disabled') + '\n');
-  const events = [], behavior = { wait: null, error: null }, state = { applied: [] };
+  const events = [], behavior = { wait: null, entered: null, error: null }, state = { applied: [] };
   const claude = new EventEmitter(); claude.available = false;
   claude.initialize = async () => { events.push({ type: 'initialize' }); claude.available = true; };
   claude.configureAutoReviewSessions = async ids => {
     events.push({ type: 'configure', ids: [...ids] });
+    behavior.entered?.resolve();
     if (behavior.wait) await behavior.wait.promise;
     if (behavior.error) throw behavior.error;
     state.applied = [...ids]; return { configured: ids.length };
@@ -134,16 +134,19 @@ test('malformed reloads and native configuration errors preserve the last effect
   assert.equal(f.calls().length, 2); assert.deepEqual(f.state.applied, [first]); assert.deepEqual(f.app.settings.claudeAutoReviewSessions, [first]);
 });
 
-test('pending reloads and closed apps refuse new reloads instead of duplicating configuration writes', async t => {
+test('pending reloads and closed apps refuse new reloads instead of duplicating configuration writes', { timeout: 10_000 }, async t => {
   const f = await appFixture(t);
   await f.write('claude_auto_review_sessions: ' + second + '\n');
-  const gate = deferred(); f.behavior.wait = gate;
+  const gate = deferred(), entered = deferred(); f.behavior.wait = gate; f.behavior.entered = entered;
   const pending = f.app.reloadClaudePermissions();
-  for (let index = 0; index < 50 && f.calls().length < 2; index++) await tick();
-  assert.equal(f.calls().length, 2);
-  await assert.rejects(f.app.reloadClaudePermissions(), /reload.*pending/i);
-  assert.equal(f.calls().length, 2); assert.deepEqual(f.app.settings.claudeAutoReviewSessions, [first]);
-  gate.resolve(); await pending;
+  try {
+    // File I/O may need more event-loop turns under a parallel full-suite run.
+    // Observe configuration entry directly while the fixture holds it pending.
+    await Promise.race([entered.promise, pending]);
+    assert.equal(f.calls().length, 2);
+    await assert.rejects(f.app.reloadClaudePermissions(), /reload.*pending/i);
+    assert.equal(f.calls().length, 2); assert.deepEqual(f.app.settings.claudeAutoReviewSessions, [first]);
+  } finally { gate.resolve(); await pending; }
   assert.deepEqual(f.app.settings.claudeAutoReviewSessions, [second]);
   await f.app.close();
   await assert.rejects(f.app.reloadClaudePermissions(), /shutting down/);

@@ -316,12 +316,14 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           if (request.method === 'GET') return json(response, await workspace.taskCatalog(id));
           if (request.method === 'POST') return json(response, await workspace.linkTasks(id, (await body(request)).ids));
         }
-        const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|message-question-answer|interrupt|history|answer|review|requests|report-settings|report|fork|parent|summary|return|handoff)$/);
+        const match = path.match(/^\/api\/agents\/([^/]+)\/(open|close|message|message-question-answer|interrupt|history|answer|review|requests|report-settings|report|fork|parent|summary|return|handoff|handover-create|handover-import)$/);
         if (match && request.method === 'POST') {
           const [, encoded, action] = match; const id = decodeURIComponent(encoded); const data = await body(request, action === 'message' ? imageLimits.maxRequestBytes : 65_536);
           if (action === 'open') await workspace.open(id);
           if (action === 'close') workspace.close(id);
           if (action === 'message') await workspace.send(id, data.text, { images: data.images });
+          if (action === 'handover-create') return savedWorkspaceJson(response, await workspace.createHandover(id, data), 201);
+          if (action === 'handover-import') return json(response, await workspace.importHandover(id, data));
           if (action === 'message-question-answer') return json(response, await workspace.answerMessageQuestion(id, data));
           if (action === 'interrupt') await workspace.interrupt(id);
           if (action === 'history') await workspace.history(id, data.cursor);
