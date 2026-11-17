@@ -49,7 +49,8 @@ states are historical. EXIF metadata was removed without changing image pixels.
 
 ## What you can do
 
-Long-chat typing reuses unchanged Markdown and timestamp rendering. Live message,
+Ordinary draft edits reuse the existing rendered message list and unchanged
+Markdown/timestamp rendering. Live message,
 status and request updates still render normally. Verified Claude task notices
 appear as collapsed activity with readable headings and original details; genuine
 user XML remains user text. See [chat display and typing](docs/usage.md#chat-display-and-typing).
@@ -397,17 +398,19 @@ The temporary files are removed on exit; the installation remains unchanged.
 Passing these tests does not establish a native client's current tool exposure
 or resolve a pending human decision. See the [source-reader limits](docs/usage.md#coordinator-approval-review).
 
-### Verify Claude notification presentation
+### Verify notification presentation and history rendering
 
 With the existing development dependencies, run:
 
 ```sh
-node --test tests/claude-notifications.test.mjs tests/claude.test.mjs tests/activity-groups.test.mjs tests/claude-message-visibility.test.mjs tests/worker-ui.test.mjs tests/message-time-ui.test.mjs
+node --test tests/claude-notifications.test.mjs tests/claude.test.mjs tests/activity-groups.test.mjs tests/claude-message-visibility.test.mjs tests/worker-ui.test.mjs tests/message-time-ui.test.mjs tests/message-history-ui.test.mjs tests/native-message-question-ui.test.mjs tests/chat-draft.test.mjs tests/approval-focus.test.mjs tests/branch-handoff-ui.test.mjs tests/mobile-layout.test.mjs
 ```
 
 The checks cover trusted native provenance, one SDK history-read pipeline,
 normal history filtering, genuine user lookalikes, retained escaped details and
-existing Markdown/time behavior. They do not create a model turn, rewrite a
+existing Markdown/time behavior. History checks cover draft-independent inputs,
+current question/navigation routing and preserved focus/scroll behavior.
+They do not create a model turn, rewrite a
 transcript or measure browser typing latency. After deployment, run against
 installed modules in the same temporary harness described below. For a real
 history read, target an existing local session with known notification metadata

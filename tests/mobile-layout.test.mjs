@@ -237,11 +237,15 @@ test('empty native questions disappear only on mobile; pending and undelivered a
 test('mobile page scrolling preserves saved desktop chat positions across tab changes', () => {
   const restore = findNodes(node => ts.isCallExpression(node) && node.expression.getText(main) === 'useLayoutEffect'
     && node.arguments[0]?.getText(main).includes('node.scrollTop'))[0];
-  const choose = findNodes(node => ts.isVariableDeclaration(node) && node.name.getText(main) === 'choose')[0].initializer;
+  const chooseHook = findNodes(node => ts.isVariableDeclaration(node) && node.name.getText(main) === 'choose')[0].initializer;
+  const choose = ts.isCallExpression(chooseHook) ? chooseHook.arguments[0] : chooseHook;
   const history = findNodes(node => ts.isJsxOpeningElement(node) && node.attributes.properties.some(attribute =>
     ts.isJsxAttribute(attribute) && attribute.name.text === 'className' && attribute.initializer?.text === 'conversation'))[0];
   const onScroll = history.attributes.properties.find(attribute => ts.isJsxAttribute(attribute) && attribute.name.text === 'onScroll').initializer.expression;
-  const compile = (node, environment) => new Function(...Object.keys(environment), ts.transpile(`return (${node.getText(main)});`, { target: ts.ScriptTarget.ES2022 }))(...Object.values(environment));
+  const compile = (node, environment) => {
+    const scope = { ...environment, activeId: environment.active?.id };
+    return new Function(...Object.keys(scope), ts.transpile(`return (${node.getText(main)});`, { target: ts.ScriptTarget.ES2022 }))(...Object.values(scope));
+  };
   const positions = { current: { first: 240, second: 480 } }, bottom = { current: { first: false, second: false } };
   const node = { scrollTop: 0, scrollHeight: 1200, clientHeight: 600 };
   const desktopScrollNeedsRestore = { current: false };

@@ -9,6 +9,17 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.34.1 — Keep rendered history stable during ordinary typing
+
+Ordinary composer draft edits reuse the existing rendered message list, including
+its grouping, rather than rebuilding it per keystroke. Message data, branch/control
+availability and native question changes still update the list; approvals,
+recovery controls and composer updates remain live. This strengthens the 1.34.0
+Markdown/timestamp optimization without removing history or adding a framework.
+Version 1.34.0 was published as source but held from deployment while this
+additional user requirement was implemented. Actual typing acceptance remains
+separate from source and installed regression evidence.
+
 ## 1.34.0 — Readable Claude activity and cheaper long-chat typing
 
 Verified Claude task notices render as collapsed activity with readable headings

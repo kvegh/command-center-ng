@@ -142,8 +142,9 @@ instructions are injected as runtime context, not standalone chat messages.
 
 ## Chat display and typing
 
-Typing updates the composer immediately. Unchanged message Markdown and absolute
-message timestamps reuse their existing React rendering, including during
+Typing updates the composer immediately. Ordinary draft changes do not rebuild
+the existing message list. Unchanged message Markdown and absolute timestamps
+reuse their existing React rendering, including during
 unrelated workspace snapshots. New/streaming text, tool progress, requests,
 status/task changes and changed timestamp metadata still update normally. This
 avoids repeated parsing and formatting; it does not remove history or freeze the

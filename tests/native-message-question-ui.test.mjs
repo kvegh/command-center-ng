@@ -317,8 +317,8 @@ test('main binds only assistant metadata, outside the text guard, while retainin
     ts.forEachChild(node, visit);
   }; visit(ast);
   assert.equal(props.questions, 'message.nativeQuestions'); assert.equal(props.truncated, 'message.nativeQuestionsTruncated');
-  assert.equal(props.agentId, 'active.id'); assert.equal(props.messageId, 'message.id'); assert.equal(props.disabledReason, 'messageQuestionBlocked');
-  assert.equal(props.key, 'JSON.stringify([active.id, message.id])');
+  assert.equal(props.agentId, 'activeId'); assert.equal(props.messageId, 'message.id'); assert.equal(props.disabledReason, 'messageQuestionBlocked');
+  assert.equal(props.key, 'JSON.stringify([activeId, message.id])');
   assert.match(parent, /message.type === 'assistant' &&/);
   assert.doesNotMatch(parent, /message.text/);
   assert.match(main, /<MessageText message=\{message\} \/>\{message.type === 'assistant' && <NativeMessageQuestions/);
@@ -327,10 +327,13 @@ test('main binds only assistant metadata, outside the text guard, while retainin
   assert.match(main, /active.questions.map\(question => <NativeRequestCard/);
   const requests = [], response = { accepted: true, turnId: 'origin-turn' };
   const answerCode = ts.transpileModule(`return (${props.answer});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  const answer = new Function('active', 'message', 'api', answerCode)({ id: 'worker-a', provider: 'codex', role: 'worker' }, { id: 'native-message' }, async (...args) => { requests.push(args); return response; });
+  const bindAnswer = (active, message, api) => new Function('activeId', 'activeProvider', 'activeRole', 'message', 'api', answerCode)(active.id, active.provider, active.role, message, api);
+  const answer = bindAnswer({ id: 'worker-a', provider: 'codex', role: 'worker' }, { id: 'native-message' }, async (...args) => { requests.push(args); return response; });
   assert.equal(await answer(5, '  Exact text  '), response);
   assert.deepEqual(requests, [['agents/worker-a/message-question-answer', { messageId: 'native-message', questionIndex: 5, answer: '  Exact text  ' }]]);
-  for (const active of [{ provider: 'claude' }, { role: 'coordinator' }]) assert.equal(new Function('active', 'message', 'api', answerCode)(active, {}, () => assert.fail('Unsupported provider cannot send')), undefined);
+  for (const active of [{ provider: 'claude' }, { role: 'coordinator' }]) assert.equal(bindAnswer(active, {}, () => assert.fail('Unsupported provider cannot send')), undefined);
+  await bindAnswer({ id: 'worker-b', provider: 'codex', role: 'worker' }, { id: 'other-native-message' }, async (...args) => { requests.push(args); })(2, 'Other answer');
+  assert.deepEqual(requests[1], ['agents/worker-b/message-question-answer', { messageId: 'other-native-message', questionIndex: 2, answer: 'Other answer' }]);
   let blocked;
   const findBlocked = node => { if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'messageQuestionBlocked') blocked = node.initializer.getText(ast); ts.forEachChild(node, findBlocked); }; findBlocked(ast);
   const blockCode = ts.transpileModule(`return (${blocked});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;

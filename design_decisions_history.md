@@ -1,5 +1,29 @@
 # Design decisions history
 
+## 2026-11-17, 11:26 UTC — Exclude ordinary draft edits from history rendering
+
+After source 1.34.0 `c43c261f99adf199ae1d8370f738608512b53851` was published, the
+user explicitly required ordinary chat-input keystrokes to avoid rebuilding the
+existing conversation, beyond reducing individual message cost. Hold deployment
+and add a render boundary around the existing message list/grouping, with current
+data/control dependencies and stable navigation callbacks. Keep composer edits,
+streaming messages, approvals/questions, statuses, history loading and real UI
+actions responsive; do not introduce a global rendering ban or stale callbacks.
+This is a focused correction using existing React hooks, without virtualization,
+draft loss, new dependencies or a change to native controls. Working patch is
+1.34.1. Production remains 1.33.0 until safe update and verification; 1.34.0 is a
+source-only checkpoint. Actual typing behavior still requires browser acceptance.
+
+Final source verification ran at 11:34:44.305610–11:35:57.041293 UTC:
+1,364 tests passed, zero failures, one unavailable supplementary-group fixture
+skipped; TypeScript and the production build passed (390 ms build). The first
+patch regression run exposed an older mobile-scroll test harness expecting a
+plain callback initializer. Its extraction now follows the real useCallback
+wrapper while preserving the existing behavior assertions; all ten mobile
+checks and the subsequent full run passed. This was a test harness failure,
+not evidence of a deployed browser regression. Publication and installed
+verification are recorded separately once completed.
+
 ## 2026-11-17, UTC — Correct Claude notice identity and avoid unchanged render work
 
 The user requested a fix for native Claude completion XML labelled as You, then
