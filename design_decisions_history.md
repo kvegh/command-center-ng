@@ -1,5 +1,30 @@
 # Design decisions history
 
+## 2026-11-17, 14:39 UTC — Publish question history and visible Claude progress
+
+Implementation `5083e3c20596fbe907fb5e072b3cb82750f18a14` (1.38.0)
+was SSH-published and independently remote-readback verified at
+14:38:58.502541 UTC. It includes source-only1.37.0 question-history changes
+(`366a558bb733125ccfc613cebb36efb940be27ae`), plus current Claude tool
+requests/progress, truthful timing and exact queued/native-echo input receipts.
+Independent review's missing HTTP receipt link was fixed and regression-tested.
+
+Combined source regressions passed1,408/0fail/1unavailable supplementary-group
+skip. After the ES2022 helper compatibility correction, all66 affected SDK/HTTP/UI
+checks and TypeScript/production build passed at14:37:36.461397 UTC; build348ms.
+The tested functional diff fingerprint matched before publication. Existing
+request priority, typing/history boundaries, native permissions, local-only
+sessions and transient metadata ownership remain unchanged. No real model input,
+approval answer, worker interruption or new component/store was introduced.
+
+This release is NOT installed yet. The affected native history ends at an
+unanswered two-question decision tool, with the same process waiting. Restarting
+the SDK-owning backend would end that process and its live callbacks. Preserve
+those decisions and wait for a verified safe idle checkpoint before the existing
+authorized installation update. Installed version remains1.36.0. No installed or
+physical-browser acceptance is claimed for1.38.0. All own diagnostics, tests and
+subagents are terminal; deployment is conditional held work, not completion.
+
 
 ## 2026-11-17, 14:30 UTC — Make Claude tool waits and queued input explicit
 
