@@ -1,5 +1,20 @@
 # Design decisions history
 
+## 2026-11-17, 16:21 UTC — Preserve a new decision at the update checkpoint
+
+The earlier native question received its result at16:19:28 UTC and a later reply
+ended normally at16:19:53 UTC; the local process was verified idle. The prepared
+existing-app update was resumed within its existing authority. Its first guard
+refused at16:20:43 UTC, before Git fetch, installation, protected-file writes or
+service restart, because the process had returned to waiting.
+
+A bounded read-only reconciliation at16:21:49 UTC found a new native question
+at16:20:30 UTC with no recorded result. This was a real changed checkpoint, not
+proof of a stale approval or a reason to interrupt. Keep1.38.0 source published
+and delivery held until current decisions resolve and a fresh safe idle is
+verified. Installed/running version remains1.36.0. No request was answered,
+replayed or cancelled and no process/service/daemon was changed.
+
 ## 2026-11-17, 14:39 UTC — Publish question history and visible Claude progress
 
 Implementation `5083e3c20596fbe907fb5e072b3cb82750f18a14` (1.38.0)
