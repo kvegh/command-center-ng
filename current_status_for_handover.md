@@ -1,5 +1,33 @@
 # Current status for handover
 
+Verified checkpoint: 2026-11-17, 09:32 UTC. Beads remains the task source of truth.
+
+Current published and installed release is **1.32.0**, implementation
+`66c753b3c92dcc7e39c29e1552d62d3e88fa426d`. Project overview Create handover asks
+Codex/Claude, starts a waiting receiver named with the next vN, and asks the
+source to write its assigned private temporary file using the existing skill.
+The source stays available. Import in the receiver defaults to that exact file
+and uses the same chat. Assignment is saved for retained receivers in existing
+private workspace metadata; it does not establish file readiness. Permissions,
+live operations and task ownership are not transferred automatically.
+
+User messages containing HTML/XML-looking text now render as escaped literal
+text. The screenshot's exact rows remain unidentified; native history loss was
+not established and no history was rewritten.
+
+Source verification passed 1,318 tests with zero failures and one unavailable
+supplementary-group fixture skipped; TypeScript/build passed. The safe app
+update checked native Claude idle twice and preserved thirteen protected-file
+states, five workers, workspace/pause/report settings and native Codex identity.
+Installed verification matched 119 files and passed HTTPS/authentication/assets/
+listeners plus 101 relevant checks with zero failures/skips, including isolated
+HTTP workflows and restored file assignments. Actual browser interaction and
+model-written/imported handovers remain unverified. No real project conversation
+was created as an engineering test. Outcome documentation is newer than the
+installed functional payload. Previous holds and deferred features remain intact.
+
+### Previous 1.31.0 checkpoint
+
 Verified checkpoint: 2026-11-17, 08:17 UTC. This is a development handover snapshot.
 Beads remains the task source of truth; do not use this file as a second backlog.
 

@@ -1,5 +1,32 @@
 # Design decisions history
 
+## 2026-11-17, 09:32 UTC — Deliver versioned handovers and visible user markup
+
+Implementation `66c753b3c92dcc7e39c29e1552d62d3e88fa426d` is published 1.32.0,
+verified through SSH remote readback. Create asks which provider to use, starts
+the versioned waiting receiver and requests the exact assigned artifact from
+the source. Import in the receiver defaults to that file and uses the same chat.
+The source remains available and closing its CCNG tab preserves native history.
+User-only rendering preserves escaped literal HTML/XML text without execution;
+the screenshot's exact rows and any native input loss remain unconfirmed.
+
+The existing application update succeeded at 09:31:59.054530–09:32:21.680811 UTC.
+Native Claude idle was verified before installation and immediately before the
+app-service restart. Thirteen protected-file states, five saved workers, saved
+workspace/pause/report settings, native profiles and native Codex daemon identity
+were preserved. No real handover/chat, model request, native approval answer or
+permission change was manufactured for engineering acceptance.
+
+Installed verification succeeded at 09:32:35.718039–09:32:43.810466 UTC: all 119
+source files matched; trusted HTTPS, authentication boundaries, served assets
+and both existing listeners passed. All 101 checks across eight relevant suites
+passed against installed source/runtime dependencies, zero failures/skips,
+in 3.883 seconds. The HTTP checks run an isolated real application using
+disposable authentication and synthetic provider transports. Source regression
+passed 1,318 checks with one unavailable group fixture skipped; TypeScript/build
+passed. Actual browser interaction and model-written/imported artifacts remain
+unverified. This outcome documentation is newer than the installed payload.
+
 ## 2026-11-17, UTC — Reuse the handoff skill through Project overview controls
 
 The user requested Create handover / Import handover beneath the worker Project
