@@ -1,5 +1,33 @@
 # Current status for handover
 
+Verified checkpoint: 2026-11-17, 12:43 UTC. Beads remains authoritative.
+
+Source **1.35.0** `b5573ed16986d5f0a8cd0a81e6a4cac884fec15d` is published;
+the running installation remains **1.34.1**. The new source retains requested
+Auto/Manual mode intent for open Claude chats across managed resumes/restarts
+using existing private workspace metadata, with acknowledgement/disk-failure
+handling and read-only restoration. The Coordinator tab now includes exact
+capable Claude main concern reviews in Evaluating; Concerned retains its
+nine-second new-event pulse. Manual approvals and all original callbacks remain.
+
+Full source validation passed 1,373 tests, zero failures, one unavailable
+system-group fixture skipped; TypeScript/build passed. The exact requested
+receiver was separately configured for future Auto through the existing private
+selector; one native control acknowledged Auto without a process restart or
+approval answer. The last reported mode remains the earlier Default event;
+fresh actual mode readback is unverified. Private companion 0.4.12 is published
+and encrypted configuration/guard/six checks pass.
+
+Final native metadata at 12:43 UTC reports the receiver waiting for input, with
+the same app and Claude processes and durable exact-session selection. Current
+callback identity is unavailable from that read. Hold the 1.35.0 application
+restart and deployed verification until a fresh safe idle checkpoint; never
+answer or interrupt the request to install. Tasks gjeq and edm9 retain this
+specific resume condition. Existing typing acceptance rt9g and other holds stay
+unchanged. No new timer, dispatcher, model turn or permission grant was created.
+
+### Previous installed 1.34.1 checkpoint
+
 Verified checkpoint: 2026-11-17, 11:42 UTC. Beads remains the task source of truth.
 
 Published and installed release is **1.34.1**, implementation

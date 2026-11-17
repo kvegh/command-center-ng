@@ -1,5 +1,32 @@
 # Design decisions history
 
+## 2026-11-17, 12:43 UTC — Publish verified corrections; preserve the native input wait
+
+Implementation `b5573ed16986d5f0a8cd0a81e6a4cac884fec15d` is SSH-published
+as 1.35.0, with remote readback and a clean worktree verified at
+12:42:26.324904–12:42:36.521593 UTC. Source validation passed 1,373 tests with
+zero failures and one unavailable system-group fixture skipped; TypeScript/build
+passed. The six-suite mode/indicator command in README covers the native-control,
+HTTP, private-file restoration and current-capability contracts without real
+model or approval test calls.
+
+The requested exact receiver's live Auto control was acknowledged and its next
+managed-start selection is durable in existing configuration. Companion 0.4.12
+implementation `684886f7936dd05d313911c292dcd2a8d7f2fda4` and outcome
+`364e03f4a024246afe65e19600287f753b8e86bf` are published; encryption
+round-trip, ciphertext guard and six checks passed. The last reported native mode
+remained the older Default event, so fresh current-mode observation is unverified.
+
+A final read-only checkpoint at 12:43:04.732997–12:43:08.569910 UTC confirmed the
+same app/Claude processes, the receiver's Auto selector in a mode-600 file and a
+native input wait. It did not expose the exact current callback identity.
+Preserve that wait: do not restart the app, answer a request, replay a command or
+manufacture a model turn to deliver this release. Installed software remains
+1.34.1. Installation and deployed verification of 1.35.0 await a fresh native idle
+checkpoint; no approval for an extra scheduler or process interruption is implied.
+Real mode-resume events and browser indication remain unverified. Source completion
+and publication are distinct from these held deployment/acceptance steps.
+
 ## 2026-11-17, 12:32 UTC — Retain requested Claude modes and repair review indication
 
 The user explicitly requested enabling Auto in the current handover receiver and
