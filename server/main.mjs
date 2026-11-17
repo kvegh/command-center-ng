@@ -321,7 +321,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           const [, encoded, action] = match; const id = decodeURIComponent(encoded); const data = await body(request, action === 'message' ? imageLimits.maxRequestBytes : 65_536);
           if (action === 'open') await workspace.open(id);
           if (action === 'close') workspace.close(id);
-          if (action === 'message') await workspace.send(id, data.text, { images: data.images });
+          if (action === 'message') return json(response, { ok: true, ...await workspace.send(id, data.text, { images: data.images }) });
           if (action === 'handover-create') return savedWorkspaceJson(response, await workspace.createHandover(id, data), 202);
           if (action === 'message-question-answer') return json(response, await workspace.answerMessageQuestion(id, data));
           if (action === 'interrupt') await workspace.interrupt(id);

@@ -305,6 +305,32 @@ for question/answer retention, partial submissions, native removal, history refr
 and stale-send guards. These isolated tests use controlled native transport and
 rendered React output; real browser interaction remains separate acceptance.
 
+### Claude work and input status
+
+The composer keeps Claude's current work visible while ordinary actions are
+collapsed. A tool request shows Waiting on its tool name and optional description;
+it becomes Running only after a matching native progress event. Requested/First
+seen age is separate from the last reported run time and last tool-progress age.
+Missing progress or time stays explicitly unknown. Old evidence is marked Last
+known when the connection is unconfirmed; elapsed time never declares a stall.
+
+Sending first queues the input in CCNG's existing Claude stream. Queued for Claude
+remains until the exact source-owned message echoes back, when the status reads
+Received by Claude. This confirms a native receipt, not model processing or a
+completed task. A failed/uncertain send is not retried automatically. Input IDs
+and status use existing in-memory messages, without another transcript store.
+
+Current native questions/approvals take precedence over tool status. Reconnecting
+or refreshing the browser never sends a probe, answers a request or restarts a
+worker. Status ages reuse the existing status component's clock; they do not
+rebuild conversation Markdown on each tick or ordinary typing.
+
+Run `node --test tests/claude.test.mjs tests/chat-header.test.mjs tests/claude-permission-http.test.mjs tests/message-follow-up-ui.test.mjs tests/message-history-ui.test.mjs tests/chat-draft.test.mjs`
+for exact progress/input bindings, requested-versus-running display, unavailable
+and stale evidence, current-request precedence and isolated status rendering.
+The native transport is controlled in these tests; installed checks and natural
+post-update events provide separate deployment/runtime evidence.
+
 ### Coordinator approval review
 
 The Coordinator tab is twice the normal tab height, with its name in the upper

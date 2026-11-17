@@ -15,7 +15,7 @@ async function component(name) {
   return import('data:text/javascript;base64,' + Buffer.from(compiled.replace(/from ['"]react['"]/, `from '${pathToFileURL(require.resolve('react')).href}'`)).toString('base64'));
 }
 const { ChatHeader } = await component('chat-header');
-const { WorkerStatus, workerStatusView, sendWithReceipt, observeWorkspaceStream } = await component('worker-status');
+const { WorkerStatus, workerStatusView, sendWithReceipt, observeWorkspaceStream, inputReceiptLabel } = await component('worker-status');
 const now = Date.parse('2026-01-01T10:00:00Z');
 const live = { state: 'connected', lastSignalAt: now };
 const worker = values => ({ status: 'idle', questions: [], ...values });
@@ -259,4 +259,61 @@ test('status renders receipt and connection words with update age outside the li
   assert.match(html, /Input received/); assert.match(html, /Working/); assert.match(html, />Connected</);
   assert.match(html, /class="worker-status-age" aria-live="off"/);
   assert.doesNotMatch(html, /stuck|setInterval|<button/);
+});
+
+test('Claude tools expose elapsed evidence and distinguish requested work from actual progress', () => {
+  const tool = { id: 'tool:query', turnId: 'current', state: 'inProgress', nativeTool: {
+    name: 'Bash', description: 'Query package dependencies', requestedAt: new Date(now - 610_000).toISOString(), requestedAtSource: 'native', lastProgressAt: new Date(now - 2000).toISOString(), elapsedSeconds: 600
+  } };
+  const active = worker({ provider: 'claude', status: 'running', turnId: 'current', messages: [tool] });
+  const view = workerStatusView(active, live, true, now);
+  assert.equal(view.activity, 'Running Bash'); assert.equal(view.connection, 'CCNG connected');
+  assert.match(view.details, /Query package dependencies/);
+  assert.match(view.details, /Requested 10m 10s ago/);
+  assert.match(view.details, /Last tool progress 2s ago/);
+  assert.match(view.details, /Reported run time 10m 0s/);
+  const noProgress = { ...tool, nativeTool: { name: 'Bash' } };
+  const waiting = workerStatusView({ ...active, messages: [noProgress] }, live, true, now);
+  assert.equal(waiting.activity, 'Waiting on Bash');
+  assert.match(waiting.details, /start time unknown/); assert.match(waiting.details, /execution progress not yet confirmed/);
+  const seen = workerStatusView({ ...active, messages: [{ ...noProgress, nativeTool: { name: 'Bash', requestedAt: new Date(now - 5000).toISOString(), requestedAtSource: 'received' } }] }, live, true, now);
+  assert.match(seen.details, /First seen 5s ago/); assert.doesNotMatch(seen.details, /Requested|Reported run time/);
+  const disconnected = workerStatusView(active, { state: 'reconnecting', lastSignalAt: null }, true, now);
+  assert.equal(disconnected.activity, 'Last known: Running Bash'); assert.equal(disconnected.working, false); assert.match(disconnected.details, /Last known tool/);
+  for (const change of [{ questions: [{}] }, { status: 'idle' }, { turnId: 'another' }, { messages: [{ ...tool, state: 'completed' }] }]) {
+    const stopped = workerStatusView({ ...active, ...change }, live, true, now);
+    assert.equal(stopped.details, null); assert.doesNotMatch(stopped.activity, /Running Bash/);
+  }
+  assert.doesNotMatch(JSON.stringify(view), /stalled|stuck|unresponsive/);
+});
+
+test('Claude input is queued until the exact source-owned message echo is confirmed', async () => {
+  const receipts = [];
+  assert.equal(await sendWithReceipt('claude-worker', async () => ({ accepted: true, queued: true, messageId: 'queued-input' }), (_id, value) => receipts.push(value), () => now), true);
+  assert.deepEqual(receipts, [{ state: 'sending', at: now }, { state: 'queued', at: now, messageId: 'queued-input' }]);
+  const receipt = receipts[1], active = worker({ provider: 'claude', messages: [{ id: 'queued-input:0', nativeMessageId: 'queued-input', inputState: 'queued' }] });
+  assert.equal(inputReceiptLabel(active, receipt), 'Queued for Claude');
+  active.messages.push({ id: 'other:0', nativeMessageId: 'other', inputState: 'received' });
+  assert.equal(inputReceiptLabel(active, receipt), 'Queued for Claude', 'another native message cannot acknowledge this input');
+  active.messages[0].inputState = 'received';
+  assert.equal(inputReceiptLabel(active, receipt), 'Received by Claude');
+  assert.equal(inputReceiptLabel(active, { state: 'unconfirmed', at: now }), 'Input not confirmed');
+  assert.equal(inputReceiptLabel(active, { state: 'sending', at: now }), 'Sending…');
+  assert.equal(inputReceiptLabel(active, undefined), 'Received by Claude', 'browser refresh can read an existing source-owned receipt without another send');
+  assert.equal(inputReceiptLabel(worker({ provider: 'claude', messages: [] }), undefined), null, 'missing receipt history stays unknown');
+});
+
+test('Claude work status is mounted in the composer and its clock cannot rebuild App history', async () => {
+  const main = await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(main, /active\.provider !== 'claude' && <WorkerStatus/);
+  assert.match(main, /<ChatHeader[^\n]+<WorkerStatus/);
+  const status = await readFile(new URL('../src/worker-status.tsx', import.meta.url), 'utf8');
+  assert.match(status, /setInterval\(\(\) => setNow\(Date\.now\(\)\), 1000\)/);
+  assert.doesNotMatch(status, /fetch\(|new EventSource|\/api\/|interrupt\(/);
+  const html = renderToStaticMarkup(React.createElement(WorkerStatus, {
+    worker: worker({ provider: 'claude', status: 'running', turnId: 'current', messages: [{ id: 'tool', turnId: 'current', state: 'inProgress', nativeTool: { name: 'Bash', description: '<script>literal work</script>' } }] }),
+    stream: { state: 'connected', lastSignalAt: Date.now() }, runtimeConnected: true
+  }));
+  assert.match(html, /Waiting on Bash/); assert.match(html, /&lt;script&gt;literal work&lt;\/script&gt;/);
+  assert.match(html, /worker-status-detail" aria-live="off"/); assert.doesNotMatch(html, /<script>|<button/);
 });

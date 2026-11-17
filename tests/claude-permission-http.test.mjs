@@ -95,6 +95,38 @@ test('Claude permission routes require the existing login and same-origin checks
   assert.equal(f.agents[0].permissionMode, 'default');
 });
 
+test('authenticated Claude message responses retain the exact queued receipt until its native echo arrives', async t => {
+  const f = await fixture(t), selected = f.agents[0];
+  const path = '/api/agents/' + encodeURIComponent(selected.id) + '/message';
+  const body = { text: 'Continue the existing package inspection.' };
+  const job = f.runtime.runs.get(selected.id), before = selected.messages.length, queuedBefore = job.inputs.values.length;
+  const unauthenticated = await f.request(path, body);
+  assert.equal(unauthenticated.statusCode, 403); assert.equal(unauthenticated.json().code, 'authentication_required');
+  const foreign = await f.authenticated(path, body, { origin: 'https://unrelated.example' });
+  assert.equal(foreign.statusCode, 403); assert.match(foreign.json().error, /origin/i);
+  assert.equal(selected.messages.length, before); assert.equal(job.inputs.values.length, queuedBefore, 'authentication and origin checks happen before queuing input');
+
+  const response = await f.authenticated(path, body);
+  assert.equal(response.statusCode, 200);
+  const receipt = response.json();
+  assert.equal(receipt.ok, true); assert.equal(receipt.turnId, selected.turnId);
+  assert.equal(typeof receipt.messageId, 'string'); assert.ok(receipt.messageId);
+  const record = () => f.workspace.snapshot().agents.find(agent => agent.id === selected.id).messages.find(message => message.nativeMessageId === receipt.messageId);
+  const native = job.inputs.values.find(input => input.uuid === receipt.messageId);
+  assert.ok(native, 'HTTP returns the UUID actually handed to this native input stream');
+  assert.equal(native.message.content, body.text); assert.equal(native.session_id, selected.nativeSessionId); assert.equal(native.isSynthetic, undefined);
+  assert.equal(record().id, receipt.messageId + ':0'); assert.equal(record().inputState, 'queued');
+  assert.equal(job.inputs.values.length, queuedBefore + 1);
+  const query = f.queries.get(selected.nativeSessionId);
+  query.push({ ...native, uuid: 'unrelated-native-echo' }); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(record().inputState, 'queued', 'an unrelated native message cannot confirm this receipt');
+  query.push(native);
+  for (let n = 0; n < 30 && record().inputState !== 'received'; n++) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(record().inputState, 'received');
+  assert.equal(selected.messages.filter(message => message.nativeMessageId === receipt.messageId).length, 1, 'matching echoes reconcile the same optimistic row');
+  assert.deepEqual(f.controls, []); assert.equal(f.queries.size, 2, 'ordinary message delivery changes no permissions and starts no extra process');
+});
+
 test('authenticated permission changes reach only the selected live Claude process and preserve pending approvals', async t => {
   const f = await fixture(t), [selected, other] = f.agents;
   const selectedAnswer = f.runtime.permission(selected, 'Bash', { command: 'synthetic-selected' }, { toolUseID: 'selected-tool' });

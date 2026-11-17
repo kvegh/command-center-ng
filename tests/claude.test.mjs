@@ -144,6 +144,102 @@ test('Claude synthetic user echoes retain tool-result reconciliation', () => {
   assert.equal(agent.messages[0].state, 'completed'); assert.match(agent.messages[0].text, /Project documentation/);
 });
 
+test('Claude input stays queued until its exact ordinary native echo arrives', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId), receipt = await f.runtime.send(agent, 'Continue the existing review.');
+    const query = f.queries[0], nativeInput = (await query.params.prompt.next()).value;
+    const queued = () => agent.messages.find(message => message.nativeMessageId === receipt.messageId);
+    assert.equal(receipt.messageId, nativeInput.uuid); assert.equal(queued().inputState, 'queued');
+    assert.equal(agent.lastNativeEventAt, undefined, 'local stream insertion is not native progress');
+    const timestamp = queued().timestamp;
+    query.push({ ...nativeInput, isSynthetic: true }); await tick();
+    assert.equal(queued().inputState, 'queued', 'synthetic input does not acknowledge an ordinary input');
+    query.push({ ...nativeInput, session_id: undefined }); await tick();
+    assert.equal(queued().inputState, 'queued', 'an unbound echo cannot acknowledge this session');
+    query.push({ ...nativeInput, uuid: 'different-user-message' }); await tick();
+    assert.equal(queued().inputState, 'queued', 'a different native user message is not this receipt');
+    assert.equal(agent.messages.find(message => message.nativeMessageId === 'different-user-message').inputState, undefined);
+    query.push(nativeInput); await until(() => queued().inputState === 'received');
+    assert.equal(queued().timestamp, timestamp); assert.equal(queued().text, 'Continue the existing review.');
+    assert.equal(Number.isFinite(Date.parse(agent.lastNativeEventAt)), true);
+    assert.equal(agent.messages.filter(message => message.nativeMessageId === receipt.messageId).length, 1);
+    assert.deepEqual(f.controls, []);
+  } finally { await f.close(); }
+});
+
+test('Claude failed input-stream insertion leaves its exact optimistic input unconfirmed', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId); await f.runtime.send(agent, 'Initial queued input.');
+    const job = f.runtime.runs.get(workerId); job.inputs.close();
+    await assert.rejects(f.runtime.send(agent, 'The next input.'), /input stream has ended/);
+    assert.equal(agent.messages.at(-1).text, 'The next input.'); assert.equal(agent.messages.at(-1).inputState, 'unconfirmed');
+    assert.equal(agent.messages[0].inputState, 'queued'); assert.equal(agent.lastNativeEventAt, undefined);
+    assert.equal(f.queries.length, 1, 'a failed push must not start another process or resend');
+  } finally { await f.close(); }
+});
+
+test('Claude tool progress updates exact requested activity immutably without claiming execution from a request', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId); await f.runtime.send(agent, 'Inspect package metadata.');
+    const query = f.queries[0];
+    const request = { type: 'assistant', uuid: 'requested-tool', session_id: nativeId, timestamp: '2026-11-17T14:20:00Z', message: { content: [{ type: 'tool_use', id: 'package-query', name: 'Bash', input: { command: 'inspect-package-metadata', description: 'Read package dependencies.' } }] } };
+    query.push(request); await until(() => agent.messages.some(message => message.id === 'tool:package-query'));
+    const requested = agent.messages.find(message => message.id === 'tool:package-query');
+    assert.deepEqual(requested.nativeTool, { name: 'Bash', description: 'Read package dependencies.', requestedAt: '2026-11-17T14:20:00.000Z', requestedAtSource: 'native' });
+    assert.equal(requested.nativeTool.lastProgressAt, undefined); assert.equal(requested.nativeTool.elapsedSeconds, undefined);
+    const raw = requested.text, count = agent.messages.length;
+    query.push({ type: 'tool_progress', session_id: nativeId, tool_use_id: 'unknown', tool_name: 'Bash', elapsed_time_seconds: 99 }); await tick();
+    query.push({ type: 'tool_progress', session_id: nativeId, tool_use_id: 'package-query', tool_name: 'DifferentTool', elapsed_time_seconds: 99 }); await tick();
+    query.push({ type: 'tool_progress', tool_use_id: 'package-query', tool_name: 'Bash', elapsed_time_seconds: 99 }); await tick();
+    assert.equal(agent.messages.length, count); assert.equal(agent.messages.find(message => message.id === requested.id), requested);
+    query.push({ type: 'tool_progress', session_id: nativeId, tool_use_id: 'package-query', tool_name: 'Bash', elapsed_time_seconds: 17.5 });
+    await until(() => agent.messages.find(message => message.id === requested.id)?.nativeTool.elapsedSeconds === 17.5);
+    const progress = agent.messages.find(message => message.id === requested.id);
+    assert.notEqual(progress, requested); assert.notEqual(progress.nativeTool, requested.nativeTool);
+    assert.equal(requested.nativeTool.lastProgressAt, undefined, 'a prior React snapshot is not mutated');
+    assert.equal(progress.text, raw); assert.equal(progress.nativeTool.requestedAt, requested.nativeTool.requestedAt);
+    assert.equal(Number.isFinite(Date.parse(progress.nativeTool.lastProgressAt)), true);
+    for (const elapsed of [NaN, Infinity, -1, '18']) {
+      query.push({ type: 'tool_progress', session_id: nativeId, tool_use_id: 'package-query', tool_name: 'Bash', elapsed_time_seconds: elapsed }); await tick();
+      assert.equal(agent.messages.find(message => message.id === requested.id).nativeTool.elapsedSeconds, 17.5);
+    }
+    query.push(request); await tick();
+    assert.equal(agent.messages.find(message => message.id === requested.id).nativeTool.elapsedSeconds, 17.5, 'a duplicate request does not erase observed progress');
+    query.push({ type: 'user', uuid: 'completed-query', session_id: nativeId, message: { content: [{ type: 'tool_result', tool_use_id: 'package-query', content: 'Dependency read completed.' }] } });
+    await until(() => agent.messages.find(message => message.id === requested.id)?.state === 'completed');
+    const completed = agent.messages.find(message => message.id === requested.id);
+    assert.equal(completed.nativeTool.elapsedSeconds, 17.5); assert.match(completed.text, /Dependency read completed/);
+    const beforeLateProgress = completed;
+    query.push({ type: 'tool_progress', session_id: nativeId, tool_use_id: 'package-query', tool_name: 'Bash', elapsed_time_seconds: 999 }); await tick();
+    assert.equal(agent.messages.find(message => message.id === requested.id), beforeLateProgress, 'late progress cannot reactivate a completed tool');
+  } finally { await f.close(); }
+});
+
+test('Claude history has only recorded tool timing and ordinary reads do not fabricate live activity', async () => {
+  const history = [{ type: 'assistant', uuid: 'old-tool', message: { content: [{ type: 'tool_use', id: 'old-read', name: 'Read', input: { description: 'd'.repeat(700) } }] } }];
+  const f = await fixture({ history });
+  try {
+    const agent = await f.runtime.open(workerId);
+    assert.equal(agent.messages[0].nativeTool.description.length, 500);
+    assert.equal(agent.messages[0].nativeTool.requestedAt, undefined); assert.equal(agent.messages[0].nativeTool.lastProgressAt, undefined);
+    assert.equal(agent.lastNativeEventAt, undefined); assert.equal(f.queries.length, 0);
+    await f.runtime.send(agent, 'Continue.'); const query = f.queries[0];
+    agent.lastNativeEventAt = '2026-11-17T10:00:00.000Z';
+    query.push({ type: 'system', subtype: 'status', permissionMode: 'default' }); await tick();
+    assert.equal(agent.lastNativeEventAt, '2026-11-17T10:00:00.000Z', 'unbound events are not exact-session evidence');
+    query.push({ type: 'system', subtype: 'status', session_id: nativeId, permissionMode: 'default' }); await tick();
+    assert.notEqual(agent.lastNativeEventAt, '2026-11-17T10:00:00.000Z');
+    const last = agent.lastNativeEventAt;
+    query.push({ type: 'tool_progress', session_id: '66666666-7777-4888-8999-aaaaaaaaaaaa', tool_use_id: 'old-read', tool_name: 'Read', elapsed_time_seconds: 5 });
+    await until(() => !f.runtime.runs.has(workerId));
+    assert.equal(agent.lastNativeEventAt, last); assert.equal(agent.messages.find(message => message.id === 'tool:old-read').nativeTool.elapsedSeconds, undefined);
+    assert.match(agent.runError, /different session identity/);
+  } finally { await f.close(); }
+});
+
 test('Claude emits completed assistant output for report bookkeeping before its long-running turn ends', async () => {
   const f = await fixture(), completed = [];
   f.runtime.on('assistantMessageCompleted', (id, message) => completed.push({ id, message }));
@@ -526,7 +622,7 @@ test('new Claude chats default to native Auto and return the exact input turn re
     const query = f.queries[0], options = query.params.options;
     assert.equal(options.permissionMode, 'auto');
     assert.equal(options.sessionId, agent.nativeSessionId); assert.equal(options.resume, undefined);
-    assert.deepEqual(receipt, { turnId: agent.turnId });
+    assert.deepEqual(receipt, { turnId: agent.turnId, messageId: agent.messages[0].nativeMessageId });
     assert.ok(receipt.turnId);
     assert.equal(agent.permissionMode, null, 'requested startup mode is not native confirmation');
     for (const key of ['allowedTools', 'allowDangerouslySkipPermissions', 'settings', 'model']) assert.equal(Object.hasOwn(options, key), false, key);

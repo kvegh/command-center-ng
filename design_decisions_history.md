@@ -1,5 +1,53 @@
 # Design decisions history
 
+
+## 2026-11-17, 14:30 UTC — Make Claude tool waits and queued input explicit
+
+After reporting a nonresponsive chat, the user explicitly required a clear view
+of ongoing work. Bounded read-only inspection found real package queries; a tool
+call requested ten minutes and later returned, then Claude issued more commands.
+A generic busy label was insufficient. Version 1.38.0 reuses native SDK events,
+existing message metadata and the existing composer status/clock. No additional
+service, transport, store, model input or automatic recovery is introduced.
+
+A tool request remains Waiting on until matching same-session/tool progress
+arrives. Show its bounded description, native-request/first-seen age, progress age
+and reported elapsed seconds separately. Unknown, stale and disconnected evidence
+cannot become a stall diagnosis. Exact request controls take precedence. Ordinary
+input is queued until its own native UUID echo is observed; HTTP queue acceptance
+and native receipt do not establish model processing. The status clock remains in
+its existing child component and does not redraw the conversation per tick.
+
+This is an incremental visibility correction within the existing architecture.
+The alternative of status-only model probes or another monitoring service adds
+unnecessary work and authority; no such addition was selected. Source-only 1.37.0
+question-history corrections are included. Verification/publication/deployment
+and the implementation commit are recorded after actual outcomes. The separate
+legacy blocking Codex history gap remains unverified and unchanged.
+
+Combined regression at 14:33:56.944859–14:35:21.958263 UTC passed 1,408
+tests with zero failures and one unavailable supplementary-group fixture skipped.
+The subsequent TypeScript build rejected a newer array helper outside the existing
+ES2022 library. Retaining the target and using supported filter/at fixed that
+compatibility issue; no compiler/dependency relaxation was used. Final affected
+HTTP/SDK/UI checks at 14:37:22.599987–14:37:36.461397 UTC passed all 66 tests
+without skips, and TypeScript/production build passed (348 ms build). A payload
+fingerprint freezes the source tested before publication.
+
+Independent review found the HTTP route initially discarded the native receipt
+ID; the corrected route preserves the existing ok response and exact send IDs.
+An authenticated HTTP regression proves unrelated echoes cannot acknowledge that
+input. A prior full run failed in an old follow-up UI harness missing its new API
+bindings; the updated test still verifies history preservation and unrelated
+drafts for both providers. No real model prompt or approval answer was generated.
+
+Read-only native evidence at 14:37 UTC showed a two-question native decision tool
+with no result recorded and the same managed process waiting. The application
+has not been restarted or installed over that pending decision. Publication may
+proceed; deployment awaits a verified safe checkpoint. Physical browser and future
+natural progress/receipt events remain separate acceptance evidence.
+
+
 ## 2026-11-17, 14:13 UTC — Retain answered questions
 
 The user reported that decision cards and their answers disappear on submission.
@@ -24,7 +72,11 @@ using original question strings and exact matching native result text. Existing
 native history reconstructs this view; arbitrary tool output is never classified
 as human authority. Legacy blocking Codex persistence remains unverified and
 unchanged. Verification, publication and installed outcomes follow
-when available; implementation commit is pending.
+when available. Implementation `366a558bb733125ccfc613cebb36efb940be27ae`
+(1.37.0) was SSH-published and independently remote-readback verified at
+14:19:12.531801 UTC, with a clean worktree. It was not installed separately
+because the affected Claude worker was executing real tool work; the subsequent
+user-requested activity correction is included in 1.38.0.
 
 Final combined source verification completed at 14:17:49.948520 UTC: 1,400
 tests passed with zero failures and one unavailable supplementary-group fixture

@@ -602,6 +602,19 @@ request delivery or an evidenced native outcome; unresolved waits stay explicit.
 This Codex-specific work does not authorize another provider's implementation.
 
 
+## Approved Claude activity transparency
+
+The user requires visible ongoing work so a long tool wait does not appear stalled.
+Reuse SDK events, existing messages and the composer status. Tool calls establish
+requests; only matching native progress establishes execution. Distinguish native
+request timestamps from first receipt, reported runtime from progress age, and
+backend/browser connection from actual worker activity. Missing evidence stays
+unknown, never an inferred stall or reason to interrupt/resend. Exact source-owned
+input echoes establish receipt; CCNG input-stream acceptance only establishes
+queuing. Neither confirms model processing. Keep native questions first, activity
+and receipt state transient, the status clock isolated from conversation rendering,
+and all existing permissions, local-only boundaries and pause/stop controls.
+
 ## Approved worker controls and layout
 
 Keep a compact header inside the composer, directly above the chat input and

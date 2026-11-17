@@ -9,6 +9,16 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.38.0 — Make long Claude tool waits visible
+
+The composer now shows Claude tool requests, descriptions and confirmed native
+progress, with separate request age, last progress and reported run time. Missing
+or disconnected evidence stays unknown/last known. Exact native input echoes
+separate CCNG queuing from Claude receipt, without claiming model processing.
+Pending requests retain priority; no status-only model input, new timer/store,
+permission change or automatic interruption is added. Source-only 1.37.0 question
+history corrections are included; installation is verified separately.
+
 ## 1.37.0 — Keep answered questions visible
 
 Completed Claude AskUserQuestion exchanges remain visible in the main conversation

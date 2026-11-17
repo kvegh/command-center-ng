@@ -53,21 +53,24 @@ test('ordinary user text and image captions regain exact Copy this controls with
 });
 
 test('follow-up corrections append through the normal message route and preserve prior conversation and other drafts', async () => {
+  for (const provider of ['codex', 'claude']) {
   const history = [{ id: 'original-user', type: 'user', text: 'Original instruction' }, { id: 'reply', type: 'assistant', text: 'Original response' }];
   const before = structuredClone(history), requests = [];
   const correction = 'Correction to my earlier input: use the selected test scope.';
   let drafts = { worker: correction, other: 'Keep the other conversation draft' }, images = { worker: [], other: [{ id: 'keep-image' }] };
   let busy = '', receipts = {};
   const send = evaluate(`return (${sendExpression});`, {
-    active: { id: 'worker' }, readyToSend: true, draftText: correction, draftImages: [], sendWithReceipt, clearSubmittedDraft, removeImageDrafts,
-    act: async (path, data) => { requests.push({ path, data }); return true; },
+    active: { id: 'worker', provider }, readyToSend: true, draftText: correction, draftImages: [], sendWithReceipt, clearSubmittedDraft, removeImageDrafts,
+    api: async (path, data) => { requests.push({ path, data }); return { ok: true, messageId: 'native-followup' }; },
+    setError: value => { assert.equal(value, ''); },
     setBusy: value => { busy = value; }, setDrafts: update => { drafts = update(drafts); },
     updateImages: update => { images = update(images); }, setReceipts: update => { receipts = update(receipts); }
   });
   await send();
   assert.deepEqual(requests, [{ path: 'agents/worker/message', data: { text: correction, images: [] } }]);
   assert.deepEqual(history, before); assert.equal(drafts.worker, ''); assert.equal(drafts.other, 'Keep the other conversation draft');
-  assert.deepEqual(images.other, [{ id: 'keep-image' }]); assert.equal(receipts.worker.state, 'received'); assert.equal(busy, '');
+  assert.deepEqual(images.other, [{ id: 'keep-image' }]); assert.equal(receipts.worker.state, provider === 'claude' ? 'queued' : 'received'); assert.equal(receipts.worker.messageId, 'native-followup'); assert.equal(busy, '');
+  }
 });
 
 test('correction drafts remain editable while native questions block sending', () => {

@@ -77,24 +77,32 @@ export function addClaudeMessage(agent, message, turnId = message.uuid || 'histo
   // Tool results still reconcile normally and assistant reports stay visible.
   const syntheticInput = message.type === 'user' && message.isSynthetic === true;
   const content = blocks(message.message); let images = [];
+  const ownInput = live && !syntheticInput && message.type === 'user' && message.session_id === agent.nativeSessionId
+    && agent.messages.find(item => item.type === 'user' && item.nativeMessageId === message.uuid && ['queued', 'unconfirmed'].includes(item.inputState));
+  const inputReceipt = ownInput ? { inputState: 'received' } : {};
   // Persisted terminal replies have a native cutoff. Live replies wait for the
   // successful result/idle pair in finishTurn, including background activity.
   const completedReply = !live && message.type === 'assistant' && ['end_turn', 'stop_sequence'].includes(message.message?.stop_reason);
   if (message.type === 'user' && !syntheticInput) for (const block of content) if (block.type === 'image' && block.source?.type === 'base64') {
     try { images = validateImages([...images, readInlineImage('data:' + block.source.media_type + ';base64,' + block.source.data)]); } catch { /* Unsupported or oversized native images stay unavailable; never fetch alternatives. */ }
   }
-  if (images.length) put(agent, { id: id + ':0', nativeMessageId: id, turnId, type: 'user', text: bounded(content.filter(block => block.type === 'text').map(block => block.text || '').join('\n')), images, state: 'completed', ...time });
+  if (images.length) put(agent, { id: id + ':0', nativeMessageId: id, turnId, type: 'user', text: bounded(content.filter(block => block.type === 'text').map(block => block.text || '').join('\n')), images, state: 'completed', ...time, ...inputReceipt });
   for (const [index, block] of content.entries()) {
     if (block.type === 'text' && block.text && !images.length && !syntheticInput) {
       const notification = claudeTaskNotification(message, agent.nativeSessionId, block.text);
-      put(agent, { id: id + ':' + index, nativeMessageId: id, turnId, type: notification ? 'activity' : message.type === 'assistant' ? 'assistant' : 'user', text: bounded(block.text), state: 'completed', ...notification, ...(message.type === 'assistant' ? { nativeStopReason: message.message?.stop_reason ?? null } : {}), ...(completedReply ? { branchable: true } : {}), ...time });
+      put(agent, { id: id + ':' + index, nativeMessageId: id, turnId, type: notification ? 'activity' : message.type === 'assistant' ? 'assistant' : 'user', text: bounded(block.text), state: 'completed', ...notification, ...(message.type === 'assistant' ? { nativeStopReason: message.message?.stop_reason ?? null } : {}), ...(completedReply ? { branchable: true } : {}), ...time, ...inputReceipt });
     }
     if (block.type === 'tool_use') {
       // Question tools belong in readable history after their live card closes;
       // they remain native activity, never fabricated human input or authority.
       const transcript = message.type === 'assistant' && block.name === 'AskUserQuestion' && typeof block.id === 'string' && block.id
         ? questionTranscript(block.input) : null;
-      put(agent, { id: 'tool:' + block.id, turnId, type: 'activity', text: bounded(block.name + '\n' + JSON.stringify(block.input, null, 2)), state: 'inProgress', ...(transcript ? { nativeQuestionTranscript: transcript } : {}) });
+      const priorTool = agent.messages.find(item => item.id === 'tool:' + block.id)?.nativeTool;
+      const sameTool = priorTool?.name === block.name ? priorTool : undefined;
+      const requestedAt = nativeTime || sameTool?.requestedAt || (live ? new Date().toISOString() : undefined);
+      const nativeTool = message.type === 'assistant' && typeof block.id === 'string' && block.id && typeof block.name === 'string' && block.name
+        ? { ...sameTool, name: block.name.slice(0, 180), ...(typeof block.input?.description === 'string' ? { description: block.input.description.slice(0, 500) } : {}), ...(requestedAt ? { requestedAt, requestedAtSource: nativeTime ? 'native' : sameTool?.requestedAtSource || 'received' } : {}) } : null;
+      put(agent, { id: 'tool:' + block.id, turnId, type: 'activity', text: bounded(block.name + '\n' + JSON.stringify(block.input, null, 2)), state: 'inProgress', ...(transcript ? { nativeQuestionTranscript: transcript } : {}), ...(nativeTool ? { nativeTool } : {}), ...time });
     }
     if (block.type === 'tool_result') {
       const item = agent.messages.find(item => item.id === 'tool:' + block.tool_use_id);
@@ -239,16 +247,24 @@ export class ClaudeSessions extends EventEmitter {
     if (!agent.turnId) { job.turnId = messageId; agent.turnId = messageId; agent.thread.status = { type: 'active' }; }
     const timestamp = new Date().toISOString();
     const syntheticInput = report === true || reportSetting === true;
-    if (!syntheticInput) put(agent, { id: messageId + ':0', nativeMessageId: messageId, turnId: job.turnId, type: 'user', text, ...(images.length ? { images } : {}), state: 'completed', timestamp, timestampSource: 'received' });
+    if (!syntheticInput) put(agent, { id: messageId + ':0', nativeMessageId: messageId, turnId: job.turnId, type: 'user', text, ...(images.length ? { images } : {}), state: 'completed', timestamp, timestampSource: 'received', inputState: 'queued' });
     const content = images.length ? [...images.map(image => ({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.dataUrl.slice(image.dataUrl.indexOf(',') + 1) } })), ...(text ? [{ type: 'text', text }] : [])] : text;
-    job.inputs.push({ type: 'user', session_id: agent.nativeSessionId, uuid: messageId, timestamp, parent_tool_use_id: null, ...(syntheticInput ? { isSynthetic: true } : {}), ...(priority ? { priority } : {}), message: { role: 'user', content } });
+    try {
+      job.inputs.push({ type: 'user', session_id: agent.nativeSessionId, uuid: messageId, timestamp, parent_tool_use_id: null, ...(syntheticInput ? { isSynthetic: true } : {}), ...(priority ? { priority } : {}), message: { role: 'user', content } });
+    } catch (error) {
+      const queued = agent.messages.find(item => item.nativeMessageId === messageId && item.inputState === 'queued');
+      if (queued) put(agent, { ...queued, inputState: 'unconfirmed' });
+      this.changed(agent); throw error;
+    }
     this.changed(agent);
-    return { turnId: job.turnId };
+    return { turnId: job.turnId, messageId };
   }
   async consume(agent, job) {
     try { for await (const message of job.query) {
       if (this.runs.get(agent.id) !== job) break;
       if (message.session_id && message.session_id !== agent.nativeSessionId) throw new Error('Claude returned a different session identity; this run was stopped.');
+      const receivedAt = new Date().toISOString();
+      if (message.session_id === agent.nativeSessionId) agent.lastNativeEventAt = receivedAt;
       if (message.type === 'system' && ['init', 'status'].includes(message.subtype) && permissionModes.has(message.permissionMode)) agent.permissionMode = message.permissionMode;
       if (message.type === 'system' && message.subtype === 'init') { if (!agent.sdkModelOverride) agent.model = message.model || agent.model; agent.newSession = false; }
       if (message.type === 'stream_event') {
@@ -266,7 +282,16 @@ export class ClaudeSessions extends EventEmitter {
         if (message.type === 'assistant') this.emit('assistantMessageCompleted', agent.id, { id: stream?.id || message.uuid + ':0', turnId: job.turnId, type: 'assistant', state: 'completed', text: blocks(message.message).filter(block => block.type === 'text').map(block => block.text || '').join('\n') });
         for (const block of blocks(message.message)) if (block.type === 'tool_result') this.confirm(agent, block.tool_use_id);
       }
-      if (message.type === 'tool_progress' && message.tool_use_id) this.confirm(agent, message.tool_use_id);
+      if (message.type === 'tool_progress' && message.tool_use_id) {
+        const item = message.session_id === agent.nativeSessionId && agent.messages.find(item => item.id === 'tool:' + message.tool_use_id && item.nativeTool && item.state === 'inProgress');
+        if (item && (message.tool_name === undefined || message.tool_name === item.nativeTool.name)) {
+          // A requested tool is not execution evidence. Only matching native
+          // progress supplies a running update; receipt time is labelled as such.
+          const elapsed = message.elapsed_time_seconds;
+          put(agent, { ...item, nativeTool: { ...item.nativeTool, lastProgressAt: receivedAt, ...(typeof elapsed === 'number' && Number.isFinite(elapsed) && elapsed >= 0 ? { elapsedSeconds: elapsed } : {}) } });
+        }
+        this.confirm(agent, message.tool_use_id);
+      }
       if (message.type === 'system' && message.subtype === 'permission_denied') put(agent, { id: message.uuid, turnId: job.turnId, type: 'activity', text: bounded(message.message || message.decision_reason || 'Claude denied a tool call.'), state: 'failed' });
       if (message.type === 'system' && message.subtype === 'session_state_changed') {
         job.nativeStateSeen = true;

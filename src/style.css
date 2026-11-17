@@ -215,6 +215,7 @@ a { color: var(--accent); }
 .worker-status-state.attention { color: var(--amber); }
 .worker-status-connection { color: var(--amber); }
 .worker-status-connection.connected { color: var(--muted); }
+.worker-status-detail { flex-basis: 100%; overflow-wrap: anywhere; }
 @keyframes worker-status-pulse { 50% { opacity: .35; } }
 @media (max-width: 600px) {
   .chat-header { grid-template-columns: minmax(0, 1fr); }
