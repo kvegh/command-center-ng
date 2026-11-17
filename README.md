@@ -53,7 +53,8 @@ Ordinary draft edits reuse the existing rendered message list and unchanged
 Markdown/timestamp rendering. Live message,
 status and request updates still render normally. Verified Claude task notices
 appear as collapsed activity with readable headings and original details; genuine
-user XML remains user text. See [chat display and typing](docs/usage.md#chat-display-and-typing).
+user XML remains user text. Forwarded Claude subagent messages carry a native-source
+label so their progress is distinguishable from the parent agent. See [chat display and typing](docs/usage.md#chat-display-and-typing).
 
 - Open local Codex or Claude conversations, or start new agents in explicit project directories.
 - Keep up to sixteen workers plus a separate coordinator in one workspace.

@@ -9,7 +9,7 @@ import { formContent } from './native-requests.mjs';
 import { validateModelChoice } from './worker-models.mjs';
 import { messageTime } from './message-time.mjs';
 import { readInlineImage, validateImages } from './image-input.mjs';
-import { readClaudeMessages, claudeTaskNotification } from './claude-notifications.mjs';
+import { readClaudeMessages, claudeTaskNotification, claudeSubagentBinding, claudeSubagentName } from './claude-notifications.mjs';
 
 const run = promisify(execFile);
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
@@ -22,6 +22,38 @@ export const CLAUDE_ELICITATION = 'claude/mcp/elicitation/request';
 export const isClaudeId = id => typeof id === 'string' && id.startsWith('claude-') && uuid.test(id.slice(7));
 export const MAX_CLAUDE_BRANCH_LINKS = 256;
 const sessionId = id => { if (!isClaudeId(id)) throw fail('Choose a valid local Claude session.', 400); return id.slice(7); };
+const subagentNames = new WeakMap();
+
+function rememberSubagents(agent, message) {
+  if (!agent.nativeSessionId || message.session_id !== agent.nativeSessionId) return;
+  let names = subagentNames.get(agent);
+  if (!names) { names = new Map(); subagentNames.set(agent, names); }
+  const remember = (id, name, priority) => {
+    if (typeof id !== 'string' || !id || id.length > 512 || !name || (names.get(id)?.priority || 0) > priority) return;
+    if (names.get(id)?.name === name && names.get(id)?.priority === priority) return;
+    names.set(id, { name, priority });
+    if (names.size > 600) names.delete(names.keys().next().value);
+    agent.messages = agent.messages.map(item => item.subagent?.id === id
+      ? { ...item, subagent: { id, name }, ...(item.type === 'activity' ? { activityTitle: 'Message from subagent ' + name } : {}) } : item);
+  };
+  if (message.type === 'assistant') for (const block of blocks(message.message)) {
+    if (block.type !== 'tool_use' || !['Agent', 'Task'].includes(block.name)) continue;
+    const input = block.input;
+    const name = claudeSubagentName(input?.name), description = claudeSubagentName(input?.description);
+    remember(block.id, name || description || claudeSubagentName(input?.subagent_type), name ? 3 : description ? 2 : 1);
+  }
+  if (message.type === 'system' && ['task_started', 'task_progress'].includes(message.subtype)) {
+    const description = claudeSubagentName(message.description);
+    remember(message.tool_use_id, description || claudeSubagentName(message.subagent_type), description ? 2 : 1);
+  }
+}
+
+function subagentOf(agent, message) {
+  const binding = claudeSubagentBinding(message, agent.nativeSessionId);
+  if (!binding) return null;
+  const name = subagentNames.get(agent)?.get(binding.id)?.name || binding.name;
+  return { id: binding.id, ...(name ? { name } : {}) };
+}
 
 class Inputs {
   values = []; waiting = null; ended = false;
@@ -69,6 +101,9 @@ function questionTranscript(input) {
 }
 
 export function addClaudeMessage(agent, message, turnId = message.uuid || 'history', timing = {}, { live = false } = {}) {
+  rememberSubagents(agent, message);
+  const subagent = ['assistant', 'user'].includes(message.type) ? subagentOf(agent, message) : null;
+  const parentAssistant = message.type === 'assistant' && message.parent_tool_use_id == null;
   const id = message.uuid || randomUUID();
   const nativeTime = messageTime(message.timestamp);
   const time = nativeTime ? { timestamp: nativeTime, timestampSource: 'native' } : timing;
@@ -77,20 +112,23 @@ export function addClaudeMessage(agent, message, turnId = message.uuid || 'histo
   // Tool results still reconcile normally and assistant reports stay visible.
   const syntheticInput = message.type === 'user' && message.isSynthetic === true;
   const content = blocks(message.message); let images = [];
-  const ownInput = live && !syntheticInput && message.type === 'user' && message.session_id === agent.nativeSessionId
+  const ownInput = live && !syntheticInput && message.type === 'user' && message.parent_tool_use_id == null && message.session_id === agent.nativeSessionId
     && agent.messages.find(item => item.type === 'user' && item.nativeMessageId === message.uuid && ['queued', 'unconfirmed'].includes(item.inputState));
   const inputReceipt = ownInput ? { inputState: 'received' } : {};
   // Persisted terminal replies have a native cutoff. Live replies wait for the
   // successful result/idle pair in finishTurn, including background activity.
-  const completedReply = !live && message.type === 'assistant' && ['end_turn', 'stop_sequence'].includes(message.message?.stop_reason);
+  const completedReply = !live && parentAssistant && ['end_turn', 'stop_sequence'].includes(message.message?.stop_reason);
   if (message.type === 'user' && !syntheticInput) for (const block of content) if (block.type === 'image' && block.source?.type === 'base64') {
     try { images = validateImages([...images, readInlineImage('data:' + block.source.media_type + ';base64,' + block.source.data)]); } catch { /* Unsupported or oversized native images stay unavailable; never fetch alternatives. */ }
   }
-  if (images.length) put(agent, { id: id + ':0', nativeMessageId: id, turnId, type: 'user', text: bounded(content.filter(block => block.type === 'text').map(block => block.text || '').join('\n')), images, state: 'completed', ...time, ...inputReceipt });
+  // A forwarded subagent user-role block is input inside the child transcript,
+  // not a new instruction from the human in the parent conversation.
+  const childInput = message.type === 'user' && subagent;
+  if (images.length) put(agent, { id: id + ':0', nativeMessageId: id, turnId, type: childInput ? 'activity' : 'user', text: bounded(content.filter(block => block.type === 'text').map(block => block.text || '').join('\n')), images, state: 'completed', ...(subagent ? { subagent } : {}), ...(childInput ? { activityTitle: 'Message from subagent ' + (subagent.name || subagent.id) } : {}), ...time, ...inputReceipt });
   for (const [index, block] of content.entries()) {
     if (block.type === 'text' && block.text && !images.length && !syntheticInput) {
       const notification = claudeTaskNotification(message, agent.nativeSessionId, block.text);
-      put(agent, { id: id + ':' + index, nativeMessageId: id, turnId, type: notification ? 'activity' : message.type === 'assistant' ? 'assistant' : 'user', text: bounded(block.text), state: 'completed', ...notification, ...(message.type === 'assistant' ? { nativeStopReason: message.message?.stop_reason ?? null } : {}), ...(completedReply ? { branchable: true } : {}), ...time, ...inputReceipt });
+      put(agent, { id: id + ':' + index, nativeMessageId: id, turnId, type: notification || childInput ? 'activity' : message.type === 'assistant' ? 'assistant' : 'user', text: bounded(block.text), state: 'completed', ...notification, ...(childInput ? { activityTitle: 'Message from subagent ' + (subagent.name || subagent.id) } : {}), ...(subagent ? { subagent } : {}), ...(message.type === 'assistant' ? { nativeStopReason: message.message?.stop_reason ?? null, ...(!parentAssistant ? { branchable: false } : {}) } : {}), ...(completedReply ? { branchable: true } : {}), ...time, ...inputReceipt });
     }
     if (block.type === 'tool_use') {
       // Question tools belong in readable history after their live card closes;
@@ -110,7 +148,7 @@ export function addClaudeMessage(agent, message, turnId = message.uuid || 'histo
       put(agent, { id: 'tool:' + block.tool_use_id, turnId: item?.turnId || turnId, type: 'activity', text: bounded((item?.text || 'Claude tool result') + '\n\n' + output), state: block.is_error ? 'failed' : 'completed', ...(item?.nativeQuestionTranscript ? { nativeQuestionTranscript: { ...item.nativeQuestionTranscript, result: bounded(output) } } : {}) });
     }
   }
-  if (message.type === 'assistant' && typeof message.message?.model === 'string') { agent.currentTurnModel = message.message.model; if (!agent.sdkModelOverride) agent.model = message.message.model; }
+  if (parentAssistant && typeof message.message?.model === 'string') { agent.currentTurnModel = message.message.model; if (!agent.sdkModelOverride) agent.model = message.message.model; }
 }
 
 /** Local native session files and SDK-owned processes; no remote transport/store. */
@@ -188,7 +226,10 @@ export class ClaudeSessions extends EventEmitter {
     if (historyChanged) {
       const messages = await readClaudeMessages(this.sdk, agent.nativeSessionId, { dir: agent.cwd, includeSystemMessages: true });
       const previous = new Map(agent.messages.map(message => [message.id, message]));
-      agent.messages = []; for (const message of messages.slice(-600)) addClaudeMessage(agent, message);
+      agent.messages = []; subagentNames.delete(agent);
+      // A spawning Agent call may precede the visible history window.
+      for (const message of messages) rememberSubagents(agent, message);
+      for (const message of messages.slice(-600)) addClaudeMessage(agent, message);
       for (const message of agent.messages) if (!message.timestamp && previous.get(message.id)?.timestamp) {
         const before = previous.get(message.id); message.timestamp = before.timestamp; message.timestampSource = before.timestampSource;
       }
@@ -208,7 +249,7 @@ export class ClaudeSessions extends EventEmitter {
       if (this.stopped) throw fail('Command Center is shutting down; no Claude process was started.', 503);
       if (!stillOpen()) throw fail('The worker was closed before starting its Claude process.');
       const inputs = new Inputs(), abortController = new AbortController();
-      const job = { inputs, abortController, turnId: null, result: null, nativeStateSeen: false, streamId: null, streamText: '' };
+      const job = { inputs, abortController, turnId: null, result: null, nativeStateSeen: false, streams: new Map() };
       this.runs.set(agent.id, job); agent.externalSession = false; agent.canSend = true; agent.observingOnly = false; agent.managementNotice = null;
       agent.permissionMode = null; agent.permissionChange = null; agent.permissionSettingsAvailable = false;
       try {
@@ -265,21 +306,36 @@ export class ClaudeSessions extends EventEmitter {
       if (message.session_id && message.session_id !== agent.nativeSessionId) throw new Error('Claude returned a different session identity; this run was stopped.');
       const receivedAt = new Date().toISOString();
       if (message.session_id === agent.nativeSessionId) agent.lastNativeEventAt = receivedAt;
+      rememberSubagents(agent, message);
+      const parentMessage = message.parent_tool_use_id == null;
+      const subagent = subagentOf(agent, message);
+      // Native parent tool IDs separate interleaved streams; child text must
+      // never consume the parent's stream or advance parent report bookkeeping.
+      const streamKey = parentMessage ? null : message.parent_tool_use_id;
+      const thinkingId = 'thinking:' + job.turnId + (parentMessage ? '' : ':subagent:' + streamKey);
       if (message.type === 'system' && ['init', 'status'].includes(message.subtype) && permissionModes.has(message.permissionMode)) agent.permissionMode = message.permissionMode;
       if (message.type === 'system' && message.subtype === 'init') { if (!agent.sdkModelOverride) agent.model = message.model || agent.model; agent.newSession = false; }
       if (message.type === 'stream_event') {
         const event = message.event;
-        if (event?.type === 'message_start') { if (!agent.turnId) { job.turnId = message.uuid || randomUUID(); agent.turnId = job.turnId; agent.thread.status = { type: 'active' }; } job.streamId = 'stream-' + event.message.id; job.streamText = ''; job.streamTimestamp = new Date().toISOString(); agent.model = event.message.model || agent.model; }
-        if (event?.type === 'content_block_start' && event.content_block?.type === 'thinking') put(agent, { id: 'thinking:' + job.turnId, turnId: job.turnId, type: 'activity', text: 'Claude is thinking…', state: 'inProgress' });
-        if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta') { job.streamText += event.delta.text; job.streamTimestamp ||= new Date().toISOString(); put(agent, { id: job.streamId || 'stream-' + job.turnId, turnId: job.turnId, type: 'assistant', text: bounded(job.streamText), state: 'inProgress', timestamp: job.streamTimestamp, timestampSource: 'received' }); }
+        if (event?.type === 'message_start') {
+          if (parentMessage && !agent.turnId) { job.turnId = message.uuid || randomUUID(); agent.turnId = job.turnId; agent.thread.status = { type: 'active' }; }
+          job.streams.set(streamKey, { id: 'stream-' + (parentMessage ? '' : 'subagent:' + streamKey + ':') + event.message.id, text: '', timestamp: receivedAt });
+          if (parentMessage) agent.model = event.message.model || agent.model;
+        }
+        if (event?.type === 'content_block_start' && event.content_block?.type === 'thinking') put(agent, { id: thinkingId, turnId: job.turnId, type: 'activity', text: 'Claude is thinking…', state: 'inProgress' });
+        if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+          const stream = job.streams.get(streamKey) || { id: 'stream-' + (parentMessage ? '' : 'subagent:' + streamKey + ':') + job.turnId, text: '', timestamp: receivedAt };
+          stream.text = bounded(stream.text + event.delta.text); job.streams.set(streamKey, stream);
+          put(agent, { id: stream.id, turnId: job.turnId, type: 'assistant', text: stream.text, state: 'inProgress', ...(subagent ? { subagent } : {}), timestamp: stream.timestamp, timestampSource: 'received' });
+        }
       }
       if (['assistant', 'user'].includes(message.type)) {
-        const streamedId = job.streamId || 'stream-' + job.turnId;
-        const stream = message.type === 'assistant' ? agent.messages.find(item => item.id === streamedId) : null;
+        const streamedId = job.streams.get(streamKey)?.id;
+        const stream = message.type === 'assistant' && streamedId ? agent.messages.find(item => item.id === streamedId) : null;
         const timing = { timestamp: stream?.timestamp || new Date().toISOString(), timestampSource: stream?.timestampSource || 'received' };
-        if (message.type === 'assistant') { agent.messages = agent.messages.filter(item => item.id !== streamedId); const thinking = agent.messages.find(item => item.id === 'thinking:' + job.turnId); if (thinking) thinking.state = 'completed'; job.streamId = null; job.streamTimestamp = null; job.streamText = ''; }
+        if (message.type === 'assistant') { agent.messages = agent.messages.filter(item => item.id !== streamedId); const thinking = agent.messages.find(item => item.id === thinkingId); if (thinking) thinking.state = 'completed'; job.streams.delete(streamKey); }
         addClaudeMessage(agent, message, job.turnId, timing, { live: true });
-        if (message.type === 'assistant') this.emit('assistantMessageCompleted', agent.id, { id: stream?.id || message.uuid + ':0', turnId: job.turnId, type: 'assistant', state: 'completed', text: blocks(message.message).filter(block => block.type === 'text').map(block => block.text || '').join('\n') });
+        if (message.type === 'assistant' && parentMessage) this.emit('assistantMessageCompleted', agent.id, { id: stream?.id || message.uuid + ':0', turnId: job.turnId, type: 'assistant', state: 'completed', text: blocks(message.message).filter(block => block.type === 'text').map(block => block.text || '').join('\n') });
         for (const block of blocks(message.message)) if (block.type === 'tool_result') this.confirm(agent, block.tool_use_id);
       }
       if (message.type === 'tool_progress' && message.tool_use_id) {
@@ -325,7 +381,7 @@ export class ClaudeSessions extends EventEmitter {
     agent.finishedTurn = { id: job.turnId, status: message.is_error ? 'failed' : 'completed' }; agent.lastCompletedTurnId = job.turnId;
     if (message.is_error) agent.runError = bounded((message.errors || []).join('\n') || 'Claude did not complete this turn.');
     if (!message.is_error) {
-      const reply = agent.messages.findLast(item => item.type === 'assistant' && item.turnId === job.turnId && item.nativeMessageId && item.state === 'completed');
+      const reply = agent.messages.findLast(item => item.type === 'assistant' && !item.subagent && item.branchable !== false && item.turnId === job.turnId && item.nativeMessageId && item.state === 'completed');
       if (reply && reply.nativeStopReason !== 'tool_use') reply.branchable = true;
     }
     job.result = null; job.turnId = null; agent.turnId = null; agent.thread.status = { type: 'idle' };

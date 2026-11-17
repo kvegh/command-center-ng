@@ -9,6 +9,15 @@ has been updated or every browser workflow has passed. The
 implementation commits, checks and limitations. Original detailed release text
 is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.39.0 — Identify forwarded Claude subagent messages
+
+Display **Message from subagent ‹name›:** using native source metadata, with a
+launch-ID fallback when no name is available. Keep original message/copy text,
+separate interleaved streams and parent reply/model state, and retain provenance
+from existing native history when available. No prompt instruction, new store,
+SDK upgrade, permission change or custom Claude daemon is added. Includes the
+source-only 1.38.1 layout correction; installation is verified separately.
+
 ## 1.38.1 — Move activity away from the input
 
 Keep live status below the selected top tab as a compact overlay over older

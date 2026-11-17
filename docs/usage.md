@@ -168,6 +168,20 @@ after projection; no persistent store or extra transcript pass is added. These
 pinned SDK APIs are alpha. If the metadata-capable API is unavailable, legacy
 history remains readable without guessing notification identity from its text.
 
+### Messages from Claude subagents
+
+Forwarded subagent messages display **Message from subagent ‹name›:** above the
+original text. CCNG derives the label from the native parent-tool link and its
+available launch metadata; subagents do not have to write the prefix. When a
+name is unavailable, the native launch ID identifies the source. Text alone
+cannot establish subagent identity, and **Copy this** keeps the original text.
+
+Interleaved parent/subagent streams remain separate. A child message does not
+become a completed parent reply or change the parent's model display. Existing
+native transcript metadata is retained when available; this does not reconstruct
+child messages absent from the parent's native history or create another store.
+Provider permissions, approvals and agent instructions are unchanged.
+
 ## Chat handovers
 
 The worker Project overview offers **Create handover**. The agent choice defaults
@@ -936,9 +950,19 @@ dashboard. Worker settings collapse to a cadence/Report now row; expand for the
 other controls. Phone keyboard and rotation acceptance remain separate checks.
 
 Codex owns its native conversations and execution. Closing a browser or tab does
-not end native work. The unfinished Claude integration currently owns its SDK
-processes inside CCNG: stopping the backend interrupts those runs, while native
-history permits later resume. No separate Claude daemon has been introduced.
+not end native work. CCNG currently owns its Claude SDK
+processes inside the web backend: stopping the backend interrupts those runs, while native
+history permits later resume. CCNG does not currently attach those processes to a separate Claude daemon.
+
+Claude Code also provides a native background supervisor and terminal attachment.
+That alone does not establish a supported SDK connection for CCNG's exact native
+requests and events. With the assessed SDK 0.3.212, no documented local-daemon
+attachment was verified; native background mode cannot combine with SDK/print
+mode. See [native agent view](https://code.claude.com/docs/en/agent-view#dispatch-an-agent-from-your-shell)
+and [the SDK subprocess model](https://code.claude.com/docs/en/agent-sdk/hosting#the-subprocess-model).
+The user selected native support only: no custom daemon, socket protocol or bridge
+is implemented to fill this gap. Native runtime migration remains unimplemented;
+recheck supported interfaces if a future version supplies the needed capability.
 
 See [workspace restore](workspace-restore.md) for persistence and recovery,
 [coordinator guidance](coordinator.md) for review boundaries, and

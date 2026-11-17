@@ -971,3 +971,13 @@ state after drain. Do not close a legitimate stream using a fixed queued-byte
 threshold smaller than a full history snapshot. Preserve authentication checks,
 client independence, cleanup and full loaded history. Reuse existing service
 logging for sanitized connection diagnostics only, without a new logging system.
+
+
+### Subagent message attribution
+
+Forwarded Claude subagent text must display a clear Message from subagent label
+using exact native provenance and available launch name, falling back to the
+native launch ID. Keep original content/copy data and distinguish parent/child
+streaming, reply completion and model display. Do not infer identity from prose,
+rewrite agent instructions, manufacture authority, fetch missing child history
+or add a transcript store for this presentation feature.

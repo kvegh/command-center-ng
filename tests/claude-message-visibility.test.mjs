@@ -106,6 +106,14 @@ test('actual MessageText integration preserves only user markup, including struc
   const renderMessage = message => renderToStaticMarkup(React.createElement(MessageText, { message }));
   assert.match(renderMessage(message), /&lt;task-notification&gt;Visible source&lt;\/task-notification&gt;/);
   assert.deepEqual(message, before);
+  const child = { type: 'assistant', text: 'Now the firewall stage.', subagent: { id: 'tool-child', name: '<builder>' } };
+  const childBefore = structuredClone(child), childHtml = renderMessage(child);
+  assert.match(childHtml, /Message from subagent <strong title="tool-child">&lt;builder&gt;<\/strong>:/);
+  assert.match(childHtml, /Now the firewall stage\./);
+  assert.deepEqual(child, childBefore, 'source attribution never rewrites native text or copy contents');
+  assert.match(renderMessage({ ...child, subagent: { id: 'tool-unknown' } }), /Message from subagent <strong title="tool-unknown">tool-unknown<\/strong>:/);
+  assert.doesNotMatch(renderMessage({ ...child, type: 'user' }), /subagent-message-source/, 'a real user message cannot acquire an assistant source label');
+  assert.doesNotMatch(renderMessage({ type: 'assistant', text: 'Message from subagent builder: quoted text' }), /subagent-message-source/, 'text alone cannot establish origin');
   for (const type of ['assistant', 'activity']) assert.equal(renderMessage({ ...message, type }), render(message.text));
   const answers = renderMessage({ ...message, nativeQuestionReplies: [{ question: 'Which <format>?', answer: '<p>My answer</p>' }] });
   assert.match(answers, /<blockquote>Which &lt;format&gt;\?<\/blockquote>/);

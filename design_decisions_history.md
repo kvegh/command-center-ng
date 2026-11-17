@@ -1,5 +1,29 @@
 # Design decisions history
 
+## 2026-11-17, 21:16 CET — Attribute forwarded subagent messages
+
+The user requested a Message from subagent name prefix after child progress
+appeared as ordinary parent replies. CCNG will generate the visible label from
+native provenance, preserving original text and copy content. The user clarified
+that usage documentation, not AGENTS.md or agent prompts, should explain this
+feature. Reuse the pinned SDK's parent_tool_use_id and launch metadata, with an
+ID fallback rather than guessed names. Preserve separate parent/child streaming
+and prevent child output from becoming parent report/completion/model evidence.
+No SDK upgrade, extra store, missing-child transcript collection or native runtime
+change is selected. Implementation/verification are in progress for 1.39.0.
+
+Separately, the user asked about Claude surviving CCNG restarts and explicitly
+rejected implementing a replacement without native support. Read-only assessment
+of native daemon capabilities is authorized; no custom daemon/bridge, service
+activation, migration, package upgrade or architecture choice is approved. The
+existing layout update remains held for the already-pending safe-idle answer.
+Read-only assessment confirmed a native terminal supervisor in local CLI 2.1.325.
+The current SDK 0.3.212 exposes subprocess queries, while background CLI mode
+rejects print/SDK mode; its browser/bridge exports do not establish a supported
+local-daemon endpoint. Supported local programmatic attachment remains unverified,
+so no replacement or migration will be implemented from this assessment. This is
+not a claim about future SDK versions, and no daemon was started or stopped.
+
 ## 2026-11-17, 21:04 CET — Relocate activity and version
 
 The user selected activity directly below the enlarged active top tab, allowing

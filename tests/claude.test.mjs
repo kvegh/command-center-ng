@@ -65,6 +65,78 @@ test('Claude history uses native message timestamps and leaves missing or invali
   } finally { await f.close(); }
 });
 
+test('Claude subagent authorship comes from an exact session and spawning tool, never copied message text', async () => {
+  const call = { type: 'assistant', uuid: 'agent-call', session_id: nativeId, message: { content: [{ type: 'tool_use', id: 'spawn-check', name: 'Agent', input: { name: 'Review\u202ename', description: 'Review project', subagent_type: 'general-purpose' } }] } };
+  const child = { type: 'assistant', uuid: 'child-progress', session_id: nativeId, parent_tool_use_id: 'spawn-check', message: { content: 'Now checking the firewall.', model: 'child-model', stop_reason: 'end_turn' } };
+  const history = [call, child, { ...child, uuid: 'unnamed-child', parent_tool_use_id: 'unknown-spawn', task_description: undefined },
+    { ...child, uuid: 'unbound-child', session_id: undefined },
+    { ...child, uuid: 'ordinary-human', type: 'user', parent_tool_use_id: null, message: { content: 'Message from subagent Review name: user-written text' } },
+    { ...child, uuid: 'child-input', type: 'user', message: { content: 'Prompt inside the subagent.' } },
+    { type: 'assistant', uuid: 'parent-answer', session_id: nativeId, message: { content: 'Parent reply.', model: 'parent-model', stop_reason: 'end_turn' } }];
+  const f = await fixture({ history });
+  try {
+    const agent = await f.runtime.open(workerId);
+    const find = id => agent.messages.find(item => item.nativeMessageId === id);
+    assert.deepEqual(find('child-progress').subagent, { id: 'spawn-check', name: 'Review name' });
+    assert.equal(find('child-progress').text, 'Now checking the firewall.'); assert.equal(find('child-progress').branchable, false);
+    assert.deepEqual(find('unnamed-child').subagent, { id: 'unknown-spawn' });
+    assert.equal(find('unbound-child').subagent, undefined); assert.equal(find('unbound-child').branchable, false);
+    assert.equal(find('ordinary-human').type, 'user'); assert.equal(find('ordinary-human').subagent, undefined);
+    assert.equal(find('child-input').type, 'activity'); assert.equal(find('child-input').text, 'Prompt inside the subagent.');
+    assert.deepEqual(find('child-input').subagent, { id: 'spawn-check', name: 'Review name' });
+    assert.equal(find('child-input').activityTitle, 'Message from subagent Review name');
+    assert.equal(find('parent-answer').subagent, undefined); assert.equal(find('parent-answer').branchable, true);
+    assert.equal(agent.model, 'parent-model'); assert.equal(agent.currentTurnModel, 'parent-model'); assert.equal(f.queries.length, 0);
+    await f.runtime.refresh(agent);
+    assert.deepEqual(find('child-progress').subagent, { id: 'spawn-check', name: 'Review name' });
+  } finally { await f.close(); }
+});
+
+test('Claude interleaved parent and child streams retain separate authors and only parent output advances report hooks', async () => {
+  const f = await fixture(), reports = [];
+  f.runtime.on('assistantMessageCompleted', (_id, message) => reports.push(message));
+  try {
+    const agent = await f.runtime.open(workerId); await f.runtime.send(agent, 'Review the project.');
+    const query = f.queries[0], turnId = agent.turnId;
+    const stream = (parent, event) => ({ type: 'stream_event', session_id: nativeId, parent_tool_use_id: parent, event });
+    const start = (parent, id, model) => stream(parent, { type: 'message_start', message: { id, model } });
+    const delta = (parent, text) => stream(parent, { type: 'content_block_delta', delta: { type: 'text_delta', text } });
+    query.push({ type: 'system', subtype: 'task_started', session_id: nativeId, tool_use_id: 'spawn-a', description: 'Firewall review' });
+    query.push(start(null, 'main', 'parent-model')); query.push(delta(null, 'Parent '));
+    query.push(start('spawn-a', 'child-a', 'child-model')); query.push(delta('spawn-a', 'Child A '));
+    query.push(start('spawn-b', 'child-b', 'other-child-model')); query.push(delta('spawn-b', 'Child B '));
+    query.push(delta(null, 'continued.')); query.push(delta('spawn-a', 'continued.'));
+    await until(() => agent.messages.some(item => item.text === 'Child A continued.'));
+    const partials = agent.messages.filter(item => item.type === 'assistant');
+    assert.equal(partials.length, 3);
+    assert.equal(partials.find(item => !item.subagent).text, 'Parent continued.');
+    assert.deepEqual(partials.find(item => item.text === 'Child A continued.').subagent, { id: 'spawn-a', name: 'Firewall review' });
+    assert.deepEqual(partials.find(item => item.text === 'Child B ').subagent, { id: 'spawn-b' });
+    assert.equal(agent.model, 'parent-model'); assert.equal(reports.length, 0);
+    query.push({ type: 'user', uuid: 'forwarded-input', session_id: nativeId, parent_tool_use_id: 'spawn-b', message: { content: 'Native child input.' } });
+    await until(() => agent.messages.some(item => item.nativeMessageId === 'forwarded-input'));
+    assert.equal(agent.messages.find(item => item.nativeMessageId === 'forwarded-input').activityTitle, 'Message from subagent spawn-b');
+    query.push({ type: 'system', subtype: 'task_progress', session_id: nativeId, tool_use_id: 'spawn-b', description: 'Package review' });
+    await until(() => agent.messages.find(item => item.nativeMessageId === 'forwarded-input')?.activityTitle === 'Message from subagent Package review');
+    assert.deepEqual(agent.messages.find(item => item.text === 'Child B ').subagent, { id: 'spawn-b', name: 'Package review' });
+    query.push({ type: 'assistant', uuid: 'child-a-complete', session_id: nativeId, parent_tool_use_id: 'spawn-a', message: { content: 'Child A result.', model: 'child-model', stop_reason: 'end_turn' } });
+    await until(() => agent.messages.some(item => item.nativeMessageId === 'child-a-complete'));
+    assert.equal(agent.messages.some(item => item.text === 'Parent continued.'), true, 'child completion retains the parent partial');
+    assert.equal(agent.messages.some(item => item.text === 'Child B '), true, 'child completion retains the sibling partial');
+    assert.equal(reports.length, 0); assert.equal(agent.turnId, turnId); assert.equal(agent.model, 'parent-model');
+    query.push({ type: 'assistant', uuid: 'main-complete', session_id: nativeId, parent_tool_use_id: null, message: { content: 'Parent result.', model: 'parent-model', stop_reason: 'end_turn' } });
+    await until(() => reports.length === 1);
+    assert.equal(reports[0].text, 'Parent result.'); assert.equal(reports[0].id, 'stream-main');
+    query.push({ type: 'assistant', uuid: 'child-b-complete', session_id: nativeId, parent_tool_use_id: 'spawn-b', message: { content: 'Child B result.', stop_reason: 'end_turn' } });
+    query.push({ type: 'result', session_id: nativeId, is_error: false });
+    await until(() => !agent.turnId);
+    assert.equal(agent.messages.find(item => item.nativeMessageId === 'main-complete').branchable, true);
+    assert.equal(agent.messages.find(item => item.nativeMessageId === 'child-b-complete').branchable, false);
+    assert.equal(reports.length, 1); assert.deepEqual(f.controls, []);
+    assert.equal(query.params.options.forwardSubagentText, undefined, 'authorship does not broaden native forwarding');
+  } finally { await f.close(); }
+});
+
 test('Claude sends image-only and text-plus-image prompts through native SDK content without duplicating echoes', async () => {
   const f = await fixture();
   try {

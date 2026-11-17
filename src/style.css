@@ -1088,3 +1088,5 @@ kbd { font-family: inherit; }
 .conversation-status { position: sticky; top: 0; height: 0; z-index: 2; pointer-events: none; }
 .conversation-status > .worker-status { width: fit-content; max-width: 100%; margin-left: 0; justify-content: flex-start; padding: 6px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
 .overview-header > .topbar-version { display: inline-flex; flex-shrink: 0; white-space: nowrap; padding: 4px 6px; letter-spacing: 0; }
+
+.subagent-message-source { color: var(--muted); font-size: 12px; line-height: 1.6; margin-bottom: 6px; overflow-wrap: anywhere; }
