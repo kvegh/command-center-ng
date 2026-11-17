@@ -1,5 +1,49 @@
 # Design decisions history
 
+## 2026-11-17, 16:39 UTC — Install and verify visible questions and Claude activity
+
+Implementation `5083e3c20596fbe907fb5e072b3cb82750f18a14` (1.38.0)
+is now installed and running. The user explicitly reported that the affected
+Claude chat was paused. Fresh native evidence at16:36:25 UTC confirmed idle,
+zero unmatched tool calls and a completed end-turn reply. The guarded update
+succeeded at16:37:07.730292–16:37:32.108595 UTC, rechecking the same native
+process/history before installation and immediately before restart.
+
+All13 protected-file states, all3 current saved worker identities, workspace
+pause/report settings, native profiles/CLI and Codex daemon identity were
+preserved. Only the existing application service restarted. No live native
+request was answered, cancelled or replayed and no test prompt resumed the chat.
+The user subsequently asked whether they could work again and was told they
+could; remaining verification was read-only with respect to genuine sessions.
+
+Independent installed verification succeeded at16:39:19.699593–
+16:39:34.439479 UTC: all120 source files matched the published payload, trusted
+HTTPS/login gates, both listeners and2 served assets passed, and all398 checks
+across22 installed-module suites passed without failures/skips in10.062 seconds.
+These cover authenticated HTTP receipt delivery, controlled SDK progress/input
+binding, native question history and rendered presentation alongside adjacent
+handover/Coordinator behavior. They do not claim physical-browser interaction
+or a manufactured real model/tool/approval exchange.
+
+The later disappearing-card-on-tab-switch report was also investigated without
+another code change. Selection and its effects do not send native input or
+resolve questions; background history refresh can independently expose null
+question metadata. Version1.36 removed the empty question row in that case;
+1.38 retains its exact source identity/title. Existing UI checks retain drafts
+across component/chat switches, and the source fixture plus installed checks
+verify visible history retention. The exact original production event is
+unavailable. Controls remain conservative/read-only when native availability
+cannot be verified; no historical callback is recreated or answer resent.
+
+The first earlier unit-failure time is unknown. From the first timed combined
+failure at14:31:21.471773 UTC to installed verification took2h8m12.968s;
+most elapsed time was waiting for native user decisions and a safe checkpoint.
+Validation delays included an old follow-up harness binding, missing HTTP receipt
+propagation and ES2022 helper compatibility. Active effort versus waiting was
+not separately timed, and parallel durations were not added. This completed
+delivery supersedes earlier source-only/safe-update-held notes; unrelated browser
+acceptance, conditional holds and deferred work retain their prior states.
+
 ## 2026-11-17, 16:21 UTC — Preserve a new decision at the update checkpoint
 
 The earlier native question received its result at16:19:28 UTC and a later reply
