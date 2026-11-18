@@ -1,5 +1,29 @@
 # Current status for handover
 
+Verified checkpoint: **2026-11-18, 07:23 CET**. Beads remains authoritative.
+
+Published source **1.40.0**, functional implementation
+`ae81565ed939d6773dad3e55a8afb3f2a392eec2`, keeps unanswered Codex cards usable
+across unrelated follow-ups in their original active turn, attaches conversation
+tabs to the pane and separates the taller Coordinator control visually. Release
+notes now contain version changes; decision history contains functionality
+decisions and implementation references, without validation/delivery logs.
+
+The installed app remains **1.39.0**, payload
+`eb2060b437dcdf64ddb4dc9e8eb766b1f557e32e`. The fresh native checkpoint at
+07:21 CET found the existing owned Claude session busy. No installation or
+restart was attempted. Delivery is held until native idle/completed-turn and
+unchanged-history checks establish a safe checkpoint; preserve pending requests,
+protected settings and the native Codex daemon. Source checks passed all 289
+cases across twelve suites and the production build. Actual installed 1.40.0
+behavior and physical-browser geometry remain unverified.
+
+The wrong-chat safeguard is a separate pending user choice; no scope rule or
+chat-context implementation is included in 1.40.0. Claude daemon integration
+remains explicitly deferred. Other held/deferred work is unchanged.
+
+### Previous checkpoint (superseded)
+
 Verified checkpoint: **2026-11-18, 06:46 CET**. Beads remains authoritative.
 
 Published and installed **1.39.0**, payload

@@ -172,6 +172,12 @@ features, requirements and installation. Put version-by-version changes in
 release notes and detailed operation in separate usage documentation. Link to
 those records instead of appending release narratives to the product README.
 
+Release notes contain user-facing changes, without validation results, test/build
+logs or publication/deployment bookkeeping. Keep decision history limited to
+CCNG functionality decisions, their rationale, relevant alternatives and actual
+implementation references. Record validation and delivery evidence in Beads;
+operational handover status belongs in the handover document.
+
 Use SSH for agent-side Git network operations. Keep commits focused and use
 concise, imperative subjects. Validate relevant behavior and inspect command
 outcomes. Ask before installing missing tools or dependencies. Do not select a
