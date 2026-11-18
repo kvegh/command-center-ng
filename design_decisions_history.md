@@ -1,5 +1,46 @@
 # Design decisions history
 
+## 2026-11-18, 06:46 CET — Deploy 1.39.0 and defer Claude daemon integration
+
+The user explicitly requested deploying the latest release, superseding the
+earlier deployment hold. Public main was verified as
+`eb2060b437dcdf64ddb4dc9e8eb766b1f557e32e`, containing implementation
+`0d8848629505d03ccf94e2fc8808325c6f91b1c2` and the earlier activity/version
+placement correction. A fresh native checkpoint found the owned Claude process
+idle and its latest turn complete. The guarded update rechecked process/history
+before installation and immediately before restarting only the application.
+
+The update succeeded at 06:45:26.894231–06:45:51.787038 CET. All thirteen
+protected-file states, four saved worker identities, workspace pauses/report
+settings, native profiles/CLI and native Codex daemon identities were preserved.
+No native request was answered or replayed and no active turn was interrupted.
+
+Independent installed verification succeeded at 06:46:10.721754–06:46:23.338887
+CET: all 120 checked source files matched the published payload; running version
+1.39.0, trusted HTTPS, login gates, both listeners and two served assets passed.
+All 277 checks across fifteen installed-module suites passed without failures or
+skips in 7.958 seconds. They exercise controlled SDK, authenticated HTTP and
+rendered presentation behavior; physical-browser geometry and a genuine new
+model/subagent exchange remain unverified. These outcome docs are newer than
+the installed payload. No README design change was needed for this deployment.
+
+Separately, the user chose to leave Claude daemon integration for the future or
+wait for native support. This supersedes the discussion of a custom persistent
+service as an implementation option; no such service, upgrade or migration is
+selected. The requested read-only research found two documented lifecycles:
+[native background mode](https://code.claude.com/docs/en/agent-view#dispatch-an-agent-from-your-shell)
+uses an interactive session and rejects print mode, while the
+[Agent SDK](https://code.claude.com/docs/en/agent-sdk/hosting#the-subprocess-model)
+hosts a subprocess over stdio. Anthropic's response to
+[SDK issue 33](https://github.com/anthropics/claude-agent-sdk-typescript/issues/33)
+and [issue 34](https://github.com/anthropics/claude-agent-sdk-typescript/issues/34)
+recommends streaming input for keeping a process warm between turns; it does not
+establish restart-independent daemon attachment. No public vendor rationale or
+delivery date for the missing supported local SDK attachment was found. Native
+background execution exists; the required local SDK connection remains
+unverified. Exact user-message times are unknown; this records the decisions
+and verified outcomes at the checkpoint above.
+
 ## 2026-11-17, 21:16 CET — Attribute forwarded subagent messages
 
 The user requested a Message from subagent name prefix after child progress

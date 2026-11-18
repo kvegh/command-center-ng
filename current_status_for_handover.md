@@ -1,5 +1,32 @@
 # Current status for handover
 
+Verified checkpoint: **2026-11-18, 06:46 CET**. Beads remains authoritative.
+
+Published and installed **1.39.0**, payload
+`eb2060b437dcdf64ddb4dc9e8eb766b1f557e32e` (functional change
+`0d8848629505d03ccf94e2fc8808325c6f91b1c2`), includes automatic native-provenance
+subagent labels and the source-only 1.38.1 activity/version/footer placement.
+The user's explicit deployment request resolved the earlier hold. Fresh native
+idle/completed-turn evidence and unchanged process/history checks preceded the
+application restart. Thirteen protected states, four worker identities, saved
+pauses/report settings and native Codex daemon identities were preserved.
+
+Independent verification matched all 120 checked files, passed trusted HTTPS,
+login gates, served assets and both listeners, and passed all 277 checks across
+fifteen installed-module suites without failures/skips in 7.958 seconds.
+Physical-browser geometry and genuine new native subagent interaction remain
+unverified. No new model turn or original approval answer was manufactured.
+Outcome documentation is newer than the installed payload.
+
+The user deferred Claude daemon integration until future/native support. Native
+CLI background sessions exist; a supported local SDK attachment for CCNG remains
+unverified. Research found documented interactive-background versus SDK-stdio
+lifecycles, but no public explanation or delivery date for unifying them. No
+custom service, transport, SDK upgrade, migration or daemon activation is
+authorized by that discussion. Other held/deferred work remains unchanged.
+
+### Previous checkpoint (superseded)
+
 Verified checkpoint: 2026-11-17, 13:20 UTC. Beads remains authoritative.
 
 Published and installed **1.36.0** implementation
