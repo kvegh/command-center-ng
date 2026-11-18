@@ -1,5 +1,33 @@
 # Current status for handover
 
+Verified checkpoint: **2026-11-18, 12:37 CET**. Beads remains authoritative.
+
+Source **1.41.0** is published at
+`efad83e2e062071d9227127416ad127d34de49cf`; functional implementation
+`ee6705b7831c09577912c5775a836f3f7018cddf` adds **Show subagent messages**
+in Project, directly after Create handover. It defaults on and remembers each
+chat's choice in this browser's existing workspace preferences. Filtering is
+display-only: original history, question exchanges and approval controls remain.
+
+Supported Node 22 verification passed all 106 checks across ten affected files
+with no failures or skips; TypeScript/build and SSH publication/readback passed.
+Independent source review found no concrete blocker. Physical browser clicks and
+geometry remain unverified.
+
+Installation remains **1.40.0** at
+`cfdbd49809e6c351284fa1a52db5847698f4bebd`. The bounded native safety checkpoint
+at 12:33:45–12:33:49 CET found two busy Claude sessions, so no installation or
+restart was attempted. Task `bead-wd-z46s` is held until fresh native idle and
+completed-turn evidence permits the existing guarded application update and
+installed verification. Do not interrupt sessions to deploy or infer safety
+from elapsed time. The prepared release helpers target 1.41.0; recheck public
+main and the native checkpoint before using them.
+
+The wrong-chat safeguard remains a separate pending choice. Claude daemon work
+and other held/deferred work retain their existing boundaries.
+
+### Previous checkpoint (superseded)
+
 Verified checkpoint: **2026-11-18, 07:38 CET**. Beads remains authoritative.
 
 Published and installed **1.40.0**, payload
