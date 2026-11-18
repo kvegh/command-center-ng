@@ -95,6 +95,8 @@ test('compact layout uses normal page flow, full-width overview and one scrollab
     assert.equal(declarations('.task-summary', media)['flex-direction'], 'column', 'task header, list and notification controls stack without competing for mobile width');
     assert.deepEqual(properties('.topbar > .tabs-row .tabs', ['display', 'width', 'flex-wrap', 'overflow'], media), { display: 'flex', width: 'auto', 'flex-wrap': 'nowrap', overflow: 'auto hidden' });
     assert.equal(declarations('.topbar > .tabs-row', media).display, 'flex', 'Coordinator remains beside the same scrolling row');
+    assert.equal(declarations('.coordinator-tab-group', media)['margin-left'], '4px', 'compact navigation retains a smaller visual gap before Coordinator');
+    assert.equal(declarations('.coordinator-tab-group', media)['padding-left'], '6px', 'the independent Coordinator separator does not consume desktop spacing on phones');
     assert.equal(declarations('.topbar .tabs .tab-wrap', media).flex, '0 0 170px', 'touch tabs keep a stable width instead of shrinking or wrapping');
     assert.match(declarations('.tab-wrap[data-worker-tab] > .agent-tab', media)['touch-action'], /pan-x/, 'finger swipes can scroll the tabs horizontally');
     for (const selector of ['.overview-section[data-section="recap"]', '.sidebar-divider', '.overview-section-divider', '.composer-divider']) {

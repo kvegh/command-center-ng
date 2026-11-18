@@ -3,11 +3,21 @@
 The [README](../README.md) is for installation and first use. These notes keep
 version history separate from current [usage](usage.md).
 
-Entries describe implemented source, not proof that a particular installation
-has been updated or every browser workflow has passed. The
-[decision history](../design_decisions_history.md) retains full rationale,
-implementation commits, checks and limitations. Original detailed release text
-is retrievable in the [README before this reorganization](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
+For design rationale, alternatives and implementation references, see the
+[decision history](../design_decisions_history.md). Earlier detailed release
+text remains available in the [archived README](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
+
+## 1.40.0 — Keep unanswered cards and restore attached conversation tabs
+
+Unrelated follow-up messages leave unanswered Codex question cards usable while
+their original turn remains active. Answering one question preserves the others.
+Ended turns, removed or changed native metadata, unsafe bindings and uncertain
+delivery retain their existing reply protections.
+
+Keep the conversation tabs attached to the chat's top edge when the taller
+Coordinator tab increases the header height. Coordinator retains its size and
+has its own divider, spacing and closed outline, visually separate from the chat.
+Mobile keeps one horizontally scrolling conversation-tab row.
 
 ## 1.39.0 — Identify forwarded Claude subagent messages
 
@@ -16,7 +26,7 @@ launch-ID fallback when no name is available. Keep original message/copy text,
 separate interleaved streams and parent reply/model state, and retain provenance
 from existing native history when available. No prompt instruction, new store,
 SDK upgrade, permission change or custom Claude daemon is added. Includes the
-source-only 1.38.1 layout correction; installation is verified separately.
+1.38.1 layout correction.
 
 ## 1.38.1 — Move activity away from the input
 
@@ -24,7 +34,7 @@ Keep live status below the selected top tab as a compact overlay over older
 conversation text. Its existing child-local clock and evidence rules are unchanged.
 Move the version badge between the branding and Sign out, including narrow
 layouts, and remove the redundant local-workspace footer. Tab order and native
-controls remain unchanged. Installation and physical-browser checks are separate.
+controls remain unchanged.
 
 ## 1.38.0 — Make long Claude tool waits visible
 
@@ -33,8 +43,8 @@ progress, with separate request age, last progress and reported run time. Missin
 or disconnected evidence stays unknown/last known. Exact native input echoes
 separate CCNG queuing from Claude receipt, without claiming model processing.
 Pending requests retain priority; no status-only model input, new timer/store,
-permission change or automatic interruption is added. Source-only 1.37.0 question
-history corrections are included; installation is verified separately.
+permission change or automatic interruption is added. The 1.37.0 question
+history corrections are included.
 
 ## 1.37.0 — Keep answered questions visible
 
@@ -66,8 +76,8 @@ resolved or changed requests cancel only unsent bound feedback, with a final
 pre-write guard. This prevents the confirmed queue path from delivering “wait
 for approval” after the approval is finished. Ordinary summaries, uncertain sends,
 pauses/stops and manual native controls are preserved. No content filter, new
-timer or persistent approval store is introduced. Source-only 1.35.0 changes are
-included in this release; installation and actual acceptance are recorded separately.
+timer or persistent approval store is introduced. The 1.35.0 changes are
+included in this release.
 
 ## 1.35.0 — Retain Claude modes and show current concern reviews
 
@@ -90,9 +100,6 @@ its grouping, rather than rebuilding it per keystroke. Message data, branch/cont
 availability and native question changes still update the list; approvals,
 recovery controls and composer updates remain live. This strengthens the 1.34.0
 Markdown/timestamp optimization without removing history or adding a framework.
-Version 1.34.0 was published as source but held from deployment while this
-additional user requirement was implemented. Actual typing acceptance remains
-separate from source and installed regression evidence.
 
 ## 1.34.0 — Readable Claude activity and cheaper long-chat typing
 
@@ -105,8 +112,7 @@ transcript rewriting; genuine user markup stays visible as user text.
 Unchanged Markdown and absolute timestamp rendering now reuse React's existing
 render boundaries during typing and unrelated snapshots. Changed text, status,
 questions and other visible data still update. No history is removed and no
-new rendering framework is added. Browser typing improvement needs actual
-acceptance rather than being inferred from Node rendering diagnostics.
+new rendering framework is added.
 
 ## 1.33.0 — Prepare before automatic handover startup
 
@@ -120,8 +126,7 @@ before startup. Reopening an existing chat sends no import or model request.
 
 New Codex chats request native Auto-review routing with their approval policy
 and sandbox retained; new Claude chats start in native Auto mode. Existing chats
-keep their settings. Installed behavior and actual provider confirmations are
-reported separately from source implementation and input acceptance.
+keep their settings.
 
 ## 1.32.0 — Project overview handover controls
 
@@ -134,13 +139,10 @@ automatically imports. Only IDs and path use existing private workspace metadata
 No extra store, artifact upload, approval transfer or automatic task mutation
 is added. Pending native questions and ownership gates remain authoritative;
 uncertain allocation/input is not retried and known created IDs remain visible.
-Publication, installed checks and model/browser verification are recorded
-separately rather than inferred from input acceptance.
 
 User-message rendering also preserves HTML/XML-looking text as safe escaped
 text instead of silently dropping HTML blocks. Raw HTML remains unexecuted;
-assistant rendering and native history are unchanged. Exact screenshot row
-identities and browser acceptance remain unverified.
+assistant rendering and native history are unchanged.
 
 ## 1.31.0 — Claude branching
 
@@ -153,16 +155,6 @@ Back to parent navigates; automatic Hand back & close remains Codex-only.
 The user approved keeping ID-only parent links in the existing private workspace
 file. Closed/reopened tabs and backend restoration retain parent navigation.
 No new database, transcript store or provider permission mechanism is added.
-Implementation `c929b2972632087ca8d16fffc8fcdaad19f311d1` is published and
-installed. Independent verification matched 117 source files, passed trusted
-HTTPS/authentication/assets checks and all 105 affected installed checks,
-including isolated real HTTP fork/close/reopen/cold-restoration workflows.
-Source verification includes actual loopback HTTP workflows with real SDK
-synthetic histories, cold restart and parent navigation. Broad regression passed
-1,270 tests, zero failures and one supplementary-group fixture skip; after the
-final cutoff guard, all 105 affected checks passed with zero skips. Build passed
-(584 ms). No live user session was forked and actual provider continuation/browser
-interaction is unverified.
 
 ## 1.30.1 — Show Coordinator concerns on Claude approval cards
 
@@ -194,8 +186,7 @@ keys through an optional validated environment mapping in protected runtime
 settings. No provider is enabled by default, credential variables are not
 copied, and startup does not source shell files. Existing user units remain
 preserved until deliberately reconfigured; application updates alone do not
-rewrite their environment. Authentication status and actual model responses
-remain separate verification steps.
+rewrite their environment.
 
 ## 1.29.1 — Recover stale Coordinator turn state
 
@@ -260,7 +251,6 @@ Clarify shared Coordinator/analyst guidance after an exact command was incorrect
 flagged for documentation backticks inside protected quoting. Review each actual
 shell evaluation layer and retain genuine expansion/syntax concerns. This adds
 no execution tool, automatic approval exception or replay of an earlier request.
-Guidance delivery is verifiable; individual model judgments remain separate.
 
 ## 1.28.0 — Refresh the website after updates
 
@@ -283,7 +273,7 @@ lines remain outside the source reader's supported format.
 Remove vertical scroll containment from the Tasks list and its saved-height
 section. Short lists and list edges can hand native scrolling to the bounded
 desktop sidebar or mobile page, keeping existing heights, resizing and chat
-behavior. Physical touchpad acceptance remains distinct from stylesheet checks.
+behavior.
 
 ## 1.27.1 — Complete policy packaging regressions
 
@@ -311,8 +301,6 @@ its existing source, request, path, hash, symlink and credential protections.
 This changes source recognition only. It does not run tests or containers,
 relabel host files, grant permissions or answer the original manual approval.
 The actual effects of label/user options still require normal scope review.
-Natural automatic concern delivery and its originating request were verified;
-the resulting diagnosis and code repair are reported separately from test success.
 
 ## 1.21.0 — Send Coordinator concerns for proactive engineering review
 
@@ -386,14 +374,6 @@ their explicit question presentation; historical Needed text alone does not
 establish a current question. Blocker clarification asks for the actual blocker
 and next step while preserving scope, draft and native-send guards.
 
-Installed on 2026-11-13 after the full backend suite passed 1,093 checks with no
-failures and one skip. Independent installed verification matched 113 source
-files, checked HTTPS/authentication/served assets and passed all 411 checks across
-25 affected suites. The installed matcher recognizes the exact original command
-metadata without reading or executing its test. The served build includes the new
-task-context controls; an actual browser click remains unverified. Nine protected
-files/metadata, eight workers and native runtime settings were preserved.
-
 ## 1.17.1 — Restore web sending and handle large update streams
 
 Browser-stream loss no longer appears as native Codex disconnection. Recovery
@@ -407,23 +387,6 @@ honor write/drain flow control, coalescing pending updates to the latest complet
 state. Slow browsers do not gate others; session validation and heartbeat checks
 remain active. Loaded history is retained. Existing service logs receive only
 sanitized transport codes and the first backpressure event per connection.
-
-The 1.17.0 pre-install full suite passed 1,084 checks with one failure and one
-skip. The failure was an obsolete assertion requiring the old session-guard
-spelling; actual-effect recovery/login tests already cover the stronger current
-guard. 1.17.1 removes that redundant source-text check, preserving behavior tests.
-The corrected full backend suite passed 1,085 checks with no failures and one
-skip in 58.424s. Installed on 2026-11-13: the 85.138s validation/update preserved
-nine protected files/metadata, eight saved workers, Coordinator/report settings
-and the native runtime. Corrected installed verification matched 113 files,
-passed live HTTPS/authentication/assets/listeners/tracker checks and all 341
-checks across 21 suites in 6.683s against installed server/frontend source.
-The initial verifier was rejected before execution because of an apostrophe in
-a comment interpreted by the Ansible argument splitter; correcting the comment
-required no application change or second restart. The user then successfully
-submitted a real message from the affected web UI. This confirms restored web
-sending; long-term connection stability and the exact original per-connection
-closure remain distinct from that observation and the synthetic reproduction.
 
 ## 1.16.0 — Preserve chat order and delegate progress monitoring
 
@@ -440,25 +403,6 @@ instructions/model/effort apply. Main approval checks and concerns remain; a
 progress run never gates an approval. Unknown runs retain ownership and pending
 native decisions remain untouched. No extra service, timer or task store.
 
-Source validation: 16 history and 5 timestamp cases pass, together with 10
-progress lifecycle and 4 Workspace wiring cases. Independent targeted reviews,
-TypeScript/production build and syntax/diff checks pass. Full local npm test
-passed 95 of 102 file suites; the seven sandbox-limited suites were subsequently
-covered by the unchanged backend suite: 1,071 checks passed, none failed and one
-was skipped in 56.338s. The backend source checkout first lacked build packages;
-preparing the already-declared lockfile dependencies resolved that setup issue.
-
-Published and installed on 2026-11-12. The 82.029s validation/update preserved
-nine protected files/metadata, eight saved workers and Coordinator/report/native
-settings. Installed verification matched 113 files and passed HTTPS/authentication,
-assets/listeners/tracker checks plus all 288 checks across 16 suites in 2.951s.
-Natural progress-helper threads using the selected model were observed, one active.
-The provider refuses ephemeral history reads; completed native publication and
-latency improvement remain unverified. Browser acceptance is separate. No test
-model turn or approval was manufactured. A standalone SSH push succeeded without
-configuration changes; the earlier compound-command failure did not require a
-backend publication workaround.
-
 ## 1.15.0 — Review safe playbooks and documents
 
 Both Coordinator source readers now accept safe YAML playbooks, JSON and
@@ -472,19 +416,6 @@ literal credentials, renamed Vault payloads and binary content; JSON escaped
 keys are decoded and template/environment references are not resolved. The
 project reader rechecks resolved sensitive paths. Conservative content filtering
 may still require private review of credential-like metadata or unusual YAML.
-
-Final source tests: 13 source-reader cases and 97 Coordinator cases pass, plus
-six adjacent reviewer/context/hook suites in 1.057s. TypeScript/production build,
-syntax and diff checks pass; independent focused review found no remaining
-blocker. Published and installed on 2026-11-12: the 23.162s update preserved nine
-protected files/metadata, eight saved workers and Coordinator/report/native
-settings. Corrected 7.445s verification matched 112 installed files and checked
-live 1.15.0 HTTPS/authentication/assets/listeners/tracker. All 170 checks across
-eight suites passed against installed server modules in 2.176s, using existing
-tests staged temporarily from the source checkout. The first verifier assumed
-tests were shipped inside the installation; correcting the harness required no
-application change, reinstall or restart. No genuine approval or model turn was
-created for testing, and no pending human decision was resolved.
 
 ## 1.14.0 — Independent mobile chat navigation
 
@@ -500,16 +431,6 @@ resizing. Buttons keep their own destinations even before a scroll event is
 processed. The existing document scroller, composer destination, desktop reading
 positions, drafts and native controls are preserved. No dependency is added.
 
-Ten component behavior cases pass, covering both/one/neither button, visibility
-boundaries, growth, switching, deferred scroll events and cleanup. Four adjacent
-test files pass in 2.700s, the TypeScript/production build passes, and independent
-source review found no blocking issue. Published and installed on 2026-11-12:
-the 20.626s update preserved nine protected files/metadata, all eight saved
-workers, Coordinator/report settings and native runtime. Independent 5.133s
-verification matched 112 installed source files, live 1.14.0 HTTPS/authentication,
-both served assets and the independent navigation code/styles. Physical-phone
-geometry, keyboard and rotation remain separate acceptance checks.
-
 ## 1.13.0 — Mobile chat navigation
 
 Mobile chat has a sticky **Jump to top** button at the top of the viewport. At
@@ -519,23 +440,7 @@ scroller, follows conversation changes and current content height, and preserves
 desktop chat positions. Narrow layouts and landscape coarse-pointer phones use
 the same control. History pagination and native request actions are unchanged.
 
-Six new component behavior cases cover navigation, live geometry, switching,
-viewport changes and listener cleanup. Five affected test files pass in 4.156s,
-the TypeScript/production build passes, and independent source review found no
-blocking issue. Published and installed on 2026-11-12: independent verification
-matched 112 installed source files, live 1.13.0 HTTPS/authentication/assets and
-the served navigation labels/sticky styles. Nine protected files and all eight
-saved worker identities, Coordinator and report settings were preserved.
-Physical-phone keyboard, browser rendering and rotation acceptance remain
-separate from source/component and artifact checks.
-
 ## 1.12.0 — Native request time and approval context
-
-Published and installed on 2026-11-12. Independent verification matched111
-installed source files and passed308 installed backend cases (synthetic native
-transport), trusted HTTPS/assets/authentication and protected-state checks.
-Actual browser rendering and subsequent end-to-end approval latency remain
-separate verification gaps.
 
 Approval cards show **Requested at** from the native request's `startedAtMs`,
 with a full local date, seconds, time zone and corresponding ISO value. This is
@@ -569,14 +474,6 @@ acknowledgement, first evidenced activity and terminal result; provider queue
 versus reasoning time is not inferred.
 
 ## 1.11.0 — Parallel approval analysis and earlier event wakes
-
-Published and installed on 2026-11-12. Independent verification matched111
-installed source files and passed294 installed backend cases using synthetic
-native transport; trusted HTTPS/assets and protected saved state also passed.
-A subsequent read-only observation confirmed an actual analyst recommendation
-reached the saved Coordinator through its existing tools on a genuine request.
-Final native approval execution, end-to-end latency and physical browser
-acceptance remain separate verification gaps.
 
 Use up to two internal read-only analysts for independent approval requests under
 the same policy as the main Coordinator. Recommendations are evidence; the main
@@ -633,7 +530,6 @@ Coordinator; two-row mouse dragging and single-row/touch protections are retaine
 Mobile explicitly uses one horizontally scrollable row without hover/row switching.
 The active worker/Coordinator tab shares its input-title background tint across
 all themes; inactive fills and status frame colours are preserved.
-Source checks/builds do not establish actual browser hover or physical-phone behavior.
 
 ## 1.9.1 — Keep silent task checks silent
 
@@ -641,7 +537,7 @@ Make the internal-check exception explicit in worker guidance and each task-chec
 reminder: no opening acknowledgement, plan, tool-use introduction or no-change
 summary, including before tool calls. Keep useful findings, errors, real questions
 and substantive work updates visible. Native history and ordinary chat rendering
-remain unchanged; instructions do not guarantee future model compliance.
+remain unchanged.
 
 ## 1.9.0 — Restore input after native conversation unload
 
@@ -653,9 +549,7 @@ worker permissions. The Coordinator uses its existing restricted activation.
 
 Recheck conversation identity, connection and direct-input permission after
 activation. Pending approvals, explicit stops, handoffs and active steering keep
-their existing gates. Focused regressions and production-build results are
-recorded in the decision history; live installation and actual browser input
-acceptance remain distinct.
+their existing gates.
 
 ## 1.8.0 — Keep blocked tasks visible
 
@@ -665,10 +559,7 @@ Needs input first, then Blocked work, before the remaining task order so blocker
 stay visible in the compact task list. All task rows remain scrollable.
 
 This does not infer user questions from task text, answer approvals or change
-Beads task records, ownership or native controls. All43 affected task, attention
-and notification checks and the production build pass; independent review has
-no blocking findings. Installed verification is separate from actual browser
-acceptance.
+Beads task records, ownership or native controls.
 
 ## 1.7.0 — Reproduce Beads settings and database startup
 
@@ -681,11 +572,6 @@ accepts only the documented map and a strict boolean boot-start option.
 An explicit boot-start selection installs the already approved owner-level
 native Dolt start/stop unit, retaining the existing database and tracker. It
 refuses conflicting units and keeps Codex bootstrap separate from active work.
-All14 affected native-Ansible fixture tests, strict production lint across17
-Ansible files, syntax and the production build pass; independent source review
-has no blocking findings. A wider deployment run passed28 of29 cases, with the
-remaining local frontend test denied its socket by native permissions. These
-checks do not prove a reboot or a normal AAP deployment rerun.
 
 ## 1.6.0 — Preserve open agents and recover after startup
 
@@ -697,13 +583,6 @@ without launching its daemon or replaying worker inputs. Preserve request, pause
 ownership and saved-report controls. Keep Codex reconnect available independently
 of Claude, and distinguish history errors, empty results and already-open tabs.
 
-All41 focused persistence, authenticated-handler, component and request-recovery
-checks pass, along with the production build and independent source review.
-Broader local protocol tests remain limited by native socket/subprocess
-permissions. Publication, installed checks and actual browser acceptance are
-recorded separately when performed; source fixtures do not establish restored
-tabs in a real browser.
-
 ## 1.5.0 — Reproduce conditional On hold configuration
 
 The existing Ansible workspace preparation enables native Beads `on_hold` on
@@ -712,26 +591,13 @@ data; skip writes when it is already configured. Unknown native response formats
 and command failures stop safely. Deferred remains optional future work, distinct
 from a recorded conditional wait. No task state is changed by deployment.
 
-Three targeted tests passed across16 disposable Ansible fixture plays, including
-fresh/repeat and custom-state/failure preservation. This change is included in
-1.6.0; normal target-playbook acceptance remains pending. The broader
-1.4.2 full-suite execution limitations still apply. The CaC audit found nine
-compaction settings absent. Existing immutable CaC source selections need an
-explicit update before they can consume the newer playbook.
-
 ## 1.4.3 — Keep generated hook pages contiguous
 
 Generated hook text can contain long lines. Pack complete lines within the
 existing page limits and return the exact next line, so the character cap cannot
 silently skip context. Explicitly mark an overlong single-line excerpt.
 This changes paging only; the own-conversation, ownership, link and credential
-checks remain unchanged. Five focused cases and the production build pass.
-All eight pages of the real338-line hook file reconstruct its complete contents
-with a matching digest; no contents were printed. Source is published and
-running1.4.3 is verified:108 matching installed files, trusted HTTPS/assets,
-authentication gates/both listeners and149 installed synthetic cases pass.
-The1.4.2 broader-suite execution limitations and actual new-callback/physical-
-browser acceptance gaps still apply.
+checks remain unchanged.
 
 ## 1.4.2 — Retain request explanations and recover missing context
 
@@ -746,16 +612,6 @@ browser acceptance gaps still apply.
   explicit re-review; ambiguous older records stay historical. Never restore
   approvals or submit native answers from saved history.
 
-Validation: 185 affected checks, production build and independent review pass.
-The full-suite attempt is not clean: broader socket/subprocess/home-directory
-checks are restricted in this execution environment, with some child CLI output
-unavailable. No permissions were changed to run them. Source is published and
-running1.4.2 is verified:108 installed file matches, trusted HTTPS/assets,
-authentication gates/both listeners and148 installed synthetic cases pass.
-The actual Coordinator also read16000 characters of its own previously refused
-hook text through the existing tool. New callback and physical-browser acceptance
-remain separate;1.4.3 corrects the observed page cursor limitation.
-
 ## 1.4.1 — Recover pending file changes from the live snapshot
 
 Pending native patch approvals can outlive their transient file-change events,
@@ -764,15 +620,6 @@ in the already-approved reconnect response and match only its exact current
 pending file item. Preserve newer live bodies and existing request identity,
 permission, ownership and replay guards. No extra reconnect, answer or command
 retry is added for delivered cards. Missing/nonmatching data remains unavailable.
-
-Validation:894 tests,893 passed, one alternate-group skip, zero failures;
-production build and independent review pass. Source is published and running
-1.4.1 is verified with108 matching source files, trusted HTTPS/assets,
-authentication gates/both listeners and114 installed synthetic cases. Actual
-native readback also confirms all four proposed files and complete diffs without
-truncation, followed by once-only approval under existing scope. The older AAP
-call completed normally without resubmission and its actual job succeeded. Both
-recovery observations are answered; physical-browser acceptance remains separate.
 
 ## 1.4.0 — Reconnect eligible native waits automatically
 
@@ -797,15 +644,6 @@ recovery observations are answered; physical-browser acceptance remains separate
 - Keep the current missing-details cards and diagnostics. Failed attempts retain
   existing manual controls; no new timer or persistent store is introduced.
 
-**Validation/publication:** 890 tests, 889 passed, one alternate-group skip and
-zero failures; production build and independent review pass. Source is published
-and production1.4.0 is verified:108 matching source files, trusted HTTPS/assets,
-authentication gates/both listeners and110 installed synthetic backend cases.
-Fresh live readback received four original RHEL approvals automatically, and the
-original AAP connection-check callback returned and completed its process.
-One separate older MCP wait remains unresolved; do not equate this release with
-recovery of every cold callback. Phone/browser acceptance remains separate.
-
 ## 1.3.1 — Distinguish native waits from user decisions
 
 - Use the same request evidence in the input header and agent tabs. A native
@@ -816,22 +654,9 @@ recovery of every cold callback. Phone/browser acceptance remains separate.
 - Preserve all native states, request controls and send/interrupt gates. This
   presentation correction does not recover, dismiss or resume a native wait.
 
-The final combined suite ran 867 tests:866 passed, one unavailable alternate-
-group case skipped, zero failed. Production build and independent review pass.
-Implementation62ad95f and payloade31c1f1 are SSH-published/readback verified.
-AAP3478 updated the existing installation in24.637s, preserving nine protected
-files and unrelated Bash bytes/ownership/mode. Independent3481 passed in6.882s:
-107 installed source files match, actual running1.3.1 trusted HTTPS/assets,
-authentication gates and both listeners pass;75 installed synthetic backend
-regressions pass. The served build includes the corrected missing-details
-composer guidance. Physical browser acceptance remains unverified. The existing
-cold-callback recovery decision remains unanswered; the native wait still reports
-waitingOnApproval and has no current actionable approval envelope.
-
 ## 1.3.0 — Clearer requests, task input and mobile scrolling
 
-This release includes the previously unpublished 1.2.0 changes; 1.2.0 was not
-separately released or deployed.
+This release includes the 1.2.0 changes.
 
 - Keep Allow once and offered Allow always actions together in a compact
   wrapping row. Place long exact saved-rule scopes below the actions, using
@@ -856,22 +681,6 @@ separately released or deployed.
   states or Question tasks request an answer; missing Needed/Why information is
   reported as missing rather than invented.
 
-The final combined suite ran 864 tests: 863 passed, one unavailable alternate-
-group case skipped, zero failed. The production build and independent source
-review pass. Implementation eb319b6 and payload 862169b are SSH-published and
-remote-readback verified. AAP 3476 updated production in 25.245 seconds and
-preserved nine protected files plus unrelated Bash content/permissions.
-Independent 3477 passed in 6.741 seconds: 107 installed source files match;
-running 1.3.0, trusted HTTPS, served assets, authentication gates and both
-listeners pass. Twenty-one prior question/handoff and 54 request/task backend
-regressions pass against installed modules with synthetic native transport.
-The user confirms version 1.3.0 is visible. Physical phone behavior and recovery
-of already-lost native callbacks remain unverified. A subsequent user screenshot
-still shows unknown native waits and exposes a separate footer classification
-error: aggregate native attention is incorrectly called Needs your answer even
-without a delivered question. That presentation correction shipped in1.3.1;
-the underlying missing native request remains unresolved.
-
 ## 1.1.0 — Answer eligible assistant questions
 
 - Answer eligible current Codex assistant-question cards with an option or free
@@ -891,20 +700,6 @@ the underlying missing native request remains unresolved.
   reply envelopes, excluding model-written question text and protocol metadata.
   Add no automatic follow-up, retry, question store or permission changes.
 
-The native0.167.0 source contract is verified. The final combined suite ran827
-cases:826 passed, one unavailable alternate-group case skipped, none failed.
-The production build is clean, with no browser Node-module warning; independent
-source/UI/provenance review is clear.
-
-Implementation115cf9a and payloadbbd8a2b are SSH-published/readback verified.
-AAP3460 updated/restarted production in20.634s, preserving nine protected files
-and unrelated Bash bytes/uid/gid/mode. Independent3461 passed in5.439s:106 source
-files matched, running1.1.0 trusted HTTPS/assets/both listeners/auth gates,
-21 installed backend reply/authority/queue/handoff regressions passed, and the
-served answer/retained-draft/detailed-report controls matched without a browser
-Node-module shim. These installed tests use isolated synthetic native transport;
-actual browser/provider reply delivery and full phone workflows remain unverified.
-
 ## 1.0.0 — Optional detailed task reports
 
 - Add a Detailed report choice beside Report now. Keep the normal overview first,
@@ -915,24 +710,8 @@ actual browser/provider reply delivery and full phone workflows remain unverifie
 - Upgrade unsent reports without downgrading them. An already dispatched normal
   request stays normal, with visible feedback and no automatic duplicate request.
 
-The combined suite ran792 tests:791 passed, one alternate-group case skipped,
-and none failed. The production build and independent source review pass,
-including authenticated HTTP, queue/ACK/native-gate and desktop/mobile component
-regressions. Implementation e7432ed and payload59036d9 are SSH-published/readback verified.
-AAP3457 updated/restarted production in19.888s, preserving nine protected files
-and unrelated Bash content/permissions. Independent3459 matched105 installed
-files, running1.0.0, trusted HTTPS/assets/both listeners/auth gates and five
-installed report HTTP/queue/native-gate regressions. The served build contains
-the detailed checkbox and installed instructions preserve timestamp-evidence
-limits. Attempt3458 passed its backend checks but could not run a TS-based UI
-fixture because production omits the development compiler. No compiler was
-installed: desktop/mobile component tests passed before publication, and the
-served build was verified independently. Actual browser-generated report content
-and complete phone/native workflows remain unverified.
- This option does not guarantee complete action history or change the
-existing 32,000-character report recognition bound. This release supports the
-current single-engineer, Codex-focused scope; full live approval recovery,
-provider question replies and phone acceptance remain separate verification.
+Detailed reports retain the existing 32,000-character recognition limit and
+explicitly state missing action history.
 
 ## 0.48.0 — Per-user Codex and compact worker overview
 
@@ -947,20 +726,6 @@ provider question replies and phone acceptance remain separate verification.
 - Check unfinished work silently every ten minutes. Task-report interval choices
   and their separate schedule are unchanged.
 
-Validation: the final combined suite ran 784 tests: 783 passed, one group-ownership
-case skipped because no alternate supplementary group was available, and none
-failed. The production build passed. The Bash-profile group-preservation fix is
-included and final source review is clear. Implementation 6877e20 and payload 82e7861
-are SSH-published/readback verified. AAP 3454 stopped before installer execution;
-corrected 3455 updated/restarted production, preserving nine protected files and
-unrelated Bash bytes/group/mode. Independent 3456 matched 105 installed files,
-trusted HTTPS/assets/both listeners/auth gates and actual managed Bash updates
-plus Codex 0.167.0 lookup. Deployed-source checks passed 17 cases with one
-alternate-group skip; isolated installed checks verified ten-minute task checks
-and the separate fifteen-minute report deadline. The user confirms the collapsed
-Subagents section is visible. Fresh real Codex installation, provider sign-in,
-full phone/native interaction and daemon availability after reboot remain unverified.
-
 ## 0.47.0 — Show delegated approvals under their parent
 
 - Delivered native Codex child requests and waiting states appear under their
@@ -973,18 +738,10 @@ full phone/native interaction and daemon availability after reboot remain unveri
   supply approval authority. Existing manual-only permissions remain manual.
 - Child request refresh is read-only and preserves newer live updates. Requests
   never delivered to this client, or predating all native child discovery, are
-  not fabricated or replayed. Actual native/browser delivery remains unverified.
+  not fabricated or replayed.
 - Explain first-time RHEL prerequisites with and without sudo before cloning.
   Offer normal browser Codex sign-in, optional policy-permitted device-code login
   and deferral. Explain later Beads workspace setup using the existing installer.
-
-Validation: all761 application tests and the production build pass. Independent
-source review found no remaining blocking issue. Payload8a26850 is SSH-published
-and independently read back. AAP3452 updated/restarted production with nine
-protected files unchanged; independent3453 matched 105 installed files, actual
-0.47.0 trusted HTTPS/assets/both listeners/login gates and isolated installed
-child routing/ACK identity. Real provider delivery, browser interaction and an
-organization-managed sign-in were not exercised for this release.
 
 ## 0.46.1 — Guide safe recovery of stalled subagent waits
 
@@ -995,15 +752,7 @@ response under unchanged permissions, then resume specific authorized work.
 Nonreply blockers remain explicit. No real external job cancellation, approval
 bypass, blind retries, blanket periodic probes or additional timer is introduced.
 The usage guide lists generated control messages and distinguishes visible
-handoffs and runtime context. Six focused regression files and the production
-build pass; independent source review found no blocking issue. The current
-Coordinator received the requested guidance through the native message tool.
-Application source56b3499 was SSH-published and independently read back. AAP3446
-updated/restarted production with nine protected files unchanged; independent3447
-verified105 installed files, running0.46.1, trusted HTTPS, served assets, both
-listeners and the installed recovery prompt. No live probe or approval was
-started for verification. This guidance does not prove future compliance, recover
-every wait or fix the separate never-opened subagent approval-routing defect.
+handoffs and runtime context.
 
 ## 0.46.0 — Check progress of outstanding delegated work
 
@@ -1017,14 +766,6 @@ every wait or fix the separate never-opened subagent approval-routing defect.
   native permissions and stops. No blind retry/cancellation, extra watchdog,
   dispatcher or timer is introduced.
 
-**Validation:** six focused test files covering coordinator/task-ping delivery,
-silence, cadence and native approval guards pass; the production build passes.
-The broader run passes71 of76 test files; five files encounter restricted socket
-listening or home-directory writes. Publication/deployment remain pending after
-SSH refuses the system configuration ownership. This is stronger worker guidance,
-not proof that every future model response complies or a recovery mechanism for
-a worker unable to reach a safe checkpoint.
-
 ## 0.45.1 — Separate independent questions and show mobile screenshots
 
 - Worker guidance asks for one independent decision or action per structured
@@ -1037,17 +778,6 @@ a worker unable to reach a safe checkpoint.
 - Captions mark their earlier UI/version/task state as historical. No other
   conversation's questions or task records are automatically rewritten.
 
-**Validation:** all 718 application tests and the production build pass, including
-the existing worker-instruction checks. JPEG inspection confirms EXIF is absent
-and the compressed image data/non-EXIF segments are preserved. README image
-references resolve. Instruction guidance does not guarantee every future agent
-question complies.
-Source is SSH-published and production update/restart succeeded (AAP3438),
-preserving nine protected files. Independent3439 verified105 source files,
-actual0.45.1 trusted backend HTTPS/assets/both listeners/login gates, installed
-question guidance and the EXIF-free mobile README gallery. No actual user history
-or login was modified for testing; browser interactions remain unverified.
-
 ## 0.45.0 — Preserve traceable conversations
 
 - Edit & rewind is withdrawn at the user's request. Original messages and
@@ -1058,18 +788,6 @@ or login was modified for testing; browser interactions remain unverified.
 - Individual-message and Claude rewind are withdrawn rather than future work.
 - Existing native history, task states, saved decision summaries and logins are
   preserved; this release does not perform a rewind.
-
-**Validation:** all718 application tests and the production build pass. Regression
-checks cover authenticated rejection of removed routes without native calls,
-unchanged messages, follow-up/copy/branch behavior and passive external-history
-refresh with stale-read/error recovery guards. Independent review found no
-remaining issue. Source is SSH-published; AAP3436 update/restart preserved nine
-protected files including session invalidation state. AAP3437 verified103 exact
-source files, actual0.45.0 trusted HTTPS health/assets/both listeners/login gates.
-Four real authenticated HTTP requests against the installed app in an isolated
-temporary fixture confirmed404, unchanged messages and zero native calls. No
-real native history/login was changed for testing; browser rendering and the
-previous public network-path failure were not re-tested.
 
 ## 0.44.0 — Rewind inputs and preserve logins and decision history
 
@@ -1113,26 +831,6 @@ The rewind feature described below was subsequently withdrawn in0.45.0. Other
 - Three user-approved original development screenshots illustrate the README;
   captions identify historical UI versions and task states.
 
-**Validation:** all 738 application tests and the production build pass, including
-real HTTP/TLS authentication checks, restart/logout/clear/password-rotation
-fixtures, stale login responses, file-content matching/review/history races,
-message-only question display, report delivery and native whole-turn guards.
-Private decision append/reload/failure and graceful shutdown checks also pass.
-Independent source reviews found no remaining blockers. Ansible syntax and strict
-production lint pass across 26 files; 32 of 33 native Ansible fixtures pass. The
-remaining protected-frontend TLS fixture cannot create its local test socket
-under the current permissions; no assertion was relaxed. Source is SSH-published
-and production update/restart succeeded (AAP3433), preserving eight protected
-files. AAP3434 verified 105 installed source files, actual HTTPS health0.44.0,
-served assets, both listeners and application-auth403 behavior. Installed session
-restart/clear-logins and decision reload passed in isolated temporary profiles.
-That job failed at its final public-proxy probe; read-only3435 confirmed TCP
-connection refusal from the application host, so public access is not verified
-by these checks. No proxy or connection settings were changed.
-No actual native conversation was rewound;
-browser login retention and the original pending RHEL body remain unverified.
-Optional installed/native browser exercises remain deferred.
-
 ## 0.43.1 — Require the protected frontend before Ansible deployment
 
 - Every application deployment verifies the selected HTTPS public origin returns
@@ -1146,14 +844,6 @@ Optional installed/native browser exercises remain deferred.
   validated and preserved. Backend/UI authentication, installer behavior and
   native daemon lifecycle are unchanged.
 
-**Validation:** all 20 existing/extended native Ansible deployment fixtures pass,
-including trusted/untrusted TLS, missing challenge/refusal before writes,
-credential-free probing, fresh browser-first configuration, retained passwords
-and native workspace/tool setup. Strict production lint passes across 17
-encountered Ansible files; syntax, compilation and diff checks pass. The full
-application suite/build was not rerun for this Ansible-only correction. Actual
-frontend provisioning and fresh browser enrollment remain deployment acceptance.
-
 ## 0.43.0 — Honor Never for startup reports
 
 - Never skips automatic startup reports as well as recurring reports.
@@ -1162,16 +852,6 @@ frontend provisioning and fresh browser enrollment remain deployment acceptance.
 - Selecting Never cancels unsent automatic startup reports while preserving
   manual requests, uncertain/in-flight delivery and existing native safeguards.
 - Enabled startup/cadence coalescing and separate task checks are preserved.
-
-**Validation:** all 618 application tests and the production build pass. Checks
-cover Never startup with stored input needs, manual Report now after Never,
-cancelled automatic versus retained manual/uncertain/in-flight work, enabled
-startup coalescing and unchanged task checks. Published/deployed payload
-`cdc969fe02b15f8adedf154d0d476d628a3f8712` was independently checked:
-96 source files, two served assets, trusted HTTPS0.43.0, login gates, both
-listeners and eight unchanged protected files. Startup-skip code/instructions
-match; no extra model or live permission exercise was started.
-Optional installed/native browser exercises are deferred by the user.
 
 ## 0.42.0 — Protected first-browser password setup and native approval choices
 
@@ -1190,19 +870,6 @@ Optional installed/native browser exercises are deferred by the user.
   rather than claiming generation has begun. A turn ending without a recognized
   report shows an error instead of a false ready announcement; no retry is added.
 
-**Validation:** all 614 application tests and the production TypeScript/Vite build
-pass. Checks include real trusted HTTPS enrollment/session/preservation, concurrent
-setup, invalid authentication, request scopes/confirmation/coordinator limits,
-installer configuration preservation and report response/acknowledgement ordering.
-Independent source review found no concrete blockers. The final normal test run
-passes; a redirected run hit known subprocess/socket environment restrictions.
-Payload `1aea82fc4a65852bd175fa34495ecd300118045c` was SSH-published and
-remote-verified, installed/restarted through AAP and independently checked:
-96 matching source files, two assets, trusted HTTPS0.42.0, required login,
-both listeners and eight unchanged protected files. The merged Ansible bootstrap
-also passes all 17 disposable deployment fixtures.
-Actual browser/proxy first-enrollment acceptance remains separate from tests and
-from production preservation checks on an installation with an existing password.
 ## 0.41.1 — Repair fresh Ansible workspace and tool preparation
 
 - Prepare the separate default agent workspace and its first native Beads
@@ -1212,11 +879,6 @@ from production preservation checks on an installation with an existing password
 - Preserve existing trackers, routing, profiles, authentication and explicitly
   configured installation paths. Fetch the current default source on deployment.
 
-All 585 application tests, the production build, focused native-Ansible
-fixtures, syntax and strict lint pass. Real target
-bootstrap and application acceptance remain unverified. Application/browser
-code and the separate first-opening password requirement are unchanged.
-
 ## 0.41.0 — Keep overview settings at the bottom
 
 - Desktop overview fills the available browser pane without extending the page.
@@ -1224,18 +886,6 @@ code and the separate first-opening password requirement are unchanged.
   questions scroll as needed; saved section heights remain bounded.
 - Short windows retain access to long settings feedback. Mobile continuous-page
   layout, native request behavior and existing resize controls are preserved.
-
-**Validation:** all 585 application tests and the production build pass.
-Focused CSS/SSR checks cover bounded desktop scrolling, bottom settings with or
-without questions, saved oversized heights, keyboard/reset boundaries and mobile
-flow restoration. Source review found no concrete blocker. Actual short-window
-browser geometry remains unverified. Publication/deployment is recorded separately.
-
-Production payload `e9335e0a9859c93de373118cdd3c2a786bd60608` was published,
-installed and restarted through the existing authorized workflow. Independent
-verification matched95 source files and two assets, HTTPS health0.41.0,
-login gates, both listeners and eight unchanged protected files. Bounded overview
-styles/bottom settings are served; rendered desktop/phone acceptance stays open.
 
 ## 0.40.0 — Silent task checks and removal of native Goals
 
@@ -1251,21 +901,6 @@ styles/bottom settings are served; rendered desktop/phone acceptance stays open.
   preserve pause, native-request, ownership and handoff gates while using native
   steering for known active Codex turns at their next safe checkpoint.
 - No replacement execution loop, dispatcher, service or dependency added.
-
-**Validation:** all581 application tests and the production build pass. Focused
-coverage includes15-minute cadence, active steering, coalescing, stop/request/
-handoff guards, uncertain sends, hidden replay/provenance and the next-time UI.
-Earlier restricted attempts could not use sockets/home fixtures or capture Node
-subprocess output; the final complete run passed without changing those tests
-to bypass their checks. Actual publication/deployment is recorded separately;
-rendered browser and real scheduled worker acceptance remain distinct.
-
-Production update/restart and independent verification succeeded at payload
-`5bbd5bea435448f573c2e8126178ffa81e3edbd6`:95 source files and two served assets
-match; actual HTTPS health reports0.40.0; login gates, both listeners and eight
-unchanged protected files are verified. Removed Goal feature files are absent
-and the served bundle contains the task-ping counter. Browser interaction and
-actual scheduled worker adoption remain separate acceptance checks.
 
 ## 0.39.0 — Native Codex Goals and clarified task announcements
 
@@ -1289,13 +924,6 @@ Historical release; the Goals feature and requirement were withdrawn in 0.40.0.
   budget/accounting rules. Unsupported native facilities stay unavailable;
   no dispatcher, Goal database, dependency or Claude implementation was added.
 
-**Validation:** all 606 application tests and the production build pass. Focused
-review fixes cover prior-Goal identity, old native reads and HTTP replies racing
-newer streamed state. A real Goal was set for this implementation using the
-native tool. A direct local application RPC probe was denied by the sandbox;
-actual installed Goal controls, continuation and rendered announcements remain
-separate acceptance checks. Publication and deployment are recorded separately.
-
 ## 0.38.0 — Background branch handoff and compact title colours
 
 - **Hand back & close** queues a background transfer, including during work.
@@ -1316,28 +944,9 @@ Handoff coordination stays in the existing backend process, with no new
 service or store. Keep CCNG running while it finishes; restart does not replay
 an interrupted handoff. Unsupported native safety APIs retain the branch with
 an error. Send or remove unsent images before handback; unsent text stays local
-and is not included in the summary. Actual native/browser acceptance is
-separate from automated fixture and build checks.
-
-**Validation:** all 560 application tests and the production build passed.
-After the final generated-control provenance guard, the 20 handoff, 58
-coordinator and four source-review regressions passed again. Focused review
-confirmed the identified uncertainty, parent-serialization and capacity fixes.
-Actual rendered title-tab geometry and native end-to-end handoff remain unverified.
-
-Production update/restart through AAP and independent verification succeeded.
-All 94 checked installed source files match published payload
-`e22f020bd1400fe65007ebe5d211e3e49533fb93`; actual trusted HTTPS health reports
-0.38.0, both listeners and login gates work, and two served assets match.
-Eight protected configuration/authentication/service/native-profile files stayed
-unchanged. This does not establish the browser/native interaction checks above.
+and is not included in the summary.
 
 ## 0.37.0 — Image picker and pending-request visibility
-
-Published implementation:
-[`e3a01ba`](https://github.com/kvegh/command-center-ng/commit/e3a01ba6fefa45ee6e6fcacbcf444b1a7126f96e).
-Documentation checkpoint:
-[`12ce91b`](https://github.com/kvegh/command-center-ng/commit/12ce91bd35a2a4f0b7446af63d1977605c5a1c21).
 
 - Added **Attach image** on desktop and mobile using existing in-memory drafts,
   limits, previews and delivery. Selection stays with the originating chat;
@@ -1351,44 +960,23 @@ Documentation checkpoint:
 - Retained native request IDs, review tokens, manual answer controls and send
   gates. No image store, dependency, permission bypass or new service was added.
 
-**Validation:** all 520 application tests and the production build passed.
-Focused regressions cover file selection/cancellation, original-chat identity,
-reconnect recovery, snapshot delivery and the actual frontend initialization
-effect. Independent review found no concrete issue in the recovery/state-order
-fixes. Actual Android Firefox and affected-runtime acceptance remain unverified;
-the historical missing-card report's exact triggering sequence is unconfirmed.
-
-Subsequent production checks through AAP confirmed the existing installation is
-running 0.37.0: 92 checked source files match the published payload, HTTPS health
-and served assets are correct, state/events require login, and both configured
-listeners are present. It was already current, so this verification performed
-no reinstall or restart. Fresh native request workflows and Android Firefox
-interaction still require their separate acceptance checks.
-
 ## 0.36.1 — New-agent path validation
 
 Trim surrounding whitespace, preserve spaces within directory names and require
 an existing absolute directory before creating a native worker. Missing,
 inaccessible, invalid or file paths produce useful validation errors.
 
-All 505 application tests and the production build passed, including seven
-path regressions for both provider adapters. Installed-browser acceptance was
-not established by these fixtures.
-
 ## 0.36.0 — Compact mobile overview
 
 Reduced mobile overview spacing, wrapped task totals and omitted empty question
 sections only when no attention state exists. Collapsed Worker settings show
 the report cadence and Report now, retaining controls and feedback on expansion.
-Desktop layout and saved sizes are unchanged. All 498 tests and the build
-passed; phone rendering, keyboard and rotation acceptance remain separate.
+Desktop layout and saved sizes are unchanged.
 
 ## 0.35.1 — Consistent password lengths
 
 Aligned password creation, stdin input and login at 4,096 characters, accepting
-an optional terminal newline without replacing an existing file on invalid input.
-All 489 application tests, two focused Ansible password fixtures and the build
-passed. This did not implement first-browser password creation or a default
+an optional terminal newline without replacing an existing file on invalid input. This did not implement first-browser password creation or a default
 password; existing configured passwords remain preserved.
 
 ## 0.35.0 — Continuous mobile page
@@ -1396,13 +984,12 @@ password; existing configured passwords remain preserved.
 Wrapped worker tabs, placed the full-width overview above bounded chat history,
 and retained a six-line input with internal overflow. Mobile ignores desktop
 saved dimensions, omits resize handles and worker coordinator recaps, and avoids
-reordering tabs during touch scrolling. Existing 483 tests, four focused mobile
-checks and the build passed; rendered phone acceptance remained pending.
+reordering tabs during touch scrolling.
 
 ## Earlier milestones, newest first
 
-These are compact historical summaries. Consult the decision history or archived
-README for the exact implementation commits and original validation records.
+These are compact historical summaries. See the decision history for rationale
+and implementation references.
 
 | Release | Change |
 | --- | --- |
@@ -1453,21 +1040,15 @@ README for the exact implementation commits and original validation records.
 | 0.2.0–0.2.2 | Added editable branch-summary return and refined workspace navigation/task presentation. |
 | 0.1.0–0.1.1 | Added target-local installation/update handling and native conversation branching. |
 
-## Superseded behaviour and evidence limits
+## Superseded behaviour
 
-- Current task/report instructions are in [usage](usage.md), not in historical
-  release paragraphs. Old four-worker limits, native-plan task inference and
-  agent-maintained report clock loops no longer describe the application.
-- The shared default-password/forced-first-login-change proposal was withdrawn.
-  Current setup uses a user-chosen password before server startup; password
-  creation on first browser opening remains unfinished.
-- Published Claude SDK code and test fixtures do not establish a completed,
-  live-verified Claude integration. Claude work remains TODO.
-- Native Goals execution with CCNG controls is an approved direction; the
-  preparatory adapter does not mean Goals controls or Edit & rewind are complete.
-- Builds, automated fixtures and source review are reported for their actual
-  scope. They do not substitute for phone interaction, live native permission
-  persistence or post-deployment functional verification.
+- Current task/report instructions are in [usage](usage.md). Historical worker
+  limits, native-plan task inference and agent-maintained report loops no longer
+  describe the application.
+- Shared default passwords and forced first-login password changes were withdrawn.
+  Current password setup is described in [installation](installation.md).
+- Native Goals and Edit & rewind were withdrawn. Use follow-up messages for
+  corrections and separate branching when needed.
 
 Development status is maintained in [the handover](../current_status_for_handover.md)
 and Beads. Operational target details and secrets do not belong in release notes.

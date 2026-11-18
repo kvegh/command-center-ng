@@ -82,6 +82,8 @@ test('desktop CSS grows intrinsic tab width without vertical growth or Coordinat
   };
   assert.equal(declarations('.tabs').display, 'grid');
   assert.equal(declarations('.tabs')['grid-auto-columns'], 'max-content');
+  assert.equal(declarations('.tabs')['align-content'], 'end', 'fixed worker rows meet the chat edge even when Coordinator makes the header taller');
+  assert.equal(declarations('.tabs')['align-items'], 'end', 'shorter inactive tabs share the selected row’s lower edge');
   assert.equal(declarations('.tabs')['container-type'], 'inline-size', 'the worker strip measures its own available width, excluding Coordinator');
   assert.equal(declarations('.tabs > .tab-wrap')['--tab-width'], 'max(170px, calc((100cqw - (var(--tab-columns) - 1) * 4px) / var(--tab-columns)))', 'columns fill the strip after their gaps, retaining a scrollable minimum');
   assert.equal(declarations('.tabs > .tab-wrap').width, 'var(--tab-width)');
@@ -93,6 +95,14 @@ test('desktop CSS grows intrinsic tab width without vertical growth or Coordinat
   assert.equal(declarations('.tabs > .tab-wrap.active').height, '40px');
   assert.equal(declarations('.coordinator-tab-group')['flex-shrink'], '0');
   assert.equal(declarations('.coordinator-tab-group')['align-items'], 'flex-end');
+  assert.equal(declarations('.coordinator-tab-group')['margin-left'], '8px', 'Coordinator has its own space after the conversation strip');
+  assert.equal(declarations('.coordinator-tab-group')['padding'], '0 0 8px 12px', 'Coordinator stays clear of the chat edge');
+  assert.equal(declarations('.coordinator-tab-group')['border-left'], '1px solid var(--line)', 'the separator follows the selected theme');
+  assert.equal(declarations('.coordinator-tab-group .tab-wrap')['border-bottom'], '1px solid var(--line)', 'Coordinator is a closed control rather than a joined folder');
+  assert.equal(declarations('.coordinator-tab-group .tab-wrap')['border-radius'], '7px');
+  assert.equal(declarations('.coordinator-tab-group .tab-wrap.active')['border-bottom-color'], 'var(--accent)');
+  assert.equal(declarations('.coordinator-tab-group .coordinator-tab').height, '68px', 'the existing large Coordinator dimensions stay unchanged');
+  assert.equal(declarations('.coordinator-tab-group .coordinator-tab.active').height, '80px');
   const hover = sheet.nodes.find(node => node.type === 'atrule' && node.params === '(min-width: 901px) and (hover: hover) and (pointer: fine)');
   assert.ok(hover, 'hover expansion is absent on compact/touch layouts');
   const expansion = hover.nodes.find(rule => rule.selector === '.tabs:not(.reordering) > .tab-wrap:hover');

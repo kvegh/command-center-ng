@@ -182,11 +182,43 @@ test('canonical array, singleton and IDE-prefixed replies dismiss only exact mat
   assert.deepEqual(f.states(), ['submitted', 'available']);
 });
 
-test('ordinary followup and true terminal completion retire editors without deleting metadata or reopening IDs', () => {
-  for (const end of ['ordinary', 'completed', 'interrupted', 'failed']) {
+test('ordinary followups preserve unanswered choices through a delayed receipt and exact later answer', async () => {
+  for (const delayedReceipt of [false, true]) {
+    const f = replyFixture();
+    f.complete({ questions: [{ title: 'First choice?', options: ['One', 'Two'] }, { title: 'Second choice?', options: null }] });
+    const followup = 'Also keep the documentation concise.';
+    const nativeCall = f.rpc.call;
+    f.rpc.call = async (method, params) => {
+      const result = await nativeCall(method, params);
+      if (!delayedReceipt && params.input[0].text === followup) nativeUser(f, followup);
+      return result;
+    };
+    const sent = await f.workspace.send('worker', followup);
+    assert.equal(sent.turnId, 'turn');
+    if (delayedReceipt) nativeUser(f, followup);
+    assert.deepEqual(f.states(), ['available', 'available']);
+    assert.equal(f.agent.messages.find(message => message.type === 'user').nativeQuestionReplies, undefined);
+    for (const options of [{ report: true }, { reportSetting: true }, { coordinatorEvent: true }, { taskPing: true }, { preserveAsyncQuestions: true }]) {
+      await assert.rejects(f.workspace.send('worker', 'Internal control must wait.', options), error => error.code === 'async_question_pending');
+    }
+    assert.equal(f.calls.length, 1, 'only the human followup was sent');
+    await f.workspace.answerMessageQuestion('worker', { messageId: 'message', questionIndex: 0, answer: 'Two' });
+    assert.deepEqual(f.states(), ['submitted', 'available'], 'answering one choice preserves the other editor');
+    const [reply] = JSON.parse(f.calls[1].params.input[0].text.split('\n')[1]);
+    assert.equal(reply.questionItemId, questionId(0)); assert.equal(reply.answer, 'Two');
+    assert.equal(f.calls[1].params.expectedTurnId, 'turn');
+    await assert.rejects(f.workspace.send('worker', 'Report still waits for the second choice.', { report: true }), error => error.code === 'async_question_pending');
+    await f.workspace.answerMessageQuestion('worker', { messageId: 'message', questionIndex: 1, answer: 'Keep the current scope.' });
+    assert.deepEqual(f.states(), ['submitted', 'submitted']);
+  }
+});
+
+test('true terminal completion retires editors without deleting metadata or reopening IDs', () => {
+  for (const end of ['completed', 'interrupted', 'failed']) {
     const f = replyFixture(); f.complete();
-    if (end === 'ordinary') nativeUser(f, 'Continue with the existing task.');
-    else f.workspace.notification({ method: 'turn/completed', params: { threadId: 'worker', turn: { id: 'turn', status: end } } });
+    nativeUser(f, 'Also keep the documentation concise.');
+    assert.deepEqual(f.states(), ['available']);
+    f.workspace.notification({ method: 'turn/completed', params: { threadId: 'worker', turn: { id: 'turn', status: end } } });
     assert.deepEqual(f.states(), ['read-only']); assert.equal(f.agent.messages[0].nativeQuestions[0].title, 'Which target?');
     f.agent.turnId = 'turn'; f.agent.thread.status = { type: 'active' }; f.complete(); assert.deepEqual(f.states(), ['read-only']);
   }
@@ -196,7 +228,8 @@ test('ordinary followup and true terminal completion retire editors without dele
   assert.deepEqual(f.states(), ['read-only']);
   f.complete(); assert.deepEqual(f.states(), ['read-only'], 'explicit metadata removal cannot make a duplicate ID new again');
   for (const text of ['> ' + envelope(answered(0)), envelope(answered(0)) + '\nextra text']) {
-    const g = replyFixture(); g.complete(); nativeUser(g, text); assert.deepEqual(g.states(), ['read-only'], 'ordinary text is not treated as a canonical answered identity');
+    const g = replyFixture(); g.complete(); nativeUser(g, text); assert.deepEqual(g.states(), ['available'], 'reply-looking ordinary text neither answers nor retires the question');
+    assert.equal(g.agent.messages.find(message => message.type === 'user').nativeQuestionReplies, undefined);
   }
 });
 
@@ -226,7 +259,7 @@ test('native reply observation requires original single-text input shape and pre
   for (const extra of [[{ type: 'image', imageUrl: 'synthetic' }], [{ type: 'text', text: 'second text' }], [{ type: 'other', value: 'unsupported' }]]) {
     const f = replyFixture(); f.complete({ questions: [{ title: 'First', options: null }, { title: 'Second', options: null }] });
     f.workspace.addItem(f.agent, { id: 'shaped-reply', type: 'userMessage', content: [{ type: 'text', text: envelope(answered(0)) }, ...extra] }, 'turn', false, { live: true, completed: true });
-    assert.deepEqual(f.states(), ['read-only', 'read-only'], 'mixed content is an ordinary followup, not a partial reply');
+    assert.deepEqual(f.states(), ['available', 'available'], 'mixed content is an ordinary followup, not a partial reply or withdrawal');
     assert.equal(f.agent.messages.find(message => message.type === 'user').nativeQuestionReplies, undefined);
   }
   const f = replyFixture();

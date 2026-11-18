@@ -418,9 +418,10 @@ question index. Derive the bounded title fragment server-side; do not trust
 client title text. Restored/history-only metadata may not restart a turn. Send
 through supported ordinary native input/steering, not approval RPCs; native
 acceptance establishes emission, not task/question resolution. Partial replies
-keep other editors. Native terminal state ends eligibility; CCNG ordinary-human-
-follow-up retirement is conservative policy, not exact native cross-client
-parity or proof of an answer. Preserve unsent text and submission/error latches
+keep other editors. Native terminal state ends eligibility. Unrelated ordinary
+follow-ups leave unanswered cards usable while the original turn stays active;
+they do not answer or withdraw a question. This explicitly supersedes CCNG's
+earlier conservative follow-up retirement policy. Preserve unsent text and submission/error latches
 across worker switches only in existing browser memory, not localStorage,
 workspace or server storage; refresh may discard them. Automatic control input
 and handoffs must wait on verified live human decisions or ambiguous submissions
@@ -559,6 +560,12 @@ viewport. Scrolling text clips below the tabs while the folder-tab/pane join
 remains seamless. Inactive worker and coordinator tabs use the pane's background
 across activity states; dots and top edges continue to indicate status. The
 selected tab keeps its size and bold label. Desktop and mobile use the same inset.
+
+Conversation-tab rows must meet the chat pane's top edge even when the taller
+Coordinator control determines the header height. Keep Coordinator's size and
+separate it with spacing, a divider and a closed outline; it is not a folder
+attached to the conversation. Preserve tab ordering, two-row selection, hover,
+dragging and the single scrolling mobile row.
 
 Version 0.10.0 corrects the composer Branch chat cutoff. It snapshots the current
 stored conversation, including messages from an ongoing turn, instead of stopping

@@ -58,11 +58,15 @@ label so their progress is distinguishable from the parent agent. See [chat disp
 
 - Open local Codex or Claude conversations, or start new agents in explicit project directories.
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
+  Conversation tabs join their chat pane; the taller Coordinator control has a
+  distinct outline and divider.
 - Create a versioned receiving chat from the Project overview after choosing
   Codex or Claude, prepare and verify the file first, then import automatically
   at startup. Link the same source Beads tasks before import, keeping their states
   and source associations. Existing versions require an explicit open-or-increment choice. See [chat handovers](docs/usage.md#chat-handovers).
 - Chat, steer active work, interrupt a turn and answer supported native questions or approvals, including eligible current assistant-question cards. Completed Claude question exchanges remain visible in chat after their pending cards close, including when reloading native history.
+  Unanswered Codex cards remain usable across unrelated follow-ups while their
+  original native turn is active.
   If native Codex explicitly rejects an outdated turn, refresh its current state
   and retry ordinary input once when safe; uncertain deliveries are not repeated.
 - See received native requests and matching file-change details automatically, including verified Codex child requests in their parent chat. Distinguish requests needing your answer from native waits with unavailable details.
@@ -296,7 +300,7 @@ with the native Claude/Google configuration; no new login is created.
   seconds apart. Recovery depends on native callback replay and is not guaranteed
   after a cold restart.
 - Automated tests/builds do not establish phone rendering or every installed-runtime
-  workflow. See [release notes](docs/release-notes.md) for recorded checks and gaps.
+  workflow.
 
 ## Documentation
 
@@ -307,7 +311,7 @@ with the native Claude/Google configuration; no new login is created.
 | [Coordinator](docs/coordinator.md) | Summaries, approval review and authority limits |
 | [Workspace recovery](docs/workspace-restore.md) | What is saved, restart behaviour and recovery |
 | [Ansible deployment](docs/ansible-deployment.md) | Reusable RHEL 9 playbook, protected inputs and AAP setup |
-| [Release notes](docs/release-notes.md) | Version history and validation checkpoints |
+| [Release notes](docs/release-notes.md) | User-facing changes by version |
 | [Product requirements](docs/product-requirements.md) | Agreed behaviour and boundaries |
 | [Agent requirements](docs/agent-harness-requirements.md) | Requirements for future native-runtime integrations |
 | [Design decisions](design_decisions_history.md) | Rationale and implementation commit references |

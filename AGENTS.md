@@ -534,8 +534,10 @@ approval RPCs for it. Keep per-question drafts/partial replies independent and
 distinguish native input acceptance from an answered question or successful
 task. Unknown, truncated, unsafe, inactive or unbound metadata stays read-only
 with a truthful native next action. Native terminal state ends eligibility;
-CCNG ordinary-human-follow-up retirement is conservative policy, not a claim of
-identical native cross-client behavior or proof of an answer. Keep per-question
+Unrelated ordinary human follow-ups must leave unanswered question cards usable
+while their original native turn remains active. This supersedes CCNG's earlier
+conservative follow-up retirement policy; it does not claim identical native
+terminal behavior or treat follow-ups as answers. Keep per-question
 unsent text and submission/error latches across worker switches only in existing
 browser memory; refresh may discard them, with no localStorage/workspace/server
 answer store. The candidate must hold automatic Coordinator/report/task-check/

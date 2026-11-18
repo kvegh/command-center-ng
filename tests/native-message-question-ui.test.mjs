@@ -310,7 +310,9 @@ test('recognized native replies display quoted questions and normal answer text 
   const copyElement = new Function('React', 'CopyButton', 'message', ts.transpileModule(`return (${copy});`, { compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 } }).outputText)(React, CopyButton, message);
   assert.equal(copyElement.props.text, raw); assert.deepEqual(message, before);
   for (const ordinary of [{ type: 'user', text: raw }, { type: 'user', text: '<send_user_message_question_reply>malformed', nativeQuestionReplies: [] }, { ...message, type: 'assistant' }]) {
-    assert.equal(MessageText({ message: ordinary }).props.value, ordinary.text, 'unrecognized or non-user content retains normal text rendering');
+    const ordinaryElement = MessageText({ message: ordinary });
+    assert.deepEqual(descendants(ordinaryElement, child => child.type === Text).map(child => child.props.value), [ordinary.text], 'unrecognized or non-user content retains normal text rendering');
+    assert.doesNotMatch(renderToStaticMarkup(ordinaryElement), /<blockquote>/, 'unrecognized envelopes do not gain question-reply presentation');
   }
   assert.match(renderToStaticMarkup(MessageText({ message: { ...message, nativeQuestionRepliesTruncated: true } })), /shortened for display.*original native message/);
 });

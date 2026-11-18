@@ -17,6 +17,10 @@ Up to sixteen workers and one separate coordinator can be open. This limit does
 not change native subagent concurrency or permissions. Closing a tab removes
 its view and report schedule, not its native history or running conversation.
 
+Conversation tabs meet the top edge of their chat pane, including when the taller
+Coordinator control increases the header height. Coordinator keeps its size but
+has a separate closed outline, spacing and divider rather than joining the chat.
+
 The selected tab has a larger bold title and highlighted edges. Status dots
 indicate running or attention states independently of selection. Selecting a
 tab focuses its input; the title directly above the input helps identify where
@@ -471,12 +475,6 @@ and a **30-second routine interval**; these are scheduling intervals, not approv
 deadlines. Native pause, question, ownership and safe-turn gates still apply.
 Saved report intervals and the separate ten-minute task-check cadence are unchanged.
 
-The 1.12.0 source changes are published and installed. Recorded source and
-installed checks do not establish every real model interaction, browser workflow
-or an end-to-end approval latency improvement. See
-the [release notes](release-notes.md#1120--native-request-time-and-approval-context)
-for the release checkpoint.
-
 ### Delivered worker and child requests
 
 Known native Codex child runs expose delivered pending requests under their
@@ -518,9 +516,10 @@ native next action; Coordinator and postponed Claude questions do not gain
 this reply path. Input states distinguish available, submitting, submitted,
 unconfirmed and read-only. An uncertain send disables blind retry; failures
 stay explicit without automatic resending. Native terminal state ends reply
-eligibility. CCNG also conservatively retires its editor after an observed human
-ordinary follow-up; that is not proof of an answer or a claim that every native
-client handles other-client ordinary messages identically.
+eligibility. Unrelated ordinary follow-ups leave unanswered cards usable while
+their original native turn remains active. An ordinary follow-up is not an
+answer; answering one card preserves the other unanswered cards. CCNG's editor
+lifetime can differ from the native terminal interface.
 
 Unsent answer text and submitting/submitted/uncertain/error states survive
 switching CCNG workers in existing browser memory only. Refresh discards those
@@ -532,9 +531,6 @@ summaries and handoffs while a verified live question awaits human input,
 including ambiguous submission, using existing bounded queues and pre-send gates.
 Those ordinary control inputs must not retire an editor without user intent.
 No interval, timer, native RPC, permissions or separate model call is added.
-See the release notes for completed source/installed checks and remaining
-actual native/browser acceptance gaps.
-
 Manual answers retain the exact native request identity and wait for native
 resolution. Duplicate submissions are blocked while confirmation is pending.
 A failed or unconfirmed answer stays visible with an error. Answers made in
@@ -966,7 +962,7 @@ recheck supported interfaces if a future version supplies the needed capability.
 
 See [workspace restore](workspace-restore.md) for persistence and recovery,
 [coordinator guidance](coordinator.md) for review boundaries, and
-[release notes](release-notes.md) for historical implementation evidence.
+[release notes](release-notes.md) for changes by version.
 
 Report feedback distinguishes queuing from a confirmed request waiting for a
 response; it does not claim the worker has started writing. If the turn ends

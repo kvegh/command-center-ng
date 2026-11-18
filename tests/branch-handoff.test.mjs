@@ -186,13 +186,16 @@ test('an unconfirmed answer during stopping keeps the branch instead of closing 
   assert.equal(f.w.returnJobs.has('child'), false); assert.deepEqual(f.archived, []);
 });
 
-test('an intentional accepted followup remains valid when the observed question turn later ends', async () => {
+test('an ordinary followup does not resolve an unanswered choice or permit branch closure', async () => {
   const f = fixture({ holdCheckpoint: true }); f.branch.thread.status = { type: 'active' }; f.branch.turnId = 'branch-live';
   f.w.startHandoff('child'); await until(() => f.calls.some(call => call.method === 'turn/steer'));
   f.w.addItem(f.branch, { id: 'followup-question', type: 'agentMessage', text: '', questions: [{ title: 'Which choice?', options: null }] }, 'branch-live', false, { live: true, completed: true });
   f.w.addItem(f.branch, { id: 'human-followup', type: 'userMessage', content: [{ type: 'text', text: 'Keep the existing choice and finish the handoff.' }] }, 'branch-live', false, { live: true, completed: true });
+  assert.equal(f.w.snapshot().agents.find(agent => agent.id === 'child').messages[0].nativeQuestions[0].answerState, 'available');
   f.rpc.emit('notification', { method: 'turn/completed', params: { threadId: 'child', turn: { id: 'branch-live', status: 'completed' } } });
-  await done(f); assert.deepEqual(f.archived, ['child']);
+  await done(f);
+  assert.equal(f.branch.handoff.phase, 'failed'); assert.match(f.branch.handoff.detail, /unsent answer.*kept/);
+  assert.ok(f.w.agents.has('child')); assert.deepEqual(f.archived, []); assert.deepEqual(f.links, []);
 });
 
 test('local background terminals keep the original branch and never transfer or archive', async () => {

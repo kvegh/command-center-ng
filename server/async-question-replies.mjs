@@ -74,7 +74,7 @@ export function retireAsyncQuestionMessage(message, notice, retirement = 'metada
   }
 }
 
-export function retireAsyncQuestions(agent, notice, retirement = 'followup') {
+export function retireAsyncQuestions(agent, notice, retirement = 'metadata') {
   for (const message of agent.messages) retireAsyncQuestionMessage(message, notice, retirement);
 }
 
@@ -88,7 +88,8 @@ export function observeAsyncQuestionInput(agent, record, item) {
     record.nativeQuestionReplies = replies.slice(0, 32).map(reply => ({ question: take(reply.question, 1000), answer: take(reply.answer, 4000) }));
     if (truncated) record.nativeQuestionRepliesTruncated = true;
   }
-  else retireAsyncQuestions(agent, 'A later user input retired this question.');
+  // Ordinary follow-ups are not answers. Retain the exact live question until
+  // its reply, native metadata or originating turn changes its eligibility.
 }
 
 export function retainAsyncQuestionState(agent, record, previous, { live, completed, item }) {
@@ -150,7 +151,7 @@ export function observeHandoffQuestions(agent, observed) {
 export function handoffQuestionNeedsReview(agent, observed) {
   for (const question of observed.values()) {
     const { binding } = question;
-    if (binding.state === 'submitted' || ['answer', 'followup'].includes(binding.retirement)) continue;
+    if (binding.state === 'submitted' || binding.retirement === 'answer') continue;
     const current = agent.messages.find(message => message.id === question.messageId && message.turnId === question.turnId)?.nativeQuestions?.find(candidate => candidate.questionIndex === question.questionIndex);
     if (current?.[bindingKey] !== binding || binding.retired || binding.state === 'unconfirmed' || agent.thread.status?.type !== 'active' || agent.turnId !== question.turnId) return true;
   }

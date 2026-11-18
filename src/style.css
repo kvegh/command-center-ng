@@ -56,7 +56,8 @@ a { color: var(--accent); }
 .eyebrow { color: #8398b7; font: 9px var(--mono); letter-spacing: 1.7px; margin-bottom: 9px; }
 .workspace-frame { border: 1px solid #324058; border-radius: 11px; background: var(--surface); overflow: hidden; box-shadow: 0 15px 60px #00000025; }
 .tabs-row { display: flex; align-items: stretch; gap: 10px; min-height: 48px; padding: 0 15px; background: #101723; border-bottom: 1px solid var(--line); }
-.tabs { flex: 1; min-width: 0; container-type: inline-size; display: grid; grid-auto-columns: max-content; grid-template-rows: 40px; align-items: end; gap: 4px; overflow-x: auto; overflow-y: hidden; padding-top: 0; scrollbar-width: none; }
+/* Bottom-align the tracks as well as their tabs when Coordinator is taller. */
+.tabs { flex: 1; min-width: 0; container-type: inline-size; display: grid; grid-auto-columns: max-content; grid-template-rows: 40px; align-content: end; align-items: end; gap: 4px; overflow-x: auto; overflow-y: hidden; padding-top: 0; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tabs[data-two-rows="true"] { grid-template-rows: repeat(2, 40px); }
 .tabs > .tab-wrap { --tab-width: max(170px, calc((100cqw - (var(--tab-columns) - 1) * 4px) / var(--tab-columns))); flex: 0 0 170px; width: var(--tab-width); min-width: 0; max-width: none; height: 34px; }
@@ -99,8 +100,10 @@ a { color: var(--accent); }
 .tab-move:hover:not(:disabled) { color: var(--accent); background: #68d9fa10; }
 .new-tab { display: flex; flex-shrink: 0; align-self: center; align-items: center; gap: 7px; min-height: 30px; padding: 5px 10px; border: 1px solid #68d9fa80; border-radius: 7px; white-space: nowrap; background: #203b49; color: #c9f3ff; font-size: 11px; font-weight: 550; }
 .new-tab:hover:not(:disabled) { background: #2b5060; border-color: var(--accent); }
-.coordinator-tab-group { display: flex; flex-shrink: 0; align-self: stretch; align-items: flex-end; }
-.coordinator-tab-group .tab-wrap { flex: none; }
+/* Coordinator is a separate workspace control, not a folder joined to history. */
+.coordinator-tab-group { display: flex; flex-shrink: 0; align-self: stretch; align-items: flex-end; margin-left: 8px; padding: 0 0 8px 12px; border-left: 1px solid var(--line); }
+.coordinator-tab-group .tab-wrap { flex: none; border-bottom: 1px solid var(--line); border-radius: 7px; }
+.coordinator-tab-group .tab-wrap.active { border-bottom-color: var(--accent); }
 .coordinator-tab .tab-number { display: flex; }
 .coordinator-tab-group .coordinator-tab { height: 68px; min-height: 68px; }
 .coordinator-tab-group .coordinator-tab.active { height: 80px; min-height: 80px; }
@@ -1041,7 +1044,7 @@ kbd { font-family: inherit; }
   .topbar > .tabs-row .tabs { display: flex; flex: 1 1 0; width: auto; flex-wrap: nowrap; overflow: auto hidden; align-items: flex-end; touch-action: pan-x pan-y pinch-zoom; }
   .topbar .tabs .tab-wrap { flex: 0 0 170px; width: 170px; min-width: 0; max-width: none; }
   .tab-wrap[data-worker-tab] > .agent-tab { cursor: pointer; touch-action: pan-x pan-y pinch-zoom; }
-  .coordinator-tab-group { align-self: auto; }
+  .coordinator-tab-group { align-self: auto; margin-left: 4px; padding-left: 6px; }
   .overview-header { flex: 1 1 200px; flex-wrap: wrap; container-type: normal; padding-left: 0; gap: 6px; }
   .workspace { flex: none; padding: 0 8px 8px; }
   .workspace-frame { flex: none; overflow: visible; }
