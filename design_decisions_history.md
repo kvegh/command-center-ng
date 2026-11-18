@@ -14,6 +14,8 @@ messages and user-written text resembling a subagent label remain unchanged.
 The alternative of stopping subagents or deleting their messages does not serve
 this display preference and is not selected.
 
+Implementation: `ee6705b7831c09577912c5775a836f3f7018cddf` (1.41.0).
+
 ## 2026-11-18 — Keep unanswered cards usable after follow-ups
 
 The user selected keeping unanswered Codex question cards usable after an
