@@ -174,6 +174,12 @@ history remains readable without guessing notification identity from its text.
 
 ### Messages from Claude subagents
 
+Use **Show subagent messages** in **Project**, beside **Create handover**, to
+hide or show messages attributed to subagents. Messages are shown by default;
+each chat's choice is remembered in this browser. Hiding affects only the chat
+display: the agents continue working, original history is retained, and question
+exchanges, pending questions and approval controls remain visible.
+
 Forwarded subagent messages display **Message from subagent ‹name›:** above the
 original text. CCNG derives the label from the native parent-tool link and its
 available launch metadata; subagents do not have to write the prefix. When a

@@ -8,6 +8,7 @@ export type BrowserWorkspace = {
   overviewHeights?: Record<string, number>;
   theme?: ThemeName;
   chatColours?: Record<string, ChatColour>;
+  subagentMessageVisibility?: Record<string, boolean>;
   taskWatches?: Record<string, string[]>;
 };
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
@@ -34,6 +35,9 @@ export function browserWorkspace(value: unknown): BrowserWorkspace {
     ...(data.chatColours && typeof data.chatColours === 'object' && !Array.isArray(data.chatColours) ? {
       // Amber is reserved for attention states; retain older chat choices as blue.
       chatColours: Object.fromEntries(entries(data.chatColours).map(([id, colour]) => [id, colour === 'amber' ? 'blue' : colour]).filter(([, colour]) => validChatColour(colour)))
+    } : {}),
+    ...(data.subagentMessageVisibility && typeof data.subagentMessageVisibility === 'object' && !Array.isArray(data.subagentMessageVisibility) ? {
+      subagentMessageVisibility: Object.fromEntries(entries(data.subagentMessageVisibility).filter(([, visible]) => typeof visible === 'boolean'))
     } : {}),
     ...(data.taskWatches && typeof data.taskWatches === 'object' && !Array.isArray(data.taskWatches) ? {
       taskWatches: Object.fromEntries(entries(data.taskWatches).filter(([, ids]) => Array.isArray(ids)).map(([workerId, ids]) => [workerId, [...new Set((ids as unknown[]).filter(validTaskId))].slice(0, 128)]))

@@ -1,5 +1,19 @@
 # Design decisions history
 
+## 2026-11-18 — Toggle subagent messages in Project
+
+The user requested a switch for subagent messages and placed it near Create
+handover. Use a default-on, per-chat choice in the existing browser workspace
+preferences. This keeps the setting with the current browser's other chat
+display choices without adding server storage or changing agent execution.
+
+Filter only messages carrying native subagent attribution, before grouping the
+visible conversation. Retain original records for history and branching, and
+keep question exchanges, native question controls and approvals visible. Parent
+messages and user-written text resembling a subagent label remain unchanged.
+The alternative of stopping subagents or deleting their messages does not serve
+this display preference and is not selected.
+
 ## 2026-11-18 — Keep unanswered cards usable after follow-ups
 
 The user selected keeping unanswered Codex question cards usable after an

@@ -25,7 +25,7 @@ test('ordinary composer edits leave the real history and navigation dependencies
   const environment = {
     activeId: 'worker-a', activeMessages: [{ id: 'reply', type: 'assistant', text: 'Existing reply' }],
     activeProvider: 'codex', activeRole: 'worker', activeCanBranch: true, activeConnected: true,
-    workerCount: 2, busy: '', messageQuestionBlocked: null, messageQuestionInputs: {},
+    workerCount: 2, busy: '', messageQuestionBlocked: null, messageQuestionInputs: {}, showSubagentMessages: true,
     navigate() {}, choose() {}, focusComposer() {}, compactLayout: false, dialog: false, returnReviews: [], taskAgent: null
   };
   const names = ['messageHistory', 'navigate', 'choose', 'focusComposer'];
@@ -39,13 +39,46 @@ test('ordinary composer edits leave the real history and navigation dependencies
     { activeProvider: 'claude' }, { activeRole: 'coordinator' }, { activeCanBranch: false },
     { activeConnected: false }, { workerCount: 16 }, { busy: 'navigate' },
     { messageQuestionBlocked: 'Answer the current request first.' },
-    { messageQuestionInputs: { 'question-a': { draft: 'Native answer' } } }, { navigate() {} }
+    { messageQuestionInputs: { 'question-a': { draft: 'Native answer' } } }, { showSubagentMessages: false }, { navigate() {} }
   ]) assert.equal(equalReferences(before[0], dependencies('messageHistory', { ...environment, ...changed })), false, 'real history/control changes must invalidate the boundary');
   assert.equal(equalReferences(before[1], dependencies('navigate', { ...environment, activeId: 'worker-b' })), false);
   assert.equal(equalReferences(before[3], dependencies('focusComposer', { ...environment, dialog: true })), false);
   const app = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'App');
   const firstReturn = app.body.statements.find(node => ts.isIfStatement(node) && ts.isReturnStatement(node.thenStatement));
   assert.ok(hooks.get('messageHistory').pos < firstReturn.pos, 'the history hook must execute before conditional authentication returns');
+});
+
+test('the Project toggle changes only its originating chat preference and retains independent question controls', () => {
+  let toggle, visibility, saved;
+  const controls = [];
+  const find = node => {
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === 'label'
+      && node.openingElement.attributes.properties.some(attribute => ts.isJsxAttribute(attribute) && attribute.name.text === 'className' && attribute.initializer?.text === 'subagent-message-toggle')) toggle = node;
+    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'showSubagentMessages') visibility = node.initializer;
+    if (ts.isCallExpression(node) && node.expression.getText(ast) === 'saveBrowserWorkspace') saved = node.arguments[0];
+    if (ts.isJsxSelfClosingElement(node) && ['NativeRequestCard', 'NativeSubagentRequests'].includes(node.tagName.getText(ast))) controls.push(node);
+    ts.forEachChild(node, find);
+  }; find(ast);
+  assert.ok(toggle && visibility && saved);
+  let project = toggle.parent;
+  while (project && !ts.isObjectLiteralExpression(project)) project = project.parent;
+  assert.equal(project.properties.find(property => property.name?.getText(ast) === 'id').initializer.text, 'goal', 'the toggle belongs beside Create handover in Project');
+  assert.match(project.getText(ast), /<HandoverControls/);
+  const input = toggle.children.find(node => ts.isJsxSelfClosingElement(node));
+  const attribute = name => input.attributes.properties.find(property => property.name?.getText(ast) === name).initializer;
+  assert.equal(attribute('role').text, 'switch');
+  assert.equal(attribute('checked').expression.getText(ast), 'showSubagentMessages');
+  let preferences = {};
+  const setSubagentMessageVisibility = update => { preferences = update(preferences); };
+  const change = id => evaluate(attribute('onChange').expression, { active: { id }, setSubagentMessageVisibility });
+  const shown = id => evaluate(visibility, { activeId: id, subagentMessageVisibility: preferences });
+  assert.equal(shown('chat-a'), true); assert.equal(shown('chat-b'), true);
+  change('chat-a')({ currentTarget: { checked: false } });
+  assert.equal(shown('chat-a'), false); assert.equal(shown('chat-b'), true);
+  change('chat-b')({ currentTarget: { checked: true } });
+  assert.deepEqual(preferences, { 'chat-a': false, 'chat-b': true });
+  assert.ok(saved.properties.some(property => property.name?.getText(ast) === 'subagentMessageVisibility'), 'the normal browser save path includes visibility');
+  assert.ok(controls.length >= 2 && controls.every(node => node.end <= hooks.get('messageHistory').pos || node.pos >= hooks.get('messageHistory').end), 'native request controls stay outside the filtered history');
 });
 
 test('current branch navigation binds the originating chat and preserves normal busy/error handling', async () => {

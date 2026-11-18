@@ -132,6 +132,51 @@ test('chat colour preference count uses the existing workspace bound', () => {
   assert.equal(result.chatColours['worker-39'], 'cyan');
 });
 
+test('subagent message visibility survives reload independently for each chat', () => {
+  const local = storage();
+  const value = {
+    ...emptyBrowserWorkspace(), selected: 'one', drafts: { one: 'Keep this draft' },
+    chatColours: { one: 'violet' }, subagentMessageVisibility: { one: false, two: true }
+  };
+  assert.equal(saveBrowserWorkspace(value, local), null);
+  assert.deepEqual(loadBrowserWorkspace(local).state, value);
+  const next = { ...value, subagentMessageVisibility: { ...value.subagentMessageVisibility, one: true } };
+  assert.equal(saveBrowserWorkspace(next, local), null);
+  assert.deepEqual(loadBrowserWorkspace(local).state, next);
+  assert.equal(value.subagentMessageVisibility.one, false, 'saving does not mutate the prior preference');
+});
+
+test('older workspaces do not acquire generated subagent visibility defaults', () => {
+  const older = { ...emptyBrowserWorkspace(), selected: 'one', positions: { one: 80 }, bottom: { one: false } };
+  assert.deepEqual(browserWorkspace(older), older);
+  const local = storage();
+  assert.equal(saveBrowserWorkspace(older, local), null);
+  assert.deepEqual(loadBrowserWorkspace(local).state, older);
+  assert.equal(loadBrowserWorkspace(local).state.subagentMessageVisibility, undefined);
+  assert.equal(Object.hasOwn(JSON.parse(local.getItem()), 'subagentMessageVisibility'), false);
+});
+
+test('subagent visibility rejects malformed maps, IDs and nonboolean choices', () => {
+  const older = { ...emptyBrowserWorkspace(), selected: 'one', drafts: { one: 'Keep this draft' } };
+  for (const subagentMessageVisibility of [null, false, true, 0, 1, 'false', ['one']]) {
+    assert.deepEqual(browserWorkspace({ ...older, subagentMessageVisibility }), older);
+  }
+  const choices = JSON.parse('{"one":false,"two":true,"../invalid":false,"constructor":true,"prototype":false,"__proto__":false,"string":"false","number":0,"empty":null,"object":{},"array":[]}');
+  const result = browserWorkspace({ ...older, subagentMessageVisibility: choices });
+  assert.deepEqual(result.subagentMessageVisibility, { one: false, two: true });
+  assert.equal(result.selected, older.selected);
+  assert.deepEqual(result.drafts, older.drafts);
+});
+
+test('subagent visibility uses the existing bounded chat preference map', () => {
+  const choices = Object.fromEntries(Array.from({ length: 40 }, (_, index) => [`worker-${index}`, index % 2 === 0]));
+  const result = browserWorkspace({ ...emptyBrowserWorkspace(), subagentMessageVisibility: choices });
+  assert.equal(Object.keys(result.subagentMessageVisibility).length, 32);
+  assert.equal(result.subagentMessageVisibility['worker-0'], undefined);
+  assert.equal(result.subagentMessageVisibility['worker-8'], true);
+  assert.equal(result.subagentMessageVisibility['worker-39'], false);
+});
+
 test('task notification subscriptions survive reload including hierarchical Beads IDs', () => {
   const local = storage();
   const value = { ...emptyBrowserWorkspace(), taskWatches: { worker: ['project-123', 'project-123.4'] } };

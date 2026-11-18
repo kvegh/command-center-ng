@@ -31,6 +31,8 @@ h1, h2, h3, p { margin-top: 0; }
 a { color: var(--accent); }
 .mono { font-family: var(--mono); }
 .muted { color: var(--muted); font-size: 13px; }
+.subagent-message-toggle { display: flex; align-items: center; gap: 7px; margin-top: 10px; color: var(--ink); font-size: 12px; cursor: pointer; }
+.subagent-message-toggle input { flex: none; width: auto; margin: 0; padding: 0; accent-color: var(--accent); }
 
 .brand { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 600; letter-spacing: -.7px; }
 .brand-ng { color: var(--accent); font-family: var(--mono); font-size: 14px; font-weight: 400; margin-left: 2px; }

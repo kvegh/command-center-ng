@@ -54,6 +54,32 @@ test('only consecutive activity collapses; conversation order and original recor
   assert.equal(groups[1].items[0], messages[1]);
 });
 
+test('subagent visibility filters only attributed messages and restores the untouched conversation', () => {
+  const messages = [message('user', 'user', 'completed', 'Message from subagent reviewer: quoted by the user'),
+    message('parent-start', 'assistant'), { ...message('child-progress', 'assistant', 'inProgress'), subagent: { id: 'spawn-review' } },
+    message('parent-action'), { ...message('child-input'), subagent: { id: 'spawn-review' } },
+    message('parent-result', 'assistant')];
+  const before = structuredClone(messages);
+  const flatten = groups => groups.flatMap(group => group.kind === 'activity' ? group.items : [group.message]);
+  assert.deepEqual(flatten(groupMessages(messages)), messages, 'the default shows parent and subagent messages');
+  assert.deepEqual(flatten(groupMessages(messages, false)).map(item => item.id), ['user', 'parent-start', 'parent-action', 'parent-result']);
+  assert.deepEqual(messages, before, 'filtering never changes transcript records');
+  assert.deepEqual(flatten(groupMessages(messages, true)), messages, 'turning messages on restores their native order and content');
+  assert.equal(flatten(groupMessages(messages, true))[2], messages[2], 'the original streaming record is retained');
+  assert.deepEqual(groupMessages([messages[2], messages[4]], false), []);
+});
+
+test('subagent filtering never hides question controls, shortened questions or recorded question exchanges', () => {
+  const child = { id: 'spawn-review' };
+  const questions = [
+    { ...message('question', 'assistant'), subagent: child, nativeQuestions: [{ title: 'Which target?' }] },
+    { ...message('shortened', 'assistant'), subagent: child, nativeQuestionsTruncated: true },
+    { ...message('exchange'), subagent: child, nativeQuestionTranscript: { questions: ['Proceed?'], result: 'Yes.' } }
+  ];
+  assert.deepEqual(groupMessages(questions, false).map(group => group.id), questions.map(item => item.id));
+  assert.deepEqual(groupMessages([{ ...message('unattributed', 'assistant'), subagent: { id: '' } }], false).map(group => group.id), ['unattributed']);
+});
+
 test('a completed native question exchange stays visible between collapsed actions without changing its provenance', () => {
   const exchange = { ...message('question'), nativeQuestionTranscript: { questions: ['Keep the existing settings?'], result: 'User answered: Yes.' } };
   const pending = { ...message('pending', 'activity', 'inProgress'), nativeQuestionTranscript: { questions: ['Another choice?'] } };

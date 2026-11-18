@@ -7,6 +7,13 @@ For design rationale, alternatives and implementation references, see the
 [decision history](../design_decisions_history.md). Earlier detailed release
 text remains available in the [archived README](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.41.0 — Show or hide subagent messages
+
+Add **Show subagent messages** beside **Create handover** in Project. Messages
+are shown by default, with each chat's choice remembered in the current browser.
+The switch changes the display without removing history or stopping agents;
+question exchanges and approval controls stay visible.
+
 ## 1.40.0 — Keep unanswered cards and restore attached conversation tabs
 
 Unrelated follow-up messages leave unanswered Codex question cards usable while

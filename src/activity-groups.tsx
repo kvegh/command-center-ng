@@ -1,16 +1,19 @@
 import React from 'react';
 
-type ActivityMessage = { id: string; type: 'user' | 'assistant' | 'activity'; text: string; state: string; nativeQuestionTranscript?: { questions: string[]; result?: string }; activityTitle?: string; internalReport?: boolean; internalReportControl?: boolean; internalCoordinatorEvent?: boolean; internalTaskPing?: boolean };
+type ActivityMessage = { id: string; type: 'user' | 'assistant' | 'activity'; text: string; state: string; subagent?: { id: string }; nativeQuestions?: unknown[]; nativeQuestionsTruncated?: boolean; nativeQuestionTranscript?: { questions: string[]; result?: string }; activityTitle?: string; internalReport?: boolean; internalReportControl?: boolean; internalCoordinatorEvent?: boolean; internalTaskPing?: boolean };
 type MessageGroup<T> = { kind: 'message'; id: string; message: T } | { kind: 'activity'; id: string; items: T[] };
 
 export function isVisibleMessage(message: ActivityMessage): boolean {
   return message.type !== 'user' || !(message.internalReport === true || message.internalReportControl === true || message.internalCoordinatorEvent === true || message.internalTaskPing === true);
 }
 
-export function groupMessages<T extends ActivityMessage>(messages: T[]): MessageGroup<T>[] {
+export function groupMessages<T extends ActivityMessage>(messages: T[], showSubagentMessages = true): MessageGroup<T>[] {
   const groups: MessageGroup<T>[] = [];
   for (const message of messages) {
     if (!isVisibleMessage(message)) continue;
+    // Hide only attributed conversation content; question controls and exchanges
+    // stay visible, and the original records still serve history and branching.
+    if (!showSubagentMessages && message.subagent?.id && !message.nativeQuestions?.length && !message.nativeQuestionsTruncated && !message.nativeQuestionTranscript) continue;
     const last = groups.at(-1);
     if (message.type !== 'activity' || message.nativeQuestionTranscript?.result !== undefined) groups.push({ kind: 'message', id: message.id, message });
     else if (last?.kind === 'activity') last.items.push(message);

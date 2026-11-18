@@ -6,6 +6,12 @@ Reduce the mental load of switching between AI agents working on different
 projects and tasks. Returning to a project should quickly restore an
 understanding of its goal, current work, progress, open questions, and next steps.
 
+The Project section near Create handover provides a default-on **Show subagent
+messages** switch. Keep each chat's choice in the existing browser workspace
+preferences. Hide only natively attributed subagent conversation content;
+question exchanges, questions and approval controls remain available. Retain
+original history and agent execution independently of the display preference.
+
 These requirements record the user's requested product behavior. They are not
 a task backlog or a claim that the application exists.
 
