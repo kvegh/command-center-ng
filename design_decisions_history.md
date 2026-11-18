@@ -8,6 +8,8 @@ CCNG retired every editor on ordinary human input, leaving only static text.
 This supersedes that conservative policy; a follow-up is neither an answer nor
 a withdrawal. Answering one question leaves other unanswered questions intact.
 
+Implementation: `ae81565ed939d6773dad3e55a8afb3f2a392eec2` (1.40.0).
+
 Reuse the existing exact question identity and ordinary native input path.
 Ended turns, removed or changed metadata, unsafe bindings, ownership changes,
 pending native requests and uncertain delivery keep their existing protections.
@@ -25,6 +27,8 @@ its own spacing, divider and closed outline without changing its existing size.
 Preserve worker order, two-row selection, hover expansion, dragging, themes and
 the single scrolling mobile row. Reuse the existing tab groups and CSS rather
 than introducing another navigation structure.
+
+Implementation: `ae81565ed939d6773dad3e55a8afb3f2a392eec2` (1.40.0).
 
 ## 2026-11-18 — Defer Claude daemon integration
 
