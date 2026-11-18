@@ -1,5 +1,36 @@
 # Current status for handover
 
+Verified checkpoint: **2026-11-18, 12:47 CET**. Beads remains authoritative.
+
+Published and installed **1.41.0**, payload
+`079a5575c4328f344649bfc2d0ec257c4ad7ca39`, functional implementation
+`ee6705b7831c09577912c5775a836f3f7018cddf`, provides **Show subagent messages**
+in Project directly after Create handover. It defaults on, remembers each chat's
+choice in this browser, and preserves original history, questions and approvals.
+
+The earlier busy-Claude hold resolved with fresh native idle and completed-turn
+evidence at 12:44:53–12:44:58 CET. Ad hoc job 5120 — Guarded 1.41.0 application
+update — succeeded at 12:46:17–12:46:45 CET. Both native idle/process/history
+checks passed before installation and application restart. Thirteen protected
+states, all three currently saved worker identities, saved workspace/pause/report
+settings, native profiles/CLI and Codex daemon identities were preserved.
+
+Ad hoc job 5125 — Installed 1.41.0 verification — succeeded at
+12:47:09–12:47:19 CET: 120 checked source files match, trusted HTTPS,
+authentication gates, both served assets and listeners pass, and the live bundle
+contains the toggle and saved preference. All 106 installed-module checks across
+ten suites pass with no failures or skips in 5.636 seconds. Existing tab alignment
+and Coordinator divider styles are also served. Physical browser clicks,
+geometry and genuine future native workflows remain unverified; installed-module
+and HTTP checks do not establish them. No new model turn or approval was created
+for testing. This outcome documentation is newer than the installed payload.
+
+The wrong-chat safeguard choice remains unanswered. Claude daemon integration
+and other held/deferred work retain their boundaries. Source-owned operations
+were not duplicated or cancelled; the receiving chat's release jobs are terminal.
+
+### Previous checkpoint (superseded)
+
 Verified checkpoint: **2026-11-18, 12:37 CET**. Beads remains authoritative.
 
 Source **1.41.0** is published at
