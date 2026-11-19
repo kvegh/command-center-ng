@@ -49,6 +49,9 @@ states are historical. EXIF metadata was removed without changing image pixels.
 
 ## What you can do
 
+Agents discuss and clarify proposals in chat before requesting approval through
+a card. Actual unanswered chat questions remain visible through Beads Tasks.
+
 Ordinary draft edits reuse the existing rendered message list and unchanged
 Markdown/timestamp rendering. Live message,
 status and request updates still render normally. Verified Claude task notices

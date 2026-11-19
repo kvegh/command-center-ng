@@ -7,6 +7,12 @@ For design rationale, alternatives and implementation references, see the
 [decision history](../design_decisions_history.md). Earlier detailed release
 text remains available in the [archived README](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.43.0 — Discuss proposals before approval cards
+
+Worker guidance now keeps exploratory clarification in chat and reserves cards
+for approval of a concrete proposal after discussion. Actual unanswered chat
+questions remain tracked in Tasks. Native approval controls retain their scope.
+
 ## 1.42.1 — Preserve live Claude state during an older refresh
 
 A refresh that started before Claude resumed no longer restores an obsolete

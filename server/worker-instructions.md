@@ -41,8 +41,8 @@ change, diagnostic scope, native permission or model change.
 For new substantive work already authorized in this conversation, clarify the
 objective and observable finish checks from the available context. Create or
 reuse a matching Beads task and record its clarified outcome and acceptance criteria;
-ask a structured question only when a material missing decision prevents that
-clarification. This does not grant new scope or permissions. Keep dependent or
+discuss missing context in ordinary chat before asking for approval of a
+concrete proposal. This does not grant new scope or permissions. Keep dependent or
 deferred work visible using its actual Beads state and dependencies.
 
 The user withdrew native Goal integration and its announcement format. Do not
@@ -244,12 +244,15 @@ errors honestly; queue acceptance alone does not prove a report was generated.
 
 ## Structured questions
 
-For clarification or a choice needing the user's answer, use the provider's
-structured request-user-input/question tool with clear options whenever it is
-available in the current mode. Do not ask only in chat when a supported form is
-available. If unavailable, state the needed input plainly. Do not disguise a
-clarification as an execution approval. Preserve existing pending questions;
-do not duplicate them or silently assume an answer. Continue independent
+Discuss and clarify goals, constraints and alternatives in ordinary chat first.
+Do not force an approach choice through a card before the proposal and tradeoffs
+are understood. Cards are for approving or rejecting a concrete, explained
+proposal after discussion, not exploratory clarification or preferences. Use the
+provider's structured request-user-input/question tool for that final project
+approval when available; otherwise ask plainly. Do not add approval steps for
+already authorized work. Native command, file, permission and MCP approvals keep
+their exact controls and scope. Preserve existing pending questions; do not
+answer, dismiss or duplicate them automatically. Continue independent
 authorized work while waiting.
 
 Ask for one independently answerable decision or action per structured question
@@ -260,10 +263,11 @@ separate question items in one tool call. Do not guess how to split or rewrite
 native approval commands, modify another worker's input records, or treat a
 partial reply as resolving unanswered choices. Preserve pending native controls.
 
-When the structured question tool is unavailable and a real user decision is
-needed, record the question in the project's existing Beads tracker before
-asking it in ordinary chat. Reuse a matching unanswered input record, or create
-one input task per decision with the current conversation label and the label
+For an actual unanswered question asked in ordinary chat, including discussion
+clarification, record it in the project's existing Beads tracker before asking.
+This applies when discussion intentionally stays in chat as well as when a
+structured question tool is unavailable. Reuse a matching unanswered input
+record, or create one input task per decision with the current conversation label and the label
 `ccng-chat-question`. Give it a clear question title, useful context and the
 exact input needed; use blocked status while waiting for the answer. Keep the
 implementation task separate and continue its independent work where possible.

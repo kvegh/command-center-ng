@@ -698,6 +698,12 @@ recorded the question or reason, the dialog says so; it does not invent them.
 Old question wording inside an ordinary task's description remains recorded
 context; it does not establish a current input request by itself.
 
+Discuss and clarify the problem and options in ordinary chat before an approval
+card. A card should ask approval of a concrete, explained proposal, not force an
+early approach choice. Actual unanswered chat questions are recorded in Beads;
+recording a question does not turn the discussion into an approval. Existing
+native command and permission approvals keep their own exact controls.
+
 Each structured question item or ordinary input task asks for one independently
 answerable decision or action. Options are alternatives for that decision;
 independent decisions use separate items/tasks, even when a provider displays
@@ -705,9 +711,10 @@ several items together. The worker processes each answer separately and leaves
 unanswered choices open. Native approval commands and controls keep their exact
 scope; this rule does not split or rewrite them.
 
-Ordinary prose questions are not guessed from transcripts. When native question
-tools are unavailable, agents record input needs in Beads; those appear once in
-Tasks with a **Question** label. Native approvals remain in Open questions.
+Ordinary prose questions are not guessed from transcripts. Agents record actual
+unanswered chat questions in Beads, including discussion clarifications; those
+appear once in Tasks with a **Question** label. Native approvals remain in
+Open questions.
 
 **Notify me** watches observed input needs, errors and completion for that task.
 Alerts use native browser notifications while CCNG is open, including when its

@@ -3086,3 +3086,17 @@ resurrecting an older unfinished turn. No additional timer, service, transport, 
 automatic approval or permission path was added.
 
 Implementation: `4cc2ad545e419329637a8eb728032cf5b104b721`.
+
+
+## 2026-11-19 — Discuss proposals before approval cards
+
+Recorded 2026-11-19, 09:40 CET; exact user-message time unknown. The user supplied an
+example of a premature approach-choice card and requested cards for approvals
+after clarification. Ordinary chat now handles exploratory discussion; a
+concrete, explained proposal precedes a final approval card. This supersedes the
+blanket preference for structured clarification questions. Actual unanswered
+chat questions still use the existing Beads input records and Question labels.
+Native command/file/permission/MCP approvals, existing pending requests and
+already authorized work retain their controls and scope. The correction changes
+instructions, not card storage, approval transport or automatic enforcement.
+Implementation commit: pending.

@@ -378,12 +378,16 @@ from Git SSH rules, VM deployment authority or coordinator relays.
 
 ## Worker questions and task reports
 
-Use the provider's structured question/request-user-input tool for a clarification
-or choice that needs the user's answer whenever that tool is available in the
-current mode. Do not ask only in chat when a supported question form is available.
-Do not disguise preferences as command approvals. If the tool is unavailable,
-state the needed input plainly; keep existing pending questions and do not create
-duplicates or assume an answer. Continue independent authorized work while waiting.
+Discuss and clarify goals, constraints and alternatives in ordinary chat first.
+Do not force an approach choice through a card while the proposal or its tradeoffs
+remain unclear. Cards are for approving or rejecting a concrete, explained
+proposal after the discussion, not for exploratory clarification or preferences.
+Use the provider's structured question/request-user-input tool for that final
+project approval when available; otherwise ask plainly. Do not add approval
+steps for work already authorized. Native command, file, permission and MCP
+approvals retain their exact controls and scope. Keep existing pending requests;
+do not dismiss, duplicate or answer them automatically. Continue independent
+authorized work while waiting.
 
 Ask for one independently answerable decision or action per structured question
 item and per ordinary Beads input record. Keep related alternatives as options
@@ -667,8 +671,9 @@ instructions and the coordinator, without recursive self-import, automatic
 fetching or native permission changes. Codex context is read at app-started
 turns; an existing managed Claude process retains its startup context until its
 next process startup. Missing sources must be identified truthfully.
-When structured questions are unavailable, workers with existing Beads-write
-authority create/reuse a current-conversation input record labelled
+For actual unanswered questions asked in ordinary chat, including discussion
+clarifications, workers with existing Beads-write authority create/reuse a
+current-conversation input record labelled
 ccng-chat-question. Only the worker resolves it after processing an actual
 answer/withdrawal. The coordinator reads it, never writes records or treats it
 as a native approval. Do not infer closure from chat, idle state or delivery.
