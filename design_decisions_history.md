@@ -1,5 +1,21 @@
 # Design decisions history
 
+## 2026-11-19 — Recover Claude refresh errors from native session evidence
+
+Recorded 2026-11-19, 09:25 CET; exact user-message time unknown. The user reported
+that a missing-session banner persisted after a handover. A newly allocated
+Claude session may not yet have a native transcript. Skip its history read
+until session metadata exists, while preserving errors for unavailable saved
+sessions. Clear a prior observation error when the matching session reports
+native activity, including while its managed process stays active.
+
+Use the existing session identity and event stream. Do not hide all refresh
+errors globally, infer recovery from elapsed time, replay input, answer requests
+or change runtime ownership. Pending questions and approvals, run failures and
+permission state remain independent of observation recovery.
+
+Implementation commit: pending (1.42.0).
+
 ## 2026-11-19 — Retain unanswered decision cards until answer or dismissal
 
 The user explicitly requires these question cards to stay visible until answered

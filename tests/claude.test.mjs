@@ -45,6 +45,79 @@ async function fixture({ active = [], history = [] } = {}) {
   return { runtime, sdk, calls, queries, controls, info, close: () => runtime.shutdown() };
 }
 
+test('new Claude sessions wait for persisted history without starting a native query', async () => {
+  const f = await fixture();
+  try {
+    const agent = f.runtime.create('/example/new-project', 'Import a prepared handover');
+    f.sdk.getSessionMessages = async () => { assert.fail('An unpersisted session has no history to read.'); };
+    const messages = agent.messages;
+    await f.runtime.refresh(agent);
+    assert.equal(agent.messages, messages); assert.equal(agent.newSession, true);
+    assert.equal(agent.canSend, true); assert.equal(agent.thread.status.type, 'idle');
+    assert.equal(agent.observeError ?? null, null); assert.equal(agent.historyVersion, undefined);
+    assert.equal(f.queries.length, 0); assert.deepEqual(f.controls, []);
+  } finally { await f.close(); }
+});
+
+test('persisted Claude sessions still report missing history without replacing their messages', async () => {
+  const history = [{ type: 'assistant', uuid: 'saved-reply', message: { content: 'Saved native reply.' } }];
+  const f = await fixture({ history });
+  try {
+    const agent = await f.runtime.open(workerId), messages = agent.messages;
+    const reads = f.calls.filter(([name]) => name === 'getSessionMessages').length;
+    f.sdk.getSessionInfo = async () => undefined;
+    await assert.rejects(f.runtime.refresh(agent), error => error.status === 404);
+    assert.equal(agent.canSend, false); assert.equal(agent.messages, messages);
+    assert.equal(agent.messages[0].text, 'Saved native reply.');
+    assert.equal(f.calls.filter(([name]) => name === 'getSessionMessages').length, reads);
+    assert.equal(f.queries.length, 0); assert.deepEqual(f.controls, []);
+  } finally { await f.close(); }
+});
+
+test('matching live Claude progress clears a stale refresh error without resolving native input', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId);
+    const receipt = await f.runtime.send(agent, 'Continue the handover.');
+    const query = f.queries[0], turnId = agent.turnId;
+    let permissionResolved = false;
+    void query.params.options.canUseTool('Bash', { command: 'read-project-metadata' }, { requestId: 'pending-approval', toolUseID: 'pending-tool', signal: new AbortController().signal }).then(() => { permissionResolved = true; });
+    const question = agent.questions[0], queuedInput = agent.messages.find(message => message.nativeMessageId === receipt.messageId);
+    agent.permissionMode = 'default';
+    agent.observeError = 'Session was not found during its first history refresh.';
+    agent.runError = 'An unrelated earlier run failed.';
+    const staleError = agent.observeError;
+    query.push({ type: 'system', subtype: 'status' }); await tick();
+    assert.equal(agent.observeError, staleError, 'an event without session identity is not recovery evidence');
+    await f.runtime.refresh(agent);
+    assert.equal(agent.observeError, staleError, 'skipping a managed refresh is not recovery evidence');
+    query.push({ type: 'assistant', uuid: 'native-progress', session_id: nativeId, message: { content: 'I am continuing the existing work.' } });
+    await until(() => agent.messages.some(message => message.nativeMessageId === 'native-progress'));
+    assert.equal(agent.observeError, null); assert.equal(Number.isFinite(Date.parse(agent.lastNativeEventAt)), true);
+    assert.equal(f.runtime.runs.has(agent.id), true); assert.equal(agent.turnId, turnId);
+    assert.equal(agent.questions[0], question); assert.equal(question.responding, undefined);
+    assert.equal(f.runtime.requests.size, 1); assert.equal(permissionResolved, false); assert.equal(agent.permissionMode, 'default');
+    assert.equal(agent.runError, 'An unrelated earlier run failed.');
+    assert.equal(agent.messages.find(message => message.nativeMessageId === receipt.messageId), queuedInput);
+    assert.equal(queuedInput.inputState, 'queued', 'assistant activity is not acknowledgement of queued user input');
+    assert.equal(f.queries.length, 1); assert.deepEqual(f.controls, []);
+  } finally { await f.close(); }
+});
+
+test('foreign Claude session activity cannot clear a refresh error or continue the managed run', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId); await f.runtime.send(agent, 'Continue existing work.');
+    const staleError = 'The current session history could not be read.';
+    agent.observeError = staleError;
+    f.queries[0].push({ type: 'assistant', uuid: 'foreign-progress', session_id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', message: { content: 'A different session is working.' } });
+    await until(() => !f.runtime.runs.has(agent.id));
+    assert.equal(agent.observeError, staleError); assert.equal(agent.lastNativeEventAt, undefined);
+    assert.equal(agent.messages.some(message => message.nativeMessageId === 'foreign-progress'), false);
+    assert.equal(agent.thread.status.type, 'systemError'); assert.match(agent.runError, /different session identity/);
+  } finally { await f.close(); }
+});
+
 test('Claude history uses native message timestamps and leaves missing or invalid times unknown', async () => {
   const history = [
     { type: 'assistant', uuid: 'timed-history', timestamp: '2026-11-05T10:20:00Z', message: { content: 'Recorded answer.' } },

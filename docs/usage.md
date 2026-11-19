@@ -334,6 +334,12 @@ rendered React output; real browser interaction remains separate acceptance.
 
 ### Claude work and input status
 
+A new Claude chat can exist before its native history is written. CCNG waits
+without showing a missing-session error during that interval. Native activity
+from the same session clears an earlier refresh banner; it does not answer a
+pending question or hide a run failure. A genuinely unavailable saved session
+still reports an error.
+
 The composer keeps Claude's current work visible while ordinary actions are
 collapsed. A tool request shows Waiting on its tool name and optional description;
 it becomes Running only after a matching native progress event. Requested/First

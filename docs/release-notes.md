@@ -7,6 +7,13 @@ For design rationale, alternatives and implementation references, see the
 [decision history](../design_decisions_history.md). Earlier detailed release
 text remains available in the [archived README](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.42.0 — Clear stale Claude refresh errors
+
+New Claude chats no longer show a missing-session error while their native
+history is first being created. When the same Claude session reports activity,
+clear an earlier refresh error without removing pending questions or approvals.
+Actual unavailable-session and run failures remain visible.
+
 ## 1.41.0 — Show or hide subagent messages
 
 Add **Show subagent messages** beside **Create handover** in Project. Messages

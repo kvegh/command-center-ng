@@ -59,6 +59,8 @@ these messages with the per-chat switch beside Create handover in Project;
 questions and approvals remain visible. See [chat display and typing](docs/usage.md#chat-display-and-typing).
 
 - Open local Codex or Claude conversations, or start new agents in explicit project directories.
+  New Claude chats wait for native history to become available; a recovered session
+  clears its earlier refresh error when it reports activity.
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
   Conversation tabs join their chat pane; the taller Coordinator control has a
   distinct outline and divider.

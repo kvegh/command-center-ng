@@ -220,7 +220,11 @@ export class ClaudeSessions extends EventEmitter {
     this.ready(); if (this.runs.has(agent.id)) return;
     const before = JSON.stringify([agent.canSend, agent.externalSession, agent.thread.status, agent.observeError, agent.managementNotice, agent.name]);
     const info = await this.sdk.getSessionInfo(agent.nativeSessionId, { dir: agent.cwd });
-    if (!info && !agent.newSession) { agent.canSend = false; throw fail('This local Claude conversation is no longer available.', 404); }
+    if (!info) {
+      // A newly created SDK session has no transcript until its first native write.
+      if (agent.newSession) return;
+      agent.canSend = false; throw fail('This local Claude conversation is no longer available.', 404);
+    }
     const version = info && Number.isFinite(info.lastModified) && Number.isFinite(info.fileSize) ? JSON.stringify([info.lastModified, info.fileSize]) : null;
     const historyChanged = version === null || version !== agent.historyVersion;
     if (historyChanged) {
@@ -305,7 +309,11 @@ export class ClaudeSessions extends EventEmitter {
       if (this.runs.get(agent.id) !== job) break;
       if (message.session_id && message.session_id !== agent.nativeSessionId) throw new Error('Claude returned a different session identity; this run was stopped.');
       const receivedAt = new Date().toISOString();
-      if (message.session_id === agent.nativeSessionId) agent.lastNativeEventAt = receivedAt;
+      if (message.session_id === agent.nativeSessionId) {
+        agent.lastNativeEventAt = receivedAt;
+        // Current native activity supersedes an earlier observation failure.
+        agent.observeError = null;
+      }
       rememberSubagents(agent, message);
       const parentMessage = message.parent_tool_use_id == null;
       const subagent = subagentOf(agent, message);
