@@ -65,3 +65,64 @@ test('unreadable source shapes fail visibly instead of returning partial or unre
     assert.equal(result.status, 'unavailable'); assert.equal(result.text, undefined);
   } finally { await f.close(); }
 });
+
+test('an explicit source outside both directory trees overrides discovery and is reread', async () => {
+  const f = await fixture();
+  try {
+    const worker = join(f.root, 'worker', 'project');
+    const backend = join(f.root, 'backend');
+    const discovered = join(backend, repository);
+    const selected = join(f.root, 'separate-source', 'instructions.md');
+    await mkdir(worker, { recursive: true }); await mkdir(discovered, { recursive: true });
+    await mkdir(join(f.root, 'separate-source'));
+    await writeFile(join(discovered, 'AGENTS.md'), '# Discovered source must not win\n');
+    await writeFile(selected, '# Selected shared rules\n');
+    const options = { workspaceCwd: backend, sourcePath: selected };
+    let result = await readEnvironmentInstructions(worker, options);
+    assert.equal(result.status, 'loaded'); assert.equal(result.path, selected);
+    assert.equal(result.text, '# Selected shared rules\n');
+    assert.ok(environmentInstructionContext(result)['command-center-environment-instructions'].value.endsWith(result.text));
+    await writeFile(selected, '# Selected rules changed\n');
+    result = await readEnvironmentInstructions(worker, options);
+    assert.equal(result.text, '# Selected rules changed\n');
+  } finally { await f.close(); }
+});
+
+test('a missing explicit source does not fall back to a discoverable source', async () => {
+  const f = await fixture();
+  try {
+    const shared = join(f.root, repository); await mkdir(shared);
+    await writeFile(join(shared, 'AGENTS.md'), '# Discoverable rules\n');
+    const sourcePath = join(f.root, 'missing.md');
+    const result = await readEnvironmentInstructions(f.root, { workspaceCwd: f.root, sourcePath });
+    assert.equal(result.status, 'missing'); assert.equal(result.path, sourcePath);
+    assert.equal(result.text, undefined);
+    const context = environmentInstructionContext(result)['command-center-environment-instructions'].value;
+    assert.match(context, /configured shared AGENTS.md was not found/);
+    assert.ok(!context.includes('# Discoverable rules'));
+  } finally { await f.close(); }
+});
+
+test('invalid explicit sources retain file protections without falling back', async () => {
+  const f = await fixture();
+  try {
+    const shared = join(f.root, repository); await mkdir(shared);
+    await writeFile(join(shared, 'AGENTS.md'), '# Discoverable rules\n');
+    const selected = join(f.root, 'selected.md');
+    const options = { workspaceCwd: f.root, sourcePath: selected };
+    for (const text of ['binary\u0000data', '', 'x'.repeat(128 * 1024 + 1)]) {
+      await writeFile(selected, text);
+      const result = await readEnvironmentInstructions(f.root, options);
+      assert.equal(result.status, 'unavailable'); assert.equal(result.path, selected);
+      assert.equal(result.text, undefined);
+    }
+    await rm(selected); await symlink(join(shared, 'AGENTS.md'), selected);
+    let result = await readEnvironmentInstructions(f.root, options);
+    assert.equal(result.status, 'unavailable'); assert.equal(result.path, selected);
+    assert.equal(result.text, undefined);
+    await rm(selected); await mkdir(selected);
+    result = await readEnvironmentInstructions(f.root, options);
+    assert.equal(result.status, 'unavailable'); assert.equal(result.path, selected);
+    assert.equal(result.text, undefined);
+  } finally { await f.close(); }
+});

@@ -3101,3 +3101,25 @@ already authorized work retain their controls and scope. The correction changes
 instructions, not card storage, approval transport or automatic enforcement.
 CCNG runtime-instruction implementation: `5ac148fe51363f64646486d2d5e105a8abbd8917`.
 Shared environment rule implementation: `fb274fc70c1cc935d287d532967c37fe1dcd8fac`.
+
+
+## 2026-11-19 — Select shared instructions independently of chat directories
+
+Recorded 2026-11-19, 10:50 CET; exact user-approval time unknown. The user approved
+one explicit shared-instructions path in the existing private runtime config,
+keeping conversation working directories unchanged. Project/backend ancestor
+discovery alone can miss the shared source when chats and the installation live
+in separate directory trees. Changing their working directories would also
+change project context, so the selected approach adds only the optional
+`shared_instructions_file` config key and its existing Ansible configuration
+surface, `command_center_shared_instructions_file`.
+
+The path is literal, absolute or relative to the config directory; no additional
+CLI or environment-variable interface is introduced. An explicit source is
+authoritative: unavailable content is reported without falling back to another
+source. Omitting the setting preserves discovery. Existing file-size, regular-file
+and final-symlink safeguards, native permissions and instruction precedence
+remain. An already managed Claude process receives changed instructions only
+at its next process startup; this is not a hot-reload mechanism.
+
+Implementation commit: pending.

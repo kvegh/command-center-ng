@@ -13,6 +13,7 @@ const options = {
   first_password_setup: 'first-password-setup',
   concern_review_worker: 'concern-review-worker',
   approval_policy: 'approvalPolicyFile',
+  shared_instructions_file: 'sharedInstructionsFile',
   claude_auto_review_sessions: 'claudeAutoReviewSessions',
 };
 
@@ -61,7 +62,7 @@ export function parseRuntimeConfig(text, directory) {
     seen.add(key);
     // This is a literal settings format, not YAML or shell input. Only a line
     // beginning with # is a comment; spaces and # within paths are preserved.
-    if (key === 'tls_certificate' || key === 'tls_private_key' || key === 'approval_policy') {
+    if (key === 'tls_certificate' || key === 'tls_private_key' || key === 'approval_policy' || key === 'shared_instructions_file') {
       if (value.startsWith('~')) throw invalid('use an absolute file path or one relative to this config file; ~ is not expanded.');
       values[options[key]] = resolve(directory, value);
     } else values[options[key]] = value;

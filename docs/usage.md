@@ -40,6 +40,39 @@ preferences. They do not synchronize across browsers or devices.
 The worker overview is headed **Project: {chat/project name}**. The Coordinator
 keeps its existing heading.
 
+## Shared environment instructions
+
+CCNG supplies shared environment rules alongside each project's instructions.
+To select a file outside the automatically searched project/backend trees, set
+this optional key in `INSTALLDIR/etc/config.conf`:
+
+```text
+shared_instructions_file: /srv/example/shared/AGENTS.md
+```
+
+Use a literal absolute path or a path relative to the directory containing
+`config.conf`. Shell variables and `~` are not expanded. This key has no CLI or
+environment-variable equivalent. It does not change a conversation's working
+directory. Without the key, existing local discovery of
+`Setup-Agentic-Dev-Environment/AGENTS.md` remains in effect.
+
+The configured file is authoritative: if missing, unreadable, empty, binary,
+larger than 128 KiB or a final-component symlink, CCNG reports the source as
+missing/unavailable instead of choosing another file. The backend account needs
+existing read access to a regular text file; CCNG does not fetch a replacement
+or change permissions. Native tool and permission controls remain authoritative.
+
+Restart CCNG after changing this runtime setting. Codex reads the selected
+context on app-started turns; an existing managed Claude process keeps its
+startup context until its next process startup. Updating the file or restarting
+CCNG does not promise hot reload into an already running Claude process. Preserve
+active work and pending decisions when arranging a restart.
+
+For Ansible deployment, set optional `command_center_shared_instructions_file`
+in the existing protected deployment variables. The deployment renders the key
+but does not provision the shared source. Keep actual paths in encrypted private
+configuration; the example above is generic.
+
 ## Chat, activity and interruption
 
 **Enter** sends when sending is available; **Shift+Enter** inserts a newline.

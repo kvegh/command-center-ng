@@ -88,13 +88,14 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
   const sessions = new Sessions(authFile); const clients = new Set();
   await sessions.initialize();
   rpc ||= new CodexRpc({ socketPath: settings.socketPath });
+  if (workspace && settings.sharedInstructionsFile !== undefined) workspace.sharedInstructionsFile = settings.sharedInstructionsFile;
   if (workspace && Object.hasOwn(config, 'concernReviewWorkerId')) workspace.coordinator?.setConcernReviewWorker(settings.concernReviewWorkerId);
   if (!workspace) {
     const policy = await readApprovalPolicy(settings.approvalPolicyFile || approvalPolicyFile(root), {
       configured: settings.approvalPolicyConfigured ?? Object.hasOwn(config, 'approvalPolicyFile'),
     });
     if (policy.error) console.warn(policy.error);
-    workspace = new Workspace(rpc, { coordinator: { concernReviewWorkerId: settings.concernReviewWorkerId || null, approvalPolicy: policy }, claude: true });
+    workspace = new Workspace(rpc, { sharedInstructionsFile: settings.sharedInstructionsFile, coordinator: { concernReviewWorkerId: settings.concernReviewWorkerId || null, approvalPolicy: policy }, claude: true });
   }
   await workspace.claude?.initialize();
   await workspace.claude?.configureAutoReviewSessions?.(settings.claudeAutoReviewSessions);
@@ -448,6 +449,7 @@ export async function loadRuntimeOptions(args = process.argv.slice(2), env = pro
   return { ...runtimeOptions(args, env, fileValues),
     approvalPolicyFile: fileValues.approvalPolicyFile || approvalPolicyFile(appDir),
     claudeAutoReviewSessions: normalizeClaudeAutoReviewSessions(fileValues.claudeAutoReviewSessions),
+    sharedInstructionsFile: fileValues.sharedInstructionsFile,
     runtimeConfigFile: runtimeConfigFile(appDir),
     approvalPolicyConfigured: Object.hasOwn(fileValues, 'approvalPolicyFile') };
 }
@@ -488,8 +490,9 @@ Usage: command-center-ng [--host ADDRESS] [--port PORT] [--protocol https|http] 
 Configuration: INSTALLDIR/etc/config.conf is read at foreground/systemd startup.
 Use simple key: value lines and full-line # comments; this is not YAML.
 Settings: connection_type, tls_certificate, tls_private_key, host, port, public_origin,
-          first_password_setup, concern_review_worker, approval_policy.
-Certificate and approval-policy paths can be absolute or relative to the config file directory.
+          first_password_setup, concern_review_worker, approval_policy, shared_instructions_file.
+Certificate, approval-policy and shared-instruction paths can be absolute or config-relative.
+An explicit shared-instructions file is authoritative; unavailable files are reported without fallback.
 The default optional policy is INSTALLDIR/etc/approval-policy.yml. A configured
 missing or invalid policy disables automatic approvals until corrected and restarted.
 Environment: CCNG_HOST, CCNG_PORT, CCNG_PROTOCOL, CCNG_PUBLIC_ORIGIN,
@@ -529,7 +532,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       const port = Number(values.port); if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Choose a port from 1 to 65535.');
       if (!['http', 'https'].includes(values.protocol)) throw new Error('Choose --protocol http or https.');
       const selection = await resolveListenAddress(values.host);
-      const app = await createApp({ config: { host: selection.host, port, protocol: values.protocol, cwd: resolve(values.cwd), socketPath: values.socket, publicOrigin: values['public-origin'], firstPasswordSetup: values['first-password-setup'], concernReviewWorkerId: values['concern-review-worker'], approvalPolicyFile: values.approvalPolicyFile, approvalPolicyConfigured: values.approvalPolicyConfigured, claudeAutoReviewSessions: values.claudeAutoReviewSessions, runtimeConfigFile: values.runtimeConfigFile, tlsCert: values['tls-cert'], tlsKey: values['tls-key'], dev: values.dev } });
+      const app = await createApp({ config: { host: selection.host, port, protocol: values.protocol, cwd: resolve(values.cwd), socketPath: values.socket, publicOrigin: values['public-origin'], firstPasswordSetup: values['first-password-setup'], concernReviewWorkerId: values['concern-review-worker'], approvalPolicyFile: values.approvalPolicyFile, approvalPolicyConfigured: values.approvalPolicyConfigured, claudeAutoReviewSessions: values.claudeAutoReviewSessions, sharedInstructionsFile: values.sharedInstructionsFile, runtimeConfigFile: values.runtimeConfigFile, tlsCert: values['tls-cert'], tlsKey: values['tls-key'], dev: values.dev } });
       // Startup observes the native setup without changing a shared Codex profile.
       const codexSetup = await ensureCodexQuestions({ enable: false });
       for (const warning of codexSetup.warnings) console.warn('Codex setup warning: ' + warning);

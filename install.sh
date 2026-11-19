@@ -149,6 +149,7 @@ try {
       + '# restricted direct backend access, and your HTTPS public_origin below.\n'
       + '# public_origin: https://command-center.example\n'
       + '# first_password_setup: htpasswd-proxy\n'
+      + '# shared_instructions_file: /absolute/path/to/Setup-Agentic-Dev-Environment/AGENTS.md\n'
       + 'connection_type: http\n';
     writeFileSync(file, config, { mode: 0o600, flag: 'wx' });
   }

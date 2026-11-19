@@ -60,6 +60,59 @@ test('approval policy uses the optional installed path or an explicitly selected
   await assert.rejects(loadRuntimeOptions([], {}, { appDir: f.appDir }), /duplicate setting/);
 });
 
+test('shared instruction source uses a literal absolute or config-relative file without changing cwd', async t => {
+  const f = await fixture(t);
+  await f.write('shared_instructions_file: shared rules/AGENTS #1.md\n');
+  let options = await loadRuntimeOptions([], {}, { appDir: f.appDir });
+  assert.equal(options.sharedInstructionsFile, join(f.appDir, 'etc', 'shared rules', 'AGENTS #1.md'));
+  assert.equal(options.cwd, process.cwd());
+  await f.write('shared_instructions_file: /example/shared/AGENTS.md\n');
+  options = await loadRuntimeOptions(['--cwd', '/example/worker'], {}, { appDir: f.appDir });
+  assert.equal(options.sharedInstructionsFile, '/example/shared/AGENTS.md');
+  assert.equal(options.cwd, '/example/worker');
+  await f.write('shared_instructions_file: ~/AGENTS.md\n');
+  await assert.rejects(loadRuntimeOptions([], {}, { appDir: f.appDir }), /~ is not expanded/);
+  await f.write('shared_instructions_file: first.md\nshared_instructions_file: second.md\n');
+  await assert.rejects(loadRuntimeOptions([], {}, { appDir: f.appDir }), /duplicate setting/);
+});
+
+test('real app startup supplies configured shared instructions to unrelated workers and Coordinator without native work', async t => {
+  const f = await fixture(t), authFile = join(f.appDir, 'auth.json');
+  await setPassword(randomBytes(24).toString('base64url'), authFile);
+  t.mock.method(BeadsTasks.prototype, 'checkAvailable', async () => {});
+  t.mock.method(ClaudeSessions.prototype, 'initialize', async () => false);
+  const file = join(f.appDir, 'operator-instructions.md');
+  await writeFile(file, '# Selected shared rules\nUse the approved project scope.\n');
+  await f.write('shared_instructions_file: ' + file + '\n');
+  const options = await loadRuntimeOptions([], {}, { appDir: f.appDir });
+  const rpc = new EventEmitter(); rpc.ready = false; rpc.close = () => {};
+  rpc.call = async () => assert.fail('Instruction configuration must not start native work.');
+  rpc.respond = () => assert.fail('Instruction configuration must not answer native requests.');
+  const app = await createApp({ rpc, authFile, workspaceFile: join(f.appDir, 'workspace.json'),
+    config: { cwd: f.appDir, sharedInstructionsFile: options.sharedInstructionsFile } });
+  try {
+    assert.equal(app.settings.cwd, f.appDir, 'the configured chat default directory is preserved');
+    for (const provider of ['codex', 'claude']) {
+      const agent = { id: 'unrelated-' + provider, provider, role: 'worker', cwd: '/unrelated/worker', reportIntervalMinutes: 0 };
+      const context = await app.workspace.instructionContext(agent);
+      assert.equal(agent.environmentInstructions.status, 'loaded');
+      assert.equal(agent.environmentInstructions.path, file);
+      assert.match(context['command-center-environment-instructions'].value, /Selected shared rules/);
+      assert.equal(agent.cwd, '/unrelated/worker');
+    }
+    await writeFile(file, '# Updated selected rules\nRetain pending decisions.\n');
+    const coordinator = { id: 'unrelated-coordinator', role: 'coordinator', cwd: '/another/project' };
+    const context = await app.workspace.instructionContext(coordinator);
+    assert.match(context['command-center-environment-instructions'].value, /Updated selected rules/);
+    assert.equal(context['command-center-worker-instructions'], undefined);
+    await rm(file);
+    const missing = await app.workspace.instructionContext(coordinator);
+    assert.equal(coordinator.environmentInstructions.status, 'missing');
+    assert.doesNotMatch(missing['command-center-environment-instructions'].value, /Updated selected rules/);
+    assert.equal(app.workspace.agents.size, 0);
+  } finally { await app.close(); }
+});
+
 test('existing explicit environment and CLI settings override installed file values', async t => {
   const f = await fixture(t);
   await f.write('connection_type: https\nhost: 192.0.2.15\nport: 4545\npublic_origin: https://command-center.example\ntls_certificate: certs/server.crt\ntls_private_key: certs/server.key\n');

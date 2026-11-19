@@ -14,6 +14,9 @@ tls_private_key: {{ ccng_tls_private_key }}
 host: {{ command_center_bind_address }}
 port: {{ command_center_port }}
 first_password_setup: {{ command_center_first_password_setup | default('disabled') }}
+{% if command_center_shared_instructions_file | default('') | length > 0 %}
+shared_instructions_file: {{ command_center_shared_instructions_file }}
+{% endif %}
 {% if command_center_public_origin | default('') | length > 0 %}
 public_origin: {{ command_center_public_origin }}
 {% endif %}

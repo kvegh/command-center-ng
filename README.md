@@ -52,6 +52,10 @@ states are historical. EXIF metadata was removed without changing image pixels.
 Agents discuss and clarify proposals in chat before requesting approval through
 a card. Actual unanswered chat questions remain visible through Beads Tasks.
 
+Operators can select one local shared `AGENTS.md` through the existing runtime
+configuration, independently of each chat's project directory. See
+[shared environment instructions](docs/usage.md#shared-environment-instructions).
+
 Ordinary draft edits reuse the existing rendered message list and unchanged
 Markdown/timestamp rendering. Live message,
 status and request updates still render normally. Verified Claude task notices

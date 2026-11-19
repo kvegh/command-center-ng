@@ -22,8 +22,10 @@ function candidates(cwd, workspaceCwd) {
   return paths;
 }
 
-export async function readEnvironmentInstructions(cwd, { workspaceCwd = process.cwd() } = {}) {
-  for (const path of candidates(cwd, workspaceCwd)) {
+export async function readEnvironmentInstructions(cwd, { workspaceCwd = process.cwd(), sourcePath } = {}) {
+  // A configured source is authoritative; discovery must not replace it on failure.
+  const configuredPath = typeof sourcePath === 'string' && sourcePath.trim() ? resolve(sourcePath) : null;
+  for (const path of configuredPath ? [configuredPath] : candidates(cwd, workspaceCwd)) {
     let handle;
     try {
       handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
@@ -38,7 +40,11 @@ export async function readEnvironmentInstructions(cwd, { workspaceCwd = process.
       if (length > sourceLimit || text.includes('\u0000') || !text.trim()) return { status: 'unavailable', path, message: 'The shared AGENTS.md was empty, binary or too large; it was not imported.' };
       return { status: 'loaded', path, text };
     } catch (error) {
-      if (!['ENOENT', 'ENOTDIR'].includes(error.code)) return { status: 'unavailable', path, message: 'The local shared AGENTS.md could not be read; it was not imported.' };
+      if (['ENOENT', 'ENOTDIR'].includes(error.code)) {
+        if (configuredPath) return { status: 'missing', path, message: 'The configured shared AGENTS.md was not found; shared environment instructions were not imported.' };
+      } else {
+        return { status: 'unavailable', path, message: `The ${configuredPath ? 'configured' : 'local'} shared AGENTS.md could not be read; it was not imported.` };
+      }
     } finally { await handle?.close(); }
   }
   return { status: 'missing', message: `No local ${repository}/AGENTS.md was found in this project or backend workspace; shared environment instructions were not imported.` };

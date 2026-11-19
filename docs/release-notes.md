@@ -7,6 +7,15 @@ For design rationale, alternatives and implementation references, see the
 [decision history](../design_decisions_history.md). Earlier detailed release
 text remains available in the [archived README](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.44.0 — Select a shared instruction file
+
+Operators can set `shared_instructions_file` in the existing runtime config to
+load shared environment rules independently of chat working directories.
+An explicitly selected file never falls back to discovery when unavailable.
+Ansible exposes the same optional setting through protected deployment variables.
+Existing Claude processes retain their startup instructions until restarted;
+native permissions remain unchanged.
+
 ## 1.43.0 — Discuss proposals before approval cards
 
 Worker guidance now keeps exploratory clarification in chat and reserves cards

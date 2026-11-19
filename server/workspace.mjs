@@ -85,10 +85,11 @@ function itemTime(item, previous, live) {
 }
 
 export class Workspace extends EventEmitter {
-  constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, recoveryTimeout = 2000, beads = new BeadsTasks(), coordinator = false, claude = null, handoffOptions, handoverSkill = resolveHandoverSkill, handoverPath = reserveHandoverPath, handoverTimeout = 10 * 60_000 } = {}) {
+  constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, recoveryTimeout = 2000, beads = new BeadsTasks(), coordinator = false, claude = null, handoffOptions, handoverSkill = resolveHandoverSkill, handoverPath = reserveHandoverPath, handoverTimeout = 10 * 60_000, sharedInstructionsFile } = {}) {
     super(); this.rpc = rpc; this.agents = new Map(); this.pending = new Map(); this.requestEpoch = 0; this.opening = new Set(); this.watched = new Set(); this.creating = 0; this.error = null;
     // Browser refresh follows backend replacement, not native RPC reconnects.
     this.serverInstanceId = randomUUID();
+    this.sharedInstructionsFile = sharedInstructionsFile;
     this.summaryJobs = new Map(); this.returnJobs = new Map(); this.summaryTimeout = summaryTimeout;
     this.handoffs = new BranchHandoffs(this, handoffOptions);
     this.workerReads = new Set(); this.beads = beads; this.trackerReads = new Map();
@@ -1295,7 +1296,7 @@ export class Workspace extends EventEmitter {
     }
   }
   async instructionContext(agent) {
-    const source = await readEnvironmentInstructions(agent.cwd);
+    const source = await readEnvironmentInstructions(agent.cwd, { sourcePath: this.sharedInstructionsFile });
     const { text, ...state } = source; agent.environmentInstructions = state;
     return { ...environmentInstructionContext(source), ...(agent.role !== 'coordinator' ? { ...this.beads?.context(agent.id), 'command-center-worker-instructions': { kind: 'application', value: WORKER_BASE_INSTRUCTIONS + '\n\n' + reportTimingContext(agent.reportIntervalMinutes) } } : { 'command-center-report-instructions': { kind: 'application', value: WORKER_REPORT_INSTRUCTIONS } }) };
   }

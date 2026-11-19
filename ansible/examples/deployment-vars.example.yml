@@ -3,6 +3,8 @@
 command_center_user: example_operator
 # Default agent workspace is <account-home>/ccng-wd, created on first setup.
 # command_center_project_dir: /home/example_operator/projects/existing-project
+# Optional existing shared file; does not change any chat's project directory.
+# command_center_shared_instructions_file: /srv/example/shared/AGENTS.md
 command_center_repository: git@github.com:EXAMPLE_OWNER/command-center-ng.git
 command_center_revision: main
 # Defaults: localhost:4242; preserve existing Codex/Beads login/profile/services.
