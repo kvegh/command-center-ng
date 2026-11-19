@@ -1,5 +1,44 @@
 # Current status for handover
 
+Verified checkpoint: **2026-11-19, 10:03 CET**. Beads remains authoritative.
+
+Published and installed **1.43.0**, payload
+`8bc550efa912163f6462f7c6f15bdb637b94197f`, includes the Claude refresh repairs
+(`39f61729d9cf23ec60a7f26babffc891c54d289a` and
+`992b97c8635560c827ea953d458030c291074d68`) and discussion-first approval-card
+guidance (`5ac148fe51363f64646486d2d5e105a8abbd8917`). New Claude chats wait
+for persistence; matching native activity clears stale observation errors and
+an older refresh cannot overwrite newer live state.
+
+The user approved deleting old generated hook-output exports. Cleanup recovered
+about 1.8 GB and cleared the disk guard. A guarded update installed the payload,
+then correctly stopped before restart when Claude resumed work. Ad hoc job 5173 —
+Restart-only completion of installed 1.43.0 — subsequently succeeded at
+10:02:46–10:02:54 CET after two fresh native idle/history checks. Thirteen
+protected-file states, four saved worker identities, exact workspace/pause/report
+settings, native CLI/profile and Codex daemon identity were preserved across
+that restart. The earlier partial install did not return its final preservation
+comparisons; do not present restart-only evidence as independent whole-install
+hash preservation.
+
+Ad hoc job 5174 — Installed 1.43.0 refresh recovery and instruction verification —
+succeeded at 10:03:39–10:03:49 CET: 120 source files match, trusted HTTPS,
+authentication gates, both served assets and listeners pass. All 165 installed
+checks across ten suites pass without failures or skips. Reading the affected
+saved Claude session through the installed adapter restores 141 messages with
+no observation error; an unpersisted in-memory record also refreshes safely.
+No native model query or approval was created for testing. Physical browser
+rendering and future model compliance are not established by these checks.
+
+Banner delivery `bead-wd-c6a7`, cleanup approval `bead-wd-v5sx`, own scratch
+cleanup `bead-wd-mwmn` and disk diagnosis `bead-wd-ayz5` have verified outcomes.
+Unanswered card-persistence/enforcement and wrong-chat choices, Claude daemon
+integration and other held/deferred work retain their original boundaries.
+No delivery job, tool call or child remains running. This outcome-only document
+is newer than the installed payload and requires no redundant deployment.
+
+### Previous checkpoint (superseded)
+
 Verified checkpoint: **2026-11-18, 12:47 CET**. Beads remains authoritative.
 
 Published and installed **1.41.0**, payload
