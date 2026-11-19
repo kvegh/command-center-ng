@@ -3122,4 +3122,4 @@ and final-symlink safeguards, native permissions and instruction precedence
 remain. An already managed Claude process receives changed instructions only
 at its next process startup; this is not a hot-reload mechanism.
 
-Implementation commit: pending.
+Implementation commit: `8569a770d722ded6e551a00ec27aa166f88a03ba`.
