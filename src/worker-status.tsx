@@ -5,7 +5,7 @@ export type InputReceipt = { state: 'sending' | 'queued' | 'received' | 'unconfi
 export type StreamHealth = { state: 'connecting' | 'connected' | 'reconnecting'; lastSignalAt: number | null };
 export type NativeToolActivity = { name: string; description?: string; requestedAt?: string; requestedAtSource?: 'native' | 'received'; lastProgressAt?: string; elapsedSeconds?: number };
 export type WorkerActivity = {
-  provider?: 'claude' | 'codex'; turnId?: string | null;
+  provider?: 'claude' | 'codex' | 'mistral'; turnId?: string | null;
   messages?: { id: string; nativeMessageId?: string; turnId: string; state: string; nativeTool?: NativeToolActivity; inputState?: 'queued' | 'received' | 'unconfirmed' }[];
   status: string; ownStatus?: string; questions: unknown[];
   finishedTurn?: { status: string };
@@ -45,13 +45,17 @@ export function claudeToolView(worker: WorkerActivity, now: number) {
 }
 
 export function inputReceiptLabel(worker: WorkerActivity, receipt?: InputReceipt) {
-  const messageId = receipt?.messageId || (!receipt && worker.provider === 'claude' ? worker.messages?.filter(message => message.inputState && message.nativeMessageId).at(-1)?.nativeMessageId : undefined);
+  const managedLocal = worker.provider === 'claude' || worker.provider === 'mistral';
+  const identity = (message: NonNullable<WorkerActivity['messages']>[number]) => worker.provider === 'mistral' ? message.id : message.nativeMessageId;
+  const latest = !receipt && managedLocal ? worker.messages?.filter(message => message.inputState && identity(message)).at(-1) : undefined;
+  const messageId = receipt?.messageId || (latest && identity(latest));
   if (!receipt && !messageId) return null;
   if (receipt?.state === 'sending') return 'Sending…';
   if (receipt?.state === 'unconfirmed') return 'Input not confirmed';
-  if (worker.provider !== 'claude') return receipt?.state === 'received' ? 'Input received' : 'Input queued';
-  const message = messageId && worker.messages?.find(message => message.nativeMessageId === messageId);
-  return message && message.inputState === 'received' ? 'Received by Claude' : message && message.inputState === 'unconfirmed' ? 'Input not confirmed' : 'Queued for Claude';
+  if (!managedLocal) return receipt?.state === 'received' ? 'Input received' : 'Input queued';
+  const message = messageId && worker.messages?.find(message => identity(message) === messageId);
+  const provider = worker.provider === 'mistral' ? 'Mistral' : 'Claude';
+  return message && message.inputState === 'received' ? `Received by ${provider}` : message && message.inputState === 'unconfirmed' ? 'Input not confirmed' : `Queued for ${provider}`;
 }
 
 // Heartbeats confirm browser/backend transport only. They never become chat
@@ -82,7 +86,7 @@ export function workerStatusView(worker: WorkerActivity, stream: StreamHealth, r
   const connection = stream.state === 'connecting' ? 'Connecting to CCNG'
     : stream.state === 'reconnecting' ? 'CCNG reconnecting'
     : !fresh ? 'Connection unconfirmed'
-    : !runtimeConnected ? worker.provider === 'claude' ? 'Claude unavailable' : 'Codex disconnected' : worker.provider === 'claude' ? 'CCNG connected' : 'Connected';
+    : !runtimeConnected ? worker.provider === 'claude' ? 'Claude unavailable' : worker.provider === 'mistral' ? 'Mistral unavailable' : 'Codex disconnected' : worker.provider === 'claude' ? 'CCNG connected' : 'Connected';
   const ownStatus = worker.ownStatus ?? worker.status;
   const ordinaryActivity = worker.questions.length ? 'Needs your answer'
     : ownStatus === 'attention' ? 'Request details unavailable'
@@ -120,7 +124,7 @@ export function WorkerStatus({ worker, receipt, stream, runtimeConnected, presen
   const receiptLabel = inputReceiptLabel(worker, receipt);
   return <div className="worker-status">
     <span className={`worker-status-state ${view.working ? 'working' : ''} ${view.attention ? 'attention' : ''}`} role="status">
-      <i aria-hidden="true" />{receiptLabel && <span title={worker.provider === 'claude' ? 'Queued means CCNG handed input to the Claude input stream. Received means its exact native echo arrived; neither confirms model processing.' : receipt?.state === 'received' ? 'The native runtime accepted your input.' : receipt?.state === 'unconfirmed' ? 'Delivery could not be confirmed. Your draft is retained; check the conversation before retrying.' : undefined}>{receiptLabel}<span aria-hidden="true"> · </span></span>}{view.activity}
+      <i aria-hidden="true" />{receiptLabel && <span title={worker.provider === 'claude' ? 'Queued means CCNG handed input to the Claude input stream. Received means its exact native echo arrived; neither confirms model processing.' : worker.provider === 'mistral' ? 'Queued means CCNG wrote input to the native Vibe transport. Received means the native prompt returned; neither confirms that the requested work succeeded.' : receipt?.state === 'received' ? 'The native runtime accepted your input.' : receipt?.state === 'unconfirmed' ? 'Delivery could not be confirmed. Your draft is retained; check the conversation before retrying.' : undefined}>{receiptLabel}<span aria-hidden="true"> · </span></span>}{view.activity}
     </span>
     <span className={`worker-status-connection ${view.connected ? 'connected' : ''}`} role="status">{view.connection}</span>
     <span className="worker-status-age" aria-live="off">{view.age}</span>

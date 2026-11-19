@@ -1058,3 +1058,16 @@ No active steering, uncertain-send retry, historical scan/replay, new store,
 service, timer or automatic re-review is authorized by this feature. Keep
 unavailable/full/failed delivery visible, honor cancellation before native write,
 and distinguish queued/delivered notices from actual investigation or repair.
+
+
+## Approved local Mistral Vibe integration
+
+The user approved Mistral Vibe as a third local worker through official ACP.
+Reuse the existing Node backend and task/request/handover surfaces; keep the
+Coordinator on Codex. No new service/store, remote agent transport or custom
+model loop is authorized. Install nothing and select no credential source
+without separate approval. Preserve native capability limits and exact pending
+requests; do not infer approval from provider selection or use unrestricted
+native flags to avoid prompts. Mistral branching is unavailable. Native session
+load may initialize engine/MCP activity and is not a read-only history probe.
+Do not claim real-runtime/browser verification from controlled fixtures.

@@ -68,11 +68,14 @@ questions and approvals remain visible. See [chat display and typing](docs/usage
 - Open local Codex or Claude conversations, or start new agents in explicit project directories.
   New Claude chats wait for native history to become available; a recovered session
   clears its earlier refresh error when it reports activity.
+- Use the optional local Mistral Vibe ACP integration once its native runtime is
+  separately installed and authenticated. See [Mistral setup and limits](docs/usage.md#local-mistral-vibe).
 - Keep up to sixteen workers plus a separate coordinator in one workspace.
   Conversation tabs join their chat pane; the taller Coordinator control has a
   distinct outline and divider.
 - Create a versioned receiving chat from the Project overview after choosing
-  Codex or Claude, prepare and verify the file first, then import automatically
+  Codex, Claude or an available Mistral runtime, prepare and verify the file first,
+  then import automatically
   at startup. Link the same source Beads tasks before import, keeping their states
   and source associations. Existing versions require an explicit open-or-increment choice. See [chat handovers](docs/usage.md#chat-handovers).
 - Chat, steer active work, interrupt a turn and answer supported native questions or approvals, including eligible current assistant-question cards. Completed Claude question exchanges remain visible in chat after their pending cards close, including when reloading native history.
@@ -156,10 +159,14 @@ installation target; other Linux distributions have not been verified.
 - A modern desktop or smartphone browser.
 - User-level systemd if you choose background service management.
 
-Codex is currently the supported agent runtime. It needs your own OpenAI
+Codex remains required for the Coordinator. Its workers need your own OpenAI
 authentication: ChatGPT sign-in with Codex access or OpenAI API-key authentication.
 This is separate from the CCNG application password; an API key is not mandatory.
 See [native Codex authentication](https://learn.chatgpt.com/docs/auth?surface=cli).
+
+Optional Claude and Mistral workers use their own local native runtimes and
+authentication. CCNG does not install or authenticate Mistral Vibe; missing
+`vibe-acp` does not prevent Codex/Claude use.
 
 The installer can offer missing RHEL packages, per-user Codex/app-local Beads tools and fresh
 Beads/Dolt setup after confirmation. Existing compatible tools and trackers are
@@ -293,6 +300,11 @@ with the native Claude/Google configuration; no new login is created.
 ## Current scope and limits
 
 - Session management is **local to the backend host**; no SSH or remote-agent monitoring.
+- Mistral uses the official local `vibe-acp` executable. Branching is unavailable;
+  restored/external sessions remain metadata-only and cannot resume in CCNG after
+  backend restart. See [Mistral usage](docs/usage.md#local-mistral-vibe) for native
+  capability limits. Source tests do not establish
+  actual Vibe authentication, model execution or live browser acceptance.
 - Local Claude sessions support native current-history and completed-reply
   branching with the installed official Agent SDK. Broader Claude completion
   and live validation remain **TODO**; automatic branch handback is Codex-only.
@@ -463,6 +475,23 @@ installed modules in the same temporary harness described below. For a real
 history read, target an existing local session with known notification metadata
 and report counts/IDs only; never print its conversation contents. A user's
 post-update typing check or browser profiling is still needed to assess latency.
+
+### Verify local Mistral integration
+
+With the existing Node development environment, run:
+
+```sh
+node --test tests/acp.test.mjs tests/mistral.test.mjs tests/mistral-workspace.test.mjs tests/mistral-coordinator.test.mjs tests/mistral-http.test.mjs tests/mistral-infrastructure.test.mjs tests/mistral-ui.test.mjs
+```
+
+Controlled fixtures verify stdio framing, local session lifecycle, exact native
+requests, models, images, handover, HTTP authentication and UI controls. Mistral
+history, requests and reports cannot fall through to Codex RPCs or approvals;
+reports wait for idle and retain exact native turn bindings. Existing Claude
+concern evidence is preserved. Tests exit nonzero on failure and clean up
+temporary fixtures; child-process and temporary-directory access are required.
+No Vibe installation, authentication or model call is exercised. Actual native
+and deployed browser acceptance remain separate, unperformed checks.
 
 ### Verify chat handover controls
 

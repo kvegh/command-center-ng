@@ -31,7 +31,7 @@ export class BranchHandoffs {
   }
   start(id) {
     const w = this.workspace, branch = w.agent(id);
-    if (!branch.parentId || branch.provider === 'claude' || branch.role === 'coordinator') throw fail('Choose a local Codex branch to hand back.');
+    if (!branch.parentId || (branch.provider && branch.provider !== 'codex') || branch.role === 'coordinator') throw fail('Choose a local Codex branch to hand back.');
     if (this.incoming(id)) throw fail('A child branch is delivering its handoff here. Wait for that delivery before handing this parent back.');
     if (this.active(id)) return { id, parentId: branch.parentId };
     if (w.summaryJobs.has(id)) throw fail('Wait for the current summary preparation before handing back.');

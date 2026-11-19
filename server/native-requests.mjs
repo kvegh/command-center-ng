@@ -5,10 +5,10 @@ export const CLARIFICATION = 'item/tool/requestUserInput';
 export const PERMISSIONS = 'item/permissions/requestApproval';
 export const MCP_REQUEST = 'mcpServer/elicitation/request';
 export const knownHumanRequests = [COMMAND_APPROVAL, FILE_APPROVAL, CLARIFICATION, PERMISSIONS, MCP_REQUEST, 'execCommandApproval', 'applyPatchApproval'];
-export const isHumanRequest = method => knownHumanRequests.includes(method) || /(?:\/requestApproval|\/requestUserInput|\/elicitation\/request)$/.test(method);
+export const isHumanRequest = method => method === 'mistral/userInput/request' || knownHumanRequests.includes(method) || /(?:\/requestApproval|\/requestUserInput|\/elicitation\/request)$/.test(method);
 export function requestKind(question) {
   if (question.method === MCP_REQUEST && ['form', 'openai/form', 'openaiForm'].includes(question.params.mode) && question.params._meta?.codex_approval_kind === 'mcp_tool_call') return 'MCP tool approval';
-  return ({ 'claude/tool/requestApproval': 'Claude tool approval', 'claude/tool/requestUserInput': 'Claude question', 'claude/mcp/elicitation/request': question.params.mode === 'url' ? 'External step' : 'MCP form', [COMMAND_APPROVAL]: 'Command approval', [FILE_APPROVAL]: 'File approval', [CLARIFICATION]: 'Question', [PERMISSIONS]: 'Permission request', [MCP_REQUEST]: question.params.mode === 'url' ? 'External step' : 'MCP form' })[question.method] || 'Unsupported native request';
+  return ({ 'mistral/permission/requestApproval': 'Mistral tool approval', 'mistral/userInput/request': 'Mistral question', 'claude/tool/requestApproval': 'Claude tool approval', 'claude/tool/requestUserInput': 'Claude question', 'claude/mcp/elicitation/request': question.params.mode === 'url' ? 'External step' : 'MCP form', [COMMAND_APPROVAL]: 'Command approval', [FILE_APPROVAL]: 'File approval', [CLARIFICATION]: 'Question', [PERMISSIONS]: 'Permission request', [MCP_REQUEST]: question.params.mode === 'url' ? 'External step' : 'MCP form' })[question.method] || 'Unsupported native request';
 }
 // Async message questions remain separate from blocking server requests. Keep
 // the original index; Workspace binds the untouched native source separately.

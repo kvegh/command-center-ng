@@ -118,7 +118,7 @@ function unavailable(agent, message, question, submitting = false) {
   if (!binding) return 'This question has no supported native reply identity.';
   if (binding.retired || binding.state !== (submitting ? 'submitting' : 'available')) return binding.notice || 'This historical or unfinished question is read-only.';
   if (message.nativeQuestionsTruncated) return 'The displayed native question details are incomplete; use the native client.';
-  if (agent.provider === 'claude' || agent.role === 'coordinator') return 'This reply path is supported only for Codex workers.';
+  if ((agent.provider && agent.provider !== 'codex') || agent.role === 'coordinator') return 'This reply path is supported only for Codex workers.';
   if (agent.thread.status?.type !== 'active' || !agent.turnId || agent.turnId !== message.turnId) return 'The originating native turn is no longer active.';
   if (!agent.canSend) return agent.managementNotice || 'This session does not accept direct input.';
   if (agent.questions.length || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag))) return 'Answer or load the pending native request first.';

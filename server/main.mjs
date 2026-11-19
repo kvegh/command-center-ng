@@ -95,9 +95,10 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
       configured: settings.approvalPolicyConfigured ?? Object.hasOwn(config, 'approvalPolicyFile'),
     });
     if (policy.error) console.warn(policy.error);
-    workspace = new Workspace(rpc, { sharedInstructionsFile: settings.sharedInstructionsFile, coordinator: { concernReviewWorkerId: settings.concernReviewWorkerId || null, approvalPolicy: policy }, claude: true });
+    workspace = new Workspace(rpc, { sharedInstructionsFile: settings.sharedInstructionsFile, coordinator: { concernReviewWorkerId: settings.concernReviewWorkerId || null, approvalPolicy: policy }, claude: true, mistral: true });
   }
   await workspace.claude?.initialize();
+  await workspace.mistral?.initialize();
   await workspace.claude?.configureAutoReviewSessions?.(settings.claudeAutoReviewSessions);
   await workspace.beads?.checkAvailable(settings.cwd);
   // Load past decisions before restoration can publish a new startup dashboard.
@@ -283,7 +284,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
           await rpc.connect();
           await persistence.retry();
           for (const agent of [...workspace.agents.values()]) {
-            if (agent.provider === 'claude') { await workspace.refreshObserved(agent.id); continue; }
+            if (['claude', 'mistral'].includes(agent.provider)) { await workspace.refreshObserved(agent.id); continue; }
             if (agent.observingOnly) { await workspace.refreshObserved(agent.id); continue; }
             if (agent.role === 'coordinator') { agent.observingOnly = true; await workspace.activate(agent.id); }
             else { const { thread } = await rpc.call('thread/resume', { threadId: agent.id, excludeTurns: true }); agent.thread = thread; }
@@ -388,7 +389,7 @@ export async function createApp({ rpc, workspace, authFile = defaultAuthFile(), 
   let closing;
   const close = () => closing ||= (async () => {
     appClosing = true;
-    await workspace.coordinator?.shutdown(); await workspace.claude?.shutdown();
+    await workspace.coordinator?.shutdown(); await workspace.claude?.shutdown(); await workspace.mistral?.shutdown();
     clearInterval(taskTimer); clearTimeout(broadcastTimer);
     for (const client of clients) client.response.end();
     clients.clear(); workspace.off('change', publish); rpc.close(); await vite?.close();

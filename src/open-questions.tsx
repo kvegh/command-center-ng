@@ -5,7 +5,7 @@ export type Question = {
   id: string | number; method: string;
   params: Record<string, any> & { startedAtMs?: number | null };
   reviewToken?: string;
-  responding?: boolean; unassociated?: boolean; error?: string | null;
+  responding?: boolean; unassociated?: boolean; unavailable?: boolean; unsupported?: boolean; unavailableReason?: string; error?: string | null;
   reviewCapability?: { decisions: string[]; notice?: string };
   review?: { decision: string; rationale: string; historicalAt?: string; decisionId?: string };
   nativeItem?: {
@@ -28,7 +28,7 @@ export function revealQuestion(agentId: string, requestId: string | number) {
   (control || card).focus({ preventScroll: true });
 }
 
-export function RequestRecovery({ recovering, error, disabled, recover, provider = 'codex', allowManualRecovery = false }: { recovering: boolean; error?: string | null; disabled: boolean; recover: () => Promise<unknown>; provider?: 'codex' | 'claude'; allowManualRecovery?: boolean }) {
+export function RequestRecovery({ recovering, error, disabled, recover, provider = 'codex', allowManualRecovery = false }: { recovering: boolean; error?: string | null; disabled: boolean; recover: () => Promise<unknown>; provider?: 'codex' | 'claude' | 'mistral'; allowManualRecovery?: boolean }) {
   const [busy, setBusy] = useState(false); const [localError, setError] = useState('');
   const loading = busy || recovering;
   const loadDetails = async () => {
@@ -41,22 +41,22 @@ export function RequestRecovery({ recovering, error, disabled, recover, provider
     <span>{provider === 'claude' ? 'Waiting for Claude’s request details. Refresh them here if needed.' : 'Received requests appear here automatically. There is no answer to submit until their details arrive.'}</span>
     {(localError || error) && <span className="error-text" role="alert">{localError || error}</span>}
     {provider === 'claude' ? <button type="button" className="button subtle small" disabled={disabled || loading} onClick={loadDetails}>{loading ? 'Loading request…' : localError || error ? 'Retry loading request' : 'Refresh request details'}</button>
-      : allowManualRecovery && <details className="native-request-details"><summary>Advanced recovery</summary>
+      : allowManualRecovery && provider === 'codex' && <details className="native-request-details"><summary>Advanced recovery</summary>
         <p className="field-note">Reconnect this parent session and check for request details. This does not answer or dismiss a request.</p>
         <button type="button" className="button subtle small" disabled={disabled || loading} onClick={loadDetails}>{loading ? 'Checking request details…' : 'Reconnect and check details'}</button>
       </details>}
   </section>;
 }
 
-export function OpenQuestions({ agentId, questions, attention, provider = 'codex' }: { agentId: string; questions: Question[]; attention: boolean; provider?: 'codex' | 'claude' }) {
+export function OpenQuestions({ agentId, questions, attention, provider = 'codex' }: { agentId: string; questions: Question[]; attention: boolean; provider?: 'codex' | 'claude' | 'mistral' }) {
   const rows = questions.flatMap(question => {
     const clarification = ['item/tool/requestUserInput', 'claude/tool/requestUserInput'].includes(question.method);
     const fields = question.method === 'claude/tool/requestUserInput' ? question.params.input?.questions : question.params.questions;
     const prompts: string[] = clarification && Array.isArray(fields)
       ? fields.map((item: any) => typeof item?.question === 'string' ? item.question : '').filter(Boolean)
       : [];
-    const kind = requestKind(question);
-    const detail = [question.params.reason, question.params.message, question.params.title].find(value => typeof value === 'string' && value.trim());
+    const kind = question.method === 'mistral/permission/requestApproval' ? 'Mistral tool approval' : question.method === 'mistral/userInput/request' ? 'Mistral question' : requestKind(question);
+    const detail = [question.params.reason, question.params.message, question.params.title, question.params.toolCall?.title].find(value => typeof value === 'string' && value.trim());
     const fallback = detail || (clarification ? 'Answer the pending clarification.' : kind === 'Command approval' ? 'Review the requested command.' : kind === 'File approval' ? 'Review the proposed file changes.' : 'Review this native request.');
     return (prompts.length ? prompts : [fallback]).map((text, index) => ({ question, kind, text, key: JSON.stringify([question.id, index]) }));
   });

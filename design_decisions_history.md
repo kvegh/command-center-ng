@@ -3140,3 +3140,42 @@ intent, native acknowledgement and observed mode remain separate evidence;
 existing native controls and pending requests keep their scope.
 
 Implementation commit: `077b2e2861733fa44102f3a0d87f10096b3d7a7f`.
+
+
+## 2026-11-19 — Add local Mistral Vibe through official ACP
+
+Recorded 2026-11-19, 15:56 CET (Europe/Vienna); exact user-approval time unknown.
+The user approved the concrete proposal for Mistral Vibe as a third local worker
+through its official Agent Client Protocol interface. Reuse the existing Node
+backend, conversations, Beads task links, native request controls, private
+workspace metadata and artifact handovers. The Coordinator remains Codex.
+An extra service/database or custom model-execution loop was not selected.
+
+Official ACP reuses Vibe's native runtime and authentication. Preserve its exact
+permission options, pending requests and advertised capabilities. Missing local
+Vibe must leave the other providers usable. Unsupported Mistral branching stays
+unavailable. Native session load can initialize engine/MCP activity; observation
+must not silently resume external/restored work or imply read-only loading.
+No native approval or callback transfers across provider handovers.
+
+The approval covers this architecture and source work, not installing Vibe or
+its tooling, choosing credentials, running real native/model smoke calls or
+deploying the new release. Neither `vibe` nor `vibe-acp` was found on the checked
+PATH; installation elsewhere is unknown. Optional pinned setup instructions are
+unexecuted. Controlled source tests cannot prove native/browser acceptance.
+
+Coordinator integration explicitly reserves Codex history/authority RPCs,
+analyst jobs, task checks and engineering concern destinations for Codex/legacy
+records. Mistral native requests remain manual; queued reports wait for idle
+and bind actual native turn/completion evidence. Existing Claude concern
+behavior remains supported. Eight controlled coordinator regressions passed;
+this is not native Vibe, model or browser verification.
+
+Source verification on 2026-11-19, 16:11 CET: full suite 1,491 passed, zero
+failed, one existing supplementary-group scenario skipped; TypeScript/Vite build
+passed. Controlled protocol/HTTP/UI fixtures do not establish real Vibe or
+deployed behavior. The existing bundle-size advisory remains.
+
+Implementation commit: pending. Target source release: 1.46.0. Publication,
+deployment and actual-runtime validation remain pending; the last verified
+deployment at record time is 1.45.0.

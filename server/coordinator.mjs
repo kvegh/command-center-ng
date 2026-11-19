@@ -21,6 +21,9 @@ import { ProgressUpdater, PROGRESS_UPDATER_SOURCE } from './progress-updater.mjs
 import { normalizeConcernReviewWorker } from './runtime-config.mjs';
 
 const TASK_PING_INTERVAL_MS = 10 * 60_000;
+// Legacy records omit provider; only those and explicit Codex workers use Codex RPCs.
+const isCodexAgent = agent => !agent.provider || agent.provider === 'codex';
+const hasManagedTurnId = agent => ['claude', 'mistral'].includes(agent.provider);
 const fail = (message, status = 409) => Object.assign(new Error(message), { status });
 const sourceCredentials = /-----BEGIN .*PRIVATE KEY-----|\b(?:ghp_|github_pat_|sk-)[A-Za-z0-9_-]{20,}/;
 const hookCredentials = /\b(?:gh[pousr]_|github_pat_|sk-)[A-Za-z0-9_-]{20,}|\bAKIA[A-Z0-9]{16}\b|\bauthorization\s*:\s*(?:bearer|basic)\s+\S+|\b(?:password|passwd|api[_ -]?key|access[_ -]?token|client[_ -]?secret|token|secret)\s*[:=]\s*(?:"[^"\r\n]{8,}"|'[^'\r\n]{8,}'|[^\s"']{8,})/i;
@@ -161,7 +164,7 @@ export class Coordinator {
   queueConcerns() {
     if (!this.pendingConcerns.size || this.stopped || this.paused || this.workspace.restoring || !this.rpc.ready) return;
     const target = this.workspace.agents.get(this.concernReviewWorkerId);
-    if (!target || target.role === 'coordinator' || target.provider === 'claude' || target.externalSession || target.id === this.id) {
+    if (!target || target.role === 'coordinator' || !isCodexAgent(target) || target.externalSession || target.id === this.id) {
       this.concernError = 'The configured engineering review chat is unavailable. Concerns are retained; no other chat was selected.'; return;
     }
     const entries = [...this.pendingConcerns.values()].filter(row => row.ready && row.targetId === target.id);
@@ -266,7 +269,7 @@ export class Coordinator {
     const binding = this.reviewerBindings.get(job.reviewToken);
     return !!binding && !this.stopped && !this.paused && !this.workspace.restoring && this.rpc.ready
       && !binding.agent.requestStopIntent && !binding.context.requestStopIntent
-      && binding.fingerprint === job.fingerprint && this.requestCurrent(binding.agent, binding.context, binding.question)
+      && isCodexAgent(binding.agent) && binding.fingerprint === job.fingerprint && this.requestCurrent(binding.agent, binding.context, binding.question)
       && isUnreviewedApproval(this.workspace.requestView(binding.context, binding.question))
       && this.reviewerFingerprint(binding.agent, binding.context, binding.question) === binding.liveFingerprint;
   }
@@ -300,7 +303,7 @@ export class Coordinator {
       const jobs = [], bindings = new Map();
       for (const agent of this.workers()) for (const { context, question } of this.requestEntries(agent)) {
         const request = this.workspace.requestView(context, question);
-        if (!isUnreviewedApproval(request) || agent.requestStopIntent || context.requestStopIntent) continue;
+        if (!isCodexAgent(agent) || !isUnreviewedApproval(request) || agent.requestStopIntent || context.requestStopIntent) continue;
         if (request.method === 'item/fileChange/requestApproval' && request.nativeItem?.state !== 'available') continue;
         const liveFingerprint = this.reviewerFingerprint(agent, context, question);
         const old = this.reviewerBindings.get(question.reviewToken);
@@ -493,7 +496,7 @@ export class Coordinator {
     catch (error) { this.reportPending.delete(id); agent.reportError = 'Scheduled report could not be queued: ' + error.message; this.workspace.changed(); }
   }
   taskPingAllowed(agent) {
-    return agent.provider !== 'claude' && agent.role !== 'coordinator' && agent.canSend
+    return isCodexAgent(agent) && agent.role !== 'coordinator' && agent.canSend
       && !agent.handoff && !agent.returnSummary?.delivered
       && ((agent.thread.status?.type === 'active' && !!agent.turnId) || agent.finishedTurn?.status === 'completed');
   }
@@ -692,7 +695,7 @@ export class Coordinator {
   historicalReferral(context, question) {
     if (!this.rpc.ready || question.review || question.responding || question.unassociated) return null;
     const owner = this.workspace.requestOwner(context.id);
-    if (!owner || owner.context !== context || owner.parent.role === 'coordinator' || owner.parent.provider === 'claude'
+    if (!owner || owner.context !== context || owner.parent.role === 'coordinator' || !isCodexAgent(owner.parent)
       || !this.workspace.pendingQuestions(context.id).includes(question)) return null;
     return previousRequestReferral(this.audit, context, question);
   }
@@ -701,7 +704,7 @@ export class Coordinator {
       const q = this.workspace.requestView(context, question);
       const analysis = this.reviewers?.snapshot(q.reviewToken);
       const currentAnalysis = analysis && this.reviewerCurrent({ reviewToken: q.reviewToken, fingerprint: analysis.fingerprint });
-      return { ...(question.method === 'claude/tool/requestApproval' ? { reviewCapability: {
+      return { ...(agent.provider === 'mistral' ? { reviewCapability: { decisions: [], notice: 'Mistral native requests require the original manual controls; Coordinator approval is unavailable.' } } : {}), ...(question.method === 'claude/tool/requestApproval' ? { reviewCapability: {
         decisions: this.claudeConcernCurrent(agent, context, question) && !question.review ? ['ask'] : [],
         notice: 'Ask-only concern feedback. The Coordinator cannot approve or decline this Claude tool call; native manual controls remain unchanged.'
       } } : {}), ...(analysis ? { approvalAnalysis: { status: currentAnalysis ? analysis.status : 'stale', error: analysis.error,
@@ -771,13 +774,13 @@ export class Coordinator {
     return result;
   }
   async readWorker(agent, cursor) {
-    if (cursor && agent.provider === 'claude') throw fail('Claude history is supplied from its local native transcript, without a Codex pagination cursor.', 400);
-    let messages = agent.messages.slice(-60); let nextCursor = agent.olderCursor;
+    if (cursor && !isCodexAgent(agent)) throw fail(`${agent.provider === 'claude' ? 'Claude history is supplied from its local native transcript' : 'Mistral history uses its own local runtime'}, without a Codex pagination cursor.`, 400);
+    let messages = agent.messages.slice(-60); let nextCursor = agent.provider === 'mistral' ? null : agent.olderCursor;
     let userInstructions = this.userInstructions(agent.messages), instructionPage, userInstructionsError;
-    if (cursor !== undefined && agent.provider !== 'claude') {
+    if (cursor !== undefined && isCodexAgent(agent)) {
       const page = await this.rpc.call('thread/turns/list', { threadId: agent.id, ...(cursor ? { cursor } : {}), limit: 10, itemsView: 'full' }); nextCursor = page.nextCursor || null;
       messages = pageMessages(page); userInstructions = this.userInstructions(messages); instructionPage = cursor;
-    } else if (!userInstructions.length && agent.provider !== 'claude') {
+    } else if (!userInstructions.length && isCodexAgent(agent)) {
       // A long native turn can contain the original user instruction while
       // the retained chat tail contains only tools/internal coordination. A
       // null turn-page cursor does not prove that those instructions are absent.
@@ -807,10 +810,11 @@ export class Coordinator {
     return [...(this.authorityPages.get(agent) || [])].slice(-8).map(([messageId, cursor]) => ({ messageId, cursor }));
   }
   async authorizationMessage(agent, id) {
+    if (!isCodexAgent(agent) && agent.provider !== 'claude') return;
     const recent = [...agent.messages, ...(this.workspace.agents.get(this.id)?.messages || [])].find(message => message.id === id && isUserAuthority(message));
     if (recent) return recent;
     const pages = this.authorityPages.get(agent); const cursor = pages?.get(id);
-    if (!pages?.has(id) || agent.provider === 'claude') return;
+    if (!pages?.has(id) || !isCodexAgent(agent)) return;
     let page;
     try { page = await this.rpc.call('thread/turns/list', { threadId: agent.id, cursor, limit: 10, itemsView: 'full' }); }
     catch { pages.delete(id); throw fail('The native history page could not be rechecked. Read the original user instruction again before reviewing this action.'); }
@@ -923,7 +927,8 @@ export class Coordinator {
           || question.review !== binding.review || question.review?.decision !== 'ask' || question.reviewToken !== binding.reviewToken
           || this.reviewerFingerprint(agent, context, question) !== binding.fingerprint) return false;
         const key = JSON.stringify([context.id, question.id]);
-        if (agent.provider !== 'claude') return this.workspace.pending.get(key) === question;
+        if (isCodexAgent(agent)) return this.workspace.pending.get(key) === question;
+        if (agent.provider !== 'claude') return false;
         const runtime = this.workspace.claude, pending = runtime?.requests.get(key);
         return runtime?.records.get(context.id) === context && runtime?.runs.get(context.id) === binding.nativeRun
           && !!binding.nativeRun?.query && pending?.question === question && !pending.signal?.aborted;
@@ -1014,12 +1019,12 @@ export class Coordinator {
       rows.shift(); this.staleSummary(agent);
     }
     if (!rows.length) { if (this.deliveries.get(id) === rows) this.deliveries.delete(id); this.workspace.changed(); return; }
-    if (rows[0].error || !this.workspace.readyFor(agent) || (agent.provider === 'claude' && agent.externalSession) || agent.questions.length || hasOpenAsyncQuestions(agent) || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag)) || !agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) return;
+    if (rows[0].error || !this.workspace.readyFor(agent) || (!isCodexAgent(agent) && agent.externalSession) || agent.questions.length || hasOpenAsyncQuestions(agent) || agent.thread.status?.activeFlags?.some(flag => ['waitingOnApproval', 'waitingOnUserInput'].includes(flag)) || !agent.canSend || this.workspace.summaryJobs.has(id) || this.workspace.returnJobs.has(id) || agent.returnSummary?.delivered) return;
     if (rows[0].kind === 'task-ping' && !this.taskPingAllowed(agent)) return;
     if (rows[0].kind === 'concerns' && (agent.requestStopIntent || agent.handoff || this.workspace.handoffs.incoming(id))) return;
     const busy = !!agent.turnId || agent.thread.status?.type === 'active';
     const managedClaude = agent.provider === 'claude' && !agent.externalSession && this.workspace.claude?.runs?.has(id);
-    const activeReporting = (['report', 'report-setting'].includes(rows[0].kind) || (rows[0].kind === 'task-ping' && agent.provider !== 'claude')) && (agent.provider !== 'claude' || managedClaude) && agent.thread.status?.type === 'active' && !!agent.turnId;
+    const activeReporting = (['report', 'report-setting'].includes(rows[0].kind) || (rows[0].kind === 'task-ping' && isCodexAgent(agent))) && (isCodexAgent(agent) || managedClaude) && agent.thread.status?.type === 'active' && !!agent.turnId;
     if (busy && !activeReporting) return;
     if (agent.coordinatorSending) return; agent.coordinatorSending = true;
     const message = rows[0];
@@ -1028,7 +1033,7 @@ export class Coordinator {
     const previousTaskPing = !!agent.taskPingInProgress;
     let cancelledSummary = false;
     const response = message.kind === 'report' ? {
-      requestId: message.id, turnId: agent.provider === 'claude' ? agent.turnId || null : null, confirmed: false, scheduledReport: !!message.scheduledReport, startupDashboard: !!message.startupDashboard, detailed: !!message.detailed,
+      requestId: message.id, turnId: hasManagedTurnId(agent) ? agent.turnId || null : null, confirmed: false, scheduledReport: !!message.scheduledReport, startupDashboard: !!message.startupDashboard, detailed: !!message.detailed,
       candidates: new Map(), formatErrors: new Map(), completedTurns: new Set(),
       previousIds: new Set(agent.messages.filter(item => item.type === 'assistant').flatMap(item => [item.id, item.nativeMessageId].filter(Boolean)))
     } : null;
@@ -1046,8 +1051,8 @@ export class Coordinator {
       if (response && this.reportResponses.get(id) === response) {
         // The existing SDK can clear its active turn before send resolves.
         // Only a completion observed for this response can supply that fallback.
-        const completedClaudeTurn = agent.provider === 'claude' && response.completedTurns.has(agent.finishedTurn?.id) ? agent.finishedTurn.id : null;
-        response.turnId = delivery?.turnId || (agent.provider === 'claude' ? response.turnId || agent.turnId || completedClaudeTurn : null);
+        const completedManagedTurn = hasManagedTurnId(agent) && response.completedTurns.has(agent.finishedTurn?.id) ? agent.finishedTurn.id : null;
+        response.turnId = delivery?.turnId || (hasManagedTurnId(agent) ? response.turnId || agent.turnId || completedManagedTurn : null);
         response.candidate = response.candidates.get(response.turnId) || null;
         response.formatError = response.formatErrors.get(response.turnId) || null;
         response.turnCompleted = response.completedTurns.has(response.turnId);
@@ -1080,6 +1085,7 @@ export class Coordinator {
     finally { agent.coordinatorSending = false; this.workspace.changed(); if ((cancelledSummary || ['report', 'report-setting', 'task-ping'].includes(this.deliveries.get(id)?.[0]?.kind)) && this.deliveries.get(id)?.length && !this.deliveries.get(id)[0].error) void this.flush(id); }
   }
   async review(agent, args) {
+    if (!isCodexAgent(agent) && agent.provider !== 'claude') throw fail('Mistral native requests require their original manual controls; Coordinator approval is unavailable.', 400);
     const pending = this.requestEntries(agent).find(({ question }) => question.reviewToken === args.reviewToken);
     const { context, question } = pending || {};
     if (!question || question.responding) throw fail('This approval is no longer available for review.');
@@ -1209,7 +1215,7 @@ export class Coordinator {
     if (response) {
       // A completed message/turn can precede the send acknowledgement. Keep the
       // existing response record until delivery is known, then settle it once.
-      const completedTurnId = turnId || (agent.provider === 'claude' && agent.turnId) || agent.finishedTurn?.id;
+      const completedTurnId = turnId || (hasManagedTurnId(agent) && agent.turnId) || agent.finishedTurn?.id;
       if (!response.confirmed && completedTurnId) response.completedTurns.add(completedTurnId);
       else if (completedTurnId && completedTurnId === response.turnId) response.turnCompleted = true;
       if (!this.finishReportResponse(id, response)) this.finishMissingReportResponse(id, response);

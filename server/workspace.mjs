@@ -16,6 +16,7 @@ import { Coordinator, COORDINATOR_NAME, isCoordinatorThread } from './coordinato
 import { SUMMARY_LIMIT, SUMMARY_SCHEMA, summaryPrompt, readSummary } from './branch-summary.mjs';
 import { BranchHandoffs } from './branch-handoff.mjs';
 import { ClaudeSessions, isClaudeId, MAX_CLAUDE_BRANCH_LINKS } from './claude.mjs';
+import { MistralSessions, isMistralId } from './mistral.mjs';
 import { readEnvironmentInstructions, environmentInstructionContext } from './environment-instructions.mjs';
 import { messageTime } from './message-time.mjs';
 import { validateImages, codexImages, imageReferences, readInlineImage } from './image-input.mjs';
@@ -23,6 +24,15 @@ import { resolveHandoverSkill, reserveHandoverPath, planHandoverName, verifyHand
 
 export const input = (text, images = []) => [...(text ? [{ type: 'text', text, text_elements: [] }] : []), ...images.map(image => ({ type: 'image', url: image.dataUrl }))];
 const requestKey = (threadId, requestId) => JSON.stringify([threadId, requestId]);
+function localProvider(agent) {
+  if (typeof agent === 'string') {
+    if (isClaudeId(agent)) return 'claude';
+    // Malformed Mistral IDs still go to that adapter's validation, never Codex.
+    if (isMistralId(agent) || agent.startsWith('mistral-')) return 'mistral';
+    return null;
+  }
+  return ['claude', 'mistral'].includes(agent?.provider) ? agent.provider : null;
+}
 const MAX_UNASSOCIATED_REQUESTS = 128;
 const nativeTurnHead = Symbol('latest native turn identity');
 function rememberNativeTurn(agent, id) {
@@ -85,7 +95,7 @@ function itemTime(item, previous, live) {
 }
 
 export class Workspace extends EventEmitter {
-  constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, recoveryTimeout = 2000, beads = new BeadsTasks(), coordinator = false, claude = null, handoffOptions, handoverSkill = resolveHandoverSkill, handoverPath = reserveHandoverPath, handoverTimeout = 10 * 60_000, sharedInstructionsFile } = {}) {
+  constructor(rpc, { summaryTimeout = 120_000, answerTimeout = 10_000, recoveryTimeout = 2000, beads = new BeadsTasks(), coordinator = false, claude = null, mistral = null, handoffOptions, handoverSkill = resolveHandoverSkill, handoverPath = reserveHandoverPath, handoverTimeout = 10 * 60_000, sharedInstructionsFile } = {}) {
     super(); this.rpc = rpc; this.agents = new Map(); this.pending = new Map(); this.requestEpoch = 0; this.opening = new Set(); this.watched = new Set(); this.creating = 0; this.error = null;
     // Browser refresh follows backend replacement, not native RPC reconnects.
     this.serverInstanceId = randomUUID();
@@ -98,14 +108,17 @@ export class Workspace extends EventEmitter {
     this.coordinator = coordinator ? new Coordinator(this, typeof coordinator === 'object' ? coordinator : {}) : null;
     this.restoring = false; this.observedReads = new Map(); this.restoration = null;
     this.claude = claude === true ? new ClaudeSessions() : claude;
+    this.mistral = mistral === true ? new MistralSessions({ clientVersion: VERSION }) : mistral;
     this.claudeBranchParents = new Map();
     this.handoverSkill = handoverSkill;
     this.handoverPath = handoverPath; this.handoverImports = new Map();
     this.handoverJobs = new Map(); this.handoverTimeout = handoverTimeout;
     this.claude?.on('forked', (childId, parentId) => { this.claudeBranchParents.set(childId, parentId); this.changed(); });
-    this.claude?.on('change', id => { this.changed(); if (this.agents.has(id)) void this.coordinator?.flush(id); });
-    this.claude?.on('completed', id => { if (this.agents.has(id)) { this.coordinator?.completed(id); void this.refreshTasks(id); } });
-    this.claude?.on('assistantMessageCompleted', (id, message) => { if (this.agents.has(id)) this.coordinator?.reportMessageCompleted(id, message); });
+    for (const runtime of [this.claude, this.mistral]) {
+      runtime?.on('change', id => { this.changed(); if (this.agents.has(id)) void this.coordinator?.flush(id); });
+      runtime?.on('completed', id => { if (this.agents.has(id)) { this.coordinator?.completed(id); void this.refreshTasks(id); } });
+      runtime?.on('assistantMessageCompleted', (id, message) => { if (this.agents.has(id)) this.coordinator?.reportMessageCompleted(id, message); });
+    }
     rpc.on('notification', message => this.notification(message));
     rpc.on('request', message => this.request(message));
     rpc.on('disconnected', message => {
@@ -113,27 +126,36 @@ export class Workspace extends EventEmitter {
       this.coordinator?.reviewerRequestErrors?.clear(); this.coordinator?.reviewers?.connectionLost?.(message);
       this.error = message;
       for (const job of this.answerJobs.values()) job.finish(Object.assign(new Error('Codex disconnected before confirming the answer. Check the native session.'), { status: 503 }));
-      this.pending.clear(); for (const parent of this.agents.values()) for (const agent of this.requestContexts(parent, { includeUnverified: true })) if (agent.provider !== 'claude') { agent.questions = []; retireAsyncQuestions(agent, 'The native connection changed; this question is read-only.', 'disconnect'); if (agent !== parent) agent.lineageNeedsRefresh = true; agent.historyRevision = (agent.historyRevision || 0) + 1; for (const message of agent.messages) delete message.fileChangeContext; }
+      this.pending.clear(); for (const parent of this.agents.values()) for (const agent of this.requestContexts(parent, { includeUnverified: true })) if (!localProvider(agent)) { agent.questions = []; retireAsyncQuestions(agent, 'The native connection changed; this question is read-only.', 'disconnect'); if (agent !== parent) agent.lineageNeedsRefresh = true; agent.historyRevision = (agent.historyRevision || 0) + 1; for (const message of agent.messages) delete message.fileChangeContext; }
       this.changed();
     });
     rpc.on('connected', () => { this.error = null; this.changed(); });
   }
   changed() { this.emit('change'); }
   nativeActivity(agent, turnId) {
-    if (!agent || agent.provider === 'claude') return;
+    if (!agent || localProvider(agent)) return;
     // Receipt of a worker event is evidence of an update, not model progress.
     // Late events from an earlier turn must not make the current turn look fresh.
     if (turnId && agent.turnId && turnId !== agent.turnId) return;
     agent.lastNativeEventAt = new Date().toISOString();
   }
-  readyFor(agent) { return (typeof agent === 'string' ? isClaudeId(agent) : agent?.provider === 'claude') ? !!this.claude?.available : this.rpc.ready; }
-  available() { return this.rpc.ready || !!this.claude?.available; }
+  localRuntime(agent) {
+    const provider = localProvider(agent), runtime = provider && this[provider];
+    if (!runtime) throw Object.assign(new Error(`Local ${provider === 'mistral' ? 'Mistral' : 'Claude'} support is unavailable.`), { status: 503 });
+    return runtime;
+  }
+  readyFor(agent) {
+    const provider = localProvider(agent);
+    if (provider) return !!this[provider]?.available;
+    return typeof agent === 'object' && agent?.provider && agent.provider !== 'codex' ? false : this.rpc.ready;
+  }
+  available() { return this.rpc.ready || !!this.claude?.available || !!this.mistral?.available; }
   workerCount() { return [...this.agents.values()].filter(agent => agent.role !== 'coordinator').length; }
   workerSlots() { return this.workerCount() + [...this.opening].filter(id => id !== this.coordinator?.id).length + this.creating; }
   childRequestContext(parent, worker) {
-    if (parent.role === 'coordinator' || parent.provider === 'claude' || typeof worker.id !== 'string' || !worker.id || worker.id === parent.id) return null;
+    if (parent.role === 'coordinator' || localProvider(parent) || typeof worker.id !== 'string' || !worker.id || localProvider(worker.id) || worker.id === parent.id) return null;
     const open = this.agents.get(worker.id);
-    if (open?.provider !== 'claude' && open?.thread.parentThreadId === parent.id) { Object.defineProperty(worker, 'requestContext', { configurable: true, value: open }); return open; }
+    if (!localProvider(open) && open?.thread.parentThreadId === parent.id) { Object.defineProperty(worker, 'requestContext', { configurable: true, value: open }); return open; }
     if (!worker.requestContext) Object.defineProperty(worker, 'requestContext', { configurable: true, value: { id: worker.id, nativeParentId: parent.id, name: worker.name, role: 'worker', provider: 'codex', cwd: parent.cwd, canSend: false, thread: { id: worker.id, status: { type: 'notLoaded' } }, messages: [], questions: [], tasks: [], workers: [], turnId: null } });
     if (open) { worker.requestContext.lineageNeedsRefresh = true; worker.requestContext.observeError = 'New native thread metadata does not verify this parent/subagent relationship.'; }
     return worker.requestContext;
@@ -141,15 +163,15 @@ export class Workspace extends EventEmitter {
   requestContexts(parent, { includeUnverified = false } = {}) {
     const contexts = [], seen = new Set();
     const visit = context => {
-      if (seen.has(context.id) || contexts.length >= 128) return;
+      if (seen.has(context.id) || contexts.length >= 128 || (context !== parent && localProvider(context.id))) return;
       if (context !== parent) context.questions = this.pendingQuestions(context.id);
       seen.add(context.id); contexts.push(context);
-      if (context.role === 'coordinator' || context.provider === 'claude') return;
+      if (context.role === 'coordinator' || localProvider(context)) return;
       for (const worker of context.workers || []) {
         const child = worker.requestContext;
         if (!child) continue;
         const open = this.agents.get(child.id);
-        const matches = open?.provider !== 'claude' && open?.thread.parentThreadId === context.id;
+        const matches = !localProvider(open) && open?.thread.parentThreadId === context.id;
         if (open && !matches) { child.lineageNeedsRefresh = true; child.observeError = 'New native thread metadata does not verify this parent/subagent relationship.'; }
         const current = matches ? open : child;
         if (includeUnverified || (!current.lineageNeedsRefresh && current.thread.parentThreadId === context.id)) visit(current);
@@ -205,16 +227,17 @@ export class Workspace extends EventEmitter {
       const id = question.params.threadId, previous = workers.get(id);
       workers.set(id, { id, name: 'Codex session', provider: 'codex', questionCount: (previous?.questionCount || 0) + 1 });
     }
-    for (const agent of this.claude?.records.values() || []) if (!this.agents.has(agent.id) && agent.questions.length) workers.set(agent.id, { id: agent.id, name: agent.name, provider: 'claude', questionCount: agent.questions.length });
+    for (const runtime of [this.claude, this.mistral]) for (const agent of runtime?.records.values() || []) if (!this.agents.has(agent.id) && agent.questions.length) workers.set(agent.id, { id: agent.id, name: agent.name, provider: agent.provider, questionCount: agent.questions.length });
     return { backgroundQuestions: [...workers.values()].reduce((total, worker) => total + worker.questionCount, 0), backgroundWorkers: [...workers.values()] };
   }
   snapshot() {
-    return { serverInstanceId: this.serverInstanceId, connected: this.available(), codexConnected: this.rpc.ready, claudeAvailable: !!this.claude?.available, claudeError: this.claude?.error || null, error: this.error, nativeWarning: this.nativeWarning || null, version: VERSION, restoration: this.restoration, handoffCompletions: this.handoffs.completions, coordinator: this.coordinator?.snapshot() || null, ...this.backgroundRequests(), agents: [...this.agents.values()].map(agent => { const subagents = this.subagentViews(agent); const ownStatus = this.readyFor(agent) ? (agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline'; return ({ ...agent, workers: [...(agent.workers || []).map(worker => ({ ...worker, ...subagents.find(child => child.id === worker.id) })), ...subagents.filter(child => !(agent.workers || []).some(worker => worker.id === child.id))], ownStatus, messages: agent.messages.map(message => { const { fileChangeContext: internal, ...visible } = message; if (visible.nativeQuestions) visible.nativeQuestions = visible.nativeQuestions.map(question => asyncQuestionView(agent, message, question, this.asyncQuestionHandoffBlocked(agent))); return imageReferences(agent.id, visible); }), questions: agent.questions.map(question => this.requestView(agent, question)), ...taskSummary(agent), reportState: this.coordinator?.reportState(agent.id) || null, reportSettingPending: !!this.coordinator?.deliveries.get(agent.id)?.some(row => row.kind === 'report-setting'), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), recoveringRequests: this.requestJobs.has(agent.id), status: this.readyFor(agent) && subagents.some(child => child.needsInput) ? 'attention' : ownStatus, thread: undefined }); }) };
+    return { serverInstanceId: this.serverInstanceId, connected: this.available(), codexConnected: this.rpc.ready, claudeAvailable: !!this.claude?.available, claudeError: this.claude?.error || null, mistral: { available: !!this.mistral?.available, error: this.mistral?.error || null }, mistralAvailable: !!this.mistral?.available, mistralError: this.mistral?.error || null, error: this.error, nativeWarning: this.nativeWarning || null, version: VERSION, restoration: this.restoration, handoffCompletions: this.handoffs.completions, coordinator: this.coordinator?.snapshot() || null, ...this.backgroundRequests(), agents: [...this.agents.values()].map(agent => { const subagents = this.subagentViews(agent); const ownStatus = this.readyFor(agent) ? (agent.provider !== 'mistral' && agent.observingOnly && agent.thread.status?.type === 'notLoaded' ? 'idle' : statusOf(agent.thread, agent.questions)) : 'offline'; return ({ ...agent, workers: [...(agent.workers || []).map(worker => ({ ...worker, ...subagents.find(child => child.id === worker.id) })), ...subagents.filter(child => !(agent.workers || []).some(worker => worker.id === child.id))], ownStatus, messages: agent.messages.map(message => { const { fileChangeContext: internal, ...visible } = message; if (visible.nativeQuestions) visible.nativeQuestions = visible.nativeQuestions.map(question => asyncQuestionView(agent, message, question, this.asyncQuestionHandoffBlocked(agent))); return imageReferences(agent.id, visible); }), questions: agent.questions.map(question => this.requestView(agent, question)), ...taskSummary(agent), reportState: this.coordinator?.reportState(agent.id) || null, reportSettingPending: !!this.coordinator?.deliveries.get(agent.id)?.some(row => row.kind === 'report-setting'), summarizing: this.summaryJobs.has(agent.id), returning: this.returnJobs.has(agent.id), recoveringRequests: this.requestJobs.has(agent.id), status: this.readyFor(agent) && subagents.some(child => child.needsInput) ? 'attention' : ownStatus, thread: undefined }); }) };
   }
   requestView(agent, question) {
     const pending = !question.unassociated && this.pending.get(requestKey(agent.id, question.id)) === question && agent.questions.includes(question);
     const referral = pending && !question.review ? this.coordinator?.historicalReferral?.(agent, question) : null;
     const view = referral ? { ...question, review: referral } : question;
+    if (agent.provider === 'mistral') return { ...view, reviewCapability: { decisions: [], notice: 'Mistral permissions require the native manual answer; the Coordinator cannot approve or decline them.' } };
     if (question.method === 'claude/tool/requestApproval') return { ...view, reviewCapability: {
       decisions: this.coordinator?.claudeConcernCurrent?.(agent, agent, question) && !question.review ? ['ask'] : [],
       notice: 'Ask-only concern feedback. The Coordinator cannot approve or decline this Claude tool call; native manual controls remain unchanged.'
@@ -241,12 +264,13 @@ export class Workspace extends EventEmitter {
     return { mimeType: checked.mimeType, bytes: Buffer.from(checked.dataUrl.slice(checked.dataUrl.indexOf(',') + 1), 'base64') };
   }
   async list(cursor, provider = 'codex') {
+    if (provider === 'mistral') return this.localRuntime({ provider }).list(cursor);
     if (provider === 'claude') {
       if (!this.claude) throw Object.assign(new Error('Local Claude support is unavailable.'), { status: 503 });
       const result = await this.claude.list(cursor);
       return { ...result, agents: result.agents.map(agent => ({ ...agent, parentId: this.claudeBranchParents.get(agent.id) || null, forkedFromId: this.claudeBranchParents.get(agent.id) || null })) };
     }
-    if (provider !== 'codex') throw Object.assign(new Error('Choose Codex or Claude.'), { status: 400 });
+    if (provider !== 'codex') throw Object.assign(new Error('Choose Codex, Claude or Mistral.'), { status: 400 });
     const result = await this.rpc.call('thread/list', { limit: 50, useStateDbOnly: true, ...(cursor ? { cursor } : {}) });
     return { agents: result.data.filter(t => !isCoordinatorThread(t)).map(t => ({ id: t.id, name: t.name || t.preview?.split('\n')[0]?.slice(0, 90) || 'Untitled agent', cwd: t.cwd, status: statusOf(t), parentId: t.parentThreadId || null, forkedFromId: t.forkedFromId || null })), nextCursor: result.nextCursor };
   }
@@ -258,12 +282,14 @@ export class Workspace extends EventEmitter {
     this.opening.add(id);
     const epoch = this.requestEpoch;
     try {
-      if (isClaudeId(id)) {
-        if (!this.claude) throw Object.assign(new Error('Local Claude support is unavailable.'), { status: 503 });
-        const agent = await this.claude.open(id); agent.parentId = this.claudeBranchParents.get(id) || agent.parentId || null;
+      const provider = localProvider(id);
+      if (provider) {
+        if (role === 'coordinator') throw Object.assign(new Error('The Coordinator must use the Codex runtime.'), { status: 409 });
+        const agent = await this.localRuntime(id).open(id);
+        if (provider === 'claude') agent.parentId = this.claudeBranchParents.get(id) || agent.parentId || null;
         agent.handoverImport = this.handoverImports.get(id);
         this.agents.set(id, agent); await this.refreshTasks(id); this.changed();
-        if (this.coordinator && !this.restoring && this.rpc.ready) { void this.coordinator.ensure().catch(() => {}); this.coordinator.mark(id, 'Claude worker opened'); }
+        if (this.coordinator && !this.restoring && this.rpc.ready) { void this.coordinator.ensure().catch(() => {}); this.coordinator.mark(id, `${provider === 'mistral' ? 'Mistral' : 'Claude'} worker opened`); }
         return agent;
       }
       const observed = await this.rpc.call('thread/read', { threadId: id });
@@ -290,7 +316,7 @@ export class Workspace extends EventEmitter {
     const agent = this.agent(id);
     // A native unload keeps durable history but drops the live input session.
     if (!agent.observingOnly && !force && agent.thread.status?.type !== 'notLoaded') return;
-    if (agent.provider === 'claude') return;
+    if (localProvider(agent)) return;
     if (agent.role === 'coordinator') return this.coordinator.activate({ force });
     const epoch = this.requestEpoch;
     const resumed = await this.rpc.call('thread/resume', { threadId: id, excludeTurns: true });
@@ -300,7 +326,7 @@ export class Workspace extends EventEmitter {
     this.changed();
   }
   fileRequestCurrent(parent, agent, question, binding = question.params) {
-    return !question.unassociated && this.readyFor(agent) && this.requestContextCurrent(parent, agent) && this.pending.get(requestKey(agent.id, question.id)) === question && agent.questions.includes(question)
+    return !localProvider(agent) && !question.unassociated && this.readyFor(agent) && this.requestContextCurrent(parent, agent) && this.pending.get(requestKey(agent.id, question.id)) === question && agent.questions.includes(question)
       && question.method === 'item/fileChange/requestApproval' && binding.threadId === agent.id && typeof binding.turnId === 'string' && typeof binding.itemId === 'string'
       && question.params.threadId === binding.threadId && question.params.turnId === binding.turnId && question.params.itemId === binding.itemId;
   }
@@ -426,7 +452,7 @@ export class Workspace extends EventEmitter {
     return episode;
   }
   requestReconnectAllowed(parent, agent, manual) {
-    if (!this.rpc.ready || this.restoring || !this.requestContextCurrent(parent, agent) || parent.provider === 'claude' || parent.role === 'coordinator') return false;
+    if (!this.rpc.ready || this.restoring || !this.requestContextCurrent(parent, agent) || localProvider(parent) || localProvider(agent) || parent.role === 'coordinator') return false;
     if (this.coordinator?.paused || this.coordinator?.stopped || parent.requestStopIntent || agent.requestStopIntent) return false;
     if (!manual && parent.canSend === false) return false;
     // Recovery is not a way around an in-progress transfer or input ownership.
@@ -549,7 +575,7 @@ export class Workspace extends EventEmitter {
     if (requestThreadId !== id) return this.recoverSubagentRequests(parent, requestThreadId);
     if (this.requestJobs.has(id)) return this.requestJobs.get(id);
     const agent = this.agent(id);
-    if (agent.provider === 'claude') { await this.claude.refresh(agent); return { requests: agent.questions.length }; }
+    if (localProvider(agent)) { await this.localRuntime(agent).refresh(agent); return { requests: agent.questions.length }; }
     if (!agent.questions.length) {
       // Recover a cleared view from current-connection requests, never from history or guessed IDs.
       agent.questions = this.pendingQuestions(id);
@@ -610,7 +636,7 @@ export class Workspace extends EventEmitter {
 
   async refreshObserved(id) {
     const agent = this.agents.get(id);
-    if (agent?.provider === 'claude') { if (!this.claude?.available || this.restoring || this.observedReads.has(id)) return; const job = this.claude.refresh(agent); this.observedReads.set(id, job); try { await job; } catch (error) { agent.observeError = error.message; this.changed(); } finally { this.observedReads.delete(id); } return; }
+    if (localProvider(agent)) { if (!this.readyFor(agent) || this.restoring || this.observedReads.has(id)) return; const job = this.localRuntime(agent).refresh(agent); this.observedReads.set(id, job); try { await job; } catch (error) { agent.observeError = error.message; this.changed(); } finally { this.observedReads.delete(id); } return; }
     if (!agent || !this.rpc.ready || this.restoring || (agent.role === 'coordinator' && !agent.observingOnly && !agent.turnId)) return;
     if (this.observedReads.has(id)) return this.observedReads.get(id);
     const revision = agent.historyRevision || 0;
@@ -707,7 +733,7 @@ export class Workspace extends EventEmitter {
   }
   async history(id, cursor, { replace = false, parent } = {}) {
     const agent = parent ? this.resolveRequestContext(parent, id) : this.agent(id);
-    if (agent.provider === 'claude') { if (cursor) throw Object.assign(new Error('Claude history uses its native current transcript.'), { status: 400 }); await this.claude.refresh(agent); return; }
+    if (localProvider(agent)) { if (cursor) throw Object.assign(new Error(agent.provider === 'mistral' ? 'Mistral history uses its native current session view.' : 'Claude history uses its native current transcript.'), { status: 400 }); await this.localRuntime(agent).refresh(agent); return; }
     const before = { turnId: agent.turnId, finishedTurn: agent.finishedTurn, status: agent.thread.status, revision: agent.historyRevision || 0, pagingRevision: agent.historyPagingRevision || 0 };
     const beforeItems = new Map(agent.messages.map(message => [JSON.stringify([message.turnId, message.id]), message]));
     const page = await this.rpc.call('thread/turns/list', { threadId: id, limit: 20, itemsView: 'full', ...(cursor ? { cursor } : {}) });
@@ -777,6 +803,7 @@ export class Workspace extends EventEmitter {
     return page;
   }
   async readWorker(agent, id) {
+    if (localProvider(agent) || localProvider(id)) return;
     const owner = this.requestOwner(agent.id, { includeUnverified: true });
     if (!owner) return;
     const worker = agent.workers.find(worker => worker.id === id); if (!worker?.requestContext) return;
@@ -849,7 +876,7 @@ export class Workspace extends EventEmitter {
   }
   async modelSettings(id) {
     const agent = this.agent(id);
-    if (agent.provider === 'claude') return this.claude.modelSettings(agent);
+    if (localProvider(agent)) return this.localRuntime(agent).modelSettings(agent);
     if (agent.role === 'coordinator') throw Object.assign(new Error('Choose a worker to change its model.'), { status: 400 });
     const { thread } = await this.rpc.call('thread/read', { threadId: id });
     if (!thread) throw new Error('The native worker is unavailable.');
@@ -859,7 +886,7 @@ export class Workspace extends EventEmitter {
   }
   async updateModel(id, choice) {
     const agent = this.agent(id);
-    if (agent.provider === 'claude') return this.claude.updateModel(agent, choice);
+    if (localProvider(agent)) return this.localRuntime(agent).updateModel(agent, choice);
     if (agent.role === 'coordinator' || !agent.canSend) throw Object.assign(new Error('Choose a worker that accepts direct input.'), { status: 400 });
     if (agent.modelChange?.status === 'pending') throw Object.assign(new Error('Wait for the native model change to be confirmed, or refresh settings.'), { status: 409 });
     const selected = validateModelChoice(await readModelCatalog(this.rpc), choice);
@@ -889,7 +916,7 @@ export class Workspace extends EventEmitter {
     const chats = new Map([...this.agents.values()]
       .filter(agent => agent.role !== 'coordinator' && agent.cwd === cwd)
       .map(agent => [agent.id, { id: agent.id, name: agent.name, provider: agent.provider || 'codex' }]));
-    for (const provider of ['codex', 'claude']) {
+    for (const provider of ['codex', 'claude', 'mistral']) {
       if (!this.readyFor({ provider })) continue;
       let cursor; const seen = new Set(); let complete = false;
       for (let page = 0; page < 100; page++) {
@@ -922,7 +949,7 @@ export class Workspace extends EventEmitter {
     provider ??= agent.provider || 'codex';
     cwd = typeof cwd === 'string' ? cwd.trim() : cwd ?? agent.cwd;
     if (agent.role === 'coordinator') throw Object.assign(new Error('Choose a worker chat to create its handover.'), { status: 400 });
-    if (!['codex', 'claude'].includes(provider)) throw Object.assign(new Error('Choose Codex or Claude for the receiving chat.'), { status: 400 });
+    if (!['codex', 'claude', 'mistral'].includes(provider)) throw Object.assign(new Error('Choose Codex, Claude or Mistral for the receiving chat.'), { status: 400 });
     if (!this.readyFor({ provider })) throw Object.assign(new Error('The selected agent is unavailable. Reconnect it before creating the receiving chat.'), { status: 503 });
     if (typeof cwd !== 'string' || !isAbsolute(cwd) || /[\x00-\x1f\x7f]/.test(cwd)) throw Object.assign(new Error('Enter an absolute project directory without control characters.'), { status: 400 });
     if (confirmedName !== undefined && typeof confirmedName !== 'string') throw Object.assign(new Error('Choose the proposed receiving-chat version.'), { status: 400 });
@@ -1065,7 +1092,7 @@ export class Workspace extends EventEmitter {
     }
   }
   async create({ goal, cwd, provider = 'codex' }, { onCreated, onStarting, beforeInput } = {}) {
-    if (!['codex', 'claude'].includes(provider)) throw Object.assign(new Error('Choose Codex or Claude.'), { status: 400 });
+    if (!['codex', 'claude', 'mistral'].includes(provider)) throw Object.assign(new Error('Choose Codex, Claude or Mistral.'), { status: 400 });
     if (this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error(`All ${limits.maxWorkers} worker tabs are already open.`), { status: 409 });
     if (typeof goal !== 'string' || !goal.trim() || goal.length > 2000) throw Object.assign(new Error('Enter a goal of 1–2000 characters.'), { status: 400 });
     if (goal.trim().split('\n')[0].slice(0, 120) === COORDINATOR_NAME) throw Object.assign(new Error('This name is reserved for the coordinator. Enter a worker goal.'), { status: 400 });
@@ -1091,14 +1118,14 @@ export class Workspace extends EventEmitter {
     if (this.workerSlots() >= limits.maxWorkers) throw Object.assign(new Error(`All ${limits.maxWorkers} worker tabs are already open.`), { status: 409 });
     this.creating++; let reserved = true;
     try {
-      if (provider === 'claude') {
-        if (!this.claude) throw Object.assign(new Error('Local Claude support is unavailable.'), { status: 503 });
+      if (localProvider({ provider })) {
+        const runtime = this.localRuntime({ provider });
         onStarting?.();
-        const agent = this.claude.create(cwd, goal.trim()); this.agents.set(agent.id, agent); this.creating--; reserved = false;
+        const agent = await runtime.create(cwd, goal.trim()); this.agents.set(agent.id, agent); this.creating--; reserved = false;
         onCreated?.(agent.id);
         this.changed();
         await this.refreshTasks(agent.id); await beforeInput?.(); await this.send(agent.id, goal.trim());
-        if (this.coordinator && this.rpc.ready) { void this.coordinator.ensure().catch(() => {}); this.coordinator.mark(agent.id, 'Claude worker started'); }
+        if (this.coordinator && this.rpc.ready) { void this.coordinator.ensure().catch(() => {}); this.coordinator.mark(agent.id, `${provider === 'mistral' ? 'Mistral' : 'Claude'} worker started`); }
         return agent.id;
       }
       // New workers use the user-selected native reviewer default. Preserve
@@ -1139,6 +1166,7 @@ export class Workspace extends EventEmitter {
     return this.summaryJobs.has(id) || this.handoffs.incoming(id) || !!agent.returnSummary?.delivered || (this.returnJobs.has(id) && !ownWaitingHandoff);
   }
   async refreshRejectedInputTurn(agent, epoch) {
+    if (localProvider(agent)) return false;
     const before = { turnId: agent.turnId, finishedTurn: agent.finishedTurn, status: agent.thread.status, revision: agent.historyRevision || 0 };
     const current = () => this.agents.get(agent.id) === agent && this.rpc.ready && this.requestEpoch === epoch && (agent.historyRevision || 0) === before.revision;
     if (!current()) return false;
@@ -1183,7 +1211,7 @@ export class Workspace extends EventEmitter {
         || this.coordinator?.concernReviewWorkerId !== id || !this.readyFor(agent)) {
         throw inputNotSent('The engineering destination or native connection changed. The concern notice was not sent; inspect it before retrying.');
       }
-      if (agent.provider === 'claude' || agent.role === 'coordinator' || agent.externalSession) throw inputNotSent('Concern notices require the configured local Codex worker; the message was not sent.');
+      if (localProvider(agent) || agent.role === 'coordinator' || agent.externalSession) throw inputNotSent('Concern notices require the configured local Codex worker; the message was not sent.');
       if (this.coordinator.paused || this.coordinator.stopped || this.restoring || agent.requestStopIntent
         || !agent.canSend || agent.handoff || this.handoffs.incoming(id) || this.summaryJobs.has(id) || this.returnJobs.has(id)
         || agent.returnSummary?.delivered || agent.questions.length || statusOf(agent.thread) === 'attention'
@@ -1195,7 +1223,7 @@ export class Workspace extends EventEmitter {
     const priorStopIntent = agent.requestStopIntent;
     const manualAccepted = () => { if (!internalControl && !messageQuestion && agent.requestStopIntent === priorStopIntent) delete agent.requestStopIntent; };
     if (internalControl) assertAsyncQuestionsAllowControl(agent);
-    if (taskPing && (agent.provider === 'claude' || agent.role === 'coordinator')) throw Object.assign(new Error('Silent task checks are supported only for Codex workers.'), { status: 409 });
+    if (taskPing && (localProvider(agent) || agent.role === 'coordinator')) throw Object.assign(new Error('Silent task checks are supported only for Codex workers.'), { status: 409 });
     if (taskPing && agent.thread.status?.type === 'active' && !agent.turnId) throw Object.assign(new Error('Wait for the active native turn identity before a silent task check.'), { status: 409 });
     if ((this.summaryJobs.has(id) || this.returnJobs.has(id) || agent.returnSummary?.delivered) && (!messageQuestion || this.asyncQuestionHandoffBlocked(agent))) throw Object.assign(new Error('Finish the branch handoff before sending another message.'), { status: 409 });
     if (!agent.canSend) throw Object.assign(new Error(agent.managementNotice || 'The native agent does not allow direct input to this session.'), { status: 409 });
@@ -1211,8 +1239,8 @@ export class Workspace extends EventEmitter {
     if (!agent.canSend) throw Object.assign(new Error(agent.managementNotice || 'The native agent does not allow direct input to this session.'), { status: 409 });
     if (taskPing && agent.thread.status?.type === 'active' && !agent.turnId) throw Object.assign(new Error('Wait for the active native turn identity before a silent task check.'), { status: 409 });
     if (agent.questions.length || statusOf(agent.thread) === 'attention') throw Object.assign(new Error('Answer the pending request before sending another message.'), { status: 409 });
-    if (agent.provider === 'claude') {
-      return await this.claude.send(agent, text.trim(), { images, report, reportSetting, instructions: Object.values(context).map(part => part.value).join('\n\n'), stillOpen: () => { assertSummaryDelivery(); return this.agents.get(id) === agent; }, ...(report || reportSetting ? { priority: 'next' } : {}) });
+    if (localProvider(agent)) {
+      return await this.localRuntime(agent).send(agent, text.trim(), { images, report, reportSetting, instructions: Object.values(context).map(part => part.value).join('\n\n'), stillOpen: () => { assertSummaryDelivery(); return this.agents.get(id) === agent; }, ...(report || reportSetting ? { priority: 'next' } : {}) });
     }
     if (agent.freshBranch && !report && !reportSetting && !taskPing && !concernReview && !coordinatorSummary && !messageQuestion) {
       const title = text.trim().split('\n')[0].slice(0, 120) || 'Image message';
@@ -1302,13 +1330,14 @@ export class Workspace extends EventEmitter {
   }
   async interrupt(id) {
     const agent = this.agent(id);
-    if (agent.provider === 'claude') return this.claude.interrupt(agent);
+    if (localProvider(agent)) return this.localRuntime(agent).interrupt(agent);
     Object.defineProperty(agent, 'requestStopIntent', { configurable: true, value: {} });
     if (!agent.turnId) throw Object.assign(new Error('There is no active turn to interrupt.'), { status: 409 });
     await this.rpc.call('turn/interrupt', { threadId: id, turnId: agent.turnId });
   }
   async fork(id, lastTurnId) {
     const source = this.agent(id);
+    if (source.provider === 'mistral') throw Object.assign(new Error('Mistral branching is unavailable in the native runtime.'), { status: 409 });
     if (source.role === 'coordinator') throw Object.assign(new Error('Branch a worker conversation instead.'), { status: 400 });
     const atReply = lastTurnId !== undefined && lastTurnId !== null;
     if (atReply && (typeof lastTurnId !== 'string' || !source.messages.some(message => message.turnId === lastTurnId && message.branchable))) throw Object.assign(new Error('Choose a completed reply to branch from.'), { status: 400 });
@@ -1334,7 +1363,9 @@ export class Workspace extends EventEmitter {
     } finally { if (reserved) this.creating--; }
   }
   async parent(id) {
-    const branch = this.agent(id); const parentId = branch.parentId;
+    const branch = this.agent(id);
+    if (branch.provider === 'mistral') throw Object.assign(new Error('Mistral branching is unavailable in the native runtime.'), { status: 409 });
+    const parentId = branch.parentId;
     if (!parentId) throw Object.assign(new Error('This conversation has no parent branch.'), { status: 400 });
     if (this.agents.has(parentId)) return parentId;
     const replace = this.workerSlots() >= limits.maxWorkers;
@@ -1346,7 +1377,7 @@ export class Workspace extends EventEmitter {
   idleBranch(id, { allowUnloaded = false } = {}) {
     const branch = this.agent(id);
     if (!branch.parentId) throw Object.assign(new Error('This conversation has no parent branch.'), { status: 400 });
-    if (branch.provider === 'claude') throw Object.assign(new Error('Automatic summary handback is currently available for Codex branches. Use Back to parent to navigate.'), { status: 409 });
+    if (localProvider(branch)) throw Object.assign(new Error('Automatic summary handback is currently available for Codex branches. Use Back to parent to navigate.'), { status: 409 });
     const status = statusOf(branch.thread, branch.questions);
     if (status === 'attention') throw Object.assign(new Error(`Child chat "${branch.name}" has a pending question or approval. Answer it here (or load its pending request), then retry Return summary.`), { status: 409 });
     if (status === 'running') throw Object.assign(new Error(`Child chat "${branch.name}" is still responding. Wait for its turn to finish, then retry Return summary.`), { status: 409 });
@@ -1363,7 +1394,10 @@ export class Workspace extends EventEmitter {
     const job = this.generateSummary(branch); this.summaryJobs.set(id, job); this.changed();
     try { return await job; } finally { this.summaryJobs.delete(id); this.changed(); }
   }
-  startHandoff(id) { return this.handoffs.start(id); }
+  startHandoff(id) {
+    if (this.agent(id).provider === 'mistral') throw Object.assign(new Error('Mistral branching is unavailable in the native runtime.'), { status: 409 });
+    return this.handoffs.start(id);
+  }
   async generateSummary(branch) {
     // Return summary is an explicit user action; restoring a tab stays read-only.
     await this.activate(branch.id);
@@ -1434,6 +1468,8 @@ export class Workspace extends EventEmitter {
   close(id) { const agent = this.agent(id); if (agent.role === 'coordinator') throw Object.assign(new Error('Pause the coordinator using its controls.'), { status: 409 }); if (this.summaryJobs.has(id) || this.returnJobs.has(id)) throw Object.assign(new Error('Wait for the branch handoff to finish before closing its tab.'), { status: 409 }); if (this.handoverJobs.has(id)) throw Object.assign(new Error('Wait for handover preparation to finish before closing the source tab. Native requests and interruption remain available.'), { status: 409 }); this.agents.delete(id); this.coordinator?.closed(id); this.changed(); }
   request(message) {
     const p = message.params || {};
+    // Codex transport events cannot acquire a local provider's request/session.
+    if (localProvider(p.threadId || p.thread?.id || p.conversationId)) return;
     if (['execCommandApproval', 'applyPatchApproval'].includes(message.method) && typeof p.conversationId === 'string' && !p.threadId) p.threadId = p.conversationId;
     if (message.method === 'currentTime/read') { this.rpc.respond(message.id, { currentTime: new Date().toISOString() }); return; }
     if (message.method === 'item/tool/call' && p.threadId === this.coordinator?.id) { void this.coordinator.handle(message); return; }
@@ -1462,7 +1498,14 @@ export class Workspace extends EventEmitter {
     if (!deferred && (!owner || this.requestContextCurrent(owner.parent, agent))) this.coordinator?.mark(owner?.parent.id || p.threadId, 'Approval or question needs review', true);
   }
   answer(id, requestId, answer, requestThreadId = id) {
-    const parent = this.agent(id), agent = this.resolveRequestContext(parent, requestThreadId); if (agent.provider === 'claude') return this.claude.answer(agent, requestId, answer);
+    const parent = this.agent(id), agent = this.resolveRequestContext(parent, requestThreadId);
+    if (localProvider(agent)) {
+      if (agent.provider === 'mistral') {
+        const question = agent.questions.find(question => question.id === requestId);
+        if (!question || typeof question.reviewToken !== 'string' || !question.reviewToken || answer?.requestId !== requestId || answer?.reviewToken !== question.reviewToken) throw Object.assign(new Error('The Mistral request changed. Refresh before answering.'), { status: 409 });
+      }
+      return this.localRuntime(agent).answer(agent, requestId, answer);
+    }
     const key = requestKey(requestThreadId, requestId); const question = this.pending.get(key);
     if (!question || question.unassociated || question.params.threadId !== requestThreadId) throw Object.assign(new Error('This question has already been resolved or its native ownership is not verified.'), { status: 409 });
     if (requestThreadId !== id && answer.reviewToken !== question.reviewToken) throw Object.assign(new Error('The subagent request changed. Refresh it before answering.'), { status: 409 });
@@ -1512,6 +1555,7 @@ export class Workspace extends EventEmitter {
     if (agent) { this.coordinator?.markRemainingApprovals(owner.parent.id); void this.coordinator?.flush(owner.parent.id); }
   }
   notification({ method, params: p = {} }) {
+    if (localProvider(p.threadId || p.thread?.id || p.conversationId)) return;
     if (this.coordinator?.reviewerNotification?.({ method, params: p })) return;
     if (method === 'thread/reverted') {
       const owner = this.requestOwner(p.threadId); if (!owner) return;

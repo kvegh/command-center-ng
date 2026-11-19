@@ -7,6 +7,22 @@ For design rationale, alternatives and implementation references, see the
 [decision history](../design_decisions_history.md). Earlier detailed release
 text remains available in the [archived README](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.46.0 — Optional local Mistral Vibe integration
+
+Adds a third worker provider through the official local `vibe-acp` interface,
+reusing the existing backend, chat, Tasks and native-request controls. The
+Coordinator remains Codex. Native capabilities govern available controls;
+Mistral branching is unavailable. Restored/external sessions remain offline
+metadata views without history loading or native takeover; backend restart does
+not permit resuming them in CCNG. Managed new sessions support prompts, native
+cancellation, advertised images/models and supported manual request forms.
+
+Vibe installation and native authentication are separate operator steps, without
+automatic dependency installation or credential selection. Actual Vibe/model,
+restart and browser verification are not established by controlled source tests.
+Publication, deployment and real-runtime acceptance remain pending; 1.45.0 is
+the last verified deployment at the time of this source change.
+
 ## 1.45.0 — Retain Claude permission preferences when branching
 
 Both reply-level and whole-chat Claude branches inherit the parent's explicitly

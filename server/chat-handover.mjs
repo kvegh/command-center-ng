@@ -44,7 +44,7 @@ export function planHandoverName(sourceName, chats) {
 // Reuse the operator's installed skill. Generated handovers remain native-worker
 // artifacts; CCNG neither reads them nor creates another transfer store.
 export async function resolveHandoverSkill(provider, { home = homedir() } = {}) {
-  if (!['codex', 'claude'].includes(provider)) throw fail('Choose Codex or Claude.');
+  if (!['codex', 'claude', 'mistral'].includes(provider)) throw fail('Choose Codex, Claude or Mistral.');
   const path = join(home, provider === 'claude' ? '.claude' : '.agents', 'skills', 'handoff', 'SKILL.md');
   try {
     const info = await stat(path);

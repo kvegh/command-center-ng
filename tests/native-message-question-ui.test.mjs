@@ -336,14 +336,15 @@ test('main binds only assistant metadata, outside the text guard, while retainin
   assert.match(main, /<MessageText message=\{message\} \/>\{message.type === 'assistant' && <NativeMessageQuestions/);
   assert.match(main, /<MessageTime timestamp=\{message.timestamp\} source=\{message.timestampSource\}/);
   assert.match(main, /!!message.text.trim\(\) && <CopyButton text=\{message.text\}/);
-  assert.match(main, /active.questions.map\(question => <NativeRequestCard/);
+  assert.match(main, /active.questions.map\(question => active.provider === 'mistral' \? <MistralRequestCard/);
+  assert.match(main, /: <NativeRequestCard key=\{questionTarget\(active.id, question.id\)\}/);
   const requests = [], response = { accepted: true, turnId: 'origin-turn' };
   const answerCode = ts.transpileModule(`return (${props.answer});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const bindAnswer = (active, message, api) => new Function('activeId', 'activeProvider', 'activeRole', 'message', 'api', answerCode)(active.id, active.provider, active.role, message, api);
   const answer = bindAnswer({ id: 'worker-a', provider: 'codex', role: 'worker' }, { id: 'native-message' }, async (...args) => { requests.push(args); return response; });
   assert.equal(await answer(5, '  Exact text  '), response);
   assert.deepEqual(requests, [['agents/worker-a/message-question-answer', { messageId: 'native-message', questionIndex: 5, answer: '  Exact text  ' }]]);
-  for (const active of [{ provider: 'claude' }, { role: 'coordinator' }]) assert.equal(bindAnswer(active, {}, () => assert.fail('Unsupported provider cannot send')), undefined);
+  for (const active of [{ provider: 'claude' }, { provider: 'mistral' }, { role: 'coordinator' }]) assert.equal(bindAnswer(active, {}, () => assert.fail('Unsupported provider cannot send')), undefined);
   await bindAnswer({ id: 'worker-b', provider: 'codex', role: 'worker' }, { id: 'other-native-message' }, async (...args) => { requests.push(args); })(2, 'Other answer');
   assert.deepEqual(requests[1], ['agents/worker-b/message-question-answer', { messageId: 'other-native-message', questionIndex: 2, answer: 'Other answer' }]);
   let blocked;

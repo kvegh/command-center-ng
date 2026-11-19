@@ -40,6 +40,73 @@ preferences. They do not synchronize across browsers or devices.
 The worker overview is headed **Project: {chat/project name}**. The Coordinator
 keeps its existing heading.
 
+## Local Mistral Vibe
+
+Mistral is an optional local worker provider. The Coordinator remains Codex.
+CCNG connects to the official `vibe-acp` executable through ACP (Agent Client
+Protocol), using the existing backend rather than another service or agent loop.
+See [Mistral's official ACP guide](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).
+
+### Optional native setup
+
+Install Vibe separately, only after the operator approves the installation and
+its tooling. CCNG's installer does not install Vibe, Python, `uv` or credentials.
+The [published Vibe 3.1.3 package](https://pypi.org/project/mistral-vibe/3.1.3/)
+requires Python 3.12 or newer. If a
+compatible Python and `uv` are already available and that exact installation is
+approved, the pinned native installation command is:
+
+```bash
+uv tool install 'mistral-vibe==3.1.3'
+command -v vibe
+command -v vibe-acp
+```
+
+An isolated Python environment is an alternative when Python 3.12+ includes
+`venv` and `ensurepip`, without adding `uv`. Approve this installation separately:
+
+```bash
+python3.12 -m venv "$HOME/.local/share/mistral-vibe-3.1.3"
+"$HOME/.local/share/mistral-vibe-3.1.3/bin/python" -m pip install 'mistral-vibe==3.1.3'
+```
+
+These are operator instructions, not commands CCNG runs automatically. Authenticate
+through Vibe's native setup using your selected supported account/key mechanism;
+CCNG neither chooses a credential source nor stores a second API key. Never put
+credentials in chat, source or example config. Ensure `vibe-acp` is on PATH for
+the account and service running the backend; an interactive shell's PATH alone
+is insufficient. Missing Vibe leaves the other providers available.
+
+Select **Mistral** when starting a worker in an existing local project directory.
+New sessions managed by this backend support text prompts and interruption of
+their own active turn. Image input requires the native image capability; model
+choices come only from native session configuration. There is no Mistral effort
+or Auto/Manual setting. Coordinator reports queue until this session is idle.
+
+Native permission options and supported input forms retain their exact scopes.
+Unsupported forms stay visible and unanswered. Submitting an answer is distinct
+from native confirmation; choosing a model or starting a turn grants no approval.
+Claude Auto/Manual and Codex reusable-approval controls do not grant Mistral
+permissions. No Coordinator approve/decline path is available for Mistral.
+
+### Capability and verification limits
+
+Native capabilities depend on the installed Vibe version and its ACP handshake.
+Unsupported controls remain unavailable. Mistral branching is unavailable.
+Restored/external sessions are metadata-only and offline: CCNG does not load
+their history, send input, cancel their work or take control. Native session load
+can initialize the engine and MCP tools, so it is not used as a history read.
+After backend restart, a saved Mistral chat cannot resume in CCNG; continue through
+its native client or create a new chat. A planned handover can transfer an
+artifact and linked Beads records to a new session, never live callbacks or
+native approvals. Sent-image history is likewise unavailable in metadata-only
+restored views.
+
+The source integration does not establish successful installation, authentication,
+a real Vibe/model turn, restart recovery or browser acceptance. Keep actual
+runtime verification and its approved scope separate from controlled ACP tests.
+No remote session transport, Edit/Rewind or new background service is included.
+
 ## Shared environment instructions
 
 CCNG supplies shared environment rules alongside each project's instructions.
@@ -265,8 +332,8 @@ button or separate waiting startup turn. Source selection stays in place; use
 **Open receiving chat** when it starts. Startup input acceptance still does not
 prove that the model successfully read/reconciled the artifact: check its reply.
 
-Codex uses the installed `.agents/skills/handoff/SKILL.md`; Claude uses
-`.claude/skills/handoff/SKILL.md`. CCNG does not install skills. It checks file
+Codex and Mistral use the existing `.agents/skills/handoff/SKILL.md`; Claude
+uses `.claude/skills/handoff/SKILL.md`. CCNG does not install skills. It checks file
 metadata, not artifact contents; the receiving agent reads through native tools
 and permissions. Only receiving/source IDs and artifact path use existing private
 workspace metadata. Temporary files can be removed by the OS, so import promptly.

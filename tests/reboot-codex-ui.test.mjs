@@ -8,9 +8,10 @@ import ts from 'typescript';
 const source = await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8');
 const ast = ts.createSourceFile('main.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const dialog = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'AgentDialog');
-let readyExpression, reconnectExpression;
+let readyExpression, providerLabelExpression, reconnectExpression;
 function visit(node) {
   if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'runtimeReady') readyExpression = node.initializer.getText(ast);
+  if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'providerLabel') providerLabelExpression = node.initializer.getText(ast);
   if (ts.isJsxExpression(node) && node.expression && ts.isConditionalExpression(node.expression)
     && node.expression.condition.getText(ast) === 'workspaceReconnecting'
     && ts.isJsxElement(node.expression.whenTrue)
@@ -22,12 +23,13 @@ function visit(node) {
   ts.forEachChild(node, visit);
 }
 visit(ast);
-assert.ok(dialog && readyExpression && reconnectExpression, 'exercise the actual picker and workspace reconnect banner');
+assert.ok(dialog && readyExpression && providerLabelExpression && reconnectExpression, 'exercise the actual picker and workspace reconnect banner');
 function evaluate(source, environment) {
   const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.React } }).outputText;
   return new Function(...Object.keys(environment), compiled)(...Object.values(environment));
 }
 const runtimeReady = evaluate(`return (${readyExpression});`, {});
+const providerLabel = evaluate(`return (${providerLabelExpression});`, {});
 const Icon = () => null;
 const checkpoint = () => new Promise(resolve => setImmediate(resolve));
 const connected = () => ({ connected: true, codexConnected: true, claudeAvailable: false, error: null, agents: [] });
@@ -54,7 +56,7 @@ function fixture(state = connected()) {
     },
   };
   const AgentDialog = evaluate(`${dialog.getText(ast)}\nreturn AgentDialog;`, {
-    React, ...hooks, runtimeReady, Icon, limits: { maxWorkers: 16 },
+    React, ...hooks, runtimeReady, providerLabel, Icon, limits: { maxWorkers: 16 },
     Badge: ({ status }) => React.createElement('span', null, status),
     api: (route, data) => new Promise((resolve, reject) => { requests.push({ route, data, resolve, reject }); }),
   });

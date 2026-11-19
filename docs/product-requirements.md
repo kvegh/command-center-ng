@@ -15,6 +15,27 @@ original history and agent execution independently of the display preference.
 These requirements record the user's requested product behavior. They are not
 a task backlog or a claim that the application exists.
 
+## Approved local Mistral provider
+
+The user approved local Mistral Vibe through its official ACP interface on
+2026-11-19. Reuse the existing Node backend, worker conversations, Beads links,
+native request surfaces, persistence and artifact handovers; retain Codex as
+Coordinator. No new service, database or custom model-execution loop is selected.
+
+Detect an existing local `vibe-acp` without automatic installation/authentication.
+Keep native capability gaps explicit and preserve exact pending permission/input
+requests. Unsupported actions, including Mistral branching, stay unavailable;
+do not substitute another provider or bypass native controls. Native session
+load can initialize Vibe/MCP, so restored/external sessions remain metadata-only,
+offline and unresumable in CCNG after backend restart. New managed sessions may
+use native prompts, cancel, advertised images/models and supported request forms.
+Queue reports until idle; expose neither effort nor Auto/Manual settings for
+Mistral. Existing local-only scope and withdrawn Edit/Rewind apply.
+
+Installation tooling, credential source and actual native smoke scope require
+separate authorization. Source implementation/tests, publication, deployment and
+actual Vibe/browser acceptance are distinct outcomes.
+
 ## Platform and presentation
 
 | Requirement | Intended behavior |
