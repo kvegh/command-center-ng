@@ -1,5 +1,24 @@
 # Design decisions history
 
+## 2026-11-19 — Retain unanswered decision cards until answer or dismissal
+
+The user explicitly requires these question cards to stay visible until answered
+or explicitly dismissed. This supersedes the earlier active-turn-only retention
+requirement. Clarifications, completed turns, chat switches and refreshes must
+preserve the unanswered choice. Add an explicit Dismiss question action; clearing
+an answer draft is a separate action.
+
+Implementation is pending. Keep the pending decision separate from eligibility
+to answer an exact native request. Preserve original messages, manual approval
+controls, ownership and uncertain-delivery protections; retaining a card must not
+reactivate an obsolete native callback or resend an uncertain answer.
+
+Persistence is an open design choice: use existing Beads Question records across
+browsers and restarts, or question snapshots/dispositions in existing browser
+workspace storage with browser-local limits. Neither alternative is selected.
+The separate Claude question-registration/enforcement proposal remains pending.
+No implementation commit exists for this requirement yet.
+
 ## 2026-11-18 — Toggle subagent messages in Project
 
 The user requested a switch for subagent messages and placed it near Create
