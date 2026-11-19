@@ -3099,4 +3099,5 @@ chat questions still use the existing Beads input records and Question labels.
 Native command/file/permission/MCP approvals, existing pending requests and
 already authorized work retain their controls and scope. The correction changes
 instructions, not card storage, approval transport or automatic enforcement.
-Implementation commit: pending.
+CCNG runtime-instruction implementation: `5ac148fe51363f64646486d2d5e105a8abbd8917`.
+Shared environment rule implementation: `fb274fc70c1cc935d287d532967c37fe1dcd8fac`.
