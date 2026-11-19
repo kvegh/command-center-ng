@@ -3139,4 +3139,4 @@ model call or transfer of native approvals/callbacks is selected. Configured
 intent, native acknowledgement and observed mode remain separate evidence;
 existing native controls and pending requests keep their scope.
 
-Implementation commit: pending.
+Implementation commit: `077b2e2861733fa44102f3a0d87f10096b3d7a7f`.
