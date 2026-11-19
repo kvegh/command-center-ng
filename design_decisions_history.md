@@ -14,7 +14,7 @@ errors globally, infer recovery from elapsed time, replay input, answer requests
 or change runtime ownership. Pending questions and approvals, run failures and
 permission state remain independent of observation recovery.
 
-Implementation commit: pending (1.42.0).
+Implementation: `39f61729d9cf23ec60a7f26babffc891c54d289a` (1.42.0).
 
 ## 2026-11-19 — Retain unanswered decision cards until answer or dismissal
 
