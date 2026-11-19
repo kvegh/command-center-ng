@@ -367,9 +367,10 @@ filesystem permission is added. Project/helper checks remain unchanged.
 
 ## Local-only session management
 
-The user explicitly limits Command Center session monitoring to local Claude and
-Codex sessions on the backend host for now. No SSH session monitoring, remote
-agent transport, remote-session fallback or remote file access is authorized.
+Command Center sessions remain local to the backend host. Approved providers
+are Codex, Claude and optional Mistral Vibe through official ACP. No SSH session
+monitoring, remote agent transport, remote-session fallback or remote file access
+is authorized. Vibe installation and credential selection require separate approval.
 Local Codex monitoring already exists; local read-write Claude management uses the user-approved official Claude
 Agent SDK and installed local native CLI. External active processes retain their
 ownership; native permissions and provider history remain authoritative. Browser access and Ansible deployment are distinct

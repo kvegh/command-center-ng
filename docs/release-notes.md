@@ -20,8 +20,9 @@ cancellation, advertised images/models and supported manual request forms.
 Vibe installation and native authentication are separate operator steps, without
 automatic dependency installation or credential selection. Actual Vibe/model,
 restart and browser verification are not established by controlled source tests.
-Publication, deployment and real-runtime acceptance remain pending; 1.45.0 is
-the last verified deployment at the time of this source change.
+The 1.46.0 implementation is published in source. Deployment and real-runtime
+acceptance remain pending; 1.45.0 is the last verified deployment at the time
+of this source change.
 
 ## 1.45.0 — Retain Claude permission preferences when branching
 

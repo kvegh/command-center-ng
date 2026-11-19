@@ -3176,6 +3176,7 @@ failed, one existing supplementary-group scenario skipped; TypeScript/Vite build
 passed. Controlled protocol/HTTP/UI fixtures do not establish real Vibe or
 deployed behavior. The existing bundle-size advisory remains.
 
-Implementation commit: pending. Target source release: 1.46.0. Publication,
-deployment and actual-runtime validation remain pending; the last verified
+Implementation commit: `f90094e76844855393129c4eca0d7d4c5a5dbb2b`. Source release: 1.46.0. The implementation was published through the existing
+SSH remote and verified by remote-head readback on 2026-11-19, 16:13 CET.
+Deployment and actual-runtime validation remain pending; the last verified
 deployment at record time is 1.45.0.
