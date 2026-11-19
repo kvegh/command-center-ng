@@ -309,6 +309,14 @@ partial turn interrupted in the child. Claude copies its persisted transcript,
 including any unfinished tool-call text; live callbacks and approvals stay
 with the parent. Text still streaming or not yet persisted is outside the copy.
 
+For Claude, both **Branch here** and **Branch chat** inherit the parent's
+explicitly requested Auto or Manual preference. Without a requested preference,
+a branch uses the new-chat Auto default. An observed native fallback does not
+redefine the requested preference, and an explicit Manual choice stays Manual.
+The preference uses existing private workspace persistence; branching transfers
+no native approval, pending callback or permission grant. Native acknowledgement
+and the latest reported mode remain distinct from the requested preference.
+
 The branch waits for your follow-up. Its first message becomes its goal.
 Branches share the project's directory; they do not create Git branches or
 worktrees. Existing branches retain their original snapshots after an update.
@@ -844,7 +852,9 @@ earlier instructions, or the existing branch action for a separate conversation.
 
 ### Claude Auto and Manual permissions
 
-New Claude chats, including handover receivers, start with Auto selected. Their
+New Claude chats, including handover receivers, start with Auto selected.
+Branches inherit a parent's explicitly requested Auto/Manual preference; without
+one, they use the same Auto default. Their
 requested mode is retained with the existing private workspace metadata for open
 chats, so a new managed process after restart uses the same preference. Explicit
 Auto/Manual changes are retained only after the native control acknowledges them;

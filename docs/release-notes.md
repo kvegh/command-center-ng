@@ -7,6 +7,14 @@ For design rationale, alternatives and implementation references, see the
 [decision history](../design_decisions_history.md). Earlier detailed release
 text remains available in the [archived README](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.45.0 — Retain Claude permission preferences when branching
+
+Both reply-level and whole-chat Claude branches inherit the parent's explicitly
+requested Auto/Manual preference. Without one, they use the new-chat Auto default.
+Explicit Manual stays Manual; observed native fallback does not replace user
+intent. Existing private workspace persistence is reused without transferring
+native approvals or pending callbacks.
+
 ## 1.44.0 — Select a shared instruction file
 
 Operators can set `shared_instructions_file` in the existing runtime config to

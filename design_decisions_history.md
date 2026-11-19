@@ -3123,3 +3123,20 @@ remain. An already managed Claude process receives changed instructions only
 at its next process startup; this is not a hot-reload mechanism.
 
 Implementation commit: `8569a770d722ded6e551a00ec27aa166f88a03ba`.
+
+
+## 2026-11-19 — Inherit requested Claude permission mode in branches
+
+Recorded 2026-11-19, 12:32 CET (Europe/Vienna); exact user-approval time unknown.
+The user requested fixing Claude branches that failed to retain Auto and first
+setting Auto on two existing running branches. For new reply-level and whole-chat
+branches, inherit the parent's explicit requested Auto/Manual preference. Without
+one, use the existing new-chat Auto default. Preserve explicit Manual; observed
+native fallback is not user intent and must not redefine the requested mode.
+
+Reuse existing private workspace preference persistence. No new schema, store,
+model call or transfer of native approvals/callbacks is selected. Configured
+intent, native acknowledgement and observed mode remain separate evidence;
+existing native controls and pending requests keep their scope.
+
+Implementation commit: pending.

@@ -158,15 +158,17 @@ test('real SDK full-history and completed-reply forks work through authenticated
   assert.equal(f.runtime.runs.size, 0); assert.equal(f.runtime.starts.size, 0);
 });
 
-test('Claude branch parent links survive close, reopen and a cold HTTP backend restart', async t => {
+for (const mode of ['auto', 'default']) test(`Claude branch parent links and ${mode} intent survive close, reopen and a cold HTTP backend restart`, async t => {
   const f = await fixture(t, { restoreLegacySource: true });
   assert.deepEqual((await f.state()).agents.map(agent => agent.id), [f.sourceId], 'legacy workspace metadata needs no branch mapping or migration');
   assert.equal((await f.authenticated(f.route(f.sourceId, 'open'), {})).statusCode, 200);
+  if (mode === 'default') f.runtime.permissionPreferences.set(f.sourceId, 'default');
   const source = (await f.state()).agents.find(agent => agent.id === f.sourceId);
   const reply = source.messages.find(message => message.nativeMessageId === f.sourceRows[1].uuid);
   const forked = await f.authenticated(f.route(f.sourceId, 'fork'), { lastTurnId: reply.turnId });
   assert.equal(forked.statusCode, 201, JSON.stringify(forked.json()));
   const childId = forked.json().id;
+  assert.equal(f.runtime.permissionPreferences.get(childId), mode);
   const childNativeText = await readFile(join(f.nativeDirectory, childId.slice(7) + '.jsonl'), 'utf8');
 
   assert.equal((await f.authenticated(f.route(childId, 'close'), {})).statusCode, 200);
@@ -179,10 +181,11 @@ test('Claude branch parent links survive close, reopen and a cold HTTP backend r
   const saved = JSON.parse(await readFile(f.workspaceFile, 'utf8'));
   assert.deepEqual(saved.workerIds, [childId]);
   assert.deepEqual(saved.claudeBranchParents, { [childId]: f.sourceId });
-  assert.deepEqual(Object.keys(saved).sort(), ['claudeBranchParents', 'coordinatorId', 'coordinatorPaused', 'version', 'workerIds']);
+  assert.deepEqual(saved.claudePermissionModes, { [childId]: mode });
+  assert.deepEqual(Object.keys(saved).sort(), ['claudeBranchParents', 'claudePermissionModes', 'coordinatorId', 'coordinatorPaused', 'version', 'workerIds']);
   assert.deepEqual(Object.keys(saved.claudeBranchParents), [childId]);
   assert.equal(typeof saved.claudeBranchParents[childId], 'string');
-  assert.ok(!JSON.stringify(saved).includes('synthetic'), 'workspace metadata contains no transcript text, request or provider settings');
+  assert.ok(!JSON.stringify(saved).includes('synthetic'), 'workspace metadata contains no transcript text or request payloads');
 
   const oldRuntime = f.runtime, oldWorkspace = f.workspace;
   await f.restart();
@@ -192,6 +195,8 @@ test('Claude branch parent links survive close, reopen and a cold HTTP backend r
   assert.deepEqual(restored.agents.map(agent => agent.id), [childId]);
   const child = restored.agents[0];
   assert.equal(child.provider, 'claude'); assert.equal(child.parentId, f.sourceId);
+  assert.equal(f.runtime.permissionPreferences.get(childId), mode);
+  assert.equal(f.runtime.permissionSettings(f.workspace.agent(childId)).mode, null, 'restoration must not invent a native acknowledgement');
   assert.deepEqual(child.messages.map(message => message.text), ['Review this synthetic project.', 'The first synthetic review is complete.']);
   assert.deepEqual(child.questions, []); assert.equal(child.status, 'idle');
   assert.equal(f.providerCalls, 0); assert.equal(f.runtime.runs.size, 0); assert.equal(f.runtime.starts.size, 0);

@@ -204,10 +204,14 @@ export class ClaudeSessions extends EventEmitter {
     const reply = atReply && source.messages.findLast(message => message.type === 'assistant' && message.turnId === lastTurnId && message.branchable && message.state === 'completed' && uuid.test(message.nativeMessageId));
     if (atReply && (typeof lastTurnId !== 'string' || !reply)) throw fail('Choose a completed reply to branch from.', 400);
     const name = `Branch · ${source.goal}`.slice(0, 120);
+    // Branches are new chats: retain an explicit source choice, otherwise use
+    // the new-chat Auto default rather than a transient native fallback.
+    const permissionMode = this.permissionPreferences.get(source.id) ?? 'auto';
     // The SDK copies only persisted native history. It never starts a query,
     // interrupts the parent or transfers its live permission callbacks.
     const result = await this.sdk.forkSession(source.nativeSessionId, { dir: source.cwd, title: name, ...(atReply ? { upToMessageId: reply.nativeMessageId } : {}) });
     if (!uuid.test(result?.sessionId) || result.sessionId === source.nativeSessionId || this.records.has('claude-' + result.sessionId)) throw fail('Claude did not return a new branch identity. Check native sessions before retrying.');
+    this.permissionPreferences.set('claude-' + result.sessionId, permissionMode);
     // Preserve the known native relationship even if opening its view fails.
     this.emit('forked', 'claude-' + result.sessionId, source.id);
     let branch;

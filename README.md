@@ -115,6 +115,8 @@ questions and approvals remain visible. See [chat display and typing](docs/usage
   Optional per-chat Auto/Manual controls use the same native SDK operation.
   New Claude chats retain Auto across managed resumes and application restarts;
   acknowledged per-chat Manual choices are retained too, in private workspace metadata.
+  In 1.45.0, Claude branches inherit the parent's explicitly requested Auto/Manual
+  preference; without one, they use the new-chat Auto default.
   See [Claude permissions](docs/usage.md#claude-auto-and-manual-permissions).
 - Review independent Codex approval requests with up to two read-only analysts; the Coordinator remains the sole automated approver. See [review boundaries and timing](docs/usage.md#coordinator-approval-review).
 - Show Coordinator concerns on the exact Claude approval card while retaining

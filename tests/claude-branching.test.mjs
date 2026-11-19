@@ -113,7 +113,7 @@ test('the first explicit Claude branch follow-up resumes only the child with its
     assert.equal(query.params.options.resume, child.nativeSessionId);
     assert.equal(query.params.options.sessionId, undefined, 'the branch is already a persisted native session');
     assert.equal(query.params.options.cwd, f.source.cwd);
-    assert.equal(query.params.options.permissionMode, undefined, 'the exact parent Auto selection is not copied to the child');
+    assert.equal(query.params.options.permissionMode, 'auto', 'the child retains Auto as its own requested preference');
     assert.equal(child.autoReviewConfigured, false); assert.equal(f.source.autoReviewConfigured, true);
     assert.match(query.params.options.systemPrompt.append, new RegExp('ccng-session:' + childId));
     assert.ok(!query.params.options.systemPrompt.append.includes('ccng-session:' + sourceId));
@@ -124,6 +124,36 @@ test('the first explicit Claude branch follow-up resumes only the child with its
     assert.equal(f.source.name, originalName); assert.equal(f.source.goal, originalGoal);
     assert.ok(!f.runtime.runs.has(sourceId)); assert.deepEqual(f.rpcCalls, []);
   } finally { await f.close(); }
+});
+
+test('both Claude branch forms retain explicit mode intent and otherwise default new chats to Auto', async t => {
+  const cases = [
+    { name: 'observer without a saved preference', preference: undefined, configured: false, expected: 'auto' },
+    { name: 'configured Auto without a saved preference', preference: undefined, configured: true, expected: 'auto' },
+    { name: 'requested Auto after native Manual fallback', preference: 'auto', configured: false, expected: 'auto' },
+    { name: 'explicit Manual overrides configured Auto', preference: 'default', configured: true, expected: 'default' }
+  ];
+  for (const atReply of [false, true]) for (const scenario of cases) await t.test(`${atReply ? 'Branch here' : 'Branch chat'}: ${scenario.name}`, async () => {
+    const f = await fixture();
+    try {
+      if (scenario.configured) await f.runtime.configureAutoReviewSessions([sourceId]);
+      if (scenario.preference) f.runtime.permissionPreferences.set(sourceId, scenario.preference);
+      f.source.permissionMode = 'default';
+      const preferences = [...f.runtime.permissionPreferences];
+      const cutoff = atReply ? f.source.messages.find(message => message.nativeMessageId === replyId).turnId : undefined;
+      const childId = await f.workspace.fork(sourceId, cutoff), child = f.workspace.agent(childId);
+      assert.equal(f.runtime.permissionPreferences.get(childId), scenario.expected);
+      assert.deepEqual([...f.runtime.permissionPreferences].filter(([id]) => id !== childId), preferences);
+      assert.equal(child.autoReviewConfigured, false, 'the child is not added to the operator selection');
+      assert.equal(child.permissionMode, null, 'requested intent is not native acknowledgement');
+      assert.equal(f.queries.length, 0); assert.deepEqual(f.controls, []);
+      await f.workspace.send(childId, 'Continue only this branch.');
+      const options = f.queries[0].params.options;
+      assert.equal(options.permissionMode, scenario.expected); assert.equal(options.resume, child.nativeSessionId);
+      for (const key of ['allowedTools', 'allowDangerouslySkipPermissions', 'settings']) assert.equal(Object.hasOwn(options, key), false, key);
+      assert.equal(f.runtime.runs.has(sourceId), false); assert.deepEqual(f.controls, []);
+    } finally { await f.close(); }
+  });
 });
 
 test('Claude historical tool-use and unfinished replies cannot be selected as completed branch cutoffs', async () => {
@@ -224,6 +254,7 @@ test('Claude native fork errors preserve the source and release the reserved wor
     await assert.rejects(f.workspace.fork(sourceId), /Native transcript is not ready/);
     assert.equal(f.workspace.agent(sourceId), f.source); assert.equal(f.workspace.workerCount(), 1);
     assert.equal(f.workspace.creating, 0); assert.equal(f.runtime.records.size, 1);
+    assert.equal(f.runtime.permissionPreferences.size, 0, 'a failed fork creates no child preference');
     assert.equal(f.queries.length, 0); assert.deepEqual(f.rpcCalls, []);
   } finally { await f.close(); }
 });
@@ -236,6 +267,7 @@ test('Claude refuses malformed or reused fork identities without opening another
       await assert.rejects(f.workspace.fork(sourceId));
       assert.equal(f.workspace.workerCount(), 1); assert.equal(f.runtime.records.size, 1);
       assert.equal(f.workspace.creating, 0); assert.equal(f.queries.length, 0); assert.deepEqual(f.rpcCalls, []);
+      assert.equal(f.runtime.permissionPreferences.size, 0, 'an invalid child identity creates no preference');
     } finally { await f.close(); }
   }
 });
