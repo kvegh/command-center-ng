@@ -118,6 +118,68 @@ test('foreign Claude session activity cannot clear a refresh error or continue t
   } finally { await f.close(); }
 });
 
+test('delayed Claude session metadata cannot disable a managed conversation that started meanwhile', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId);
+    let finishInfo;
+    f.sdk.getSessionInfo = () => new Promise(resolve => { finishInfo = resolve; });
+    const refresh = f.runtime.refresh(agent);
+    await until(() => !!finishInfo);
+    const receipt = await f.runtime.send(agent, 'Continue after restoring this conversation.');
+    f.queries[0].push({ type: 'system', subtype: 'init', session_id: nativeId, permissionMode: 'default' });
+    await until(() => agent.permissionMode === 'default');
+    finishInfo(undefined); await refresh;
+    assert.equal(agent.canSend, true); assert.equal(agent.observeError, null);
+    assert.equal(agent.thread.status.type, 'active'); assert.equal(agent.turnId, receipt.turnId);
+    assert.equal(agent.messages.some(message => message.nativeMessageId === receipt.messageId), true);
+    assert.equal(f.queries.length, 1); assert.deepEqual(f.controls, []);
+  } finally { await f.close(); }
+});
+
+test('a delayed Claude history failure cannot restore a refresh banner after native activity', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId), rpc = new EventEmitter(); rpc.ready = false;
+    const workspace = new Workspace(rpc, { beads: null, claude: f.runtime });
+    workspace.agents.set(agent.id, agent);
+    let failHistory;
+    f.sdk.getSessionMessages = () => new Promise((_resolve, reject) => { failHistory = reject; });
+    const refresh = workspace.refreshObserved(agent.id);
+    await until(() => !!failHistory);
+    const receipt = await f.runtime.send(agent, 'Keep the current work.');
+    f.queries[0].push({ type: 'assistant', uuid: 'new-live-reply', session_id: nativeId, message: { content: 'Native work is continuing.' } });
+    await until(() => agent.messages.some(message => message.nativeMessageId === 'new-live-reply'));
+    const messages = agent.messages;
+    failHistory(new Error('The earlier history read could not find the session.')); await refresh;
+    assert.equal(agent.observeError, null); assert.equal(agent.canSend, true);
+    assert.equal(agent.messages, messages); assert.equal(agent.turnId, receipt.turnId);
+    assert.equal(agent.messages.some(message => message.nativeMessageId === receipt.messageId), true);
+    assert.equal(agent.thread.status.type, 'active'); assert.equal(f.runtime.runs.has(agent.id), true);
+    assert.equal(f.queries.length, 1); assert.deepEqual(f.controls, []);
+  } finally { await f.close(); }
+});
+
+test('a delayed Claude process listing cannot mark newer managed work idle or replace its history', async () => {
+  const f = await fixture();
+  try {
+    const agent = await f.runtime.open(workerId);
+    let finishActive;
+    f.runtime.active = async force => force ? new Set() : new Promise(resolve => { finishActive = resolve; });
+    const refresh = f.runtime.refresh(agent);
+    await until(() => !!finishActive);
+    const receipt = await f.runtime.send(agent, 'Continue with the same conversation.');
+    f.queries[0].push({ type: 'assistant', uuid: 'current-live-reply', session_id: nativeId, message: { content: 'The current turn is still running.' } });
+    await until(() => agent.messages.some(message => message.nativeMessageId === 'current-live-reply'));
+    const messages = agent.messages;
+    finishActive(new Set()); await refresh;
+    assert.equal(agent.thread.status.type, 'active'); assert.equal(agent.turnId, receipt.turnId);
+    assert.equal(agent.messages, messages); assert.equal(agent.canSend, true);
+    assert.equal(agent.observeError, null); assert.equal(f.runtime.runs.has(agent.id), true);
+    assert.equal(f.queries.length, 1); assert.deepEqual(f.controls, []);
+  } finally { await f.close(); }
+});
+
 test('Claude history uses native message timestamps and leaves missing or invalid times unknown', async () => {
   const history = [
     { type: 'assistant', uuid: 'timed-history', timestamp: '2026-11-05T10:20:00Z', message: { content: 'Recorded answer.' } },

@@ -1,5 +1,17 @@
 # Design decisions history
 
+## 2026-11-19 — Discard Claude observations superseded by live work
+
+The refresh repair also needs to handle reads already pending when a managed
+run begins. Collect metadata, history and native-status reads before applying
+changes. Discard either their results or errors if a managed run started or
+newer native messages replaced the observed message list. This prevents an older
+read from reinstating a missing-session banner or replacing live state.
+Skip disk observation of newly allocated sessions until native initialization;
+no retry timer, cancellation, new store or session takeover is introduced.
+
+Implementation commit: pending (1.42.1).
+
 ## 2026-11-19 — Recover Claude refresh errors from native session evidence
 
 Recorded 2026-11-19, 09:25 CET; exact user-message time unknown. The user reported

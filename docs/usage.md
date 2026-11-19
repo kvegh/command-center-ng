@@ -338,7 +338,8 @@ A new Claude chat can exist before its native history is written. CCNG waits
 without showing a missing-session error during that interval. Native activity
 from the same session clears an earlier refresh banner; it does not answer a
 pending question or hide a run failure. A genuinely unavailable saved session
-still reports an error.
+still reports an error. An older refresh cannot replace newer live messages or
+restore a stale error after the session resumes.
 
 The composer keeps Claude's current work visible while ordinary actions are
 collapsed. A tool request shows Waiting on its tool name and optional description;

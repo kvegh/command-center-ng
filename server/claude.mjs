@@ -217,19 +217,29 @@ export class ClaudeSessions extends EventEmitter {
     this.changed(branch); return branch;
   }
   async refresh(agent) {
-    this.ready(); if (this.runs.has(agent.id)) return;
+    this.ready(); if (this.runs.has(agent.id) || agent.newSession) return;
     const before = JSON.stringify([agent.canSend, agent.externalSession, agent.thread.status, agent.observeError, agent.managementNotice, agent.name]);
-    const info = await this.sdk.getSessionInfo(agent.nativeSessionId, { dir: agent.cwd });
-    if (!info) {
-      // A newly created SDK session has no transcript until its first native write.
-      if (agent.newSession) return;
-      agent.canSend = false; throw fail('This local Claude conversation is no longer available.', 404);
+    const previousMessages = agent.messages;
+    // Disk observation must not overwrite a run or newer native messages received
+    // while SDK reads were pending. Collect first, then apply one current result.
+    const current = () => !this.runs.has(agent.id) && agent.messages === previousMessages;
+    let info, version, messages, active, activeError;
+    try {
+      info = await this.sdk.getSessionInfo(agent.nativeSessionId, { dir: agent.cwd });
+      if (!info) throw fail('This local Claude conversation is no longer available.', 404);
+      version = Number.isFinite(info.lastModified) && Number.isFinite(info.fileSize) ? JSON.stringify([info.lastModified, info.fileSize]) : null;
+      if (version === null || version !== agent.historyVersion) {
+        messages = await readClaudeMessages(this.sdk, agent.nativeSessionId, { dir: agent.cwd, includeSystemMessages: true });
+      }
+      try { active = await this.active(); } catch (error) { activeError = error; }
+    } catch (error) {
+      if (!current()) return;
+      if (error.status === 404) agent.canSend = false;
+      throw error;
     }
-    const version = info && Number.isFinite(info.lastModified) && Number.isFinite(info.fileSize) ? JSON.stringify([info.lastModified, info.fileSize]) : null;
-    const historyChanged = version === null || version !== agent.historyVersion;
-    if (historyChanged) {
-      const messages = await readClaudeMessages(this.sdk, agent.nativeSessionId, { dir: agent.cwd, includeSystemMessages: true });
-      const previous = new Map(agent.messages.map(message => [message.id, message]));
+    if (!current()) return;
+    if (messages) {
+      const previous = new Map(previousMessages.map(message => [message.id, message]));
       agent.messages = []; subagentNames.delete(agent);
       // A spawning Agent call may precede the visible history window.
       for (const message of messages) rememberSubagents(agent, message);
@@ -239,14 +249,15 @@ export class ClaudeSessions extends EventEmitter {
       }
       agent.historyVersion = version;
     }
-    if (info?.customTitle) agent.name = info.customTitle;
-    try {
-      const active = await this.active(); agent.externalSession = active.has(agent.nativeSessionId); agent.canSend = !agent.externalSession;
+    if (info.customTitle) agent.name = info.customTitle;
+    if (activeError) { agent.canSend = false; agent.managementNotice = activeError.message; agent.observeError = activeError.message; }
+    else {
+      agent.externalSession = active.has(agent.nativeSessionId); agent.canSend = !agent.externalSession;
       agent.managementNotice = agent.externalSession ? 'Claude is running in another local process. This tab follows its transcript; send and interrupt become available after that process releases the session.' : null;
       agent.thread.status = { type: agent.externalSession ? 'active' : 'idle' }; agent.observeError = null;
-    } catch (error) { agent.canSend = false; agent.managementNotice = error.message; agent.observeError = error.message; }
+    }
     const after = JSON.stringify([agent.canSend, agent.externalSession, agent.thread.status, agent.observeError, agent.managementNotice, agent.name]);
-    if (historyChanged || before !== after) this.changed(agent);
+    if (messages || before !== after) this.changed(agent);
   }
   async startRun(agent, instructions, stillOpen) {
       if ((await this.active(true)).has(agent.nativeSessionId)) { agent.canSend = false; agent.externalSession = true; agent.thread.status = { type: 'active' }; agent.managementNotice = 'Claude is still running in another local process. Wait for it to finish before resuming this session here.'; this.changed(agent); throw fail(agent.managementNotice); }

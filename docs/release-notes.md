@@ -7,6 +7,12 @@ For design rationale, alternatives and implementation references, see the
 [decision history](../design_decisions_history.md). Earlier detailed release
 text remains available in the [archived README](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.42.1 — Preserve live Claude state during an older refresh
+
+A refresh that started before Claude resumed no longer restores an obsolete
+error, replaces newer messages or marks an active session idle. New chats wait
+for native initialization before disk observation begins.
+
 ## 1.42.0 — Clear stale Claude refresh errors
 
 New Claude chats no longer show a missing-session error while their native
