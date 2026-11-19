@@ -10,7 +10,7 @@ read from reinstating a missing-session banner or replacing live state.
 Skip disk observation of newly allocated sessions until native initialization;
 no retry timer, cancellation, new store or session takeover is introduced.
 
-Implementation commit: pending (1.42.1).
+Implementation: `992b97c8635560c827ea953d458030c291074d68` (1.42.1).
 
 ## 2026-11-19 — Recover Claude refresh errors from native session evidence
 
