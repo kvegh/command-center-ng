@@ -3180,3 +3180,26 @@ Implementation commit: `f90094e76844855393129c4eca0d7d4c5a5dbb2b`. Source releas
 SSH remote and verified by remote-head readback on 2026-11-19, 16:13 CET.
 Deployment and actual-runtime validation remain pending; the last verified
 deployment at record time is 1.45.0.
+
+
+## 2026-11-20, 03:23 CET — Update existing native Codex and Claude installations
+
+The user explicitly requested updating Codex and Claude. Keep each established
+native installation and supported update path; do not migrate package managers,
+change automatic-update preferences or interrupt active sessions. Codex CLI and
+daemon packages are distinct, explaining why the command-line package could lag
+behind already-current background servers. This is routine dependency upkeep,
+not a new agent architecture. Exact user-request timestamp is unknown.
+
+Actual outcome: native `codex update` installed 0.171.0 from 0.167.0; native
+`claude update` installed 2.1.329 from 2.1.325. Version readbacks passed, and
+Claude's binary digest matched its official manifest. Existing configuration,
+CCNG service and observed Codex processes were preserved; previous binaries
+were retained. A pre-existing Claude process remains on 2.1.325 until normal
+restart. Fresh native model/browser behavior was not tested. No source code or
+application release was changed; these are native upstream package versions,
+so there is no application implementation commit for the runtime update.
+
+Official references: [Codex 0.171.0](https://github.com/openai/codex/releases/tag/rust-v0.171.0),
+[Claude Code 2.1.329](https://github.com/anthropics/claude-code/releases/tag/v2.1.329),
+[Claude manifest](https://downloads.claude.ai/claude-code-releases/2.1.329/manifest.json).
