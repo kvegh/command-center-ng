@@ -1,5 +1,19 @@
 # Current status for handover
 
+Source checkpoint: **2026-11-22, 20:34 CET**. Source patch **1.47.1**, implementation
+`2d7f808189a4473dcd133c0b48069fa4adbd7d43`, separates mobile **Jump to top** at the top right
+and **Jump to bottom** at the bottom right with safe-area spacing and touch
+passthrough between them. Existing visibility and scrolling behavior are retained.
+
+Both affected mobile suites pass **22/22**, and TypeScript/Vite build passes.
+A test-only initial gutter expectation was corrected to preserve existing
+spacing. No phone/browser rendering check was performed. Deployment remains
+explicitly deferred; the live installation was not changed or restarted.
+Source task: `bead-wd-dqed`; pending deployment/live acceptance: `bead-wd-3rln`.
+The preceding 1.47.0 Claude handback source is included in this patch release.
+
+### Previous checkpoint (superseded)
+
 Source checkpoint: **2026-11-22, 19:06 CET**. Beads remains authoritative.
 
 Published source **1.47.0**, implementation `af6cbf3caf348dec23484e5c88fe9814a61ce7ef`, adds

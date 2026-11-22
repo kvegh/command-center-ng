@@ -3227,3 +3227,21 @@ minor-release deployment workflow for 1.47.0; source publication does not imply
 runtime activation. Other deferred Claude integration remains outside this scope.
 
 Implementation commit: `af6cbf3caf348dec23484e5c88fe9814a61ce7ef`. Source release: **1.47.0**.
+
+
+## 2026-11-22 — Separate mobile jump controls at opposite screen edges
+
+Recorded 2026-11-22, 20:34 CET; exact user-request time unknown. The user requested
+Jump to top at the top of the screen and Jump to bottom at the bottom after
+showing both grouped at the top on a phone. Anchor each existing mobile control
+to its respective viewport edge, with device safe-area spacing. Keep the space
+between them available for normal interaction and scrolling. A shared sticky row
+could not provide the requested independent placement.
+
+Preserve independent visibility, existing document-scroll destinations, native
+button accessibility, touch sizes, desktop reading positions and native state.
+This is a presentation correction, with no new component, dependency, setting
+or service. Deployment remains deferred by the user's existing instruction;
+source checks do not establish phone rendering.
+
+Implementation commit: `2d7f808189a4473dcd133c0b48069fa4adbd7d43`. Source patch: **1.47.1**.
