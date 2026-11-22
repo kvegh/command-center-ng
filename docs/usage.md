@@ -392,10 +392,11 @@ including after tab closure and backend restart. No transcript or permission
 callback is saved there. Up to 256 Claude branch links are retained; reaching
 that bound refuses a new branch and keeps existing links intact.
 
-**Back to parent** only navigates. **Hand back & close** is currently Codex-only
-and starts a background
-handoff with one click, including while the branch is working. You can switch
-tabs immediately. CCNG asks the branch to finish at a safe checkpoint, settle
+**Back to parent** only navigates. **Hand back & close** supports local Codex
+and Claude branches and starts a background handoff with one click, including
+while the branch is working. You can switch
+tabs immediately. For Claude, CCNG waits for the current turn to finish before
+sending its checkpoint request. CCNG asks the branch to settle
 its local background work and prepare a concise summary of findings, decisions,
 verification, open questions and next steps. It does not forcibly interrupt work
 or answer a pending request. Resolve any request in its originating chat.
@@ -403,9 +404,12 @@ or answer a pending request. Resolve any request in its originating chat.
 Every branch task is linked to the parent without changing its state, owner,
 dependencies or existing branch association. The parent receives the summary
 and a reference to the full native branch history and original task records.
-Only after native receipt and fresh safety/task checks does CCNG archive the
-branch and remove its tab. If it is selected, the parent opens; if another tab
-is selected, that tab and its draft keep focus.
+Only after native receipt and fresh safety/task checks does CCNG remove the
+branch tab. Codex archives its native branch. Claude has no native archive API:
+CCNG ends input to its verified idle managed process, confirms process completion
+and keeps the native conversation history available for later reopening. If the
+child tab is selected, the parent opens; if another tab is selected, that tab and
+its draft keep focus.
 
 The branch status shows waiting, preparation, transfer, delivery or an actionable
 failure. A full workspace may need a free tab slot for the parent. Errors and

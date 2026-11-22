@@ -97,7 +97,7 @@ questions and approvals remain visible. See [chat display and typing](docs/usage
   Reconcile an interrupted Coordinator with current native history so a stale
   active-turn indicator cannot indefinitely block reviews. Pending questions,
   actual active turns and pause controls remain authoritative.
-- Branch a Codex conversation, then hand tasks and a summary back to its parent.
+- Branch a Codex or Claude conversation, then hand tasks and a summary back to its parent.
 - See linked Beads tasks with input needs and blockers first, conditional On hold states and optional native browser task notifications.
   Open ordinary tasks to read their recorded context and blocker notes directly;
   actual questions retain their separate Needed/Why answer prompts.
@@ -307,7 +307,8 @@ with the native Claude/Google configuration; no new login is created.
   actual Vibe authentication, model execution or live browser acceptance.
 - Local Claude sessions support native current-history and completed-reply
   branching with the installed official Agent SDK. Broader Claude completion
-  and live validation remain **TODO**; automatic branch handback is Codex-only.
+  and live validation remain **TODO**. **Hand back & close** supports local Claude
+  branches as well as Codex; Claude retains native history when closing its managed process.
 - Conversations stay traceable: correct earlier inputs or decisions in follow-up
   messages. Edit/Rewind is withdrawn; branching remains separate and available.
 - Native Goals controls and automatic Goal creation were withdrawn; tasks remain in Beads.
@@ -542,6 +543,34 @@ directory and link its sibling `server` to the actual installation's `server/`.
 Run the command there to exercise the installed application and SDK. This
 verifies the API workflow in an isolated instance, not a user's browser or a
 model's later continuation of the branch.
+
+### Verify Claude branch handback
+
+Run with the existing Node and SDK dependencies:
+
+```sh
+node --test tests/claude-handoff-native.test.mjs tests/claude-branch-handoff.test.mjs tests/branch-handoff.test.mjs tests/branch-handoff-ui.test.mjs tests/claude-branching-http.test.mjs
+```
+
+These checks exercise the actual workspace and Claude adapter with controlled SDK
+streams and persisted native-history fixtures. They cover checkpoint and summary
+completion, exact native parent receipt before EOF closure, preserved task links
+and states, manual questions/approvals, background work, external ownership and
+explicit retries after known failures. Unconfirmed delivery retains the branch
+without resending. No real model, user chat or protected input is used.
+
+For installed-component verification, stage these files in a temporary `tests/`
+directory with sibling `server/` and `src/` copied from the installation, its
+`package.json`, and dependencies linked from the installation. Reuse the existing
+development TypeScript package for UI checks. The command exits nonzero on a
+failure. Do not install tools or point fixtures at actual session storage.
+
+This does not establish live model or browser acceptance. After an authorized
+deployment, verify the same workflow with disposable Claude parent/branch chats:
+wait for checkpoint and summary, confirm the exact summary in native parent
+history, confirm the child tab and owned process close, and reopen the child's
+preserved history. Keep actual pending requests manual. Deployment and this
+native/browser acceptance remain pending for 1.47.0.
 
 ### Verify Coordinator tab indicators
 

@@ -23,9 +23,9 @@ function fixture(props = {}) {
   return { element, button: element.props.children[0], html: renderToStaticMarkup(element) };
 }
 
-test('one-click hand back describes task transfer and closure without requiring an idle branch or review dialog', async () => {
+for (const provider of ['codex', 'claude']) test(`${provider}: one-click hand back describes task transfer and closure without requiring an idle branch or review dialog`, async () => {
   const calls = [];
-  const { html, button } = fixture({ start: async () => { calls.push('start'); return { id: 'branch', parentId: 'parent' }; } });
+  const { html, button } = fixture({ provider, start: async () => { calls.push('start'); return { id: 'branch', parentId: 'parent' }; } });
   assert.match(html, /Hand back &amp; close/);
   assert.equal(button.props.title, 'Transfer tasks back to parent, summarize and close branch');
   assert.equal(button.props.type, 'button');
@@ -35,15 +35,15 @@ test('one-click hand back describes task transfer and closure without requiring 
   assert.doesNotMatch(html, /<dialog|Review branch summary|Send summary/);
 });
 
-test('handoff posts once while the acceptance is outstanding and only explicit retry submits again', async () => {
+for (const provider of ['codex', 'claude']) test(`${provider}: handoff posts once while the acceptance is outstanding and only explicit retry submits again`, async () => {
   let release;
   let calls = 0;
-  const { button } = fixture({ start: () => { calls++; return new Promise(resolve => { release = resolve; }); } });
+  const { button } = fixture({ provider, start: () => { calls++; return new Promise(resolve => { release = resolve; }); } });
   const pending = button.props.onClick();
   await button.props.onClick();
   assert.equal(calls, 1);
   release({ id: 'branch', parentId: 'parent' }); await pending;
-  const retry = fixture({ handoff: { ...state('failed'), error: 'The parent needs an answer first.' }, start: async () => { calls++; } });
+  const retry = fixture({ provider, handoff: { ...state('failed'), error: 'The parent needs an answer first.' }, start: async () => { calls++; } });
   assert.equal(retry.button.props.disabled, false);
   assert.match(retry.html, /Retry hand back/);
   assert.match(retry.html, /role="alert">The parent needs an answer first\./);
@@ -52,21 +52,21 @@ test('handoff posts once while the acceptance is outstanding and only explicit r
   assert.equal(calls, 2);
 });
 
-test('unsent draft text is retained with a note and image drafts must be sent or removed before closure', async () => {
-  const text = fixture({ unsentText: true });
+for (const provider of ['codex', 'claude']) test(`${provider}: unsent draft text is retained with a note and image drafts must be sent or removed before closure`, async () => {
+  const text = fixture({ provider, unsentText: true });
   assert.equal(text.button.props.disabled, false);
   assert.match(text.html, /Unsent text stays saved in this browser/);
   assert.match(text.html, /not included in the summary/);
-  const images = fixture({ unsentImages: 2, start: () => assert.fail('Closing cannot hide unsent image drafts.') });
+  const images = fixture({ provider, unsentImages: 2, start: () => assert.fail('Closing cannot hide unsent image drafts.') });
   assert.equal(images.button.props.disabled, true);
   assert.match(images.html, /Send or remove draft images first/);
   assert.match(images.html, /disappear on refresh/);
   await images.button.props.onClick();
 });
 
-test('each in-progress phase is visible and blocks another start while allowing the user to leave the tab', async () => {
+for (const provider of ['codex', 'claude']) test(`${provider}: each in-progress phase is visible and blocks another start while allowing the user to leave the tab`, async () => {
   for (const phase of ['waiting', 'stopping', 'summarizing', 'transferring', 'sending', 'closing']) {
-    const { html, button } = fixture({ handoff: state(phase), start: () => assert.fail('An active handoff cannot start again.') });
+    const { html, button } = fixture({ provider, handoff: state(phase), start: () => assert.fail('An active handoff cannot start again.') });
     assert.equal(button.props.disabled, true);
     await button.props.onClick();
     assert.match(html, /role="status"/);
@@ -75,13 +75,16 @@ test('each in-progress phase is visible and blocks another start while allowing 
     assert.match(html, /Waiting for the branch to finish its current action\./);
     assert.equal(handoffActive(state(phase)), true);
   }
-  assert.equal(fixture({ starting: true }).button.props.disabled, true);
+  assert.equal(fixture({ provider, starting: true }).button.props.disabled, true);
 });
 
 test('unsupported or disconnected runtime cannot submit, but does not mistake native questions for a handoff failure', async () => {
-  for (const props of [{ connected: false }, { provider: 'claude' }]) {
+  for (const props of [{ connected: false }, { provider: 'claude', connected: false }, { provider: 'mistral' }, { provider: 'unknown' }]) {
     const { button } = fixture({ ...props, start: () => assert.fail('Unavailable runtimes cannot submit.') });
     assert.equal(button.props.disabled, true);
+    assert.match(button.props.title, props.connected === false
+      ? new RegExp(`Connect the local ${props.provider === 'claude' ? 'Claude' : 'Codex'} runtime`)
+      : /available for Codex and Claude only/);
     await button.props.onClick();
   }
   const waiting = fixture({ handoff: state('waiting', 'Answer the pending branch question to continue.') });

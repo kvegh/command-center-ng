@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { realpath } from 'node:fs/promises';
 import { readCodexGoal, pauseCodexGoal } from './branch-continuation.mjs';
-import { HANDOFF_CHECKPOINT_REQUEST } from './branch-summary.mjs';
+import { HANDOFF_CHECKPOINT_REQUEST, summaryPrompt, readSummary } from './branch-summary.mjs';
 import { hasOpenAsyncQuestions, observeHandoffQuestions, handoffQuestionNeedsReview } from './async-question-replies.mjs';
 
 const sourceKinds = ['cli', 'vscode', 'exec', 'appServer', 'subAgent', 'subAgentReview', 'subAgentCompact', 'subAgentThreadSpawn', 'subAgentOther', 'unknown'];
@@ -16,6 +16,7 @@ export class BranchHandoffs {
     this.workspace = workspace; this.records = new Map(); this.completions = []; this.deliveringParents = new Map();
     this.timeout = timeout; this.poll = poll;
   }
+  ready(agent) { return this.workspace.readyFor ? this.workspace.readyFor(agent) : this.workspace.rpc.ready; }
   active(id) { return this.workspace.returnJobs.has(id); }
   incoming(id) { return this.deliveringParents.has(id); }
   observeQuestions(branch) {
@@ -31,11 +32,11 @@ export class BranchHandoffs {
   }
   start(id) {
     const w = this.workspace, branch = w.agent(id);
-    if (!branch.parentId || (branch.provider && branch.provider !== 'codex') || branch.role === 'coordinator') throw fail('Choose a local Codex branch to hand back.');
+    if (!branch.parentId || (branch.provider && !['codex', 'claude'].includes(branch.provider)) || branch.role === 'coordinator') throw fail('Choose a local Codex or Claude branch to hand back.');
     if (this.incoming(id)) throw fail('A child branch is delivering its handoff here. Wait for that delivery before handing this parent back.');
     if (this.active(id)) return { id, parentId: branch.parentId };
     if (w.summaryJobs.has(id)) throw fail('Wait for the current summary preparation before handing back.');
-    if (!branch.canSend || !w.rpc.ready) throw fail('Reconnect a branch that accepts input before handing back.');
+    if (!branch.canSend || !this.ready(branch)) throw fail('Reconnect a branch that accepts input before handing back.');
     const record = this.records.get(id) || { clientId: `ccng-handoff-${randomUUID()}` };
     if (record.archiveUncertain) throw fail('Native archive confirmation was lost. Inspect the native branch before closing its retained view; the summary was already delivered.');
     // A new explicit attempt follows user review; closed historical questions
@@ -56,7 +57,7 @@ export class BranchHandoffs {
   async until(branch, check, detail, timeout = this.timeout) {
     const w = this.workspace, deadline = Date.now() + timeout;
     while (true) {
-      if (!w.rpc.ready || w.agents.get(branch.id) !== branch) throw fail('Native connection or branch changed. The branch is kept; reconnect and retry.');
+      if (!this.ready(branch) || w.agents.get(branch.id) !== branch) throw fail('Native connection or branch changed. The branch is kept; reconnect and retry.');
       if (await check()) return;
       if (Date.now() >= deadline) throw fail(`${detail} The branch is kept. Resolve its pending work and retry Hand back & close.`);
       await new Promise(resolve => {
@@ -66,11 +67,13 @@ export class BranchHandoffs {
     }
   }
   async read(branch) {
+    if (branch.provider === 'claude') { await this.workspace.claude.inspectHandoff(branch); return branch.thread; }
     const { thread } = await this.workspace.rpc.call('thread/read', { threadId: branch.id });
     if (!thread || thread.id !== branch.id) throw fail('Codex did not return the exact branch. It remains open.');
     branch.thread = thread; return thread;
   }
   async checkpoint(branch, record) {
+    if (branch.provider === 'claude') return this.claudeCheckpoint(branch, record);
     const w = this.workspace;
     this.state(branch, record, 'waiting', 'Waiting for branch requests to be answered before its safe checkpoint.');
     await this.until(branch, async () => { await this.read(branch); this.observeQuestions(branch); this.checkQuestions(branch, record); return !attention(branch); }, 'The branch still needs an answer.');
@@ -122,6 +125,69 @@ export class BranchHandoffs {
     if (goal?.status === 'active') await pauseCodexGoal(w.rpc, branch.id);
     await this.settled(branch);
   }
+  async claudeTurn(branch, record, key, text, timeout = this.timeout) {
+    const w = this.workspace;
+    // Claude input streaming can acknowledge queued text during an older turn.
+    // Enqueue only at idle and bind both receipt and completion to this UUID.
+    if (!record[key]) {
+      await this.until(branch, async () => {
+        const state = await w.claude.inspectHandoff(branch);
+        this.observeQuestions(branch); this.checkQuestions(branch, record);
+        return state.status === 'idle' && !state.queuedInputIds.length && !attention(branch);
+      }, 'Waiting for Claude to finish its current turn before the handback request.');
+      const context = await w.instructionContext(branch);
+      const instructions = Object.values(context).map(part => part.value).join('\n\n');
+      this.checkQuestions(branch, record);
+      if (attention(branch)) throw fail('Claude needs an answer before handback. The branch is kept.');
+      const request = { messageId: randomUUID(), text };
+      record[key] = request; // Acceptance may be uncertain even if send throws.
+      try {
+        await w.claude.send(branch, text, { clientMessageId: request.messageId, internal: true, requireIdle: true, instructions,
+          stillOpen: () => w.agents.get(branch.id) === branch && !attention(branch) });
+      } catch (error) {
+        // Only a definitive pre-enqueue rejection permits a fresh request.
+        // A lost/uncertain acknowledgement must retain this exact UUID.
+        if (error.code === 'native_input_not_sent') delete record[key];
+        throw error;
+      }
+    }
+    const request = record[key]; let completion;
+    await this.until(branch, async () => {
+      const state = await w.claude.inspectHandoff(branch);
+      this.observeQuestions(branch); this.checkQuestions(branch, record);
+      completion = state.completions?.find(item => item.messageIds.includes(request.messageId)) || state.lastCompleted;
+      if (!completion?.messageIds.includes(request.messageId)) return false;
+      if (completion.status !== 'completed') {
+        delete record[key];
+        if (key === 'claudeSummary') delete record.claudeCheckpoint;
+        throw fail('The Claude handback request failed. The branch remains open; an explicit retry can request a new checkpoint.');
+      }
+      return state.status === 'idle' && !attention(branch) && await w.claude.handoffReceipt(branch, request);
+    }, 'Claude handback completion and exact native receipt remain unconfirmed; no request was repeated.', timeout);
+    return completion;
+  }
+  async claudeCheckpoint(branch, record) {
+    this.state(branch, record, 'waiting', 'Waiting for Claude to finish its active turn and for branch requests to be answered.');
+    await this.claudeTurn(branch, record, 'claudeCheckpoint', checkpoint);
+    this.state(branch, record, 'stopping', 'Claude completed its checkpoint. Verifying local background work.');
+    await this.settled(branch);
+  }
+  async prepareSummary(branch, record) {
+    if (branch.provider !== 'claude') return this.workspace.generateSummary(branch);
+    const w = this.workspace;
+    await w.refreshTasks(branch.id);
+    const prompt = summaryPrompt(branch.goal, branch.tracker?.tasks) + '\nReturn only a JSON object with one string field named "summary".';
+    const completion = await this.claudeTurn(branch, record, 'claudeSummary', prompt, w.summaryTimeout);
+    if (completion.sequence !== branch.handoffCompletedSequence) {
+      delete record.claudeSummary; delete record.claudeCheckpoint;
+      throw fail('Claude completed newer work after this summary. The branch is kept; retry to prepare a current summary.');
+    }
+    let text;
+    try { text = readSummary(completion.text, 'Claude'); }
+    catch (error) { delete record.claudeSummary; throw error; } // Completed invalid output can be regenerated on explicit retry.
+    branch.returnSummary = { text, turnId: record.claudeSummary.messageId, delivered: false }; w.changed();
+    return branch.returnSummary;
+  }
   async pages(method, params) {
     const rows = [], cursors = new Set(); let cursor;
     do {
@@ -135,6 +201,11 @@ export class BranchHandoffs {
   }
   async settled(branch) {
     const w = this.workspace;
+    if (branch.provider === 'claude') {
+      const state = await w.claude.inspectHandoff(branch);
+      if (!state.safe || attention(branch)) throw fail(state.reason || 'Claude still has local work or a pending request. The branch remains open.');
+      return;
+    }
     const descendants = await this.pages('thread/list', { ancestorThreadId: branch.id, sourceKinds, modelProviders: [], limit: 100 });
     for (const candidate of [branch, ...descendants]) {
       const { thread } = await w.rpc.call('thread/read', { threadId: candidate.id });
@@ -146,6 +217,8 @@ export class BranchHandoffs {
     }
   }
   async received(parentId, record) {
+    const parent = this.workspace.agent(parentId);
+    if (parent.provider === 'claude') return this.workspace.claude.handoffReceipt(parent, { messageId: record.claudeDeliveryId, text: record.messageText });
     // Exact native identity, never matching summary text or treating RPC ACK as
     // durable delivery. Bound history reads while permitting safe explicit retry.
     let cursor;
@@ -161,13 +234,22 @@ export class BranchHandoffs {
   }
   async run(branch, record) {
     const w = this.workspace;
+    if (branch.provider === 'claude' && !record.summary && record.claudeSummary) {
+      const state = await w.claude.inspectHandoff(branch);
+      const completed = state.completions.find(item => item.messageIds.includes(record.claudeSummary.messageId));
+      // A completed summary can become stale while an earlier receipt check
+      // failed and ordinary follow-up work was allowed. Uncertain inputs stay.
+      if (completed && completed.sequence < state.completedSequence) {
+        delete record.claudeSummary; delete record.claudeCheckpoint;
+      }
+    }
     if (record.summary && !record.delivered && !record.sendAttempted && record.summaryTurnId !== branch.lastCompletedTurnId) {
-      delete record.summary; delete record.checkpointTurn;
+      delete record.summary; delete record.checkpointTurn; delete record.claudeCheckpoint; delete record.claudeSummary;
     }
     if (!record.summary) {
       await this.checkpoint(branch, record);
       this.state(branch, record, 'summarizing', 'Preparing the branch conclusions and unfinished work.');
-      const summary = await w.generateSummary(branch); record.summary = summary.text; record.summaryTurnId = summary.turnId;
+      const summary = await this.prepareSummary(branch, record); record.summary = summary.text; record.summaryTurnId = summary.turnId;
     }
     this.state(branch, record, 'waiting', 'Waiting for the parent tab and any parent requests. You can switch tabs.');
     await this.until(branch, async () => {
@@ -179,7 +261,9 @@ export class BranchHandoffs {
           return false;
         }
       }
-      const parent = w.agent(branch.parentId); await this.read(parent);
+      const parent = w.agent(branch.parentId);
+      if ((parent.provider || 'codex') !== (branch.provider || 'codex')) throw fail('Branch and parent native providers differ. The branch is kept.');
+      await this.read(parent);
       return parent.canSend && !attention(parent) && !w.returnJobs.has(parent.id) && !w.summaryJobs.has(parent.id) && !this.incoming(parent.id);
     }, 'The parent has a pending request, handoff, or no free tab slot.');
     const parent = w.agent(branch.parentId);
@@ -210,14 +294,24 @@ export class BranchHandoffs {
         this.deliveringParents.set(parent.id, branch.id);
         record.messageText = text; record.sendAttempted = true;
         try {
-          const params = { threadId: parent.id, input: [{ type: 'text', text, text_elements: [] }], clientUserMessageId: record.clientId };
-          if (parent.thread.status?.type === 'active') {
-            await w.rpc.call('turn/steer', { ...params, expectedTurnId: parent.turnId });
+          if (parent.provider === 'claude') {
+            record.claudeDeliveryId ||= randomUUID();
+            await w.claude.send(parent, text, { clientMessageId: record.claudeDeliveryId, internal: true, instructions: Object.values(context).map(part => part.value).join('\n\n'),
+              stillOpen: () => w.agents.get(parent.id) === parent && !attention(parent) && this.deliveringParents.get(parent.id) === branch.id });
           } else {
-            const { turn } = await w.rpc.call('turn/start', { ...params, additionalContext: context });
-            if (parent.finishedTurn?.id !== turn.id) { parent.turnId = turn.id; parent.thread.status = { type: 'active', activeFlags: [] }; }
+            const params = { threadId: parent.id, input: [{ type: 'text', text, text_elements: [] }], clientUserMessageId: record.clientId };
+            if (parent.thread.status?.type === 'active') {
+              await w.rpc.call('turn/steer', { ...params, expectedTurnId: parent.turnId });
+            } else {
+              const { turn } = await w.rpc.call('turn/start', { ...params, additionalContext: context });
+              if (parent.finishedTurn?.id !== turn.id) { parent.turnId = turn.id; parent.thread.status = { type: 'active', activeFlags: [] }; }
+            }
           }
         } catch (error) {
+          if (parent.provider === 'claude' && error.code === 'native_input_not_sent') {
+            record.sendAttempted = false; delete record.claudeDeliveryId; delete record.messageText;
+            throw error;
+          }
           if (!await this.received(parent.id, record)) throw fail(`Parent delivery is uncertain; no automatic resend. ${error.message}`);
         }
         await this.until(branch, () => this.received(parent.id, record), 'Exact parent receipt is still unconfirmed.', Math.min(this.timeout, 10_000));
@@ -225,16 +319,25 @@ export class BranchHandoffs {
       }
     }
     branch.returnSummary = { ...(branch.returnSummary || {}), text: record.summary, delivered: true };
-    this.state(branch, record, 'closing', 'Parent receipt confirmed. Rechecking local work before archiving the branch.');
+    this.state(branch, record, 'closing', 'Parent receipt confirmed. Rechecking local work before closing the branch.');
     await this.settled(branch);
     // Reverify all links immediately before archive, including work added since
     // the first transfer. Failed/partial transfers retain both views and data.
     await w.beads.handoff(branch.cwd, branch.id, parent.id);
     this.checkQuestions(branch, record);
-    record.archiveUncertain = true;
-    const archived = await w.rpc.call('thread/archive', { threadId: branch.id });
-    if (!archived || typeof archived !== 'object' || Array.isArray(archived)) throw fail('Codex did not confirm branch archiving. Its delivered summary and retained branch view remain available.');
-    record.archiveUncertain = false;
+    if (branch.provider === 'claude') {
+      await w.claude.closeForHandoff(branch);
+    } else {
+      record.archiveUncertain = true;
+      const archived = await w.rpc.call('thread/archive', { threadId: branch.id });
+      if (!archived || typeof archived !== 'object' || Array.isArray(archived)) throw fail('Codex did not confirm branch archiving. Its delivered summary and retained branch view remain available.');
+      record.archiveUncertain = false;
+    }
+    if (branch.provider === 'claude') {
+      // The adapter reuses retained records on reopen. These process-local gates
+      // must not make preserved native history permanently read-only.
+      delete branch.handoff; delete branch.returnSummary;
+    }
     w.agents.delete(branch.id); w.watched.delete(branch.id); w.coordinator?.closed(branch.id);
     this.completions.push({ branchId: branch.id, parentId: parent.id }); this.completions = this.completions.slice(-64);
     this.records.delete(branch.id); w.changed();

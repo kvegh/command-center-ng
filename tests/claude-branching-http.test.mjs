@@ -201,7 +201,7 @@ for (const mode of ['auto', 'default']) test(`Claude branch parent links and ${m
   assert.deepEqual(child.questions, []); assert.equal(child.status, 'idle');
   assert.equal(f.providerCalls, 0); assert.equal(f.runtime.runs.size, 0); assert.equal(f.runtime.starts.size, 0);
 
-  for (const action of ['summary', 'return', 'handoff']) {
+  for (const action of ['summary', 'return']) {
     const rejected = await f.authenticated(f.route(childId, action), action === 'return' ? { text: 'Synthetic summary.' } : {});
     assert.equal(rejected.statusCode, 409, JSON.stringify(rejected.json()));
     assert.match(rejected.json().error, /Claude|Codex|not supported|not available/i);

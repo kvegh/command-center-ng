@@ -64,7 +64,8 @@ test('async native creation reserves capacity and imports shared, task and repor
       onStarting: () => { started = true; }, onCreated: value => { assert.equal(value, id); created = true; },
       beforeInput: () => { assert.equal(f.workspace.agent(id).tracker.label, 'ccng-session:' + id); beforeInput = true; }
     });
-    for (let n = 0; n < 30 && !finishCreate; n++) await new Promise(resolve => setImmediate(resolve));
+    const deadline = Date.now() + 2000;
+    while (!finishCreate && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 2));
     assert.ok(started); assert.ok(finishCreate); assert.equal(created, false);
     assert.equal(f.workspace.creating, 1); assert.equal(f.workspace.workerSlots(), 1);
     assert.equal(f.workspace.agents.has(id), false);

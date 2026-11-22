@@ -15,9 +15,9 @@ export function isBranchControlMessage(text) {
   return String(text).startsWith(SUMMARY_REQUEST) || String(text).startsWith(HANDOFF_CHECKPOINT_REQUEST) || String(text).startsWith('Branch summary from "');
 }
 
-export function readSummary(text) {
+export function readSummary(text, provider = 'Codex') {
   let summary;
   try { summary = JSON.parse(text).summary; } catch { /* Report invalid model output below. */ }
-  if (typeof summary !== 'string' || !summary.trim() || summary.trim().length > SUMMARY_LIMIT) throw Object.assign(new Error('Codex did not return a concise summary. Try preparing it again.'), { status: 502 });
+  if (typeof summary !== 'string' || !summary.trim() || summary.trim().length > SUMMARY_LIMIT) throw Object.assign(new Error(`${provider} did not return a concise summary. Try preparing it again.`), { status: 502 });
   return summary.trim();
 }

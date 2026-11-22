@@ -162,8 +162,10 @@ every branch Beads task to the parent, preserving task states, ownership,
 dependencies and original branch labels. The parent receives a summary plus
 references to complete branch history and task records.
 
-Archive and close only after exact native parent-message receipt, verified task
-links and fresh native lifecycle checks. Pending requests remain manual. Failed
+Codex archives its branch; Claude closes its settled owned SDK process via input
+EOF and retains native history. Claude waits for an active turn to finish before
+enqueueing its checkpoint. Close only after exact native parent-message receipt,
+verified task links and fresh native lifecycle checks. Pending requests remain manual. Failed
 or uncertain delivery retains a recoverable branch without blind resending.
 Users may leave the tab while the existing backend finishes the operation;
 background completion must not change another tab's selection, draft or focus.
@@ -173,7 +175,8 @@ the new explicitly requested action does not require a second review click.
 
 Navigation remains separate: Back to parent does not send, archive, or complete
 the child. Native context preservation and the summary/close lifecycle were
-verified with real Codex conversations.
+verified with real Codex conversations. Claude source tests use controlled SDK
+streams; actual model/browser acceptance remains separate.
 
 ## Task outcomes and continuation boundaries
 

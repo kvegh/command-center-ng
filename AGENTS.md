@@ -1072,3 +1072,15 @@ requests; do not infer approval from provider selection or use unrestricted
 native flags to avoid prompts. Mistral branching is unavailable. Native session
 load may initialize engine/MCP activity and is not a read-only history probe.
 Do not claim real-runtime/browser verification from controlled fixtures.
+
+
+## Approved Claude branch handback
+
+The user explicitly requested extending Hand back & close to Claude on
+2026-11-22. This authorizes that feature within the existing SDK/backend and
+supersedes the older Codex-only handback restriction for this scope. Preserve
+manual requests, exact native receipt, existing task states/labels, local-only
+ownership, unknown-delivery guards and native history. Claude has no archive API;
+release its settled owned process with input EOF only after verified parent receipt.
+Other deferred Claude integration remains deferred. The user explicitly directed
+**deployment later** during this implementation; do not deploy 1.47.0 until asked.

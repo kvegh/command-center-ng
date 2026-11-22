@@ -57,11 +57,12 @@ export function BranchHandoff({ handoff, connected, provider = 'codex', starting
   const [error, setError] = useState('');
   const posting = useRef(false);
   const pending = starting || submitting || handoffActive(handoff);
-  const disabled = !connected || provider !== 'codex' || pending || unsentImages > 0;
+  const supported = provider === 'codex' || provider === 'claude';
+  const disabled = !connected || !supported || pending || unsentImages > 0;
   const failed = handoff?.phase === 'failed';
   const problem = requestError || error || handoff?.error;
-  const title = provider !== 'codex' ? 'Branch handoff is currently available for Codex only'
-    : !connected ? 'Connect the local Codex runtime to hand this branch back'
+  const title = !supported ? 'Branch handoff is currently available for Codex and Claude only'
+    : !connected ? `Connect the local ${provider === 'claude' ? 'Claude' : 'Codex'} runtime to hand this branch back`
       : unsentImages ? 'Send or remove draft images before handing this branch back'
         : 'Transfer tasks back to parent, summarize and close branch';
   return <div className="branch-handoff">

@@ -7,6 +7,17 @@ For design rationale, alternatives and implementation references, see the
 [decision history](../design_decisions_history.md). Earlier detailed release
 text remains available in the [archived README](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.47.0 — Hand Claude branch results back to the parent
+
+**Hand back & close** now supports local Claude branches alongside Codex. One
+click waits for a safe checkpoint, prepares a concise summary, links every branch
+task to the parent without changing its state and verifies native parent receipt
+before closing the child tab. Claude's native history remains available to reopen.
+
+Pending questions and approvals stay manual. Active turns and local background
+work must settle before closure. A failed or uncertain operation keeps the branch
+and its summary; retry avoids duplicate delivery. Existing Codex behavior remains.
+
 ## 1.46.0 — Optional local Mistral Vibe integration
 
 Adds a third worker provider through the official local `vibe-acp` interface,

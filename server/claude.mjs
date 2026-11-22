@@ -268,7 +268,7 @@ export class ClaudeSessions extends EventEmitter {
       if (this.stopped) throw fail('Command Center is shutting down; no Claude process was started.', 503);
       if (!stillOpen()) throw fail('The worker was closed before starting its Claude process.');
       const inputs = new Inputs(), abortController = new AbortController();
-      const job = { inputs, abortController, turnId: null, result: null, nativeStateSeen: false, streams: new Map() };
+      const job = { inputs, abortController, turnId: null, result: null, nativeStateSeen: false, streams: new Map(), pendingInputs: new Map(), turnInputIds: new Set(), backgroundTasks: new Map(), backgroundTrackingValid: true, handoffStateSeen: false, handoffIdle: false, closing: false };
       this.runs.set(agent.id, job); agent.externalSession = false; agent.canSend = true; agent.observingOnly = false; agent.managementNotice = null;
       agent.permissionMode = null; agent.permissionChange = null; agent.permissionSettingsAvailable = false;
       try {
@@ -289,35 +289,52 @@ export class ClaudeSessions extends EventEmitter {
       } catch (error) { this.runs.delete(agent.id); throw error; }
       return job;
   }
-  async send(agent, text, { instructions = '', stillOpen = () => true, priority, images = [], report = false, reportSetting = false } = {}) {
-    this.ready(); images = validateImages(images); let job = this.runs.get(agent.id);
-    if (agent.freshBranch && !report && !reportSetting && typeof this.sdk.renameSession === 'function') {
-      const title = text.trim().split('\n')[0].slice(0, 120) || 'Image message';
-      await this.sdk.renameSession(agent.nativeSessionId, title, { dir: agent.cwd });
-      if (!stillOpen()) throw fail('The worker was closed before sending its Claude message.');
-      agent.name = title; agent.goal = title; agent.freshBranch = false;
-    }
-    if (!job || this.starts.has(agent.id)) {
-      let start = this.starts.get(agent.id);
-      if (!start) { start = this.startRun(agent, instructions, stillOpen); this.starts.set(agent.id, start); }
-      try { job = await start; } finally { if (this.starts.get(agent.id) === start) this.starts.delete(agent.id); }
-      if (!stillOpen()) throw fail('The worker was closed before sending its Claude message.');
-    }
-    const messageId = randomUUID(); agent.runError = null;
-    if (!agent.turnId) { job.turnId = messageId; agent.turnId = messageId; agent.thread.status = { type: 'active' }; }
-    const timestamp = new Date().toISOString();
-    const syntheticInput = report === true || reportSetting === true;
-    if (!syntheticInput) put(agent, { id: messageId + ':0', nativeMessageId: messageId, turnId: job.turnId, type: 'user', text, ...(images.length ? { images } : {}), state: 'completed', timestamp, timestampSource: 'received', inputState: 'queued' });
-    const content = images.length ? [...images.map(image => ({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.dataUrl.slice(image.dataUrl.indexOf(',') + 1) } })), ...(text ? [{ type: 'text', text }] : [])] : text;
+  async send(agent, text, { instructions = '', stillOpen = () => true, priority, images = [], report = false, reportSetting = false, clientMessageId, internal = false, requireIdle = false } = {}) {
+    let inputAttempted = false;
     try {
-      job.inputs.push({ type: 'user', session_id: agent.nativeSessionId, uuid: messageId, timestamp, parent_tool_use_id: null, ...(syntheticInput ? { isSynthetic: true } : {}), ...(priority ? { priority } : {}), message: { role: 'user', content } });
+      this.ready(); images = validateImages(images); let job = this.runs.get(agent.id);
+      if (clientMessageId !== undefined && (typeof clientMessageId !== 'string' || !uuid.test(clientMessageId))) throw fail('Choose a valid Claude message identity.', 400);
+      if (job?.closing) throw fail('This Claude process is closing after handback; no message was sent.');
+      if (requireIdle && this.handoffBlocker(agent, job, { allowUnstarted: true, allowCompletedFailure: internal && requireIdle })) throw fail('Claude is no longer idle; the handback request was not sent.');
+      if (agent.freshBranch && !report && !reportSetting && !internal && typeof this.sdk.renameSession === 'function') {
+        const title = text.trim().split('\n')[0].slice(0, 120) || 'Image message';
+        await this.sdk.renameSession(agent.nativeSessionId, title, { dir: agent.cwd });
+        if (!stillOpen()) throw fail('The worker was closed before sending its Claude message.');
+        agent.name = title; agent.goal = title; agent.freshBranch = false;
+      }
+      if (!job || this.starts.has(agent.id)) {
+        let start = this.starts.get(agent.id);
+        if (!start) { start = this.startRun(agent, instructions, stillOpen); this.starts.set(agent.id, start); }
+        try { job = await start; } finally { if (this.starts.get(agent.id) === start) this.starts.delete(agent.id); }
+        if (!stillOpen()) throw fail('The worker was closed before sending its Claude message.');
+      }
+      if (job.closing) throw fail('This Claude process is closing after handback; no message was sent.');
+      if (requireIdle && this.handoffBlocker(agent, job, { allowUnstarted: true, allowCompletedFailure: internal && requireIdle })) throw fail('Claude is no longer idle; the handback request was not sent.');
+      const messageId = clientMessageId ?? randomUUID();
+      if (job.pendingInputs.has(messageId) || job.turnInputIds.has(messageId) || agent.handoffCompletions?.some(item => item.messageIds.includes(messageId))) throw fail('This Claude message identity was already submitted; verify native history before retrying.');
+      agent.runError = null;
+      if (!agent.turnId) { job.turnId = messageId; agent.turnId = messageId; agent.thread.status = { type: 'active' }; }
+      const timestamp = new Date().toISOString();
+      const syntheticInput = report === true || reportSetting === true;
+      if (!syntheticInput) put(agent, { id: messageId + ':0', nativeMessageId: messageId, turnId: job.turnId, type: 'user', text, ...(images.length ? { images } : {}), state: 'completed', timestamp, timestampSource: 'received', inputState: 'queued' });
+      const content = images.length ? [...images.map(image => ({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.dataUrl.slice(image.dataUrl.indexOf(',') + 1) } })), ...(text ? [{ type: 'text', text }] : [])] : text;
+      // Queue acceptance is not native receipt. Keep every input pending until an
+      // exact native user echo arrives, including hidden report inputs.
+      job.pendingInputs.set(messageId, text);
+      try {
+        inputAttempted = true;
+        job.inputs.push({ type: 'user', session_id: agent.nativeSessionId, uuid: messageId, timestamp, parent_tool_use_id: null, ...(syntheticInput ? { isSynthetic: true } : {}), ...(priority ? { priority } : {}), message: { role: 'user', content } });
+      } catch (error) {
+        const queued = agent.messages.find(item => item.nativeMessageId === messageId && item.inputState === 'queued');
+        if (queued) put(agent, { ...queued, inputState: 'unconfirmed' });
+        this.changed(agent); throw error;
+      }
+      this.changed(agent);
+      return { turnId: job.turnId, messageId };
     } catch (error) {
-      const queued = agent.messages.find(item => item.nativeMessageId === messageId && item.inputState === 'queued');
-      if (queued) put(agent, { ...queued, inputState: 'unconfirmed' });
-      this.changed(agent); throw error;
+      if (!inputAttempted && error && typeof error === 'object') error.code = 'native_input_not_sent';
+      throw error;
     }
-    this.changed(agent);
-    return { turnId: job.turnId, messageId };
   }
   async consume(agent, job) {
     try { for await (const message of job.query) {
@@ -330,6 +347,17 @@ export class ClaudeSessions extends EventEmitter {
         agent.observeError = null;
       }
       rememberSubagents(agent, message);
+      if (message.type === 'user' && message.session_id === agent.nativeSessionId && message.parent_tool_use_id == null && job.pendingInputs.has(message.uuid)) {
+        const text = blocks(message.message).filter(block => block.type === 'text').map(block => block.text || '').join('\n');
+        if (text === job.pendingInputs.get(message.uuid)) { job.pendingInputs.delete(message.uuid); job.turnInputIds.add(message.uuid); }
+      }
+      if (message.type === 'system' && message.subtype === 'background_tasks_changed') {
+        // Native replacement snapshots cover both background Bash and subagents.
+        // Edge notifications have unspecified ordering and must not mutate this set.
+        const tasks = message.tasks;
+        job.backgroundTrackingValid = message.session_id === agent.nativeSessionId && Array.isArray(tasks) && tasks.every(task => typeof task?.task_id === 'string' && task.task_id && typeof task.task_type === 'string');
+        if (job.backgroundTrackingValid) job.backgroundTasks = new Map(tasks.map(task => [task.task_id, { id: task.task_id, type: task.task_type, description: bounded(task.description) }]));
+      }
       const parentMessage = message.parent_tool_use_id == null;
       const subagent = subagentOf(agent, message);
       // Native parent tool IDs separate interleaved streams; child text must
@@ -373,6 +401,8 @@ export class ClaudeSessions extends EventEmitter {
       }
       if (message.type === 'system' && message.subtype === 'permission_denied') put(agent, { id: message.uuid, turnId: job.turnId, type: 'activity', text: bounded(message.message || message.decision_reason || 'Claude denied a tool call.'), state: 'failed' });
       if (message.type === 'system' && message.subtype === 'session_state_changed') {
+        job.handoffStateSeen ||= message.session_id === agent.nativeSessionId;
+        job.handoffIdle = message.session_id === agent.nativeSessionId && message.state === 'idle';
         job.nativeStateSeen = true;
         if (message.state === 'idle' && job.result) this.finishTurn(agent, job);
         else if (message.state === 'running' || message.state === 'requires_action') { job.turnId ||= randomUUID(); agent.turnId = job.turnId; agent.thread.status = { type: 'active', activeFlags: message.state === 'requires_action' ? ['waitingOnApproval'] : [] }; }
@@ -389,6 +419,12 @@ export class ClaudeSessions extends EventEmitter {
     finally {
       job.inputs.close();
       if (this.runs.get(agent.id) === job) {
+        if (job.pendingInputs.size || job.turnInputIds.size || job.turnId || job.backgroundTasks.size || !job.backgroundTrackingValid || agent.questions.length || [...this.requests.keys()].some(key => JSON.parse(key)[0] === agent.id)) {
+          // An ended process is not proof that tracked work completed. Preserve
+          // uncertainty after EOF instead of turning missing evidence into idle.
+          agent.runError ||= 'Claude process ended without confirming all local work settled; keep this conversation for verification.';
+          agent.thread.status = { type: 'systemError' };
+        }
         this.runs.delete(agent.id);
         agent.turnId = null; agent.modelSettingsAvailable = false; agent.modelChange = null; agent.reasoningEffort = null; delete agent.sdkModelOverride;
         agent.permissionSettingsAvailable = false; agent.permissionMode = null;
@@ -406,6 +442,18 @@ export class ClaudeSessions extends EventEmitter {
     if (!message.is_error) {
       const reply = agent.messages.findLast(item => item.type === 'assistant' && !item.subagent && item.branchable !== false && item.turnId === job.turnId && item.nativeMessageId && item.state === 'completed');
       if (reply && reply.nativeStopReason !== 'tool_use') reply.branchable = true;
+    }
+    // Only a same-session result followed by authoritative native idle can
+    // complete a handback request. Legacy UI result fallback stays separate.
+    if (message.session_id === agent.nativeSessionId && job.handoffStateSeen && job.handoffIdle) {
+      if (!Object.hasOwn(agent, 'handoffCompletedSequence')) Object.defineProperties(agent, {
+        handoffCompletedSequence: { value: 0, writable: true },
+        handoffCompletions: { value: [], writable: true }
+      });
+      const completion = { sequence: agent.handoffCompletedSequence + 1, messageIds: [...job.turnInputIds], status: message.is_error ? 'failed' : 'completed', text: bounded(message.result || ''), ...(message.is_error ? { error: agent.runError } : {}) };
+      agent.handoffCompletedSequence = completion.sequence;
+      agent.handoffCompletions = [...(agent.handoffCompletions || []), completion].slice(-32);
+      job.turnInputIds.clear();
     }
     job.result = null; job.turnId = null; agent.turnId = null; agent.thread.status = { type: 'idle' };
     this.emit('completed', agent.id);
@@ -546,6 +594,73 @@ export class ClaudeSessions extends EventEmitter {
       if (choice.effort !== null) { await query.applyFlagSettings({ effortLevel: choice.effort }); agent.reasoningEffort = choice.effort; }
       agent.modelChange.status = 'saved'; this.changed(agent); return { model: agent.model, effort: agent.reasoningEffort, change: agent.modelChange };
     } catch (error) { agent.modelChange = { ...choice, status: 'unconfirmed', error: error.message }; this.changed(agent); throw error; }
+  }
+  handoffBlocker(agent, job, { allowUnstarted = false, allowCompletedFailure = false } = {}) {
+    const lastCompleted = agent.handoffCompletions?.at(-1);
+    const knownCompletedFailure = allowCompletedFailure && lastCompleted?.status === 'failed' && lastCompleted.error === agent.runError;
+    if (agent.observeError || (agent.runError && !knownCompletedFailure)) return agent.observeError || agent.runError;
+    if (this.starts.has(agent.id)) return 'The Claude process is still starting.';
+    if (agent.questions.length || [...this.requests.keys()].some(key => JSON.parse(key)[0] === agent.id)) return 'A native Claude request still needs its human response.';
+    if (job?.pendingInputs.size) return 'Claude has not acknowledged every queued input.';
+    if (job?.turnInputIds.size) return 'Claude has not completed every acknowledged input.';
+    if (job && ((!job.handoffStateSeen && !allowUnstarted) || (job.handoffStateSeen && !job.handoffIdle) || !job.backgroundTrackingValid)) return 'Native Claude lifecycle or background-task tracking is unavailable.';
+    if (job?.backgroundTasks.size) return 'Claude still has local background tasks.';
+    if (agent.turnId || job?.turnId || agent.thread.status?.type !== 'idle' || agent.thread.status?.activeFlags?.length) return 'Claude has not reached a verified idle checkpoint.';
+    return null;
+  }
+  async inspectHandoff(agent) {
+    this.ready();
+    if (this.records.get(agent.id) !== agent) throw fail('This Claude conversation is no longer open.');
+    let job = this.runs.get(agent.id), external = false, error = null;
+    try {
+      if (!job) {
+        const active = await this.active(true);
+        external = active.has(agent.nativeSessionId);
+        await this.refresh(agent);
+        if (this.runs.get(agent.id) !== job) throw fail('The Claude process changed during its handback check.');
+      }
+    } catch (cause) { error = cause.message; }
+    if (this.runs.get(agent.id) !== job) error = 'The Claude process changed during its handback check.';
+    const queuedInputIds = [...(job?.pendingInputs.keys() || [])];
+    const backgroundTasks = [...(job?.backgroundTasks.values() || [])];
+    const status = agent.thread.status?.type;
+    const reason = error || (external ? 'Claude is running in another local process; handback will not take it over.' : this.handoffBlocker(agent, job));
+    return { status: error ? 'unknown' : status === 'idle' ? 'idle' : status === 'active' ? 'active' : 'unknown', safe: !reason, reason, managed: Boolean(job), external, queuedInputIds, backgroundTasks, completedSequence: agent.handoffCompletedSequence || 0, lastCompleted: agent.handoffCompletions?.at(-1) || null, completions: agent.handoffCompletions || [] };
+  }
+  async handoffReceipt(agent, { messageId, text }) {
+    this.ready();
+    if (!uuid.test(messageId || '') || typeof text !== 'string') throw fail('A native Claude receipt needs its exact message identity and text.', 400);
+    // Read the native persisted chain, never the UI's queued local echo. The SDK
+    // offsets from the beginning; scan bounded pages and fail closed beyond them.
+    for (let offset = 0; offset < 30_000; offset += 500) {
+      const messages = await this.sdk.getSessionMessages(agent.nativeSessionId, { dir: agent.cwd, offset, limit: 500 });
+      if (!Array.isArray(messages)) throw fail('Claude native history returned an unsupported receipt format.');
+      const receipt = messages.find(message => message.type === 'user' && message.session_id === agent.nativeSessionId && message.parent_tool_use_id == null && message.uuid === messageId
+        && blocks(message.message).filter(block => block.type === 'text').map(block => block.text || '').join('\n') === text);
+      if (receipt) return true;
+      if (messages.length < 500) return false;
+    }
+    throw fail('Claude receipt verification reached its bounded history limit; the branch remains open.');
+  }
+  async closeForHandoff(agent, { timeoutMs = 10_000 } = {}) {
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 30_000) throw fail('Choose a bounded Claude close timeout.', 400);
+    const originalJob = this.runs.get(agent.id);
+    const state = await this.inspectHandoff(agent);
+    if (!state.safe) throw fail(state.reason);
+    const job = this.runs.get(agent.id);
+    if (job !== originalJob) throw fail('The Claude process changed during its handback close check.');
+    const blocker = this.handoffBlocker(agent, job);
+    if (blocker) throw fail(blocker);
+    if (!job) return { closed: true, historyPreserved: true };
+    // The SDK has no archive API. EOF releases an already settled managed
+    // process without deleting history or force-cancelling native work/requests.
+    job.closing = true; job.inputs.close();
+    let timer;
+    try {
+      await Promise.race([job.done, new Promise((_, reject) => { timer = setTimeout(() => reject(fail('Claude process closure is unconfirmed; keep this branch and verify the existing process before retrying.')), timeoutMs); })]);
+    } finally { clearTimeout(timer); }
+    if (this.runs.has(agent.id) || agent.runError || agent.thread.status?.type !== 'idle') throw fail(agent.runError || 'Claude process closure could not be verified; the branch remains open.');
+    return { closed: true, historyPreserved: true };
   }
   async shutdown() {
     this.stopped = true;
