@@ -3203,3 +3203,27 @@ so there is no application implementation commit for the runtime update.
 Official references: [Codex 0.171.0](https://github.com/openai/codex/releases/tag/rust-v0.171.0),
 [Claude Code 2.1.329](https://github.com/anthropics/claude-code/releases/tag/v2.1.329),
 [Claude manifest](https://downloads.claude.ai/claude-code-releases/2.1.329/manifest.json).
+
+
+## 2026-11-22 — Support Claude branch handback through the existing SDK
+
+Recorded 2026-11-22, 19:06 CET; exact user-request time unknown. The user requested
+Claude support for **Hand back & close** alongside Codex. Extend the existing
+process-local handoff coordinator and official Claude Agent SDK rather than
+adding another service, transport, task store or dependency. Reuse native
+conversation history and the current Beads task-label transfer.
+
+Claude lacks an archive API. Wait for an authoritative idle checkpoint, completed
+summary and exact persisted parent-message receipt, then end input to the settled
+owned process and confirm its exit. Preserve native history for reopening,
+manual questions and approvals, task states/ownership/dependencies, background
+work, external ownership and uncertain-delivery protections. Known completed
+failures may be retried explicitly; unknown input acceptance retains its identity.
+Newer branch work invalidates an old completed summary. Reopening a successfully
+returned branch clears only transient handoff gates.
+
+The user explicitly directed deployment later. This supersedes the normal
+minor-release deployment workflow for 1.47.0; source publication does not imply
+runtime activation. Other deferred Claude integration remains outside this scope.
+
+Implementation commit: `af6cbf3caf348dec23484e5c88fe9814a61ce7ef`. Source release: **1.47.0**.

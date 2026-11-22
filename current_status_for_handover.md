@@ -1,5 +1,26 @@
 # Current status for handover
 
+Source checkpoint: **2026-11-22, 19:06 CET**. Beads remains authoritative.
+
+Published source **1.47.0**, implementation `af6cbf3caf348dec23484e5c88fe9814a61ce7ef`, adds
+Claude **Hand back & close** through the existing SDK and handoff coordinator.
+It preserves task states and native history, verifies exact parent receipt before
+EOF process closure, and retains manual requests and uncertain operations.
+
+The final full suite passed **1,527 checks**, zero failures and one pre-existing
+supplementary-group skip; TypeScript/Vite build passed. Thirty-two dedicated
+Claude transport/workflow regressions cover completion, receipt, background work,
+manual requests, retry recovery, stale summaries and reopening. Independent source
+review reports no remaining blocker. These are controlled source checks, not
+actual provider/browser acceptance or formal full-policy acceptance.
+
+**Deployment is explicitly deferred by the user.** The running installation was
+not updated or restarted. Its last verified version in prior evidence is 1.45.0;
+this source release does not refresh that runtime claim. Deployment and native/
+browser acceptance remain in `bead-wd-3rln`; source delivery is `bead-wd-2zf8`.
+
+### Previous checkpoint (superseded)
+
 Verified checkpoint: **2026-11-19, 10:03 CET**. Beads remains authoritative.
 
 Published and installed **1.43.0**, payload
