@@ -42,12 +42,12 @@ export function MobileChatJump({ compact, conversationRef, conversationId }: Mob
 
   if (!compact || !conversationId || !ready) return null;
   return <div className="mobile-chat-jump">
-    {showTop && <button type="button" onClick={() => {
+    {showTop && <button className="mobile-chat-jump-top" type="button" onClick={() => {
       if (!conversationRef.current) return;
       window.scrollTo({ top: 0, behavior: 'instant' });
       measure();
     }}>Jump to top</button>}
-    {showBottom && <button type="button" onClick={() => {
+    {showBottom && <button className="mobile-chat-jump-bottom" type="button" onClick={() => {
       const conversation = conversationRef.current;
       if (!conversation) return;
       // Reveal the latest history and input without focusing it or opening the keyboard.

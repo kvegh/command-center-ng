@@ -91,8 +91,9 @@ and restore its preferences when returning to desktop. Mobile notifications
 remain postponed. The history-scroll change is part of working 1.3.0; rendered
 phone acceptance has not been established.
 
-Keep accessible chat-navigation buttons at the top of the mobile viewport
-while scrolling. Show Jump to top when the app section above the history has
+Keep accessible chat-navigation buttons at opposite edges of the mobile viewport
+while scrolling: Jump to top at the top right and Jump to bottom at the bottom
+right, respecting device safe areas without blocking interaction between them. Show Jump to top when the app section above the history has
 scrolled out of view. Independently show Jump to bottom when the end of the chat
 is outside the viewport. Both appear in the middle of a long conversation; when
 both ends are visible, neither is needed. Top returns to the page beginning;

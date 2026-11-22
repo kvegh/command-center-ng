@@ -1066,8 +1066,10 @@ Mobile keeps one horizontally scrollable tab row, without hover expansion or
 row switching. It uses one naturally scrolling full-width page with compact
 overview and the chat history in the page flow, followed by a six-line input.
 There is no separate 30-line history scroll area. Long input scrolls internally.
-Accessible navigation controls stay at the top of the viewport while the page
-scrolls. **Jump to top** appears when the app section above history is out of
+Accessible navigation controls stay at opposite edges of the mobile viewport
+while the page scrolls: **Jump to top** at the top right and **Jump to bottom**
+at the bottom right, respecting device safe areas. The space between them remains
+available for normal scrolling and interaction. **Jump to top** appears when the app section above history is out of
 view and returns to the page beginning. **Jump to bottom** appears independently
 when the end of the chat is out of view, revealing the latest chat and its
 composer without focusing the input. Both buttons appear in the middle; neither

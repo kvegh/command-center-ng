@@ -79,6 +79,26 @@ test('mobile CSS and composer share the width/coarse-pointer query and responsiv
   assert.equal(matchingQueries.length, 2, 'initial state and responsive updates use the same query');
 });
 
+test('mobile chat jumps sit at opposite viewport ends without blocking the page between them', () => {
+  assert.equal(declarations('.mobile-chat-jump', [desktopQuery]).display, 'none', 'desktop has no floating mobile controls');
+  for (const media of [[compactQuery], [desktopQuery, compactQuery]]) {
+    const container = declarations('.mobile-chat-jump', media);
+    assert.notEqual(container.display, 'none');
+    assert.equal(container.position, 'fixed', 'scrolling the page cannot pull both controls into the same sticky row');
+    assert.equal(container['pointer-events'], 'none', 'the full-height positioning layer must not intercept history or composer taps');
+    assert.match(container.top, /safe-area-inset-top/); assert.match(container.bottom, /safe-area-inset-bottom/);
+    assert.match(container.top, /^max\([1-9]\d*px,/); assert.match(container.bottom, /^max\([1-9]\d*px,/);
+    const common = declarations('.mobile-chat-jump button', media);
+    assert.equal(common.position, 'absolute'); assert.equal(common['pointer-events'], 'auto');
+    assert.ok(parseFloat(common['min-height']) >= 44, 'each control retains a usable touch target');
+    const top = { ...common, ...declarations('.mobile-chat-jump-top', media) };
+    const bottom = { ...common, ...declarations('.mobile-chat-jump-bottom', media) };
+    assert.equal(top.top, '0'); assert.ok(top.bottom === undefined || top.bottom === 'auto');
+    assert.equal(bottom.bottom, '0'); assert.ok(bottom.top === undefined || bottom.top === 'auto');
+  }
+  assert.ok(declarations('button:focus-visible').outline, 'native keyboard focus remains visible');
+});
+
 test('compact layout uses normal page flow, full-width overview and one scrollable tab row', () => {
   const attribute = (element, name) => element.attributes.properties.find(value => ts.isJsxAttribute(value) && value.name.text === name)?.initializer;
   const panel = findNodes(node => ts.isJsxElement(node) && attribute(node.openingElement, 'id')?.text === 'agent-panel')[0];

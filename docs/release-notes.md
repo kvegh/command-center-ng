@@ -7,6 +7,13 @@ For design rationale, alternatives and implementation references, see the
 [decision history](../design_decisions_history.md). Earlier detailed release
 text remains available in the [archived README](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.47.1 — Put mobile jump buttons at their destination edges
+
+**Jump to top** stays at the top right of the mobile screen, and **Jump to bottom**
+stays at the bottom right. Both respect device safe areas and keep the space
+between them available for normal scrolling. Visibility and scroll destinations
+are unchanged.
+
 ## 1.47.0 — Hand Claude branch results back to the parent
 
 **Hand back & close** now supports local Claude branches alongside Codex. One

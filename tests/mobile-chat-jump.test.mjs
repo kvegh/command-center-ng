@@ -87,6 +87,24 @@ test('visible app section offers an accessible Bottom button using current compo
   f.unmount();
 });
 
+test('Top and Bottom expose separate placement classes while retaining named keyboard-accessible buttons', () => {
+  const f = fixture({ scrollY: 900 });
+  const navigation = f.settled();
+  for (const [label, className] of [['Jump to top', 'mobile-chat-jump-top'], ['Jump to bottom', 'mobile-chat-jump-bottom']]) {
+    const control = button(navigation, label);
+    assert.equal(control.props.className, className, `${label} has its own viewport anchor`);
+    assert.equal(control.type, 'button'); assert.equal(control.props.type, 'button');
+    assert.notEqual(control.props.disabled, true); assert.notEqual(control.props.tabIndex, -1);
+    assert.notEqual(control.props['aria-hidden'], true); assert.equal(typeof control.props.onClick, 'function');
+    assert.ok(renderToStaticMarkup(navigation).includes(`>${label}</button>`), 'visible text supplies the accessible name');
+  }
+  button(navigation, 'Jump to top').props.onClick();
+  assert.equal(button(f.render(), 'Jump to bottom').props.className, 'mobile-chat-jump-bottom', 'Bottom keeps its lower anchor when Top disappears');
+  button(f.render(), 'Jump to bottom').props.onClick();
+  assert.equal(button(f.render(), 'Jump to top').props.className, 'mobile-chat-jump-top', 'Top keeps its upper anchor when Bottom disappears');
+  f.unmount();
+});
+
 test('Top and Bottom appear independently in the middle, at the history beginning and at its end', () => {
   const f = fixture({ scrollY: 599 });
   assert.deepEqual(labels(f.settled()), ['Jump to bottom'], 'one pixel of the section above chat remains visible');
@@ -108,7 +126,7 @@ test('short histories show neither button when the app section and history end a
   const f = fixture();
   f.conversation.start = 100; f.conversation.end = 500; f.composer.end = 700;
   const navigation = f.settled();
-  assert.ok(navigation, 'retain the stable navigation row without moving document content');
+  assert.ok(navigation, 'retain the navigation container without moving document content');
   assert.deepEqual(labels(navigation), []);
   assert.deepEqual(f.calls, []);
   f.unmount();
