@@ -3277,3 +3277,28 @@ full assistant-team broker/container/tmux setup is another. Neither was selected
 or implemented. Parent handback addresses the original branch-return request
 independently. No broader architecture, service, store or messaging permission
 was approved by this discussion. There is no messaging implementation commit.
+
+
+## 2026-11-23 — Enable official Claude lifecycle events and pair completion safely
+
+Recorded 2026-11-23, 05:22 CET; exact original deployment instruction time unknown.
+The real native check confirmed input replay and a successful result but no
+lifecycle events. Use the official SDK query environment to enable documented
+CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS, preserving inherited configuration.
+Support the documented result/idle order in either direction.
+
+Capture the acknowledged inputs at each half and complete only their shared IDs.
+Consume the pair, retain newer queued inputs and require their own completion
+evidence. Reset stale empty halves before a fresh request; retain the pending
+authoritative result separately from legacy UI completion. This avoids counting
+a follow-up as finished by the preceding turn. Treating any successful result or
+previous idle as sufficient was rejected because it can misattribute new work.
+
+Keep the existing per-process adapter, manual requests, background snapshots,
+exact input/session identity and persisted parent receipt. No provider upgrade,
+service, transport, permission, task store or cross-chat messaging was selected.
+The explicit native acceptance script preserves the adapter's query environment.
+
+Official contracts: [session-state events](https://code.claude.com/docs/en/agent-sdk/typescript#sdksessionstatechangedmessage)
+and [native environment options](https://code.claude.com/docs/en/env-vars).
+Implementation commit: `0b7a946863fbc1ab4ecb190b73e5352b8fb3dbb3`. Patch: **1.47.3**.

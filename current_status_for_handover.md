@@ -1,6 +1,7 @@
 # Current status for handover
 
-Checkpoint: **2026-11-23, 05:10 CET**. Working **1.47.3** enables the official
+Checkpoint: **2026-11-23, 05:10 CET**. Source **1.47.3**, implementation
+`0b7a946863fbc1ab4ecb190b73e5352b8fb3dbb3`, enables the official
 Claude lifecycle event option and handles either result/idle ordering. Actual
 1.47.2 native acceptance confirmed replay and successful result but no lifecycle
 events; its completed idle test processes were safely released, history retained.
