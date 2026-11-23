@@ -3302,3 +3302,29 @@ The explicit native acceptance script preserves the adapter's query environment.
 Official contracts: [session-state events](https://code.claude.com/docs/en/agent-sdk/typescript#sdksessionstatechangedmessage)
 and [native environment options](https://code.claude.com/docs/en/env-vars).
 Implementation commit: `0b7a946863fbc1ab4ecb190b73e5352b8fb3dbb3`. Patch: **1.47.3**.
+
+
+## 2026-11-23 — Reserve Send space in the mobile composer
+
+Recorded 2026-11-23, 08:15 CET; exact user-report time unknown. The Android-keyboard
+screenshot shows Attach/Branch/Interrupt without Send. The existing wrapping
+action row can push its last action, Send, onto a lower row. Reserve a44px
+first-row Send cell in the existing compact layout and allow auxiliary labels
+to wrap within their own cells. Keep the existing DOM order, native send gates,
+six-line input, natural page scrolling and desktop layout.
+
+A small responsive CSS correction addresses the evidenced wrapping case without
+adding viewport/keyboard orchestration or another component. No new dependency,
+service, native permission or architecture was selected. Physical keyboard
+behavior is a separate acceptance check.
+
+Implementation commit: `184b8b6e8851062847676128dda33427e9a2426b`. Patch: **1.47.4**.
+
+## 2026-11-23 — Withdraw the proposed agent-to-agent MCP bridge
+
+Recorded 2026-11-23, 08:15 CET; exact user-instruction time unknown. After discussing
+phone-app access to CCNG, the user said to skip the MCP idea because of its
+complexity. Stop that exploration; no bridge, server or remote-control activation
+was implemented. Native attachment findings remain research only and select no
+new integration. This decision does not reopen other deferred work. There is
+no MCP implementation commit.

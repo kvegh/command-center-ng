@@ -1,6 +1,7 @@
 # Current status for handover
 
-Source checkpoint: **2026-11-23, 08:15 CET**. Patch **1.47.4** reserves a first-row
+Source checkpoint: **2026-11-23, 08:15 CET**. Patch **1.47.4**, implementation
+`184b8b6e8851062847676128dda33427e9a2426b`, reserves a first-row
 mobile Send cell while other action labels wrap inside their own space. This
 targets the reported Android-keyboard screenshot where Attach/Branch/Interrupt
 were visible but Send had wrapped lower. Desktop layout, native send gates and
