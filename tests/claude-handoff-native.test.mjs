@@ -309,3 +309,137 @@ test('Claude explicitly enables native user replay while handback still verifies
     assert.equal(await f.runtime.handoffReceipt(f.agent, { messageId: requestId, text: 'checkpoint' }), true);
   } finally { await f.close(); }
 });
+
+
+test('Claude query opts into official lifecycle events while retaining inherited native environment', async () => {
+  const variable = 'CCNG_NATIVE_HANDOFF_TEST_INHERITED';
+  const previous = process.env[variable]; process.env[variable] = 'preserved-test-value';
+  const f = await fixture();
+  try {
+    await f.runtime.send(f.agent, 'checkpoint', { clientMessageId: requestId, internal: true, requireIdle: true });
+    await until(() => f.inputs.length === 1);
+    assert.equal(f.queries[0].options.env.CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS, '1');
+    assert.equal(f.queries[0].options.env[variable], 'preserved-test-value');
+  } finally {
+    await f.close();
+    if (previous === undefined) delete process.env[variable]; else process.env[variable] = previous;
+  }
+});
+
+for (const order of ['result-then-idle', 'idle-then-result']) test(`Claude handback completes the official ${order} lifecycle ordering`, async () => {
+  const f = await fixture();
+  try {
+    await f.runtime.send(f.agent, 'checkpoint', { clientMessageId: requestId, internal: true, requireIdle: true }); await until(() => f.inputs.length === 1);
+    f.emit({ type: 'system', subtype: 'session_state_changed', state: 'running' }); f.emit(f.inputs[0]);
+    const result = { type: 'result', is_error: false, result: 'The current request completed.' };
+    const idle = { type: 'system', subtype: 'session_state_changed', state: 'idle' };
+    f.emit(order === 'result-then-idle' ? result : idle); await tick();
+    assert.equal(f.agent.handoffCompletedSequence, undefined, 'One half of the native pair is not completion.');
+    f.emit(order === 'result-then-idle' ? idle : result);
+    await until(() => f.agent.handoffCompletedSequence === 1);
+    const state = await f.runtime.inspectHandoff(f.agent);
+    assert.equal(state.safe, true); assert.deepEqual(state.lastCompleted.messageIds, [requestId]);
+    assert.equal(state.lastCompleted.text, result.result);
+    assert.equal(await f.runtime.handoffReceipt(f.agent, { messageId: requestId, text: 'checkpoint' }), false, 'Completion does not bypass persisted receipt.');
+  } finally { await f.close(); }
+});
+
+test('Claude enqueue invalidates a preceding idle before accepting the new request result', async () => {
+  const f = await fixture();
+  try {
+    await f.runtime.send(f.agent, 'first checkpoint', { clientMessageId: requestId, internal: true, requireIdle: true }); await until(() => f.inputs.length === 1); await f.complete();
+    assert.equal(f.runtime.runs.get(id).handoffIdle, true);
+    await f.runtime.send(f.agent, 'next summary', { clientMessageId: nextId, internal: true, requireIdle: true }); await until(() => f.inputs.length === 2);
+    assert.equal(f.runtime.runs.get(id).handoffIdle, false);
+    f.emit(f.inputs[1]);
+    f.emit({ type: 'result', is_error: false, result: 'New result without its idle' }); await tick();
+    assert.equal(f.agent.handoffCompletedSequence, 1, 'The old idle cannot settle this new terminal result.');
+    assert.equal((await f.runtime.inspectHandoff(f.agent)).safe, false);
+    f.emit({ type: 'system', subtype: 'session_state_changed', state: 'idle' });
+    await until(() => f.agent.handoffCompletedSequence === 2);
+    const state = await f.runtime.inspectHandoff(f.agent);
+    assert.equal(state.safe, true); assert.deepEqual(state.lastCompleted.messageIds, [nextId]);
+  } finally { await f.close(); }
+});
+
+
+for (const newerEcho of ['before-old-idle', 'after-old-idle']) test(`Claude result-first overlap retains newer input echoed ${newerEcho}`, async () => {
+  const f = await fixture();
+  try {
+    await f.runtime.send(f.agent, 'old input', { clientMessageId: requestId }); await until(() => f.inputs.length === 1);
+    f.emit({ type: 'system', subtype: 'session_state_changed', state: 'running' }); f.emit(f.inputs[0]);
+    await until(() => f.runtime.runs.get(id).pendingInputs.size === 0);
+    f.emit({ type: 'result', is_error: false, result: 'old input completed' }); await tick();
+    await f.runtime.send(f.agent, 'new queued input', { clientMessageId: nextId }); await until(() => f.inputs.length === 2);
+    if (newerEcho === 'before-old-idle') { f.emit(f.inputs[1]); await until(() => f.runtime.runs.get(id).pendingInputs.size === 0); }
+    f.emit({ type: 'system', subtype: 'session_state_changed', state: 'idle' });
+    await until(() => f.agent.handoffCompletedSequence === 1);
+    let state = await f.runtime.inspectHandoff(f.agent);
+    assert.equal(state.safe, false); assert.deepEqual(state.lastCompleted.messageIds, [requestId]);
+    if (newerEcho === 'after-old-idle') { f.emit(f.inputs[1]); await until(() => f.runtime.runs.get(id).pendingInputs.size === 0); }
+    f.emit({ type: 'result', is_error: false, result: 'new input completed' }); await tick();
+    state = await f.runtime.inspectHandoff(f.agent);
+    assert.equal(state.safe, false, 'The old consumed idle cannot settle the newer terminal result.');
+    assert.equal(state.completedSequence, 1);
+    f.emit({ type: 'system', subtype: 'session_state_changed', state: 'idle' });
+    await until(() => f.agent.handoffCompletedSequence === 2);
+    state = await f.runtime.inspectHandoff(f.agent);
+    assert.equal(state.safe, true); assert.deepEqual(state.lastCompleted.messageIds, [nextId]);
+    assert.equal(state.lastCompleted.text, 'new input completed');
+  } finally { await f.close(); }
+});
+
+test('Claude idle-first overlap never attributes a newly queued input to the preceding result', async () => {
+  const f = await fixture();
+  try {
+    await f.runtime.send(f.agent, 'old input', { clientMessageId: requestId }); await until(() => f.inputs.length === 1);
+    f.emit({ type: 'system', subtype: 'session_state_changed', state: 'running' }); f.emit(f.inputs[0]);
+    await until(() => f.runtime.runs.get(id).pendingInputs.size === 0);
+    f.emit({ type: 'system', subtype: 'session_state_changed', state: 'idle' }); await tick();
+    await f.runtime.send(f.agent, 'new queued input', { clientMessageId: nextId }); await until(() => f.inputs.length === 2);
+    f.emit(f.inputs[1]); await until(() => f.runtime.runs.get(id).pendingInputs.size === 0);
+    f.emit({ type: 'result', is_error: false, result: 'old input completed' });
+    await until(() => f.agent.handoffCompletedSequence === 1);
+    let state = await f.runtime.inspectHandoff(f.agent);
+    assert.equal(state.safe, false); assert.deepEqual(state.lastCompleted.messageIds, [requestId]);
+    f.emit({ type: 'system', subtype: 'session_state_changed', state: 'idle' }); await tick();
+    assert.equal((await f.runtime.inspectHandoff(f.agent)).safe, false, 'A new idle alone is not the newer result.');
+    f.emit({ type: 'result', is_error: false, result: 'new input completed' });
+    await until(() => f.agent.handoffCompletedSequence === 2);
+    state = await f.runtime.inspectHandoff(f.agent);
+    assert.equal(state.safe, true); assert.deepEqual(state.lastCompleted.messageIds, [nextId]);
+  } finally { await f.close(); }
+});
+
+test('Claude preserves a first result until its first authoritative idle even without a preceding state event', async () => {
+  const f = await fixture();
+  try {
+    await f.runtime.send(f.agent, 'checkpoint', { clientMessageId: requestId }); await until(() => f.inputs.length === 1);
+    f.emit(f.inputs[0]); f.emit({ type: 'result', is_error: false, result: 'Completed before first state event' });
+    await until(() => f.agent.thread.status.type === 'idle');
+    assert.equal((await f.runtime.inspectHandoff(f.agent)).safe, false);
+    assert.equal(f.agent.handoffCompletedSequence, undefined);
+    f.emit({ type: 'system', subtype: 'session_state_changed', state: 'idle' });
+    await until(() => f.agent.handoffCompletedSequence === 1);
+    const state = await f.runtime.inspectHandoff(f.agent);
+    assert.equal(state.safe, true); assert.deepEqual(state.lastCompleted.messageIds, [requestId]);
+  } finally { await f.close(); }
+});
+
+
+test('Claude ignores repeated settled idle snapshots when a genuinely new input is enqueued', async () => {
+  const f = await fixture();
+  try {
+    await f.runtime.send(f.agent, 'old input', { clientMessageId: requestId }); await until(() => f.inputs.length === 1); await f.complete();
+    f.emit({ type: 'system', subtype: 'session_state_changed', state: 'idle' }); await tick();
+    assert.equal(f.runtime.runs.get(id).handoffIdleInputIds.size, 0);
+    await f.runtime.send(f.agent, 'new input', { clientMessageId: nextId, requireIdle: true }); await until(() => f.inputs.length === 2);
+    assert.equal(f.runtime.runs.get(id).handoffIdleInputIds, null);
+    f.emit(f.inputs[1]); f.emit({ type: 'result', is_error: false, result: 'New input result' }); await tick();
+    assert.equal(f.agent.handoffCompletedSequence, 1);
+    f.emit({ type: 'system', subtype: 'session_state_changed', state: 'idle' });
+    await until(() => f.agent.handoffCompletedSequence === 2);
+    const state = await f.runtime.inspectHandoff(f.agent);
+    assert.equal(state.safe, true); assert.deepEqual(state.lastCompleted.messageIds, [nextId]);
+  } finally { await f.close(); }
+});

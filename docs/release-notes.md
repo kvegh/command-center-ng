@@ -7,6 +7,12 @@ For design rationale, alternatives and implementation references, see the
 [decision history](../design_decisions_history.md). Earlier detailed release
 text remains available in the [archived README](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.47.3 — Observe authoritative Claude completion
+
+Enable official native lifecycle events and recognize completed turns whether
+the result or idle event arrives first. A new input clears earlier idle evidence;
+background work, pending requests and exact parent receipt still gate closure.
+
 ## 1.47.2 — Recognize Claude input acknowledgements
 
 Explicitly request native input replay from the Claude SDK process so completed

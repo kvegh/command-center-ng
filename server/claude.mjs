@@ -268,7 +268,7 @@ export class ClaudeSessions extends EventEmitter {
       if (this.stopped) throw fail('Command Center is shutting down; no Claude process was started.', 503);
       if (!stillOpen()) throw fail('The worker was closed before starting its Claude process.');
       const inputs = new Inputs(), abortController = new AbortController();
-      const job = { inputs, abortController, turnId: null, result: null, nativeStateSeen: false, streams: new Map(), pendingInputs: new Map(), turnInputIds: new Set(), backgroundTasks: new Map(), backgroundTrackingValid: true, handoffStateSeen: false, handoffIdle: false, closing: false };
+      const job = { inputs, abortController, turnId: null, result: null, nativeStateSeen: false, streams: new Map(), pendingInputs: new Map(), turnInputIds: new Set(), backgroundTasks: new Map(), backgroundTrackingValid: true, handoffStateSeen: false, handoffIdle: false, handoffResult: null, handoffIdleInputIds: null, closing: false };
       this.runs.set(agent.id, job); agent.externalSession = false; agent.canSend = true; agent.observingOnly = false; agent.managementNotice = null;
       agent.permissionMode = null; agent.permissionChange = null; agent.permissionSettingsAvailable = false;
       try {
@@ -278,6 +278,9 @@ export class ClaudeSessions extends EventEmitter {
           // Native stdin user echoes require this documented CLI opt-in; SDK
           // queue acceptance alone cannot acknowledge or finish an input.
           extraArgs: { 'replay-user-messages': null },
+          // Official SDK state messages are opt-in; retain native credentials
+          // and other inherited configuration while enabling this stream.
+          env: { ...process.env, CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1' },
           // Reuse a selected per-chat mode on explicit resumes. Unchanged operator
           // defaults do not override a later acknowledged Manual choice.
           ...(permissionMode ? { permissionMode } : {}),
@@ -323,7 +326,15 @@ export class ClaudeSessions extends EventEmitter {
       const content = images.length ? [...images.map(image => ({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.dataUrl.slice(image.dataUrl.indexOf(',') + 1) } })), ...(text ? [{ type: 'text', text }] : [])] : text;
       // Queue acceptance is not native receipt. Keep every input pending until an
       // exact native user echo arrives, including hidden report inputs.
+      if (!job.pendingInputs.size && !job.turnInputIds.size) {
+        // Repeated idle events while fully settled belong to the preceding
+        // cycle, rather than an empty first half of this new request.
+        job.handoffResult = null; job.handoffIdleInputIds = null;
+      }
       job.pendingInputs.set(messageId, text);
+      // A preceding idle cannot settle the new request: require its own
+      // authoritative native idle together with its terminal result.
+      job.handoffIdle = false;
       try {
         inputAttempted = true;
         job.inputs.push({ type: 'user', session_id: agent.nativeSessionId, uuid: messageId, timestamp, parent_tool_use_id: null, ...(syntheticInput ? { isSynthetic: true } : {}), ...(priority ? { priority } : {}), message: { role: 'user', content } });
@@ -407,15 +418,24 @@ export class ClaudeSessions extends EventEmitter {
         job.handoffStateSeen ||= message.session_id === agent.nativeSessionId;
         job.handoffIdle = message.session_id === agent.nativeSessionId && message.state === 'idle';
         job.nativeStateSeen = true;
+        if (job.handoffIdle) {
+          job.handoffIdleInputIds ??= new Set(job.turnInputIds);
+          this.completeHandoffPair(agent, job);
+        }
         if (message.state === 'idle' && job.result) this.finishTurn(agent, job);
         else if (message.state === 'running' || message.state === 'requires_action') { job.turnId ||= randomUUID(); agent.turnId = job.turnId; agent.thread.status = { type: 'active', activeFlags: message.state === 'requires_action' ? ['waitingOnApproval'] : [] }; }
       }
       if (message.type === 'result') {
         job.result = message;
         for (const question of [...agent.questions]) if (question.responding) this.confirm(agent, question.params.toolUseId, question.id);
-        // Older runtimes expose only terminal results; current native state
-        // events distinguish a finished turn from internally coalesced input.
-        if (!job.nativeStateSeen) this.finishTurn(agent, job);
+        let paired = false;
+        if (message.session_id === agent.nativeSessionId) {
+          // Preserve the authoritative result separately from legacy UI finish.
+          // Only IDs acknowledged by BOTH halves belong to this completion.
+          job.handoffResult = { message, inputIds: new Set(job.turnInputIds) };
+          paired = this.completeHandoffPair(agent, job);
+        }
+        if (!job.nativeStateSeen || paired) this.finishTurn(agent, job);
       }
       this.changed(agent);
     } } catch (error) { agent.runError = 'Claude session stopped: ' + error.message; agent.thread.status = { type: 'systemError' }; try { job.query.close?.(); } finally { job.abortController.abort(); } }
@@ -446,20 +466,28 @@ export class ClaudeSessions extends EventEmitter {
       const reply = agent.messages.findLast(item => item.type === 'assistant' && !item.subagent && item.branchable !== false && item.turnId === job.turnId && item.nativeMessageId && item.state === 'completed');
       if (reply && reply.nativeStopReason !== 'tool_use') reply.branchable = true;
     }
-    // Only a same-session result followed by authoritative native idle can
-    // complete a handback request. Legacy UI result fallback stays separate.
-    if (message.session_id === agent.nativeSessionId && job.handoffStateSeen && job.handoffIdle) {
-      if (!Object.hasOwn(agent, 'handoffCompletedSequence')) Object.defineProperties(agent, {
-        handoffCompletedSequence: { value: 0, writable: true },
-        handoffCompletions: { value: [], writable: true }
-      });
-      const completion = { sequence: agent.handoffCompletedSequence + 1, messageIds: [...job.turnInputIds], status: message.is_error ? 'failed' : 'completed', text: bounded(message.result || ''), ...(message.is_error ? { error: agent.runError } : {}) };
-      agent.handoffCompletedSequence = completion.sequence;
-      agent.handoffCompletions = [...(agent.handoffCompletions || []), completion].slice(-32);
-      job.turnInputIds.clear();
-    }
     job.result = null; job.turnId = null; agent.turnId = null; agent.thread.status = { type: 'idle' };
     this.emit('completed', agent.id);
+  }
+  completeHandoffPair(agent, job) {
+    if (!job.handoffResult || !job.handoffIdleInputIds) return false;
+    const { message, inputIds } = job.handoffResult;
+    const messageIds = [...inputIds].filter(id => job.handoffIdleInputIds.has(id));
+    // A same-session result paired with authoritative native idle completes only
+    // their shared inputs. An input queued between the halves stays unsettled.
+    if (!Object.hasOwn(agent, 'handoffCompletedSequence')) Object.defineProperties(agent, {
+      handoffCompletedSequence: { value: 0, writable: true },
+      handoffCompletions: { value: [], writable: true }
+    });
+    const error = message.is_error ? bounded((message.errors || []).join('\n') || 'Claude did not complete this turn.') : null;
+    const completion = { sequence: agent.handoffCompletedSequence + 1, messageIds, status: message.is_error ? 'failed' : 'completed', text: bounded(message.result || ''), ...(error ? { error } : {}) };
+    agent.handoffCompletedSequence = completion.sequence;
+    agent.handoffCompletions = [...agent.handoffCompletions, completion].slice(-32);
+    for (const id of messageIds) job.turnInputIds.delete(id);
+    job.handoffResult = null; job.handoffIdleInputIds = null;
+    // Never reuse a consumed idle to settle a newer queued or acknowledged input.
+    if (job.pendingInputs.size || job.turnInputIds.size) job.handoffIdle = false;
+    return true;
   }
   pending(agent, id, method, params, signal) {
     const key = JSON.stringify([agent.id, id]); if (this.requests.has(key)) return this.requests.get(key).promise;

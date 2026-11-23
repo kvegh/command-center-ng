@@ -571,13 +571,15 @@ wait for checkpoint and summary, confirm the exact summary in native parent
 history, confirm the child tab and owned process close, and reopen the child's
 preserved history. Keep actual pending requests manual. Deployment and this
 native/browser acceptance must be recorded separately from component checks.
-Version 1.47.2 explicitly enables native input replay so completed Claude turns
-can clear their pending inputs; a replay alone never proves persisted receipt.
+Claude explicitly enables native input replay and the official session-state
+event option. Completion handles either native result/idle order; a replay alone
+never proves persisted receipt. The lifecycle option follows the
+[official SDK message contract](https://code.claude.com/docs/en/agent-sdk/typescript#sdksessionstatechangedmessage).
 
 For a real native check against an already deployed installation, run:
 
 ```sh
-node scripts/verify-claude-handback.mjs --install-dir /path/to/installation --expected-version 1.47.2
+node scripts/verify-claude-handback.mjs --install-dir /path/to/installation --expected-version 1.47.3
 ```
 
 Use the existing application owner, approved Claude CLI/SDK and its existing

@@ -103,7 +103,7 @@ try {
           return { behavior: 'deny', message: 'This disposable acceptance test authorizes no tools.' };
         },
         maxTurns: 1, maxBudgetUsd: 1,
-        env: { ...process.env, CLAUDE_CODE_MAX_OUTPUT_TOKENS: '512' }, stderr: () => {} } });
+        env: { ...process.env, ...params.options.env, CLAUDE_CODE_MAX_OUTPUT_TOKENS: '512' }, stderr: () => {} } });
       // Observe metadata without changing native payloads or printing transcript/tool contents.
       const observed = async function* () {
         for await (const message of query) {

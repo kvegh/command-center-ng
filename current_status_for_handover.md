@@ -1,5 +1,24 @@
 # Current status for handover
 
+Checkpoint: **2026-11-23, 05:10 CET**. Working **1.47.3** enables the official
+Claude lifecycle event option and handles either result/idle ordering. Actual
+1.47.2 native acceptance confirmed replay and successful result but no lifecycle
+events; its completed idle test processes were safely released, history retained.
+Full native handback is still unverified.
+
+Installed **1.47.2**, payload `45eae0c933f8cf3542bd0981e535f5c34117ffb2`, passes
+175 installed checks and source/strictHTTPS/auth/asset/mobile-anchor verification.
+Protected settings, saved workers and native profiles/daemons are preserved.
+The frozen correction passes 162 affected checks with no failures/skips. The
+broader run before the final duplicate-idle refinement passed 1,538 checks, zero
+failures and one existing supplementary-group skip; the final refinement is
+covered by the affected rerun. TypeScript/build and syntax checks pass. Result
+and idle snapshots keep newer queued inputs unsettled until their own completion.
+Independent targeted review passes all 11 cases with no remaining concrete
+blocker. Publication/deployment and actual native acceptance remain unfinished.
+
+### Previous checkpoint (superseded)
+
 Checkpoint: **2026-11-23, 05:02 CET**. Source patch **1.47.2**, implementation
 `38c4c0bd528e468b578fe4c675ae6d47f28edfd0`, requests the official
 Claude input-acknowledgement replay flag. The real disposable native test of
