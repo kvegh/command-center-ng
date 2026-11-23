@@ -1,5 +1,42 @@
 # Current status for handover
 
+Verified checkpoint: **2026-11-23, 05:25 CET**. Published and installed **1.47.3**,
+payload `12de43ff803e6b1358d4b9dfaa8be1ddc24b4a17`, implementation
+`0b7a946863fbc1ab4ecb190b73e5352b8fb3dbb3`. Claude parent handback passes
+real native acceptance: fork, checkpoint, JSON summary, exact persisted parent
+receipt, child view/process closure and reopening retained child history. Four
+model turns completed through two isolated SDK queries; all test processes exited
+and the empty test directory was removed. The test disabled built-in/MCP tools
+and hooks and observed zero tool attempts.
+
+The guarded update preserved thirteen protected states, three saved workers,
+workspace/pause/report settings and native CLI/profile/Codex daemon identities.
+Independent verification matches 124 installed source files (complete lockfile
+JSON unchanged after npm formatting), passes strict HTTPS/authentication/assets
+and both listeners, and passes all **184 installed checks** across nine suites.
+The served mobile controls have opposite top/bottom anchors.
+
+Final source checks: **162 affected checks pass**, zero failures/skips; independent
+review passes 11 targeted cases. The broader run before the final duplicate-idle
+refinement passed 1,538 checks, zero failures and one existing supplementary-group
+skip; the final refinement is covered by the affected rerun. TypeScript/build
+and syntax checks pass. This is development verification, not formal full-policy
+acceptance.
+
+Remaining limits: physical phone/browser interaction and actual Beads task
+transfer were not exercised by the real-model test; its task adapter was controlled
+and empty. Existing versioned component regressions cover task transfer and UI
+behavior. Phone acceptance remains separately tracked. General worker messaging
+remains an unselected discussion; no assistant-team runtime was added.
+
+The earlier native checks found missing replay/lifecycle opt-ins and review
+found queued-input pairing races. Both have focused regressions; previous failed
+test histories remain. All release jobs and child review work are terminal.
+This outcome-only document is newer than the installed payload and does not
+require a redundant deployment.
+
+### Previous checkpoint (superseded)
+
 Checkpoint: **2026-11-23, 05:10 CET**. Source **1.47.3**, implementation
 `0b7a946863fbc1ab4ecb190b73e5352b8fb3dbb3`, enables the official
 Claude lifecycle event option and handles either result/idle ordering. Actual
