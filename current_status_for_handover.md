@@ -1,5 +1,25 @@
 # Current status for handover
 
+Delivery checkpoint: **2026-11-23, 08:19 CET**. **1.47.4 is published in source**;
+implementation `184b8b6e8851062847676128dda33427e9a2426b`, initial payload
+`9ced7313ef4ab011feeeb675727b9a7ef909d86b`. The compact toolbar reserves a44px
+first-row Send cell and wraps auxiliary labels within their cells.
+
+The guarded runtime update stopped at its initial native-idle check because
+an existing Claude process reports busy. It stopped before fetching/installing
+source or restarting the app. A separate bounded read confirms live **1.47.3**
+and its prior payload remain unchanged. Do not interrupt that native work to
+deploy this patch. Resume the existing guarded update only after fresh idle
+evidence, with the exact selected published revision and unchanged protections.
+
+All83 affected source checks, TypeScript/build and diff checks pass. Real Android
+keyboard rendering is still unverified; no browser tools were installed. Physical
+phone acceptance stays open. The mobile Send fix is waiting for safe deployment,
+not a new user decision. This outcome-only record is newer than the initial
+source payload.
+
+### Previous checkpoint (superseded)
+
 Source checkpoint: **2026-11-23, 08:15 CET**. Patch **1.47.4**, implementation
 `184b8b6e8851062847676128dda33427e9a2426b`, reserves a first-row
 mobile Send cell while other action labels wrap inside their own space. This
