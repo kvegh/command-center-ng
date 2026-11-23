@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import postcss from 'postcss';
 import ts from 'typescript';
+import React from 'react';
 
 const sheet = postcss.parse(await readFile(new URL('../src/style.css', import.meta.url), 'utf8'));
 const main = ts.createSourceFile('main.tsx', await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -139,6 +140,62 @@ test('mobile history uses document scrolling while the input retains six interna
   assert.equal(input['min-height'], input['max-height']);
   assert.equal(input['overflow-y'], 'auto');
   assert.equal(input.resize, 'none');
+});
+
+test('crowded mobile actions keep Send on the first row without changing native submission order', () => {
+  const classes = node => node.attributes?.properties.find(attribute => ts.isJsxAttribute(attribute)
+    && attribute.name.text === 'className')?.initializer?.text;
+  const submit = findNodes(node => ts.isJsxElement(node) && classes(node.openingElement) === 'send-button')[0];
+  const group = submit.parent;
+  assert.equal(group.openingElement.tagName.getText(main), 'div');
+  const source = ts.transpileModule(`return (${group.getText(main)});`, {
+    fileName: 'composer-actions.tsx', compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const base = { React, ImageAttachmentPicker: () => null, Icon: () => null, draftLocked: false,
+    pasteImages() {}, activeConnected: true, state: { agents: [] }, limits: { maxWorkers: 16 },
+    busy: null, activeNative: {}, canInterrupt: () => true };
+  for (const [role, canBranch, status, expectedAuxiliary] of [
+    ['worker', true, 'running', 3], ['worker', true, 'idle', 2],
+    ['worker', false, 'attention', 2], ['coordinator', true, 'idle', 1],
+  ]) {
+    for (const readyToSend of [false, true]) {
+      const environment = { ...base, active: { id: 'test-worker', name: 'Test worker', role, canBranch, messages: [{}] },
+        activeOwnStatus: status, readyToSend };
+      const element = new Function(...Object.keys(environment), source)(...Object.values(environment));
+      const controls = React.Children.toArray(element.props.children);
+      const send = controls.at(-1);
+      assert.equal(controls.length - 1, expectedAuxiliary);
+      assert.equal(send.type, 'button'); assert.equal(send.props.type, 'submit');
+      assert.equal(send.props['aria-label'], 'Send message');
+      assert.equal(send.props.disabled, !readyToSend, 'layout never bypasses the existing send gate');
+      for (const media of [[compactQuery], [desktopQuery, compactQuery]]) {
+        const actions = declarations('.composer-controls > div', media);
+        const primary = declarations('.composer-controls .send-button', media);
+        const auxiliary = declarations('.composer-controls > div > .button', media);
+        assert.equal(actions.display, 'grid'); assert.equal(actions.width, '100%');
+        const tracks = actions['grid-template-columns'].match(/^repeat\((\d+), minmax\((\d+)px, 1fr\)\) (\d+)px$/);
+        assert.ok(tracks, 'auxiliary tracks and a reserved primary-action track must be bounded');
+        const [, slots, minimum, reserved] = tracks.map(Number);
+        assert.ok(expectedAuxiliary <= slots, 'every rendered auxiliary action fits the first grid row');
+        assert.equal(Number(primary['grid-column']), slots + 1); assert.equal(primary['grid-row'], '1');
+        assert.ok(Number(reserved) >= 44); assert.ok(parseFloat(primary.height) >= 44);
+        const gap = parseFloat(actions.gap);
+        // Check the actual track budget at narrow action widths. This is a CSS
+        // constraint check, not physical browser/Android keyboard emulation.
+        for (const available of [200, 240, 280, 360]) {
+          const flexibleWidth = (available - reserved - slots * gap) / slots;
+          assert.ok(flexibleWidth >= minimum, `${available}px keeps all action cells on one row`);
+        }
+        assert.equal(auxiliary['white-space'], 'normal'); assert.equal(auxiliary['flex-wrap'], 'wrap');
+        assert.equal(auxiliary['overflow-wrap'], 'anywhere', 'long action labels cannot spill into the reserved Send cell');
+        assert.equal(auxiliary['min-width'], '0'); assert.ok(parseFloat(auxiliary['min-height']) >= 44);
+        assert.equal(declarations('.composer', media).overflow, 'visible', 'the shorter keyboard viewport retains document scrolling');
+        assert.equal(declarations('.composer', media)['max-height'], 'none');
+      }
+    }
+  }
+  assert.equal(declarations('.composer-controls > div', [desktopQuery]).display, 'flex', 'desktop action layout is retained');
+  assert.equal(declarations('.send-button', [desktopQuery]).width, '34px');
 });
 
 test('wide coarse phones override saved section sizes while desktop sizing remains available', () => {

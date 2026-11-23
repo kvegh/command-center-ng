@@ -1,5 +1,22 @@
 # Current status for handover
 
+Source checkpoint: **2026-11-23, 08:15 CET**. Patch **1.47.4** reserves a first-row
+mobile Send cell while other action labels wrap inside their own space. This
+targets the reported Android-keyboard screenshot where Attach/Branch/Interrupt
+were visible but Send had wrapped lower. Desktop layout, native send gates and
+the six-line mobile input are unchanged.
+
+All **83 affected checks** pass with zero failures/skips; TypeScript/build and
+diff checks pass. These are controlled JSX/CSS/component checks, not browser
+layout emulation. No existing browser engine or browser-test package was found;
+physical Android keyboard rendering remains unverified. Publication and guarded
+update verification are still pending. Last verified deployment: **1.47.3**.
+
+The user withdrew the proposed agent-to-agent MCP bridge. Related read-only
+attachment research stopped; no voice/MCP/remote-session integration was added.
+
+### Previous checkpoint (superseded)
+
 Verified checkpoint: **2026-11-23, 05:25 CET**. Published and installed **1.47.3**,
 payload `12de43ff803e6b1358d4b9dfaa8be1ddc24b4a17`, implementation
 `0b7a946863fbc1ab4ecb190b73e5352b8fb3dbb3`. Claude parent handback passes

@@ -139,7 +139,7 @@ questions and approvals remain visible. See [chat display and typing](docs/usage
 - Refresh the website automatically after a backend update/restart, saving text drafts first and waiting for unsent images or open forms.
 - Read Markdown, copy messages/code, and paste or attach images to a draft.
 - Keep desktop settings at the bottom of a full-height overview, with scrollable tasks and questions; task-list edges hand vertical scrolling to the sidebar.
-- Use desktop resizing, natural mobile page scrolling with Jump to top at the upper screen edge and Jump to bottom at the lower edge, and three colour themes.
+- Use desktop resizing, natural mobile page scrolling with Jump to top at the upper screen edge and Jump to bottom at the lower edge, a reserved mobile Send control, and three colour themes.
 
 Native checkpoints requiring a fresh human decision stay manual: the Coordinator
 cannot answer them or turn them into reusable permissions.

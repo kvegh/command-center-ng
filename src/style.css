@@ -1088,6 +1088,11 @@ kbd { font-family: inherit; }
      Reset both overflow axes so the desktop shorthand cannot retain a trap. */
   .conversation { flex: none; min-height: 0; max-height: none; overflow: visible; padding: 17px 13px 23px; }
   .composer { flex: none; height: auto; max-height: none; overflow: visible; }
+  /* Keep Send in the first action row when the keyboard reduces visible space.
+     Auxiliary labels wrap inside their cells instead of pushing Send below them. */
+  .composer-controls > div { display: grid; width: 100%; min-width: 0; grid-template-columns: repeat(3, minmax(44px, 1fr)) 44px; align-items: start; }
+  .composer-controls > div > .button { min-width: 0; min-height: 44px; flex-wrap: wrap; white-space: normal; overflow-wrap: anywhere; gap: 4px; padding: 6px; }
+  .composer-controls .send-button { grid-column: 4; grid-row: 1; width: 44px; height: 44px; }
   .composer textarea { font-size: 16px; height: 9.6em; min-height: 9.6em; max-height: 9.6em; line-height: 1.6; overflow-y: auto; resize: none; }
 }
 
