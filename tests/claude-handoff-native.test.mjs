@@ -294,3 +294,18 @@ test('Claude unexpected managed EOF preserves unfinished background and queued-i
     } finally { await f.close(); }
   }
 });
+
+test('Claude explicitly enables native user replay while handback still verifies persisted receipt', async () => {
+  const f = await fixture();
+  try {
+    await f.runtime.send(f.agent, 'checkpoint', { clientMessageId: requestId, internal: true, requireIdle: true });
+    await until(() => f.inputs.length === 1);
+    assert.deepEqual(f.queries[0].options.extraArgs, { 'replay-user-messages': null }, 'The SDK must request the official stream-json user acknowledgement flag.');
+    assert.deepEqual((await f.runtime.inspectHandoff(f.agent)).queuedInputIds, [requestId]);
+    await f.complete();
+    assert.deepEqual((await f.runtime.inspectHandoff(f.agent)).queuedInputIds, []);
+    assert.equal(await f.runtime.handoffReceipt(f.agent, { messageId: requestId, text: 'checkpoint' }), false, 'Live native replay alone does not establish persisted receipt.');
+    f.history.push(f.inputs[0]);
+    assert.equal(await f.runtime.handoffReceipt(f.agent, { messageId: requestId, text: 'checkpoint' }), true);
+  } finally { await f.close(); }
+});

@@ -275,6 +275,9 @@ export class ClaudeSessions extends EventEmitter {
         const permissionMode = this.permissionPreferences.get(agent.id) ?? (this.autoReviewSessions.has(agent.id) ? 'auto' : undefined);
         job.query = this.sdk.query({ prompt: inputs, options: {
           cwd: agent.cwd, pathToClaudeCodeExecutable: this.executable, settingSources: ['user', 'project', 'local'],
+          // Native stdin user echoes require this documented CLI opt-in; SDK
+          // queue acceptance alone cannot acknowledge or finish an input.
+          extraArgs: { 'replay-user-messages': null },
           // Reuse a selected per-chat mode on explicit resumes. Unchanged operator
           // defaults do not override a later acknowledged Manual choice.
           ...(permissionMode ? { permissionMode } : {}),

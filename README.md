@@ -570,7 +570,31 @@ deployment, verify the same workflow with disposable Claude parent/branch chats:
 wait for checkpoint and summary, confirm the exact summary in native parent
 history, confirm the child tab and owned process close, and reopen the child's
 preserved history. Keep actual pending requests manual. Deployment and this
-native/browser acceptance remain pending for 1.47.0.
+native/browser acceptance must be recorded separately from component checks.
+Version 1.47.2 explicitly enables native input replay so completed Claude turns
+can clear their pending inputs; a replay alone never proves persisted receipt.
+
+For a real native check against an already deployed installation, run:
+
+```sh
+node scripts/verify-claude-handback.mjs --install-dir /path/to/installation --expected-version 1.47.2
+```
+
+Use the existing application owner, approved Claude CLI/SDK and its existing
+native authentication/environment. No additional tool installation or credentials
+in command arguments are needed. This makes billable model calls only in two
+new disposable chats, with at most one turn and US$1 per SDK query, no built-in
+or MCP tools and no hooks. It verifies native fork, checkpoint, summary, exact
+persisted parent receipt, child process closure and history reopening. Task-link
+checks use a controlled empty adapter; actual Beads and browser clicks are not
+covered. Original user sessions and configuration are untouched.
+
+The command emits JSON metadata and a final `status: passed` on success. A failed
+check exits nonzero after safe cleanup. If a native request or uncertain work
+prevents safe cleanup, it emits `status: blocked` with the exact disposable IDs
+and retains the process for inspection. Do not blindly retry or cancel it.
+Native history is retained; only the test's own empty temporary directory is
+removed. A successful run leaves no owned model processes.
 
 ### Verify Coordinator tab indicators
 

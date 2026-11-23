@@ -1,5 +1,23 @@
 # Current status for handover
 
+Checkpoint: **2026-11-23, 05:02 CET**. Working patch **1.47.2** requests the official
+Claude input-acknowledgement replay flag. The real disposable native test of
+installed 1.47.1 found that a completed reply left its input pending without it.
+The focused correction has 84 passing source checks and independent SDK review;
+publication, patch deployment and a new native acceptance remain unfinished.
+
+Installed **1.47.1**, payload `c43803243f13be8deeece502913f730a39189970`, passed
+guarded update and independent source/HTTPS/asset/mobile-anchor verification.
+All 174 installed component checks passed. Existing native profiles, protected
+settings and saved workers were preserved. This supersedes the earlier deployment
+deferral after the user explicitly directed Deploy. Physical phone rendering
+and full native handback remain unverified.
+
+General worker-to-worker messaging is under discussion; no architecture or
+implementation was selected. Parent handback does not depend on that decision.
+
+### Previous checkpoint (superseded)
+
 Source checkpoint: **2026-11-22, 20:34 CET**. Source patch **1.47.1**, implementation
 `2d7f808189a4473dcd133c0b48069fa4adbd7d43`, separates mobile **Jump to top** at the top right
 and **Jump to bottom** at the bottom right with safe-area spacing and touch

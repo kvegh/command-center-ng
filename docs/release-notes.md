@@ -7,6 +7,12 @@ For design rationale, alternatives and implementation references, see the
 [decision history](../design_decisions_history.md). Earlier detailed release
 text remains available in the [archived README](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.47.2 — Recognize Claude input acknowledgements
+
+Explicitly request native input replay from the Claude SDK process so completed
+turns clear their pending input. Claude branch handback can then proceed past
+its checkpoint; exact persisted parent receipt remains required before closure.
+
 ## 1.47.1 — Put mobile jump buttons at their destination edges
 
 **Jump to top** stays at the top right of the mobile screen, and **Jump to bottom**
