@@ -3245,3 +3245,35 @@ or service. Deployment remains deferred by the user's existing instruction;
 source checks do not establish phone rendering.
 
 Implementation commit: `2d7f808189a4473dcd133c0b48069fa4adbd7d43`. Source patch: **1.47.1**.
+
+
+## 2026-11-23 — Request official Claude input replay acknowledgements
+
+Recorded 2026-11-23, 05:04 CET; exact user deployment-instruction time unknown. The
+user resumed the earlier deployment deferral with Deploy. The real native
+acceptance exposed completed Claude replies whose inputs remained queued because
+CCNG had not explicitly requested native replay acknowledgements. Enable the
+documented boolean replay-user-messages option through the already approved
+official SDK. Keep exact session/input identity, authoritative completion and
+persisted parent-receipt checks before closing a settled child.
+
+Treating SDK queue acceptance or an assistant reply as delivery proof was rejected
+because neither establishes exact persisted parent receipt. This correction
+changes no provider, transport, native permission or task store. Include a
+repeatable, explicitly invoked disposable native acceptance script with tools,
+MCP and hooks disabled only for the test; retain uncertain work and native history.
+
+Implementation commit: `38c4c0bd528e468b578fe4c675ae6d47f28edfd0`. Patch: **1.47.2**.
+
+## 2026-11-23 — Keep cross-chat messaging at the discussion stage
+
+Recorded 2026-11-23, 05:04 CET; exact request and reply times unknown. The user asked
+whether CCNG should reuse assistant-team for Claude-to-Codex communication, then
+selected further discussion and questioned whether the extra capability is
+needed. Compared that repository with CCNG's existing Coordinator relay.
+
+Direct worker send/reply tools in the existing backend remain one proposal; the
+full assistant-team broker/container/tmux setup is another. Neither was selected
+or implemented. Parent handback addresses the original branch-return request
+independently. No broader architecture, service, store or messaging permission
+was approved by this discussion. There is no messaging implementation commit.

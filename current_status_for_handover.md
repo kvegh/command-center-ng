@@ -1,9 +1,11 @@
 # Current status for handover
 
-Checkpoint: **2026-11-23, 05:02 CET**. Working patch **1.47.2** requests the official
+Checkpoint: **2026-11-23, 05:02 CET**. Source patch **1.47.2**, implementation
+`38c4c0bd528e468b578fe4c675ae6d47f28edfd0`, requests the official
 Claude input-acknowledgement replay flag. The real disposable native test of
 installed 1.47.1 found that a completed reply left its input pending without it.
-The focused correction has 84 passing source checks and independent SDK review;
+The correction passes 153 affected source checks, TypeScript/build and independent
+SDK review;
 publication, patch deployment and a new native acceptance remain unfinished.
 
 Installed **1.47.1**, payload `c43803243f13be8deeece502913f730a39189970`, passed
