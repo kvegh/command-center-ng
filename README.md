@@ -579,7 +579,7 @@ never proves persisted receipt. The lifecycle option follows the
 For a real native check against an already deployed installation, run:
 
 ```sh
-node scripts/verify-claude-handback.mjs --install-dir /path/to/installation --expected-version 1.47.3
+node scripts/verify-claude-handback.mjs --install-dir /path/to/installation --expected-version 1.47.4
 ```
 
 Use the existing application owner, approved Claude CLI/SDK and its existing

@@ -1,5 +1,32 @@
 # Current status for handover
 
+Verified checkpoint: **2026-11-23, 09:37 CET**. Published and installed **1.47.4**,
+payload `ecd03a033a3442c3f5ff1dd15aa1e8adabb30818`, implementation
+`184b8b6e8851062847676128dda33427e9a2426b`. The mobile composer reserves a44px
+first-row Send cell; auxiliary labels wrap within their cells. Desktop layout,
+native send/approval gates and the six-line input remain unchanged.
+
+The earlier deployment hold resolved when the exact blocking Claude process
+reported idle. Both native-idle/history checks passed before installation and
+restart. Thirteen protected states, three saved worker identities, workspace/
+pause/report settings, native CLI/profile and Codex daemon identities were
+preserved. No native worker interrupt or approval answer was sent.
+
+Independent installed verification matches124 source files, with complete
+lockfile JSON unchanged after npm formatting. Strict HTTPS/authentication, both
+assets/listeners, opposite mobile jump anchors and the reserved Send CSS pass.
+All **185 installed checks** pass across nine suites with zero failures/skips.
+Source verification passed83 affected checks and TypeScript/build.
+
+Physical Android keyboard rendering is still unverified. Controlled JSX/CSS
+checks and live asset matching are not browser-layout emulation. Existing phone
+acceptance remains open; no browser tooling was installed. No model call was
+needed for this CSS-only update. The MCP proposal remains withdrawn.
+All release jobs and delegated work are terminal. This outcome-only record is
+newer than the installed payload and requires no redundant deployment.
+
+### Previous checkpoint (superseded)
+
 Delivery checkpoint: **2026-11-23, 08:19 CET**. **1.47.4 is published in source**;
 implementation `184b8b6e8851062847676128dda33427e9a2426b`, initial payload
 `9ced7313ef4ab011feeeb675727b9a7ef909d86b`. The compact toolbar reserves a44px
