@@ -1,5 +1,20 @@
 # Current status for handover
 
+Verified deployment: **2026-11-24, 10:13 CET**. **1.47.5 is installed and the user
+confirmed the long-title close-button fix works in the browser.** Payload
+`043aa8cf93c51ff43c5cbfb769f8d25df423eade`, implementation `e6f4a2a`.
+Ad hoc job 5494 — Guarded CCNG 1.47.5 long-tab update — succeeded
+10:11:46–10:12:11 CET; job 5495 — Installed CCNG 1.47.5 tab-control verification
+— succeeded 10:12:48–10:12:57 CET. All 124 checked files/lockfile JSON match;
+strict HTTPS/authentication/served CSS and 68 installed affected checks pass.
+Both native-idle/history gates passed; thirteen protected states, all seven
+saved workers and native/Auto configuration were preserved. No active worker
+was interrupted. Manual browser acceptance is user-reported; no automated
+browser engine was installed. All release operations and delegated review
+are terminal.
+
+### Previous source checkpoint
+
 Source checkpoint: **2026-11-24, 10:11 CET**. Version **1.47.5**, implementation
 `e6f4a2a142da33f8b460af8c00ea8c1109ebc7ae`, caps desktop hover tabs at the visible worker strip
 and keeps close/reorder controls from shrinking. All 68 affected checks and
