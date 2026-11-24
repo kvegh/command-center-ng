@@ -64,13 +64,10 @@ a { color: var(--accent); }
 .tabs[data-two-rows="true"] { grid-template-rows: repeat(2, 40px); }
 .tabs > .tab-wrap { --tab-width: max(170px, calc((100cqw - (var(--tab-columns) - 1) * 4px) / var(--tab-columns))); flex: 0 0 170px; width: var(--tab-width); min-width: 0; max-width: none; height: 34px; }
 .tabs > .tab-wrap.active { height: 40px; }
-/* Normal columns share the strip's available width. The viewport-based minimum
-   stays stable as intrinsic hover width pushes neighbours aside. */
+/* Expand within the worker strip so a long title cannot hide its close button.
+   Keep normal flex shrinking and ellipsis when the full title will not fit. */
 @media (min-width: 901px) and (hover: hover) and (pointer: fine) {
-  .tabs:not(.reordering) > .tab-wrap:hover { width: max-content; min-width: var(--tab-width); background: var(--chat-tab-background); }
-  .tabs:not(.reordering) > .tab-wrap:hover .agent-tab { flex: 1 0 auto; }
-  .tabs:not(.reordering) > .tab-wrap:hover .tab-text { flex: none; }
-  .tabs:not(.reordering) > .tab-wrap:hover .tab-text strong { overflow: visible; }
+  .tabs:not(.reordering) > .tab-wrap:hover { width: max-content; min-width: min(var(--tab-width), 100cqw); max-width: 100cqw; background: var(--chat-tab-background); }
 }
 .tab-wrap { position: relative; display: flex; align-items: stretch; flex: 1; min-width: 155px; max-width: 260px; min-height: 34px; background: var(--surface); border: 1px solid transparent; border-bottom: 0; border-top: 2px solid #495970; border-radius: 7px 7px 0 0; color: #8193ad; }
 .tab-wrap.running { border-top-color: var(--green); }
@@ -90,14 +87,14 @@ a { color: var(--accent); }
 .tab-text > span { display: flex; align-items: center; gap: 6px; font: 9px var(--mono); }
 .tab-wrap.running .tab-text > span { color: #7bdfba; }
 .tab-wrap.attention .tab-text > span { color: #ffce89; }
-.tab-close { display: flex; align-self: center; color: #7185a2; background: none; border: 0; padding: 4px; margin: 0 5px 0 0; }
+.tab-close { flex-shrink: 0; display: flex; align-self: center; color: #7185a2; background: none; border: 0; padding: 4px; margin: 0 5px 0 0; }
 .tab-close:hover { color: #ecf5ff; }
 .tab-wrap[data-worker-tab] > .agent-tab { cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 .tabs.reordering, .tabs.reordering .agent-tab { cursor: grabbing; }
 .tab-wrap.drag-source { opacity: .55; }
 .tab-wrap.drop-before { box-shadow: inset 3px 0 var(--accent); }
 .tab-wrap.drop-after { box-shadow: inset -3px 0 var(--accent); }
-.tab-order-controls { display: inline-flex; align-self: center; }
+.tab-order-controls { flex-shrink: 0; display: inline-flex; align-self: center; }
 .tab-move { width: 25px; height: 30px; padding: 0; color: #9fb2cd; background: transparent; border: 0; border-radius: 3px; font-size: 13px; }
 .tab-move:hover:not(:disabled) { color: var(--accent); background: #68d9fa10; }
 .new-tab { display: flex; flex-shrink: 0; align-self: center; align-items: center; gap: 7px; min-height: 30px; padding: 5px 10px; border: 1px solid #68d9fa80; border-radius: 7px; white-space: nowrap; background: #203b49; color: #c9f3ff; font-size: 11px; font-weight: 550; }

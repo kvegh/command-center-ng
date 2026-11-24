@@ -1053,14 +1053,15 @@ keyboard controls and reset remain available. Mobile keeps its continuous page
 and compact expandable settings rather than a pinned desktop footer.
 
 Desktop tabs share the available strip width up to Coordinator. On hover they
-expand horizontally to reveal the full title, temporarily show their own saved
+expand horizontally up to the visible worker strip width, temporarily show their own saved
 chat-colour tint and push neighbours aside; only the selected tab is taller. More than six conversation
 tabs, counting Coordinator, use two stable rows. Selecting a worker places its
 row nearest the chat without changing the saved tab order. The worker strip
 scrolls horizontally beside Coordinator, so overflow remains reachable.
 
-The close button stays at the right edge of a hovered tab, including tabs with
-short titles. Selected-tab reorder arrows remain immediately before it.
+The close button stays visible at the right edge of a hovered tab. Titles wider
+than the strip are shortened with an ellipsis; hover the title for its full
+tooltip. Close and selected-tab reorder controls retain their width.
 
 Mobile keeps one horizontally scrollable tab row, without hover expansion or
 row switching. It uses one naturally scrolling full-width page with compact

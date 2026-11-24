@@ -107,7 +107,11 @@ test('desktop CSS grows intrinsic tab width without vertical growth or Coordinat
   assert.ok(hover, 'hover expansion is absent on compact/touch layouts');
   const expansion = hover.nodes.find(rule => rule.selector === '.tabs:not(.reordering) > .tab-wrap:hover');
   assert.equal(expansion.nodes.find(decl => decl.prop === 'width').value, 'max-content');
-  assert.equal(expansion.nodes.find(decl => decl.prop === 'min-width').value, 'var(--tab-width)', 'hover never shrinks a short title below its normal allocated width');
+  assert.equal(expansion.nodes.find(decl => decl.prop === 'max-width')?.value, '100cqw', 'even a very long title must fit the visible worker strip so its close button stays reachable');
+  assert.equal(declarations('.tab-close')['flex-shrink'], '0', 'the title gives up width before the close control');
+  assert.equal(declarations('.tab-order-controls')['flex-shrink'], '0', 'selected-tab ordering controls keep their usable width');
+  assert.ok(!hover.nodes.some(rule => rule.selector?.includes('.agent-tab') || rule.selector?.includes('.tab-text')), 'hover retains the normal shrinkable title and ellipsis instead of pushing controls out');
+  assert.equal(expansion.nodes.find(decl => decl.prop === 'min-width').value, 'min(var(--tab-width), 100cqw)', 'hover retains its allocated width while respecting a strip narrower than the normal minimum');
   assert.equal(expansion.nodes.find(decl => decl.prop === 'background').value, 'var(--chat-tab-background)', 'desktop hover shares the tab’s own chat input colour');
   assert.equal(declarations('.tab-wrap').background, 'var(--surface)', 'leaving hover restores the normal inactive fill');
   assert.ok(!expansion.nodes.some(decl => /height|transform|position/.test(decl.prop)), 'hover cannot raise or overlay the tab');

@@ -7,6 +7,12 @@ For design rationale, alternatives and implementation references, see the
 [decision history](../design_decisions_history.md). Earlier detailed release
 text remains available in the [archived README](https://github.com/kvegh/command-center-ng/blob/12ce91bd35a2a4f0b7446af63d1977605c5a1c21/README.md).
 
+## 1.47.5 — Keep long chat tabs closable
+
+Limit desktop hover expansion to the visible worker strip. Very long titles
+shorten with an ellipsis while close and reorder controls stay reachable.
+The title tooltip still shows the full text.
+
 ## 1.47.4 — Keep Send in the mobile action row
 
 Reserve space for Send beside the other mobile composer actions so a crowded
