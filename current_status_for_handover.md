@@ -1,5 +1,15 @@
 # Current status for handover
 
+Source checkpoint: **2026-11-24, 10:11 CET**. Version **1.47.5**, implementation
+`e6f4a2a142da33f8b460af8c00ea8c1109ebc7ae`, caps desktop hover tabs at the visible worker strip
+and keeps close/reorder controls from shrinking. All 68 affected checks and
+TypeScript/production build pass; independent review found no blocking issue.
+Actual browser geometry remains unverified because no browser tooling is
+installed. User explicitly directed deployment; live installation is still
+1.47.4 until the guarded update and verification succeed.
+
+### Previous deployed checkpoint
+
 Verified checkpoint: **2026-11-23, 09:37 CET**. Published and installed **1.47.4**,
 payload `ecd03a033a3442c3f5ff1dd15aa1e8adabb30818`, implementation
 `184b8b6e8851062847676128dda33427e9a2426b`. The mobile composer reserves a44px

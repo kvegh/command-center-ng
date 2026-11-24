@@ -3328,3 +3328,17 @@ complexity. Stop that exploration; no bridge, server or remote-control activatio
 was implemented. Native attachment findings remain research only and select no
 new integration. This decision does not reopen other deferred work. There is
 no MCP implementation commit.
+
+
+## 2026-11-24 — Keep close controls inside long desktop tabs
+
+The user reported that a very long chat title expanded beyond the worker strip
+on hover and concealed its close button. Retain hover expansion for titles that
+fit, cap wider tabs at the strip width, and let the title ellipsize while close
+and reorder controls retain their width. The native title tooltip exposes the
+full text. Unlimited expansion caused the reported failure; removing hover
+expansion entirely would discard useful existing behavior. No native control,
+row-placement or mobile interaction changes.
+
+Implementation `e6f4a2a142da33f8b460af8c00ea8c1109ebc7ae` (1.47.5). The user separately directed deployment
+after the correction; this records that direction, not a deployment outcome.
