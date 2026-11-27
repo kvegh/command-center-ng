@@ -3342,3 +3342,25 @@ row-placement or mobile interaction changes.
 
 Implementation `e6f4a2a142da33f8b460af8c00ea8c1109ebc7ae` (1.47.5). The user separately directed deployment
 after the correction; this records that direction, not a deployment outcome.
+
+
+## 2026-11-27 — Use 2.x for incremental cleanup of the same application
+
+Recorded 2026-11-27, 21:43 CET; exact user-message time unknown. The user requested the
+quality analysis in `REFACTOR.md`, proposed the `2.0.0-beta` branch, clarified
+that 2.x means cleanup, and directed the repository work. Keep the same intended
+features and supported workflows while improving correctness, simplicity,
+clarity and maintainability. Preserve native permissions, pending requests,
+conversation history, settings and security controls.
+
+Use a separate source branch and small, verifiable changes while retaining
+`main` as the release line. This keeps cleanup reviewable, at the cost of
+bringing relevant release-line fixes across deliberately. A wholesale rewrite,
+new stack or added service was not selected; those add risk without being
+justified by the static review. The branch does not isolate a running backend
+or authorize a beta deployment.
+
+The current repository work adds analysis and its README link only. Cleanup
+proposals are not approved implementation decisions or a replacement for Beads.
+Application version remains **1.47.5**; the branch label is not a released beta.
+Documentation implementation: `19479d277b78255d3812b21fa6d574a44527e4f7`.
