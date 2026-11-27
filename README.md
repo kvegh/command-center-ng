@@ -341,6 +341,7 @@ with the native Claude/Google configuration; no new login is created.
 | [Product requirements](docs/product-requirements.md) | Agreed behaviour and boundaries |
 | [Agent requirements](docs/agent-harness-requirements.md) | Requirements for future native-runtime integrations |
 | [Design decisions](design_decisions_history.md) | Rationale and implementation commit references |
+| [2.x cleanup analysis](REFACTOR.md) | Quality findings, cleanup boundaries and the proposed development sequence |
 
 ## Development and contribution
 
